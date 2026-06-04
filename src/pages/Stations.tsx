@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { usePOS } from '@/context/POSContext';
 import StationCard from '@/components/StationCard';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useLocation } from '@/context/LocationContext';
 import { Badge } from '@/components/ui/badge';
 import { type Station } from '@/types/pos.types';
+import { prefetchPOS } from '@/utils/viewTransition';
 
 const typeLabel = (type: string) =>
   type.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -71,6 +72,10 @@ const Stations = () => {
   const regularTypeGroups = useMemo(() => groupByType(regularStations), [regularStations]);
   const eventTypeGroups = useMemo(() => groupByType(eventStations), [eventStations]);
   const enabledEventStations = eventStations.filter((s) => s.eventEnabled).length;
+
+  useEffect(() => {
+    prefetchPOS();
+  }, []);
 
   const handleAddStationClick = () => setOpenPinDialog(true);
   const handlePinSuccess = () => setOpenAddDialog(true);

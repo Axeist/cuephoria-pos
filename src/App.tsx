@@ -33,6 +33,7 @@ import SplashScreen from "@/components/SplashScreen";
 import AppLoadingOverlay from "@/components/loading/AppLoadingOverlay";
 import { ViewModeProvider } from "@/context/ViewModeContext";
 import PostLoginViewModeDialog from "@/components/PostLoginViewModeDialog";
+import PageTransition from "@/components/layout/PageTransition";
 // REMOVED: import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 // Auth & first paint (keep eager — small or entry routes)
@@ -99,15 +100,20 @@ import CafeSidebar from "@/components/cafe/CafeSidebar";
 
 const HowToUsePage = lazy(() => import("./pages/HowToUse"));
 
-/** Lightweight chunk loader — keeps the main bundle smaller for faster first interaction. */
+/** Lightweight chunk loader — skeleton instead of a blocking spinner. */
 const RouteChunkFallback = () => (
   <div
-    className="flex min-h-[40vh] w-full flex-1 items-center justify-center py-12"
+    className="flex-1 animate-pulse space-y-4 p-4 sm:p-6 md:p-8"
     role="status"
     aria-live="polite"
     aria-busy="true"
   >
-    <div className="h-9 w-9 animate-spin rounded-full border-4 border-cuephoria-lightpurple border-t-transparent" />
+    <div className="h-8 w-40 rounded-lg bg-white/5" />
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="h-36 rounded-xl bg-white/5" />
+      <div className="h-36 rounded-xl bg-white/5" />
+      <div className="h-36 rounded-xl bg-white/5 hidden sm:block" />
+    </div>
     <span className="sr-only">Loading page</span>
   </div>
 );
@@ -132,7 +138,6 @@ const queryClient = new QueryClient({
 // REMOVED: AutoRefreshApp wrapper component - replaced with targeted Realtime subscriptions
 
 interface ProtectedRouteProps {
-  children: React.ReactNode;
   requireAdmin?: boolean;
   requireStaffOnly?: boolean;
   /**
@@ -145,7 +150,6 @@ interface ProtectedRouteProps {
 
 // Enhanced Protected route component that checks for authentication
 const ProtectedRoute = ({ 
-  children, 
   requireAdmin = false,
   requireStaffOnly = false,
   bare = false,
@@ -198,7 +202,7 @@ const ProtectedRoute = ({
                     /* Bare / pop-out mode: chrome-less viewport. Providers
                        above still wrap the page so data hooks keep working. */
                     <div className="app-ambient min-h-screen w-full overflow-x-clip">
-                      {children}
+                      <PageTransition />
                     </div>
                   ) : (
                     <SidebarProvider
@@ -219,7 +223,7 @@ const ProtectedRoute = ({
                             tabIndex={-1}
                             className={`flex-1 pb-16 sm:pb-0 outline-none ${isMobile ? 'pt-[64px]' : ''}`}
                           >
-                            {children}
+                            <PageTransition />
                           </main>
                         </div>
                         {/* First-time post-sign-in view-mode prompt.
@@ -490,16 +494,16 @@ const App = () => {
                     }
                   />
                 )}
-                <Route
-                  path="/login-logs"
-                  element={
-                    <ProtectedRoute requireAdmin={true}>
+                <Route element={<ProtectedRoute requireAdmin />}>
+                  <Route
+                    path="/login-logs"
+                    element={
                       <LazyPage>
                         <LoginLogs />
                       </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
+                    }
+                  />
+                </Route>
 
                 {/* Public routes */}
                 <Route
@@ -744,177 +748,143 @@ const App = () => {
 
                 {/* Debug routes */}
 
-                {/* Protected routes */}
-                <Route
-                  path="/dashboard"
-                  element={
-                    <ProtectedRoute>
+                {/* Protected routes — shared shell; only main content animates */}
+                <Route element={<ProtectedRoute />}>
+                  <Route
+                    path="/dashboard"
+                    element={
                       <LazyPage>
                         <Dashboard />
                       </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/pos"
-                  element={
-                    <ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/pos"
+                    element={
                       <LazyPage>
                         <POS />
                       </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/stations"
-                  element={
-                    <ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/stations"
+                    element={
                       <LazyPage>
                         <Stations />
                       </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/products"
-                  element={
-                    <ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/products"
+                    element={
                       <LazyPage>
                         <Products />
                       </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/customers"
-                  element={
-                    <ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/customers"
+                    element={
                       <LazyPage>
                         <Customers />
                       </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/reports"
-                  element={
-                    <ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/reports"
+                    element={
                       <LazyPage>
                         <Reports />
                       </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/booking-management"
-                  element={
-                    <ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/booking-management"
+                    element={
                       <LazyPage>
                         <BookingManagement />
                       </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
-
-                {/* How to Use page */}
-                <Route
-                  path="/how-to-use"
-                  element={
-                    <ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/how-to-use"
+                    element={
                       <LazyPage>
                         <HowToUsePage />
                       </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
-
-                {/* Staff Management - Admin Only */}
-                <Route
-                  path="/staff"
-                  element={
-                    <ProtectedRoute requireAdmin={true}>
-                      <LazyPage>
-                        <StaffManagement />
-                      </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
-
-                {/* Staff Portal - Staff Only (NOT Admin) */}
-                <Route
-                  path="/staff-portal"
-                  element={
-                    <ProtectedRoute requireStaffOnly={true}>
-                      <LazyPage>
-                        <StaffPortal />
-                      </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
-
-                {/* Chat AI */}
-                <Route
-                  path="/chat-ai"
-                  element={
-                    <ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/chat-ai"
+                    element={
                       <LazyPage>
                         <ChatAI />
                       </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
-
-                {/* Settings */}
-                <Route
-                  path="/settings"
-                  element={
-                    <ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/settings"
+                    element={
                       <LazyPage>
                         <Settings />
                       </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/settings/organization"
-                  element={
-                    <ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/settings/organization"
+                    element={
                       <LazyPage>
                         <OrganizationSettings />
                       </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/settings/billing"
-                  element={
-                    <ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/settings/billing"
+                    element={
                       <LazyPage>
                         <Billing />
                       </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/subscription"
-                  element={
-                    <ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/subscription"
+                    element={
                       <LazyPage>
                         <Billing />
                       </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/account/security"
-                  element={
-                    <ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/account/security"
+                    element={
                       <LazyPage>
                         <AccountSecurity />
                       </LazyPage>
-                    </ProtectedRoute>
-                  }
-                />
+                    }
+                  />
+                </Route>
+
+                <Route element={<ProtectedRoute requireAdmin />}>
+                  <Route
+                    path="/staff"
+                    element={
+                      <LazyPage>
+                        <StaffManagement />
+                      </LazyPage>
+                    }
+                  />
+                </Route>
+
+                <Route element={<ProtectedRoute requireStaffOnly />}>
+                  <Route
+                    path="/staff-portal"
+                    element={
+                      <LazyPage>
+                        <StaffPortal />
+                      </LazyPage>
+                    }
+                  />
+                </Route>
 
                 {/* Tenant workspace landing (deep-link, multi-tenant ready) */}
                 <Route

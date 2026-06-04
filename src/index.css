@@ -361,6 +361,31 @@
   animation: scaleIn 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
 }
 
+.page-enter-fast {
+  animation: pageEnterFast 0.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes pageEnterFast {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-slide-up,
+  .animate-slide-down,
+  .animate-fade-in,
+  .animate-scale-in,
+  .page-enter-fast {
+    animation: none !important;
+  }
+}
+
 .animate-pulse-glow {
   animation: pulseGlow 2s infinite;
 }

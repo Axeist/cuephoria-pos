@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Station, Customer } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS } from '@/context/POSContext';
-import { Pause, Play, Square } from 'lucide-react';
+import { Pause, Play, Square, ShoppingBag } from 'lucide-react';
 import StartSessionDialog from '@/components/StartSessionDialog';
+import { prefetchPOS } from '@/utils/viewTransition';
 
 interface StationActionsProps {
   station: Station;
@@ -33,6 +34,12 @@ const StationActions: React.FC<StationActionsProps> = ({
   const isPoolTable = station.type === '8ball';
   const isVR = station.type === 'vr';
   const isPaused = station.currentSession?.isPaused;
+
+  useEffect(() => {
+    if (station.isOccupied) {
+      prefetchPOS();
+    }
+  }, [station.isOccupied]);
 
   const handleStartSession = async (
     customerId: string,
@@ -64,6 +71,23 @@ const StationActions: React.FC<StationActionsProps> = ({
     }
   };
 
+  const handleQuickShop = () => {
+    if (!station.isOccupied || !station.currentSession) return;
+
+    const customerId = station.currentSession.customerId;
+    const customer = customers.find(c => c.id === customerId);
+
+    if (customer) {
+      selectCustomer(customer.id);
+    }
+
+    const params = new URLSearchParams({
+      quickShop: 'true',
+      station: station.name,
+    });
+    navigate(`/pos?${params.toString()}`);
+  };
+
   const handleEndSession = async () => {
     if (station.isOccupied && station.currentSession) {
       try {
@@ -82,12 +106,10 @@ const StationActions: React.FC<StationActionsProps> = ({
         
         toast({
           title: "Session Ended",
-          description: "Session has been ended and added to cart. Redirecting to checkout...",
+          description: "Session and quick shop items are ready in the cart.",
         });
         
-        setTimeout(() => {
-          navigate('/pos');
-        }, 1500);
+        navigate('/pos');
       } catch (error) {
         console.error("Error ending session:", error);
         toast({
@@ -163,6 +185,26 @@ const StationActions: React.FC<StationActionsProps> = ({
             {isLoading ? "Processing..." : "Pause Session"}
           </Button>
         )}
+
+        <Button
+          variant="default"
+          className={`
+            w-full text-white font-bold py-3 text-lg transition-opacity rounded-lg
+            ${isPoolTable
+              ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'
+              : isVR
+                ? 'bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700'
+                : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-90'
+            }
+          `}
+          onClick={handleQuickShop}
+          disabled={isLoading}
+          onMouseEnter={prefetchPOS}
+          onFocus={prefetchPOS}
+        >
+          <ShoppingBag className="h-4 w-4 mr-2" />
+          Quick Shop
+        </Button>
 
         <Button 
           variant="destructive" 

@@ -517,22 +517,55 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       
       const customerId = station.currentSession.customerId;
+      const wasAlreadySelected = selectedCustomer?.id === customerId;
+      const savedCart = loadCartFromStorage(customerId);
       
       const result = await endSessionBase(stationId, customers);
       
       if (result) {
         const { sessionCartItem, customer } = result;
         
-        clearCart();
-        
         if (customer) {
           console.log("Auto-selecting customer:", customer.name);
-          selectCustomer(customer.id);
-        }
-        
-        if (sessionCartItem) {
-          console.log("Adding session to cart:", sessionCartItem);
-          addToCart(sessionCartItem);
+
+          let existingProductItems: CartItem[] = [];
+          const inMemoryProducts = cart.filter(item => item.type === 'product');
+          const savedProducts = savedCart?.items.filter(item => item.type === 'product') ?? [];
+          existingProductItems = inMemoryProducts.length > 0 ? inMemoryProducts : savedProducts;
+
+          const mergedCart: CartItem[] = [
+            ...existingProductItems,
+            ...(sessionCartItem ? [sessionCartItem] : []),
+          ];
+
+          const mergedDiscount = wasAlreadySelected
+            ? discount
+            : (savedCart?.discount ?? 0);
+          const mergedDiscountType = wasAlreadySelected
+            ? discountType
+            : (savedCart?.discountType ?? 'percentage');
+          const mergedLoyaltyPoints = wasAlreadySelected
+            ? loyaltyPointsUsed
+            : (savedCart?.loyaltyPointsUsed ?? 0);
+
+          if (mergedCart.length > 0) {
+            saveCartToStorage(
+              customer.id,
+              mergedCart,
+              customer.name,
+              mergedDiscount,
+              mergedDiscountType,
+              mergedLoyaltyPoints
+            );
+          }
+
+          if (!wasAlreadySelected) {
+            selectCustomer(customer.id);
+          } else {
+            setCart(mergedCart);
+          }
+
+          console.log("Merged cart for checkout:", mergedCart);
         }
       }
     } catch (error) {
