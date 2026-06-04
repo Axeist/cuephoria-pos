@@ -23,9 +23,12 @@ type LocationsResponse = {
   locations: LocationRow[];
   limits: {
     max_branches: number;
+    plan_max_branches?: number;
     active_count: number;
     can_create: boolean;
     is_trialing: boolean;
+    trial_ended?: boolean;
+    requires_paid_plan?: boolean;
   };
   canEdit: boolean;
 };
@@ -114,16 +117,35 @@ const BranchManagementSettings: React.FC = () => {
         ) : null}
         <CardDescription>
           {limits?.is_trialing ? (
-            <>Trial workspaces can add branches up to your plan limit ({limits?.max_branches ?? 0} active).</>
-          ) : (
-            <>Active branches: {limits?.active_count ?? 0} / {limits?.max_branches ?? 0}</>
-          )}
-          {!limits?.can_create && data?.canEdit ? (
-            <span className="block mt-1">
+            <>
+              Trial active: {limits?.active_count ?? 0} / {limits?.max_branches ?? 0} branches (Pro trial
+              limit). Add branches until your trial ends.
+            </>
+          ) : limits?.requires_paid_plan ? (
+            <>
+              Your trial has ended.{" "}
               <Link to="/subscription" className="text-primary hover:underline">
-                Upgrade your plan
+                Subscribe to an active plan
               </Link>{" "}
-              to add more branches.
+              to add new branches.
+            </>
+          ) : (
+            <>
+              Active branches: {limits?.active_count ?? 0} / {limits?.max_branches ?? 0}
+            </>
+          )}
+          {!limits?.can_create && data?.canEdit && !limits?.requires_paid_plan ? (
+            <span className="block mt-1">
+              {limits?.is_trialing ? (
+                <>You&apos;ve reached the trial branch limit.</>
+              ) : (
+                <>
+                  <Link to="/subscription" className="text-primary hover:underline">
+                    Upgrade your plan
+                  </Link>{" "}
+                  to add more branches.
+                </>
+              )}
             </span>
           ) : null}
         </CardDescription>
