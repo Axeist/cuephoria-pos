@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock } from "lucide-react";
+import { Clock, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface TimeSlot {
@@ -39,44 +39,68 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
 }) => {
   if (loading) {
     return (
-      <div
-        className="grid grid-cols-2 md:grid-cols-3 gap-2"
-        aria-busy="true"
-        aria-label="Loading time slots"
-      >
-        {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
-          <div
-            key={i}
-            className="h-14 rounded-lg bg-white/[0.06] border border-white/5"
-          />
-        ))}
+      <div className="space-y-3" aria-busy="true">
+        <div className="h-4 w-32 rounded bg-white/10" />
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+            <div
+              key={i}
+              className="h-[4.5rem] rounded-xl bg-white/[0.06] border border-white/5"
+            />
+          ))}
+        </div>
       </div>
     );
   }
 
   if (slots.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground transition-opacity duration-300">
-        <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-        <p>No time slots available for this date</p>
+      <div className="rounded-xl border border-white/10 bg-black/25 p-8 text-center">
+        <Clock className="h-10 w-10 mx-auto mb-3 text-gray-500" />
+        <p className="text-sm font-medium text-gray-300">No time slots for this date</p>
+        <p className="text-xs text-muted-foreground mt-1">Try another day or contact the venue</p>
       </div>
     );
   }
 
+  const selectionCount =
+    selectedSlots.length > 0
+      ? selectedSlots.length
+      : selectedSlot
+        ? 1
+        : 0;
+
   return (
     <div className="space-y-4 animate-in fade-in duration-300">
-      <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-sm bg-cuephoria-purple/80" />
-          <span>Available</span>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-cuephoria-purple/80" />
+            Available
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm border border-white/20 bg-white/5" />
+            Booked
+          </span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-sm bg-white/10 border border-white/15" />
-          <span>Booked</span>
-        </div>
+        <span className="text-muted-foreground tabular-nums">1-hour sessions · 11 AM – 11 PM</span>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+      {selectionCount > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-cuephoria-purple/30 bg-cuephoria-purple/10 px-3 py-2.5">
+          <CheckCircle2 className="h-4 w-4 text-cuephoria-lightpurple shrink-0 mt-0.5" />
+          <div className="min-w-0 text-left">
+            <p className="text-xs font-semibold text-white">
+              {selectionCount} hour{selectionCount !== 1 ? "s" : ""} selected
+            </p>
+            <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">
+              Pick stations in Step 3 after choosing your time
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
         {slots.map((slot, index) => {
           const isSelected =
             selectedSlot?.start_time === slot.start_time &&
@@ -84,56 +108,50 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
           const isInMultipleSelection = selectedSlots.some(
             (s) => s.start_time === slot.start_time && s.end_time === slot.end_time
           );
+          const active = isSelected || isInMultipleSelection;
 
           return (
             <Button
               key={`${slot.start_time}-${slot.end_time}-${index}`}
-              variant={
-                isSelected || isInMultipleSelection
-                  ? "default"
-                  : slot.is_available
-                    ? "outline"
-                    : "ghost"
-              }
+              variant={active ? "default" : slot.is_available ? "outline" : "ghost"}
               disabled={!slot.is_available}
               onClick={() => slot.is_available && onSlotSelect(slot)}
               className={cn(
-                "h-14 flex flex-col items-center justify-center text-xs relative",
-                "transition-all duration-200 ease-out",
-                "border-white/15",
+                "h-[4.5rem] w-full flex flex-col items-start justify-center gap-0.5 px-3 py-2 text-left relative",
+                "transition-all duration-200 ease-out rounded-xl border",
                 slot.is_available &&
-                  !isSelected &&
-                  !isInMultipleSelection &&
-                  "hover:border-cuephoria-purple/40 hover:bg-cuephoria-purple/10",
-                (isSelected || isInMultipleSelection) &&
-                  "bg-gradient-to-br from-cuephoria-purple to-cuephoria-lightpurple border-transparent text-white",
-                !slot.is_available && "opacity-45 cursor-not-allowed"
+                  !active &&
+                  "border-white/15 bg-black/20 hover:border-cuephoria-purple/40 hover:bg-cuephoria-purple/10",
+                active &&
+                  "bg-gradient-to-br from-cuephoria-purple to-cuephoria-lightpurple border-transparent text-white shadow-[0_4px_16px_rgba(139,92,246,0.25)]",
+                !slot.is_available && "opacity-40 cursor-not-allowed border-white/5 bg-black/10"
               )}
-              aria-pressed={isSelected || isInMultipleSelection}
+              aria-pressed={active}
             >
-              <div className="font-medium leading-tight">{formatTime(slot.start_time)}</div>
-              <div className="text-[10px] opacity-70 leading-tight">{formatTime(slot.end_time)}</div>
+              <span className="text-sm font-semibold leading-none tabular-nums">
+                {formatTime(slot.start_time)}
+              </span>
+              <span
+                className={cn(
+                  "text-[11px] leading-none tabular-nums",
+                  active ? "text-white/80" : "text-muted-foreground"
+                )}
+              >
+                to {formatTime(slot.end_time)}
+              </span>
 
-              {isInMultipleSelection && (
-                <div className="absolute -top-1 -right-1">
-                  <Badge
-                    variant="default"
-                    className="text-xs px-1 py-0 text-[10px] leading-3 bg-cuephoria-purple"
-                  >
-                    ✓
-                  </Badge>
-                </div>
+              {active && (
+                <Badge className="absolute top-1.5 right-1.5 h-4 px-1 text-[9px] bg-white/20 text-white border-0">
+                  ✓
+                </Badge>
               )}
-
               {!slot.is_available && (
-                <div className="absolute -top-1 -right-1">
-                  <Badge
-                    variant="destructive"
-                    className="text-xs px-1 py-0 text-[10px] leading-3"
-                  >
-                    Booked
-                  </Badge>
-                </div>
+                <Badge
+                  variant="destructive"
+                  className="absolute top-1.5 right-1.5 h-4 px-1 text-[9px]"
+                >
+                  Booked
+                </Badge>
               )}
             </Button>
           );

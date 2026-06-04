@@ -1,14 +1,16 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Monitor, GamepadIcon, Headset, Users, EyeOff } from 'lucide-react';
+import { Users, EyeOff, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   formatOccupancyPriceLabel,
   getRateForPlayerCount,
   isPerPlayerPricing,
 } from '@/utils/stationPricing';
+import { getStationTheme } from '@/utils/stationTheme';
+import { getPublicSlotDurationMinutes, VR_HOURLY_PASSES } from '@/utils/publicBookingAvailability';
+import type { Station } from '@/types/pos.types';
 
 export interface BookingStation {
   id: string;
@@ -31,7 +33,6 @@ interface StationSelectorProps {
   stationPlayerCounts: Record<string, number>;
   onStationToggle: (stationId: string) => void;
   onPlayerCountChange: (stationId: string, count: number) => void;
-  /** Per VR station: passes left in the selected hour */
   vrPassesLeft?: Record<string, number>;
   loading?: boolean;
 }
@@ -45,34 +46,12 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
   vrPassesLeft = {},
   loading = false,
 }) => {
-  const getStationIcon = (type: string) => {
-    switch (type) {
-      case 'ps5':
-        return Monitor;
-      case 'vr':
-        return Headset;
-      default:
-        return GamepadIcon;
-    }
-  };
-
-  const getStationTypeLabel = (type: string) => {
-    switch (type) {
-      case 'ps5':
-        return 'PlayStation 5';
-      case 'vr':
-        return 'VR Gaming';
-      default:
-        return '8-Ball Pool';
-    }
-  };
-
   const toPricingStation = (station: BookingStation) => ({
     hourlyRate: station.hourly_rate,
     maxPlayers: station.max_players ?? station.max_capacity ?? 1,
     occupancyRates: station.occupancy_rates ?? {},
     type: station.type,
-    slotDuration: station.slot_duration,
+    slotDuration: station.type === 'vr' ? 60 : station.slot_duration,
     category: station.category,
     teamName: station.team_name,
     singleRate: station.single_rate,
@@ -83,16 +62,21 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
   const getPriceDisplay = (station: BookingStation) => {
     const count = stationPlayerCounts[station.id] ?? 1;
     return formatOccupancyPriceLabel(
-      { ...toPricingStation(station), type: station.type, slotDuration: station.slot_duration, category: station.category },
+      {
+        ...toPricingStation(station),
+        type: station.type,
+        slotDuration: station.type === 'vr' ? 60 : station.slot_duration,
+        category: station.category,
+      },
       count
     );
   };
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-32 bg-muted/50 rounded-lg animate-pulse" />
+          <div key={i} className="h-44 rounded-2xl bg-white/5 border border-white/10 animate-pulse" />
         ))}
       </div>
     );
@@ -100,95 +84,133 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
 
   if (stations.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-400">
-        <EyeOff className="h-8 w-8 mx-auto mb-2 opacity-50" />
-        <p>No stations available for the selected date and time</p>
+      <div className="rounded-xl border border-white/10 bg-black/25 p-8 text-center">
+        <EyeOff className="h-10 w-10 mx-auto mb-3 text-gray-500" />
+        <p className="text-sm font-medium text-gray-300">No stations for this time</p>
+        <p className="text-xs text-muted-foreground mt-1">Try another slot or filter</p>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
       {stations.map((station) => {
-        const Icon = getStationIcon(station.type);
+        const theme = getStationTheme({ type: station.type } as Station);
+        const Icon = theme.icon;
         const isSelected = selectedStations.includes(station.id);
         const maxPlayers = station.max_players ?? station.max_capacity ?? 1;
         const playerCount = stationPlayerCounts[station.id] ?? 1;
         const multiPlayer = isPerPlayerPricing(toPricingStation(station)) && maxPlayers > 1;
+        const durationMin = getPublicSlotDurationMinutes(station);
+        const passesLeft = vrPassesLeft[station.id];
 
         return (
-          <Card
+          <button
             key={station.id}
-            className={cn(
-              'cursor-pointer transition-all duration-200 border-white/10 backdrop-blur-sm',
-              'bg-gradient-to-br from-[#0f0a1a]/90 via-[#120818]/70 to-[#0a0612]/90',
-              isSelected
-                ? 'ring-2 ring-cuephoria-purple/60 shadow-[0_0_20px_rgba(139,92,246,0.15)]'
-                : 'hover:border-cuephoria-purple/30 hover:shadow-[0_4px_20px_rgba(139,92,246,0.08)]'
-            )}
+            type="button"
             onClick={() => onStationToggle(station.id)}
+            className={cn(
+              'group relative flex flex-col text-left rounded-2xl border overflow-hidden transition-all duration-200',
+              'min-h-[11.5rem]',
+              theme.border,
+              theme.bg,
+              isSelected
+                ? cn(theme.glow, 'ring-2 ring-cuephoria-purple/50')
+                : 'hover:scale-[1.01] hover:border-white/20'
+            )}
           >
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base flex items-center gap-2 text-white">
-                  <Icon className="h-5 w-5" />
-                  {station.name}
-                </CardTitle>
+            <div className={cn('absolute inset-0 pointer-events-none opacity-80', theme.mesh)} />
+            <div
+              className={cn(
+                'relative h-1 w-full shrink-0',
+                isSelected ? theme.topBarLive : theme.topBarIdle
+              )}
+            />
+
+            <div className="relative flex flex-1 flex-col p-4 gap-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-3 min-w-0 flex-1">
+                  <div
+                    className={cn(
+                      'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+                      theme.iconBg
+                    )}
+                  >
+                    <Icon className={cn('h-5 w-5', theme.accent)} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-sm text-white leading-tight truncate">
+                      {station.name}
+                    </p>
+                    <p className={cn('text-xs mt-0.5', theme.accentMuted)}>{theme.label}</p>
+                  </div>
+                </div>
                 {isSelected && (
-                  <Badge variant="default" className="text-xs bg-cuephoria-purple text-white">
+                  <Badge className="shrink-0 bg-cuephoria-purple text-white text-[10px] px-2">
                     Selected
                   </Badge>
                 )}
               </div>
-              {maxPlayers > 1 && (
-                <Badge variant="outline" className="mt-2 text-xs w-fit border-white/20 text-gray-300">
-                  <Users className="h-3 w-3 mr-1" />
-                  Up to {maxPlayers} players
-                </Badge>
-              )}
-            </CardHeader>
-            <CardContent className="pt-0 space-y-3" onClick={(e) => e.stopPropagation()}>
-              <Badge variant="secondary" className="text-xs border bg-white/10 text-gray-200 border-white/10">
-                {getStationTypeLabel(station.type)}
-              </Badge>
-              {station.type === 'vr' && vrPassesLeft[station.id] != null && (
-                <Badge
-                  variant="outline"
-                  className="text-xs w-fit border-cuephoria-blue/40 bg-cuephoria-blue/10 text-cuephoria-blue"
-                >
-                  {vrPassesLeft[station.id]} of 4 passes left this hour
-                </Badge>
-              )}
-              <div className="text-sm font-medium text-cuephoria-lightpurple">{getPriceDisplay(station)}</div>
 
-              {isSelected && multiPlayer && (
-                <div className="flex items-center gap-2 pt-1">
-                  <span className="text-xs text-gray-400">Players</span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 w-7 p-0 border-white/20"
-                    disabled={playerCount <= 1}
-                    onClick={() => onPlayerCountChange(station.id, playerCount - 1)}
-                  >
-                    −
-                  </Button>
-                  <span className="text-sm font-semibold text-white w-6 text-center">{playerCount}</span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 w-7 p-0 border-white/20"
-                    disabled={playerCount >= maxPlayers}
-                    onClick={() => onPlayerCountChange(station.id, playerCount + 1)}
-                  >
-                    +
-                  </Button>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Clock className="h-3.5 w-3.5 shrink-0" />
+                  <span>{durationMin} min session</span>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                {maxPlayers > 1 && (
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <Users className="h-3.5 w-3.5 shrink-0" />
+                    <span>Up to {maxPlayers} players</span>
+                  </div>
+                )}
+                {station.type === 'vr' && passesLeft != null && (
+                  <p className="text-left text-[11px] font-medium text-cuephoria-blue leading-snug">
+                    {passesLeft} of {VR_HOURLY_PASSES} VR passes left this hour
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-auto pt-2 border-t border-white/10">
+                <p className="text-sm font-semibold text-cuephoria-lightpurple text-left">
+                  {getPriceDisplay(station)}
+                </p>
+
+                {isSelected && multiPlayer && (
+                  <div
+                    className="flex items-center justify-between gap-2 mt-3"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className="text-xs font-medium text-gray-400">Players</span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0 border-white/20 rounded-lg"
+                        disabled={playerCount <= 1}
+                        onClick={() => onPlayerCountChange(station.id, playerCount - 1)}
+                      >
+                        −
+                      </Button>
+                      <span className="text-sm font-bold text-white w-6 text-center tabular-nums">
+                        {playerCount}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0 border-white/20 rounded-lg"
+                        disabled={playerCount >= maxPlayers}
+                        onClick={() => onPlayerCountChange(station.id, playerCount + 1)}
+                      >
+                        +
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </button>
         );
       })}
     </div>

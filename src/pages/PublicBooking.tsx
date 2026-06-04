@@ -11,10 +11,7 @@ import { toast } from "sonner";
 import { hapticImpact } from "@/utils/capacitor";
 import { supabase } from "@/integrations/supabase/client";
 import { StationSelector } from "@/components/booking/StationSelector";
-import {
-  BookingStationTypeChips,
-  bookingStationTypeLabel,
-} from "@/components/booking/BookingStationTypeChips";
+import { BookingStationTypeChips } from "@/components/booking/BookingStationTypeChips";
 import { getRateForPlayerCount } from "@/utils/stationPricing";
 import { isStationPublicBookable } from "@/utils/stationTransform";
 import {
@@ -216,7 +213,7 @@ const getSlotDurationMinutesFromTime = (startTime: string, endTime: string): num
 };
 
 const BOOKING_STEP_CARD =
-  "rounded-2xl border border-white/10 bg-gradient-to-br from-[#0f0a1a]/90 via-[#120818]/70 to-[#0a0612]/90 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.2)]";
+  "rounded-2xl border border-white/10 bg-gradient-to-br from-[#0f0a1a] via-[#120818] to-[#0a0612] backdrop-blur-xl shadow-[0_8px_40px_rgba(139,92,246,0.08)]";
 
 const regularStations = (stations: Station[]) =>
   stations.filter((s) => !s.category || s.category !== 'nit_event');
@@ -554,9 +551,14 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
   const handleStationTypeChange = (type: 'all' | StationType) => {
     setStationType(type);
-    setSelectedSlot(null);
-    setSelectedSlots([]);
-    setSelectedStations([]);
+    setSelectedStations((prev) =>
+      prev.filter((id) => {
+        const s = stations.find((x) => x.id === id);
+        if (!s) return false;
+        if (type === 'all') return true;
+        return s.type === type;
+      })
+    );
   };
 
   useEffect(() => {
@@ -605,14 +607,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       setSelectedSlot(null);
       setSelectedSlots([]);
     }
-  }, [
-    selectedDate,
-    selectedStations,
-    isCustomerInfoComplete,
-    stationType,
-    stations.length,
-    publicLocationId,
-  ]);
+  }, [selectedDate, selectedStations, isCustomerInfoComplete, stations.length, publicLocationId]);
   
   // NEW: Update available stations when a time slot is selected
   useEffect(() => {
@@ -740,7 +735,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         return;
       }
 
-      const pool = stationsForTypeFilter(stations, stationType);
+      const pool = regularStations(stations);
       const stationIds = pool.map((s) => s.id);
       const occupancy = await fetchDayOccupancy(dateStr, publicLocationId, stationIds);
       if (gen !== slotsFetchGenRef.current) return;
@@ -753,7 +748,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
       const builtSlots = buildPublicBookingSlots({
         stations: pool,
-        stationType,
+        stationType: 'all',
         selectedStationIds: selectedStations,
         bookings: occupancy.bookings,
         sessionBlocks: occupancy.sessionBlocks,
@@ -2239,16 +2234,17 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             <Card className={BOOKING_STEP_CARD}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <div className="w-8 h-8 rounded-lg bg-cuephoria-purple/20 ring-1 ring-white/10 flex items-center justify-center">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-3 text-white text-base sm:text-lg">
+                  <div className="w-9 h-9 rounded-lg bg-cuephoria-purple/20 ring-1 ring-white/10 flex items-center justify-center shrink-0">
                     <User className="h-4 w-4 text-cuephoria-purple" />
                   </div>
-                  Step 1: Customer Information
+                  <span className="text-left flex-1">Step 1: Customer Information</span>
                   {isCustomerInfoComplete && (
-                    <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />
+                    <CheckCircle className="h-5 w-5 text-green-400 shrink-0" />
                   )}
                 </CardTitle>
+                <div className="mt-3 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="bg-cuephoria-purple/10 border border-cuephoria-purple/20 rounded-xl p-3">
@@ -2349,20 +2345,21 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                 isCustomerInfoComplete ? "opacity-100 translate-y-0" : "opacity-95"
               )}
             >
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <div className="w-8 h-8 rounded-lg bg-cuephoria-lightpurple/20 ring-1 ring-white/10 flex items-center justify-center">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-3 text-white text-base sm:text-lg">
+                  <div className="w-9 h-9 rounded-lg bg-cuephoria-lightpurple/20 ring-1 ring-white/10 flex items-center justify-center shrink-0">
                     {!isCustomerInfoComplete ? (
                       <Lock className="h-4 w-4 text-gray-500" />
                     ) : (
                       <CalendarIcon className="h-4 w-4 text-cuephoria-lightpurple" />
                     )}
                   </div>
-                  Step 2: Choose Date & Time
+                  <span className="text-left flex-1">Step 2: Choose Date & Time</span>
                   {isCustomerInfoComplete && selectedSlot && (
-                    <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />
+                    <CheckCircle className="h-5 w-5 text-green-400 shrink-0" />
                   )}
                 </CardTitle>
+                <div className="mt-3 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
               </CardHeader>
               <CardContent className="space-y-6">
                 {!isCustomerInfoComplete ? (
@@ -2373,26 +2370,17 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-5">
-                    <div>
-                      <Label className="text-base font-medium text-gray-200 block mb-3">
-                        Station type
-                      </Label>
-                      <p className="text-xs text-muted-foreground mb-3">
-                        Choose what you want to book — filters times and stations below. 1-hour slots;
-                        VR pass count appears on each VR station in Step 3.
-                      </p>
-                      <BookingStationTypeChips
-                        value={stationType}
-                        onChange={handleStationTypeChange}
-                      />
-                    </div>
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div>
-                      <Label className="text-base font-medium text-gray-200">
-                        Choose Date
-                      </Label>
-                      <div className="mt-2">
+                  <div className="grid lg:grid-cols-2 gap-8">
+                    <div className="space-y-3">
+                      <div className="text-left">
+                        <Label className="text-sm font-semibold text-white">
+                          Choose date
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                          {format(selectedDate, "EEEE, MMMM d, yyyy")}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-black/25 p-2">
                         <Calendar
                           mode="single"
                           selected={selectedDate}
@@ -2406,22 +2394,31 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                             return compareDate < today;
                           }}
                           className={cn(
-                            "rounded-xl border bg-black/30 border-white/10 pointer-events-auto"
+                            "rounded-lg border-0 bg-transparent pointer-events-auto"
                           )}
                         />
                       </div>
                     </div>
-                    <div>
-                      <div className="mb-3 bg-cuephoria-blue/10 border border-cuephoria-blue/20 rounded-lg p-2.5">
-                        <p className="text-xs text-cuephoria-blue flex items-center gap-2">
-                          <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span><span className="font-medium">Multiple Slot Selection:</span> Click multiple time slots to book consecutive sessions. Click again to deselect.</span>
+                    <div className="space-y-3">
+                      <div className="text-left">
+                        <Label className="text-sm font-semibold text-white">
+                          Available time slots
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                          1-hour sessions, 11 AM – 11 PM. Tap multiple slots for back-to-back
+                          bookings.
                         </p>
                       </div>
-                      <Label className="text-base font-medium text-gray-200">
-                        Available Time Slots
-                      </Label>
-                      <div className="mt-2">
+                      <div className="rounded-xl border border-cuephoria-blue/20 bg-cuephoria-blue/5 px-3 py-2.5 text-left">
+                        <p className="text-xs text-cuephoria-blue flex items-start gap-2 leading-relaxed">
+                          <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                          <span>
+                            <span className="font-medium">Tip:</span> Click a slot again to
+                            deselect. Filter PS5, pool, or VR in Step 3.
+                          </span>
+                        </p>
+                      </div>
+                      <div>
                         {stations.length === 0 && !slotsLoading ? (
                           <div className="rounded-xl border border-amber-500/30 bg-amber-950/30 p-4 text-center text-sm text-amber-200">
                             <AlertTriangle className="h-6 w-6 mx-auto mb-2 text-amber-400" />
@@ -2440,7 +2437,6 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                       </div>
                     </div>
                   </div>
-                  </div>
                 )}
               </CardContent>
             </Card>
@@ -2456,15 +2452,13 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                         <MapPin className="h-4 w-4 text-cuephoria-blue" />
                       )}
                     </div>
-                    <div className="min-w-0">
-                      <CardTitle className="m-0 p-0 text-white">
+                    <div className="min-w-0 text-left">
+                      <CardTitle className="m-0 p-0 text-white text-base sm:text-lg">
                         Step 3: Select Available Stations
                       </CardTitle>
                       {isCustomerInfoComplete && selectedSlot && (
-                        <p className="text-xs text-muted-foreground mt-1 truncate">
-                          {stationType === "all"
-                            ? "All types for your selected time"
-                            : `${bookingStationTypeLabel(stationType)} only — change filter in Step 2`}
+                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                          Stations free for your selected hour
                         </p>
                       )}
                     </div>
@@ -2487,7 +2481,19 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                     </p>
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-white/10 p-3 sm:p-4 bg-black/20 transition-opacity duration-300 ease-out">
+                  <div className="space-y-4 transition-opacity duration-300 ease-out">
+                    <div className="text-left space-y-2">
+                      <Label className="text-sm font-semibold text-white">Station type</Label>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Filter which stations to book. VR cards show passes left for this hour.
+                      </p>
+                      <BookingStationTypeChips
+                        variant="colored"
+                        value={stationType}
+                        onChange={handleStationTypeChange}
+                      />
+                    </div>
+                    <div className="rounded-xl border border-white/10 p-3 sm:p-4 bg-black/25">
                     {checkingStationAvailability ? (
                       <div className="text-center py-8 text-gray-400">
                         <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin motion-reduce:animate-none" />
@@ -2514,6 +2520,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                         />
                       </>
                     )}
+                    </div>
                   </div>
                 )}
               </CardContent>
