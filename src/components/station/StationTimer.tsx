@@ -103,7 +103,7 @@ const StationTimer: React.FC<StationTimerProps> = ({ station, theme }) => {
 
   return (
     <div
-      className={`relative overflow-hidden flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 border backdrop-blur-sm transition-all duration-150 ${
+      className={`relative overflow-hidden flex flex-col items-center justify-center gap-1 rounded-xl px-4 py-4 border backdrop-blur-sm transition-all duration-150 min-w-[140px] ${
         isPaused
           ? 'bg-amber-950/60 border-amber-500/35'
           : 'bg-black/55 border-white/10 shadow-inner'
@@ -117,19 +117,22 @@ const StationTimer: React.FC<StationTimerProps> = ({ station, theme }) => {
           }}
         />
       )}
-      <div className="relative flex items-center gap-1.5 min-w-0">
-        <Timer className={`h-3.5 w-3.5 shrink-0 ${isPaused ? 'text-amber-400' : theme.accent}`} />
-        <span
-          className={`font-mono text-base font-bold tabular-nums tracking-wide transition-transform duration-150 ${
-            isPaused ? 'text-amber-100' : 'text-white'
-          } ${tick ? 'scale-105' : ''}`}
-        >
-          {timeStr}
+      <div className="relative flex items-center gap-2">
+        <Timer className={`h-4 w-4 shrink-0 ${isPaused ? 'text-amber-400' : theme.accent}`} />
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          {isPaused ? 'Paused' : 'Elapsed'}
         </span>
       </div>
+      <span
+        className={`relative font-mono text-3xl font-bold tabular-nums tracking-wider transition-transform duration-150 ${
+          isPaused ? 'text-amber-100' : 'text-white'
+        } ${tick ? 'scale-105' : ''}`}
+      >
+        {timeStr}
+      </span>
       <CurrencyDisplay
         amount={cost}
-        className={`relative text-sm font-bold shrink-0 ${
+        className={`relative text-lg font-bold ${
           isPaused ? 'text-amber-300' : 'text-cuephoria-orange drop-shadow-[0_0_8px_rgba(249,115,22,0.4)]'
         }`}
       />

@@ -92,13 +92,13 @@ const StationActions: React.FC<StationActionsProps> = ({
   };
 
   const btnBase =
-    'h-8 flex-1 text-xs font-semibold px-2 transition-all duration-200 active:scale-95';
+    'h-10 flex-1 text-sm font-semibold px-3 transition-all duration-200 active:scale-95';
 
   if (station.isOccupied || phase === 'live' || phase === 'starting') {
     if (phase === 'starting') return null;
 
     return (
-      <div className="flex w-full gap-1.5 animate-station-content-in">
+      <div className="flex w-full flex-col gap-2 animate-station-content-in">
         {isPaused ? (
           <Button
             size="sm"
@@ -153,8 +153,8 @@ const StationActions: React.FC<StationActionsProps> = ({
   return (
     <>
       <Button
-        size="sm"
-        className={`w-full h-9 text-sm font-bold text-white transition-all duration-300 active:scale-[0.98] hover:brightness-110 ${theme.startBtn}`}
+        size="default"
+        className={`w-full h-11 text-base font-bold text-white transition-all duration-300 active:scale-[0.98] hover:brightness-110 ${theme.startBtn}`}
         disabled={isLoading || customers.length === 0 || isTransitioning}
         onClick={() => setIsStartDialogOpen(true)}
       >
