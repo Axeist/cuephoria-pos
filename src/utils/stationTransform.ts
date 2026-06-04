@@ -1,6 +1,15 @@
 import type { Session, Station } from '@/types/pos.types';
 import type { OccupancyRates } from '@/utils/stationPricing';
 
+/** Matches Station Command “On booking page” / `eventEnabled` in transformStationRow. */
+export function isStationPublicBookable(row: {
+  category?: string | null;
+  event_enabled?: boolean | null;
+}): boolean {
+  if (row.category === 'nit_event') return false;
+  return row.event_enabled ?? (row.category ? false : true);
+}
+
 export function parseOccupancyRates(raw: unknown): OccupancyRates {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
   const out: OccupancyRates = {};

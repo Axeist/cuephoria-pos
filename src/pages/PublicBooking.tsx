@@ -12,6 +12,7 @@ import { hapticImpact } from "@/utils/capacitor";
 import { supabase } from "@/integrations/supabase/client";
 import { StationSelector } from "@/components/booking/StationSelector";
 import { getRateForPlayerCount } from "@/utils/stationPricing";
+import { isStationPublicBookable } from "@/utils/stationTransform";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import CouponPromotionalPopup from "@/components/CouponPromotionalPopup";
 import BookingConfirmationDialog from "@/components/BookingConfirmationDialog";
@@ -627,28 +628,62 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
    // NOTE: Slot blocks auto-expire server-side; we do not attempt client-side cleanup.
 
+  const mapPublicStationRows = (raw: any[]) =>
+    raw
+      .filter((s) => isStationPublicBookable(s))
+      .map((station) => ({
+        ...station,
+        type: normalizeStationType(station.type),
+        max_players: station.max_players ?? station.max_capacity ?? 1,
+        occupancy_rates: station.occupancy_rates ?? {},
+        pricing_mode: station.pricing_mode ?? undefined,
+      }));
+
   async function fetchStations() {
     if (!publicLocationId) return;
     try {
-      const { data, error } = await (supabase as any)
-        .from("stations")
-        .select("id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate, category, event_enabled, slot_duration, max_players, occupancy_rates, pricing_mode")
-        .eq("location_id", publicLocationId)
-        .neq("category", "nit_event")
-        .order("name");
-      if (error) throw error;
-      const rows = ((data || []) as any[]).filter(
-        (s) => s.event_enabled !== false
-      );
-      setStations(
-        rows.map((station) => ({
-          ...station,
-          type: normalizeStationType(station.type),
-          max_players: station.max_players ?? station.max_capacity ?? 1,
-          occupancy_rates: station.occupancy_rates ?? {},
-          pricing_mode: station.pricing_mode ?? undefined,
-        }))
-      );
+      let rawRows: any[] | null = null;
+
+      try {
+        const res = await fetch(
+          `/api/public/bookable-stations?branch=${encodeURIComponent(branchSlug)}`
+        );
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.ok && Array.isArray(json.stations)) {
+            rawRows = json.stations;
+            if (json.location_id && json.location_id !== publicLocationId) {
+              console.warn("Public booking: branch location id mismatch", {
+                api: json.location_id,
+                client: publicLocationId,
+              });
+            }
+          }
+        }
+      } catch (apiErr) {
+        console.warn("Public booking: API station fetch failed, using client", apiErr);
+      }
+
+      if (!rawRows) {
+        const { data, error } = await (supabase as any)
+          .from("stations")
+          .select(
+            "id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate, category, event_enabled, slot_duration, max_players, occupancy_rates, pricing_mode"
+          )
+          .eq("location_id", publicLocationId)
+          .order("name");
+        if (error) throw error;
+        rawRows = data || [];
+      }
+
+      const rows = mapPublicStationRows(rawRows);
+      setStations(rows);
+
+      if (rows.length === 0 && rawRows.length > 0) {
+        console.warn(
+          "Public booking: stations exist for branch but none are public (enable On booking page per station)."
+        );
+      }
     } catch (e) {
       console.error(e);
       toast.error("Failed to load stations");
@@ -2625,7 +2660,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                         {stations.length === 0 && !slotsLoading ? (
                           <div className="rounded-xl border border-amber-500/30 bg-amber-950/30 p-4 text-center text-sm text-amber-200">
                             <AlertTriangle className="h-6 w-6 mx-auto mb-2 text-amber-400" />
-                            No bookable stations for this branch. Enable public booking on stations in Station Command, or contact the venue.
+                            No stations are enabled for online booking at this branch. In Station Command, turn on{' '}
+                            <strong>On booking page</strong> for each station (globe toggle), then refresh this page.
                           </div>
                         ) : (
                           <TimeSlotPicker
