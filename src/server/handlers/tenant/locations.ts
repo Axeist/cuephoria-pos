@@ -6,7 +6,7 @@
 
 import { j } from "../../adminApiUtils";
 import { getPlanFeature, withOrgContext, type OrgContext } from "../../orgContext";
-import { slugifyBranch } from "@/utils/publicBookingPopups";
+import { slugifyBranch } from "../../../utils/publicBookingPopups";
 
 export const config = { runtime: "edge" };
 

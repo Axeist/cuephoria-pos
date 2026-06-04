@@ -4,7 +4,7 @@ import type {
   InstagramGateConfig,
   OnlinePaymentPromoConfig,
   PublicBookingPopupConfig,
-} from "@/types/publicBookingPopups";
+} from "../types/publicBookingPopups";
 
 export const EMPTY_PUBLIC_BOOKING_POPUP_CONFIG: PublicBookingPopupConfig = {
   coupon_promo_enabled: false,

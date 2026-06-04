@@ -11,11 +11,11 @@ import {
   BOOKING_POPUP_BRANCH_SETTING_KEY,
   type BranchPublicBookingPopupConfig,
   type PublicBookingPopupConfig,
-} from "@/types/publicBookingPopups";
+} from "../../../types/publicBookingPopups";
 import {
   parseBranchPopupOverride,
   parsePublicBookingPopupConfig,
-} from "@/utils/publicBookingPopups";
+} from "../../../utils/publicBookingPopups";
 
 export const config = { runtime: "edge" };
 

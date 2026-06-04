@@ -4,12 +4,12 @@
 
 import { j } from "../../adminApiUtils";
 import { supabaseServiceClient, SupabaseConfigError } from "../../supabaseServer";
-import { BOOKING_POPUP_BRANCH_SETTING_KEY } from "@/types/publicBookingPopups";
+import { BOOKING_POPUP_BRANCH_SETTING_KEY } from "../../../types/publicBookingPopups";
 import {
   mergePublicBookingPopupConfig,
   parseBranchPopupOverride,
   parsePublicBookingPopupConfig,
-} from "@/utils/publicBookingPopups";
+} from "../../../utils/publicBookingPopups";
 
 export const config = { runtime: "edge" };
 
