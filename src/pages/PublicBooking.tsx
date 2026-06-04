@@ -2361,26 +2361,24 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                 </CardTitle>
                 <div className="mt-3 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="pt-2 pb-4">
                 {!isCustomerInfoComplete ? (
-                  <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
+                  <div className="bg-black/30 border border-white/10 rounded-xl p-5 text-center">
                     <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
-                    <p className="text-gray-400">
+                    <p className="text-gray-400 text-sm">
                       Complete customer information to select date and time
                     </p>
                   </div>
                 ) : (
-                  <div className="grid lg:grid-cols-2 gap-8">
-                    <div className="space-y-3">
-                      <div className="text-left">
-                        <Label className="text-sm font-semibold text-white">
-                          Choose date
-                        </Label>
-                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                          {format(selectedDate, "EEEE, MMMM d, yyyy")}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-white/10 bg-black/25 p-2">
+                  <div className="grid lg:grid-cols-[minmax(0,17rem)_1fr] gap-4 lg:gap-5 items-start">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-white block text-left">
+                        Choose date
+                      </Label>
+                      <p className="text-xs text-muted-foreground text-left leading-snug">
+                        {format(selectedDate, "EEE, MMM d, yyyy")}
+                      </p>
+                      <div className="rounded-lg border border-white/10 bg-black/25 p-1 w-fit max-w-full">
                         <Calendar
                           mode="single"
                           selected={selectedDate}
@@ -2399,26 +2397,19 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                         />
                       </div>
                     </div>
-                    <div className="space-y-3">
-                      <div className="text-left">
+                    <div className="space-y-2 min-w-0">
+                      <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-0.5 text-left">
                         <Label className="text-sm font-semibold text-white">
                           Available time slots
                         </Label>
-                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                          1-hour sessions, 11 AM – 11 PM. Tap multiple slots for back-to-back
-                          bookings.
-                        </p>
+                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                          1 hr · 11 AM–11 PM
+                        </span>
                       </div>
-                      <div className="rounded-xl border border-cuephoria-blue/20 bg-cuephoria-blue/5 px-3 py-2.5 text-left">
-                        <p className="text-xs text-cuephoria-blue flex items-start gap-2 leading-relaxed">
-                          <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                          <span>
-                            <span className="font-medium">Tip:</span> Click a slot again to
-                            deselect. Filter PS5, pool, or VR in Step 3.
-                          </span>
-                        </p>
-                      </div>
-                      <div>
+                      <p className="text-[11px] text-muted-foreground text-left leading-snug">
+                        Tap slots to select · click again to deselect · filter stations in Step 3
+                      </p>
+                      <div className="min-w-0">
                         {stations.length === 0 && !slotsLoading ? (
                           <div className="rounded-xl border border-amber-500/30 bg-amber-950/30 p-4 text-center text-sm text-amber-200">
                             <AlertTriangle className="h-6 w-6 mx-auto mb-2 text-amber-400" />
@@ -2481,11 +2472,11 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-4 transition-opacity duration-300 ease-out">
-                    <div className="text-left space-y-2">
+                  <div className="space-y-3 transition-opacity duration-300 ease-out">
+                    <div className="text-left space-y-1.5">
                       <Label className="text-sm font-semibold text-white">Station type</Label>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        Filter which stations to book. VR cards show passes left for this hour.
+                      <p className="text-[11px] text-muted-foreground leading-snug">
+                        VR cards show passes left for this hour
                       </p>
                       <BookingStationTypeChips
                         variant="colored"

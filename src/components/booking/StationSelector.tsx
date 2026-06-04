@@ -93,7 +93,7 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch">
       {stations.map((station) => {
         const theme = getStationTheme({ type: station.type } as Station);
         const Icon = theme.icon;
@@ -110,13 +110,12 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
             type="button"
             onClick={() => onStationToggle(station.id)}
             className={cn(
-              'group relative flex flex-col text-left rounded-2xl border overflow-hidden transition-all duration-200',
-              'min-h-[11.5rem]',
+              'group relative flex flex-col text-left rounded-2xl border overflow-hidden transition-all duration-200 w-full',
               theme.border,
               theme.bg,
               isSelected
                 ? cn(theme.glow, 'ring-2 ring-cuephoria-purple/50')
-                : 'hover:scale-[1.01] hover:border-white/20'
+                : 'hover:border-white/20'
             )}
           >
             <div className={cn('absolute inset-0 pointer-events-none opacity-80', theme.mesh)} />
@@ -127,32 +126,38 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
               )}
             />
 
-            <div className="relative flex flex-1 flex-col p-4 gap-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div
-                    className={cn(
-                      'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
-                      theme.iconBg
-                    )}
-                  >
-                    <Icon className={cn('h-5 w-5', theme.accent)} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-sm text-white leading-tight truncate">
-                      {station.name}
-                    </p>
-                    <p className={cn('text-xs mt-0.5', theme.accentMuted)}>{theme.label}</p>
-                  </div>
+            <div className="relative flex flex-1 flex-col p-3.5 gap-2.5">
+              {isSelected && (
+                <Badge className="absolute top-2.5 right-2.5 z-10 bg-cuephoria-purple text-white text-[10px] px-2 py-0 shadow-md">
+                  Selected
+                </Badge>
+              )}
+              <div className="flex items-start gap-2.5 w-full pr-1">
+                <div
+                  className={cn(
+                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+                    theme.iconBg
+                  )}
+                >
+                  <Icon className={cn('h-4 w-4', theme.accent)} />
                 </div>
-                {isSelected && (
-                  <Badge className="shrink-0 bg-cuephoria-purple text-white text-[10px] px-2">
-                    Selected
-                  </Badge>
-                )}
+                <div className="min-w-0 flex-1 text-left">
+                  <p
+                    className={cn(
+                      'font-semibold text-sm text-white leading-snug break-words',
+                      isSelected && 'pr-16'
+                    )}
+                    title={station.name}
+                  >
+                    {station.name}
+                  </p>
+                  <p className={cn('text-xs mt-0.5 leading-snug', theme.accentMuted)}>
+                    {theme.label}
+                  </p>
+                </div>
               </div>
 
-              <div className="space-y-2 text-xs">
+              <div className="space-y-1.5 text-xs text-left">
                 <div className="flex items-center gap-2 text-gray-400">
                   <Clock className="h-3.5 w-3.5 shrink-0" />
                   <span>{durationMin} min session</span>
@@ -170,8 +175,8 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
                 )}
               </div>
 
-              <div className="mt-auto pt-2 border-t border-white/10">
-                <p className="text-sm font-semibold text-cuephoria-lightpurple text-left">
+              <div className="mt-auto pt-2 border-t border-white/10 text-left">
+                <p className="text-sm font-semibold text-cuephoria-lightpurple leading-snug break-words">
                   {getPriceDisplay(station)}
                 </p>
 

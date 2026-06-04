@@ -71,36 +71,29 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
         : 0;
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-300">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-        <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-cuephoria-purple/80" />
-            Available
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm border border-white/20 bg-white/5" />
-            Booked
-          </span>
-        </div>
-        <span className="text-muted-foreground tabular-nums">1-hour sessions · 11 AM – 11 PM</span>
+    <div className="space-y-2 animate-in fade-in duration-300">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <span className="h-2 w-2 rounded-sm bg-cuephoria-purple/80" />
+          Available
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="h-2 w-2 rounded-sm border border-white/20 bg-white/5" />
+          Booked
+        </span>
       </div>
 
       {selectionCount > 0 && (
-        <div className="flex items-start gap-2 rounded-lg border border-cuephoria-purple/30 bg-cuephoria-purple/10 px-3 py-2.5">
-          <CheckCircle2 className="h-4 w-4 text-cuephoria-lightpurple shrink-0 mt-0.5" />
-          <div className="min-w-0 text-left">
-            <p className="text-xs font-semibold text-white">
-              {selectionCount} hour{selectionCount !== 1 ? "s" : ""} selected
-            </p>
-            <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">
-              Pick stations in Step 3 after choosing your time
-            </p>
-          </div>
+        <div className="flex items-center gap-2 rounded-md border border-cuephoria-purple/25 bg-cuephoria-purple/10 px-2.5 py-1.5">
+          <CheckCircle2 className="h-3.5 w-3.5 text-cuephoria-lightpurple shrink-0" />
+          <p className="text-xs font-medium text-white text-left">
+            {selectionCount} hour{selectionCount !== 1 ? "s" : ""} selected — choose stations in
+            Step 3
+          </p>
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
         {slots.map((slot, index) => {
           const isSelected =
             selectedSlot?.start_time === slot.start_time &&
@@ -117,7 +110,7 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
               disabled={!slot.is_available}
               onClick={() => slot.is_available && onSlotSelect(slot)}
               className={cn(
-                "h-[4.5rem] w-full flex flex-col items-start justify-center gap-0.5 px-3 py-2 text-left relative",
+                "h-[3.25rem] w-full flex flex-col items-start justify-center gap-0 px-2.5 py-1.5 text-left relative",
                 "transition-all duration-200 ease-out rounded-xl border",
                 slot.is_available &&
                   !active &&
