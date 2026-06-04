@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
 import { DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useForm } from 'react-hook-form';
@@ -12,24 +11,30 @@ import { usePOS } from '@/context/POSContext';
 import { useLocation } from '@/context/LocationContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import {
-  OccupancyRatesEditor,
-  defaultMaxPlayersForType,
-  defaultSlotDuration,
-} from '@/components/station/OccupancyRatesEditor';
+import { OccupancyRatesEditor } from '@/components/station/OccupancyRatesEditor';
+import { StationTypePicker } from '@/components/station/StationTypePicker';
+import { StationPricingModeField } from '@/components/station/StationPricingModeField';
 import {
   buildDefaultOccupancyRates,
+  getRateSuffix,
   totalRateAtMaxOccupancy,
   type OccupancyRates,
+  type PricingMode,
 } from '@/utils/stationPricing';
+import {
+  defaultMaxPlayersForSlug,
+  defaultPricingModeForSlug,
+  defaultSlotMinutesForSlug,
+} from '@/utils/stationTypeUtils';
 import type { Station } from '@/types/pos.types';
+import type { StationType } from '@/types/stationType.types';
 import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 const stationSchema = z.object({
   name: z.string().min(2, { message: 'Station name must be at least 2 characters.' }),
-  type: z.enum(['ps5', '8ball', 'vr'], { required_error: 'Please select a station type.' }),
-  category: z.string().optional(),
-  maxPlayers: z.coerce.number().min(1).max(8),
+  type: z.string().min(1, { message: 'Select a station type.' }),
+  maxPlayers: z.coerce.number().min(1).max(30),
   publicBooking: z.boolean(),
 });
 
@@ -42,34 +47,41 @@ interface AddStationDialogProps {
 
 const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange }) => {
   const { toast } = useToast();
-  const { stations, setStations, categories } = usePOS();
+  const { stations, setStations } = usePOS();
   const { activeLocationId } = useLocation();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pricingMode, setPricingMode] = useState<PricingMode>('static');
+  const [staticRate, setStaticRate] = useState(200);
   const [occupancyRates, setOccupancyRates] = useState<OccupancyRates>({});
+  const [selectedType, setSelectedType] = useState<StationType | null>(null);
 
   const form = useForm<StationFormValues>({
     resolver: zodResolver(stationSchema),
     defaultValues: {
       name: '',
       type: 'ps5',
-      category: '',
       maxPlayers: 4,
       publicBooking: true,
     },
   });
 
-  const selectedType = form.watch('type');
+  const selectedSlug = form.watch('type');
   const maxPlayers = form.watch('maxPlayers');
+  const slotDuration =
+    selectedType?.defaultSlotMinutes ?? defaultSlotMinutesForSlug(selectedSlug);
+  const rateSuffix = getRateSuffix({ type: selectedSlug, slotDuration, category: null });
 
   useEffect(() => {
-    if (open) {
-      const mp = defaultMaxPlayersForType(selectedType);
-      form.setValue('maxPlayers', mp);
-      setOccupancyRates(buildDefaultOccupancyRates(mp, 200, 100));
-    }
-  }, [selectedType, open]);
+    if (!open) return;
+    form.reset({ name: '', type: 'ps5', maxPlayers: 4, publicBooking: true });
+    setSelectedType(null);
+    setPricingMode('per_player');
+    setStaticRate(200);
+    setOccupancyRates(buildDefaultOccupancyRates(4, 200, 100));
+  }, [open, form]);
 
   useEffect(() => {
+    if (pricingMode !== 'per_player') return;
     setOccupancyRates((prev) => {
       const next = { ...prev };
       for (let i = 1; i <= maxPlayers; i++) {
@@ -82,7 +94,20 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
       });
       return next;
     });
-  }, [maxPlayers]);
+  }, [maxPlayers, pricingMode]);
+
+  const handleTypeChange = (slug: string, type: StationType | null) => {
+    form.setValue('type', slug, { shouldValidate: true });
+    setSelectedType(type);
+    const mp = type?.defaultMaxPlayers ?? defaultMaxPlayersForSlug(slug);
+    form.setValue('maxPlayers', mp);
+    const mode = defaultPricingModeForSlug(slug);
+    setPricingMode(mode);
+    setOccupancyRates(buildDefaultOccupancyRates(mp, 200, 100));
+    if (mode === 'static') {
+      setStaticRate(slug === 'vr' ? 150 : 200);
+    }
+  };
 
   const onSubmit = async (values: StationFormValues) => {
     setIsSubmitting(true);
@@ -97,13 +122,11 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
       }
 
       const stationId = crypto.randomUUID();
-      const slotDuration = defaultSlotDuration(values.type);
-      const category = values.category?.trim() || null;
-      const hourlyRate = totalRateAtMaxOccupancy(
-        values.maxPlayers,
-        occupancyRates,
-        100 * values.maxPlayers
-      );
+      const rates = pricingMode === 'per_player' ? occupancyRates : {};
+      const hourlyRate =
+        pricingMode === 'static'
+          ? staticRate
+          : totalRateAtMaxOccupancy(values.maxPlayers, occupancyRates, 100 * values.maxPlayers);
 
       const newStation: Station = {
         id: stationId,
@@ -112,11 +135,12 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
         hourlyRate,
         isOccupied: false,
         currentSession: null,
-        category,
+        category: null,
         eventEnabled: values.publicBooking,
         slotDuration,
         maxPlayers: values.maxPlayers,
-        occupancyRates,
+        occupancyRates: rates,
+        pricingMode,
       };
 
       const { error } = await supabase.from('stations').insert({
@@ -125,11 +149,12 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
         type: values.type,
         hourly_rate: hourlyRate,
         is_occupied: false,
-        category,
+        category: null,
         event_enabled: values.publicBooking,
         slot_duration: slotDuration,
         max_players: values.maxPlayers,
-        occupancy_rates: occupancyRates,
+        occupancy_rates: rates,
+        pricing_mode: pricingMode,
         location_id: activeLocationId,
       });
 
@@ -145,8 +170,6 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
 
       setStations([...stations, newStation]);
       toast({ title: 'Station Added', description: `${values.name} has been added.` });
-      form.reset();
-      setOccupancyRates(buildDefaultOccupancyRates(4, 200, 100));
       onOpenChange(false);
     } catch (error) {
       console.error('Error in adding station:', error);
@@ -186,75 +209,64 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
             <FormField
               control={form.control}
               name="type"
-              render={({ field }) => (
+              render={() => (
                 <FormItem>
                   <FormLabel>Station Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="ps5">PlayStation 5</SelectItem>
-                      <SelectItem value="8ball">8-Ball Table</SelectItem>
-                      <SelectItem value="vr">VR Gaming</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="category"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Category (optional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || 'none'}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {categories
-                        .filter((c) => c !== 'uncategorized')
-                        .map((cat) => (
-                          <SelectItem key={cat} value={cat}>
-                            {cat}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="maxPlayers"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Max Players</FormLabel>
                   <FormControl>
-                    <Input type="number" min={1} max={8} {...field} />
+                    <StationTypePicker value={selectedSlug} onChange={handleTypeChange} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            <OccupancyRatesEditor
-              maxPlayers={maxPlayers}
-              rates={occupancyRates}
-              onChange={setOccupancyRates}
-              stationType={selectedType}
-              slotDuration={defaultSlotDuration(selectedType)}
+            <StationPricingModeField
+              value={pricingMode}
+              onChange={setPricingMode}
+              stationType={selectedSlug}
+              slotDuration={slotDuration}
             />
+
+            {pricingMode === 'static' ? (
+              <div className="space-y-2">
+                <Label>Rate{rateSuffix}</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={10}
+                  value={staticRate}
+                  onChange={(e) => setStaticRate(Number(e.target.value) || 0)}
+                  placeholder="Flat rate"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Same price regardless of player count — classic table / turf / VR slot pricing.
+                </p>
+              </div>
+            ) : (
+              <>
+                <FormField
+                  control={form.control}
+                  name="maxPlayers"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Max Players</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={1} max={30} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <OccupancyRatesEditor
+                  maxPlayers={maxPlayers}
+                  rates={occupancyRates}
+                  onChange={setOccupancyRates}
+                  stationType={selectedSlug}
+                  slotDuration={slotDuration}
+                />
+              </>
+            )}
 
             <FormField
               control={form.control}

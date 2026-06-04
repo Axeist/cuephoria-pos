@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import {
   formatOccupancyPriceLabel,
   getRateForPlayerCount,
-  hasOccupancyRates,
+  isPerPlayerPricing,
 } from '@/utils/stationPricing';
 
 export interface BookingStation {
@@ -17,6 +17,7 @@ export interface BookingStation {
   hourly_rate: number;
   max_players?: number;
   occupancy_rates?: Record<string, number>;
+  pricing_mode?: 'static' | 'per_player';
   slot_duration?: number | null;
   category?: string | null;
   team_name?: string | null;
@@ -73,6 +74,7 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
     teamName: station.team_name,
     singleRate: station.single_rate,
     maxCapacity: station.max_capacity,
+    pricingMode: station.pricing_mode,
   });
 
   const getPriceDisplay = (station: BookingStation) => {
@@ -109,7 +111,7 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
         const isSelected = selectedStations.includes(station.id);
         const maxPlayers = station.max_players ?? station.max_capacity ?? 1;
         const playerCount = stationPlayerCounts[station.id] ?? 1;
-        const multiPlayer = maxPlayers > 1 || hasOccupancyRates(toPricingStation(station));
+        const multiPlayer = isPerPlayerPricing(toPricingStation(station)) && maxPlayers > 1;
 
         return (
           <Card

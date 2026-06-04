@@ -2,6 +2,8 @@ import type { Station } from '@/types/pos.types';
 
 export type OccupancyRates = Record<string, number>;
 
+export type PricingMode = 'static' | 'per_player';
+
 export type StationPricingInput = Pick<
   Station,
   | 'hourlyRate'
@@ -11,6 +13,7 @@ export type StationPricingInput = Pick<
   | 'teamName'
   | 'singleRate'
   | 'maxCapacity'
+  | 'pricingMode'
 >;
 
 export function clampPlayerCount(station: StationPricingInput, playerCount: number): number {
@@ -20,6 +23,21 @@ export function clampPlayerCount(station: StationPricingInput, playerCount: numb
 
 export function hasOccupancyRates(station: StationPricingInput): boolean {
   return Object.keys(station.occupancyRates ?? {}).length > 0;
+}
+
+export function resolvePricingMode(station: StationPricingInput): PricingMode {
+  if (station.pricingMode === 'static' || station.pricingMode === 'per_player') {
+    return station.pricingMode;
+  }
+  return hasOccupancyRates(station) ? 'per_player' : 'static';
+}
+
+export function isPerPlayerPricing(station: StationPricingInput): boolean {
+  return resolvePricingMode(station) === 'per_player';
+}
+
+export function isStaticPricing(station: StationPricingInput): boolean {
+  return !isPerPlayerPricing(station);
 }
 
 /** Legacy per-controller row (team_name or controller naming, no occupancy grid). */
@@ -72,6 +90,15 @@ export function getRateForPlayerCount(
   rawPlayerCount: number
 ): { perPersonRate: number; totalRate: number; playerCount: number } {
   const playerCount = clampPlayerCount(station, rawPlayerCount);
+
+  if (isStaticPricing(station)) {
+    return {
+      perPersonRate: station.hourlyRate,
+      totalRate: station.hourlyRate,
+      playerCount: 1,
+    };
+  }
+
   const rates = station.occupancyRates ?? {};
   const key = String(playerCount);
 

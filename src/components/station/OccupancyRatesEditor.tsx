@@ -14,7 +14,7 @@ interface OccupancyRatesEditorProps {
   maxPlayers: number;
   rates: OccupancyRates;
   onChange: (rates: OccupancyRates) => void;
-  stationType: Station['type'];
+  stationType: string;
   slotDuration?: number | null;
 }
 
@@ -26,7 +26,7 @@ export const OccupancyRatesEditor: React.FC<OccupancyRatesEditorProps> = ({
   slotDuration,
 }) => {
   const suffix = getRateSuffix({ type: stationType, slotDuration, category: null });
-  const max = Math.max(1, Math.min(8, maxPlayers));
+  const max = Math.max(1, Math.min(30, maxPlayers));
 
   const handleRateChange = (count: number, value: string) => {
     const num = Number(value);
@@ -82,11 +82,15 @@ export const OccupancyRatesEditor: React.FC<OccupancyRatesEditorProps> = ({
   );
 };
 
-export function defaultMaxPlayersForType(type: Station['type']): number {
+export function defaultMaxPlayersForType(type: string): number {
   if (type === 'ps5') return 4;
-  return 1;
+  if (type === 'turf') return 10;
+  if (type === '8ball' || type === 'snooker') return 4;
+  if (type === 'vr') return 1;
+  return 4;
 }
 
-export function defaultSlotDuration(type: Station['type']): number {
+export function defaultSlotDuration(type: string, slotMinutes?: number): number {
+  if (slotMinutes != null && slotMinutes > 0) return slotMinutes;
   return type === 'vr' ? 15 : 60;
 }

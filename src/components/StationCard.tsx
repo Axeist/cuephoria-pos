@@ -402,7 +402,9 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
             maxPlayers: updates.maxPlayers,
             occupancyRates: updates.occupancyRates,
             eventEnabled: updates.eventEnabled,
-            category: updates.category,
+            type: updates.type,
+            slotDuration: updates.slotDuration,
+            pricingMode: updates.pricingMode,
           })
         }
       />

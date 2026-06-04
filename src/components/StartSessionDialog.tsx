@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { hapticImpact } from '@/utils/capacitor';
 
-import { getRateForPlayerCount, getRateSuffix as pricingRateSuffix } from '@/utils/stationPricing';
+import { getRateForPlayerCount, getRateSuffix as pricingRateSuffix, isPerPlayerPricing } from '@/utils/stationPricing';
 import type { Station } from '@/types/pos.types';
 
 const LATE_NIGHT_OVERRIDE_PIN = '2101';
@@ -25,7 +25,8 @@ interface StartSessionDialogProps {
   baseRate: number;
   stationCategory?: string | null;
   slotDuration?: number | null;
-  stationType?: 'ps5' | '8ball' | 'vr';
+  stationType?: string;
+  pricingMode?: 'static' | 'per_player';
   maxPlayers?: number;
   occupancyRates?: Record<string, number>;
   hourlyRate?: number;
@@ -48,6 +49,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   stationCategory,
   slotDuration,
   stationType,
+  pricingMode,
   maxPlayers = 1,
   occupancyRates = {},
   hourlyRate = baseRate,
@@ -96,7 +98,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   
   const pricingStation: Pick<
     Station,
-    'hourlyRate' | 'maxPlayers' | 'occupancyRates' | 'type' | 'slotDuration' | 'category'
+    'hourlyRate' | 'maxPlayers' | 'occupancyRates' | 'type' | 'slotDuration' | 'category' | 'pricingMode'
   > = {
     hourlyRate,
     maxPlayers,
@@ -104,7 +106,10 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     type: stationType ?? 'ps5',
     slotDuration,
     category: stationCategory,
+    pricingMode,
   };
+
+  const showPlayerCount = isPerPlayerPricing(pricingStation) && maxPlayers > 1;
 
   const undiscountedRate = getRateForPlayerCount(pricingStation, playerCount).totalRate;
   const undiscountedPerPerson = getRateForPlayerCount(pricingStation, playerCount).perPersonRate;
@@ -243,7 +248,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {maxPlayers > 1 && (
+          {showPlayerCount && (
             <div className="space-y-2 rounded-lg border p-3 bg-muted/20">
               <Label className="text-base font-medium">Number of players</Label>
               <div className="flex items-center gap-3">

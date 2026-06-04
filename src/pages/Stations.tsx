@@ -6,6 +6,9 @@ import { Gamepad2, Plus, Table2, Headset, MapPin, ArrowRightLeft } from 'lucide-
 import { Button } from '@/components/ui/button';
 import AddStationDialog from '@/components/AddStationDialog';
 import ReplaceLegacyStationsDialog from '@/components/station/ReplaceLegacyStationsDialog';
+import StationTypeManager from '@/components/station/StationTypeManager';
+import { useStationTypes } from '@/hooks/useStationTypes';
+import { stationTypeLabel } from '@/utils/stationTypeUtils';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useLocation } from '@/context/LocationContext';
@@ -13,12 +16,9 @@ import { Badge } from '@/components/ui/badge';
 import { type Station } from '@/types/pos.types';
 import { prefetchPOS } from '@/utils/viewTransition';
 
-const typeLabel = (type: string) =>
-  type.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-
 const iconForType = (type: string) => {
   const normalized = type.toLowerCase();
-  if (normalized === '8ball') return Table2;
+  if (normalized === '8ball' || normalized === 'snooker') return Table2;
   if (normalized === 'vr') return Headset;
   return Gamepad2;
 };
@@ -27,7 +27,9 @@ const typeSortWeight = (type: string) => {
   const normalized = type.toLowerCase();
   if (normalized === 'ps5') return 0;
   if (normalized === '8ball') return 1;
-  if (normalized === 'vr') return 2;
+  if (normalized === 'snooker') return 2;
+  if (normalized === 'turf') return 3;
+  if (normalized === 'vr') return 4;
   return 10;
 };
 
@@ -61,6 +63,7 @@ const groupByType = (list: Station[]): Array<{ type: string; stations: Station[]
 const Stations = () => {
   const { stations } = usePOS();
   const { activeLocation } = useLocation();
+  const { stationTypes } = useStationTypes();
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [openPinDialog, setOpenPinDialog] = useState(false);
   const [openReplaceDialog, setOpenReplaceDialog] = useState(false);
@@ -148,6 +151,8 @@ const Stations = () => {
         </div>
       )}
 
+      <StationTypeManager />
+
       <PinVerificationDialog
         open={openPinDialog}
         onOpenChange={setOpenPinDialog}
@@ -173,7 +178,7 @@ const Stations = () => {
             >
               <CardContent className="flex items-center justify-between p-3 sm:p-4">
                 <div>
-                  <p className="text-xs text-muted-foreground sm:text-sm">{typeLabel(group.type)}</p>
+                  <p className="text-xs text-muted-foreground sm:text-sm">{stationTypeLabel(group.type, stationTypes)}</p>
                   <p className="text-xl font-bold sm:text-2xl">
                     {group.activeCount} / {group.stations.length} Active
                   </p>
@@ -194,7 +199,7 @@ const Stations = () => {
             <div key={`regular-${group.type}`} className="animate-slide-up" style={{ animationDelay: `${groupIndex * 120}ms` }}>
               <div className="mb-3 flex items-center sm:mb-4">
                 <Icon className="mr-2 h-4 w-4 text-cuephoria-lightpurple sm:h-5 sm:w-5" />
-                <h3 className="font-heading text-base font-semibold sm:text-xl">{typeLabel(group.type)}</h3>
+                <h3 className="font-heading text-base font-semibold sm:text-xl">{stationTypeLabel(group.type, stationTypes)}</h3>
                 <span className="ml-2 rounded-full bg-cuephoria-purple/20 px-2 py-1 text-[10px] text-cuephoria-lightpurple sm:text-xs">
                   {group.activeCount} active
                 </span>

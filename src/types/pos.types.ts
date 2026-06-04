@@ -38,7 +38,7 @@ export interface Customer {
 export interface Station {
   id: string;
   name: string;
-  type: 'ps5' | '8ball' | 'vr';
+  type: string;
   hourlyRate: number;
   isOccupied: boolean;
   currentSession: Session | null;
@@ -47,6 +47,7 @@ export interface Station {
   slotDuration?: number | null;
   maxPlayers: number;
   occupancyRates: Record<string, number>;
+  pricingMode: 'static' | 'per_player';
   /** @deprecated Legacy controller grouping */
   teamName?: string | null;
   teamColor?: string | null;
@@ -182,6 +183,8 @@ export interface POSContextType {
       slotDuration?: number | null;
       eventEnabled?: boolean;
       category?: string | null;
+      type?: string;
+      pricingMode?: 'static' | 'per_player';
     }
   ) => Promise<boolean>;
   refreshStations: (silent?: boolean) => Promise<void>;

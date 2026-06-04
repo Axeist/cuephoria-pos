@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { hapticImpact } from "@/utils/capacitor";
 import { supabase } from "@/integrations/supabase/client";
 import { StationSelector } from "@/components/booking/StationSelector";
-import { getRateForPlayerCount, getLegacyBookingRateForSelection } from "@/utils/stationPricing";
+import { getRateForPlayerCount } from "@/utils/stationPricing";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import CouponPromotionalPopup from "@/components/CouponPromotionalPopup";
 import BookingConfirmationDialog from "@/components/BookingConfirmationDialog";
@@ -72,6 +72,7 @@ interface Station {
   single_rate?: number | null;
   max_players?: number;
   occupancy_rates?: Record<string, number>;
+  pricing_mode?: 'static' | 'per_player';
   category?: string | null;
   event_enabled?: boolean | null;
   slot_duration?: number | null;
@@ -621,7 +622,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     try {
       const { data, error } = await (supabase as any)
         .from("stations")
-        .select("id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate, category, event_enabled, slot_duration, max_players, occupancy_rates")
+        .select("id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate, category, event_enabled, slot_duration, max_players, occupancy_rates, pricing_mode")
         .eq("location_id", publicLocationId)
         .or("event_enabled.eq.true,and(category.is.null,event_enabled.is.null)")
         .neq("category", "nit_event")
@@ -632,6 +633,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         type: station.type as StationType,
         max_players: station.max_players ?? station.max_capacity ?? 1,
         occupancy_rates: station.occupancy_rates ?? {},
+        pricing_mode: station.pricing_mode ?? undefined,
       })));
     } catch (e) {
       console.error(e);
@@ -1621,47 +1623,23 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
     const selectedStationObjects = stations.filter((s) => selectedStations.includes(s.id));
 
-    const allHaveOccupancy = selectedStationObjects.every(
-      (s) => Object.keys(s.occupancy_rates ?? {}).length > 0 || (s.max_players ?? 1) > 1
-    );
+    const toPricingInput = (s: (typeof selectedStationObjects)[0]) => ({
+      hourlyRate: s.hourly_rate,
+      maxPlayers: s.max_players ?? s.max_capacity ?? 1,
+      occupancyRates: s.occupancy_rates ?? {},
+      type: s.type,
+      slotDuration: s.slot_duration,
+      category: s.category,
+      teamName: s.team_name,
+      singleRate: s.single_rate,
+      maxCapacity: s.max_capacity,
+      pricingMode: s.pricing_mode,
+    });
 
-    if (allHaveOccupancy) {
-      return selectedStationObjects.reduce((sum, s) => {
-        const count = stationPlayerCounts[s.id] ?? 1;
-        return (
-          sum +
-          getRateForPlayerCount(
-            {
-              hourlyRate: s.hourly_rate,
-              maxPlayers: s.max_players ?? s.max_capacity ?? 1,
-              occupancyRates: s.occupancy_rates ?? {},
-              type: s.type,
-              slotDuration: s.slot_duration,
-              category: s.category,
-              teamName: s.team_name,
-              singleRate: s.single_rate,
-              maxCapacity: s.max_capacity,
-            },
-            count
-          ).totalRate
-        );
-      }, 0);
-    }
-
-    return getLegacyBookingRateForSelection(
-      selectedStationObjects.map((s) => ({
-        id: s.id,
-        type: s.type,
-        hourlyRate: s.hourly_rate,
-        maxPlayers: s.max_players ?? 1,
-        occupancyRates: s.occupancy_rates ?? {},
-        teamName: s.team_name,
-        singleRate: s.single_rate,
-        maxCapacity: s.max_capacity,
-      })),
-      selectedStations,
-      stationPlayerCounts
-    );
+    return selectedStationObjects.reduce((sum, s) => {
+      const count = stationPlayerCounts[s.id] ?? 1;
+      return sum + getRateForPlayerCount(toPricingInput(s), count).totalRate;
+    }, 0);
   };
 
   const calculateDiscount = () => {

@@ -1582,6 +1582,60 @@ export type Database = {
           },
         ]
       }
+      station_types: {
+        Row: {
+          id: string
+          organization_id: string
+          location_id: string
+          name: string
+          slug: string
+          default_max_players: number
+          default_slot_minutes: number
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id?: string
+          location_id: string
+          name: string
+          slug: string
+          default_max_players?: number
+          default_slot_minutes?: number
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          location_id?: string
+          name?: string
+          slug?: string
+          default_max_players?: number
+          default_slot_minutes?: number
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "station_types_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "station_types_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stations: {
         Row: {
           consolidated_name: string | null
@@ -1598,6 +1652,7 @@ export type Database = {
           slot_duration: number | null
           max_players: number
           occupancy_rates: Json
+          pricing_mode: string
           team_name: string | null
           team_color: string | null
           max_capacity: number | null
@@ -1620,6 +1675,7 @@ export type Database = {
           slot_duration?: number | null
           max_players?: number
           occupancy_rates?: Json
+          pricing_mode?: string
           team_name?: string | null
           team_color?: string | null
           max_capacity?: number | null
@@ -1642,6 +1698,7 @@ export type Database = {
           slot_duration?: number | null
           max_players?: number
           occupancy_rates?: Json
+          pricing_mode?: string
           team_name?: string | null
           team_color?: string | null
           max_capacity?: number | null

@@ -7,7 +7,16 @@ import { Label } from './ui/label';
 import { Station } from '@/types/pos.types';
 import { Edit } from 'lucide-react';
 import { OccupancyRatesEditor } from '@/components/station/OccupancyRatesEditor';
-import type { OccupancyRates } from '@/utils/stationPricing';
+import { StationTypePicker } from '@/components/station/StationTypePicker';
+import { StationPricingModeField } from '@/components/station/StationPricingModeField';
+import type { OccupancyRates, PricingMode } from '@/utils/stationPricing';
+import {
+  getRateSuffix,
+  resolvePricingMode,
+  totalRateAtMaxOccupancy,
+} from '@/utils/stationPricing';
+import type { StationType } from '@/types/stationType.types';
+import { defaultSlotMinutesForSlug } from '@/utils/stationTypeUtils';
 import { Switch } from '@/components/ui/switch';
 
 export interface StationUpdatePayload {
@@ -16,7 +25,9 @@ export interface StationUpdatePayload {
   maxPlayers: number;
   occupancyRates: OccupancyRates;
   eventEnabled: boolean;
-  category: string | null;
+  type: string;
+  slotDuration: number | null;
+  pricingMode: PricingMode;
 }
 
 interface EditStationDialogProps {
@@ -33,19 +44,41 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
   onSave,
 }) => {
   const [name, setName] = React.useState('');
+  const [typeSlug, setTypeSlug] = React.useState('ps5');
   const [maxPlayers, setMaxPlayers] = React.useState(1);
   const [occupancyRates, setOccupancyRates] = React.useState<OccupancyRates>({});
+  const [pricingMode, setPricingMode] = React.useState<PricingMode>('static');
+  const [staticRate, setStaticRate] = React.useState(200);
   const [publicBooking, setPublicBooking] = React.useState(true);
+  const [selectedType, setSelectedType] = React.useState<StationType | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
 
   React.useEffect(() => {
     if (station) {
       setName(station.name);
+      setTypeSlug(station.type);
       setMaxPlayers(station.maxPlayers ?? 1);
       setOccupancyRates(station.occupancyRates ?? {});
+      setPricingMode(resolvePricingMode(station));
+      setStaticRate(station.hourlyRate);
       setPublicBooking(station.eventEnabled !== false);
+      setSelectedType(null);
     }
   }, [station]);
+
+  const slotDuration =
+    selectedType?.defaultSlotMinutes ??
+    station?.slotDuration ??
+    defaultSlotMinutesForSlug(typeSlug);
+  const rateSuffix = getRateSuffix({ type: typeSlug, slotDuration, category: null });
+
+  const handleTypeChange = (slug: string, type: StationType | null) => {
+    setTypeSlug(slug);
+    setSelectedType(type);
+    if (type) {
+      setMaxPlayers(type.defaultMaxPlayers);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,13 +86,21 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
 
     setIsLoading(true);
     try {
+      const rates = pricingMode === 'per_player' ? occupancyRates : {};
+      const hourlyRate =
+        pricingMode === 'static'
+          ? staticRate
+          : totalRateAtMaxOccupancy(maxPlayers, occupancyRates, station.hourlyRate);
+
       const success = await onSave(station.id, {
         name,
-        hourlyRate: station.hourlyRate,
+        hourlyRate,
         maxPlayers,
-        occupancyRates,
+        occupancyRates: rates,
         eventEnabled: publicBooking,
-        category: station.category ?? null,
+        type: typeSlug,
+        slotDuration,
+        pricingMode,
       });
       if (success) onOpenChange(false);
     } finally {
@@ -77,7 +118,7 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
             <Edit size={16} />
             Edit Station
           </DialogTitle>
-          <DialogDescription>Update name, max players, and occupancy pricing</DialogDescription>
+          <DialogDescription>Update name, type, pricing, and booking visibility</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
@@ -87,24 +128,51 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="maxPlayers">Max Players</Label>
-            <Input
-              id="maxPlayers"
-              type="number"
-              min={1}
-              max={8}
-              value={maxPlayers}
-              onChange={(e) => setMaxPlayers(Number(e.target.value) || 1)}
-            />
+            <Label>Station Type</Label>
+            <StationTypePicker value={typeSlug} onChange={handleTypeChange} />
           </div>
 
-          <OccupancyRatesEditor
-            maxPlayers={maxPlayers}
-            rates={occupancyRates}
-            onChange={setOccupancyRates}
-            stationType={station.type}
-            slotDuration={station.slotDuration}
+          <StationPricingModeField
+            value={pricingMode}
+            onChange={setPricingMode}
+            stationType={typeSlug}
+            slotDuration={slotDuration}
           />
+
+          {pricingMode === 'static' ? (
+            <div className="space-y-2">
+              <Label>Rate{rateSuffix}</Label>
+              <Input
+                type="number"
+                min={0}
+                step={10}
+                value={staticRate}
+                onChange={(e) => setStaticRate(Number(e.target.value) || 0)}
+              />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="maxPlayers">Max Players</Label>
+                <Input
+                  id="maxPlayers"
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={maxPlayers}
+                  onChange={(e) => setMaxPlayers(Number(e.target.value) || 1)}
+                />
+              </div>
+
+              <OccupancyRatesEditor
+                maxPlayers={maxPlayers}
+                rates={occupancyRates}
+                onChange={setOccupancyRates}
+                stationType={typeSlug}
+                slotDuration={slotDuration}
+              />
+            </>
+          )}
 
           <div className="flex items-center justify-between rounded-lg border p-3">
             <div>

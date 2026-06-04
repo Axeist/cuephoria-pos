@@ -59,6 +59,13 @@ export function transformStationRow(item: Record<string, unknown>): Station {
     1,
     Number(item.max_players ?? item.max_capacity ?? 1) || 1
   );
+  const pricingModeRaw = item.pricing_mode as string | undefined;
+  const pricingMode: Station['pricingMode'] =
+    pricingModeRaw === 'per_player' || pricingModeRaw === 'static'
+      ? pricingModeRaw
+      : Object.keys(occupancyRates).length > 0
+        ? 'per_player'
+        : 'static';
 
   return {
     id: String(item.id),
@@ -72,6 +79,7 @@ export function transformStationRow(item: Record<string, unknown>): Station {
     slotDuration: item.slot_duration != null ? Number(item.slot_duration) : null,
     maxPlayers,
     occupancyRates,
+    pricingMode,
     teamName: (item.team_name as string | null) ?? null,
     teamColor: (item.team_color as string | null) ?? null,
     maxCapacity: item.max_capacity != null ? Number(item.max_capacity) : null,
@@ -80,4 +88,4 @@ export function transformStationRow(item: Record<string, unknown>): Station {
 }
 
 export const STATION_SELECT_FIELDS =
-  'id,name,type,hourly_rate,is_occupied,currentsession,created_at,category,event_enabled,slot_duration,max_players,occupancy_rates,team_name,team_color,max_capacity,single_rate';
+  'id,name,type,hourly_rate,is_occupied,currentsession,created_at,category,event_enabled,slot_duration,max_players,occupancy_rates,pricing_mode,team_name,team_color,max_capacity,single_rate';

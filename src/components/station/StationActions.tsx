@@ -267,6 +267,7 @@ const StationActions: React.FC<StationActionsProps> = ({
         stationCategory={station.category}
         slotDuration={station.slotDuration}
         stationType={station.type}
+        pricingMode={station.pricingMode}
         onConfirm={handleStartSession}
       />
     </>

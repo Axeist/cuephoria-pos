@@ -140,6 +140,8 @@ export const useStationsData = () => {
       slotDuration?: number | null;
       eventEnabled?: boolean;
       category?: string | null;
+      type?: string;
+      pricingMode?: 'static' | 'per_player';
     }
   ) => {
     try {
@@ -160,7 +162,7 @@ export const useStationsData = () => {
         updates.hourlyRate ??
         totalRateAtMaxOccupancy(maxPlayers, occupancyRates, station.hourlyRate);
 
-      const updateData = {
+      const updateData: Record<string, unknown> = {
         name: updates.name,
         hourly_rate: hourlyRate,
         max_players: maxPlayers,
@@ -169,6 +171,12 @@ export const useStationsData = () => {
         event_enabled: updates.eventEnabled ?? station.eventEnabled,
         category: updates.category !== undefined ? updates.category : station.category,
       };
+      if (updates.type !== undefined) {
+        updateData.type = updates.type;
+      }
+      if (updates.pricingMode !== undefined) {
+        updateData.pricing_mode = updates.pricingMode;
+      }
       
       const { error } = await supabase
         .from('stations')
@@ -190,12 +198,14 @@ export const useStationsData = () => {
           ? {
               ...s,
               name: updates.name,
-              hourlyRate,
+              hourlyRate: updates.hourlyRate ?? hourlyRate,
               maxPlayers,
               occupancyRates,
-              slotDuration: updateData.slot_duration ?? s.slotDuration,
-              eventEnabled: updateData.event_enabled ?? s.eventEnabled,
-              category: updateData.category ?? s.category,
+              slotDuration: (updateData.slot_duration as number | null | undefined) ?? s.slotDuration,
+              eventEnabled: (updateData.event_enabled as boolean | null | undefined) ?? s.eventEnabled,
+              category: (updateData.category as string | null | undefined) ?? s.category,
+              type: updates.type ?? s.type,
+              pricingMode: updates.pricingMode ?? s.pricingMode,
             }
           : s
       ));
