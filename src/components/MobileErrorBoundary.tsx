@@ -3,6 +3,11 @@ import { isNativePlatform } from '@/utils/capacitor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, RefreshCw, Home } from 'lucide-react';
+import {
+  clearChunkRecoveryGuard,
+  isChunkLoadError,
+  tryChunkRecoveryReload,
+} from '@/utils/chunkRecovery';
 
 interface Props {
   children: ReactNode;
@@ -12,109 +17,106 @@ interface State {
   hasError: boolean;
   error: Error | null;
   errorInfo: ErrorInfo | null;
+  isStaleDeploy: boolean;
+  isRecovering: boolean;
 }
 
-const CHUNK_RELOAD_GUARD_KEY = "__cuephoria_boundary_chunk_reload_at";
-const CHUNK_RELOAD_COOLDOWN_MS = 15_000;
-
-function isChunkLoadError(error: Error): boolean {
-  const message = String(error?.message || "").toLowerCase();
-  return (
-    message.includes("failed to fetch dynamically imported module") ||
-    message.includes("failed to load dynamic import module") ||
-    message.includes("failed to load module script") ||
-    message.includes("loading chunk") ||
-    message.includes("chunkloaderror") ||
-    (message.includes("importing") && message.includes("failed"))
-  );
-}
-
-function tryChunkRecoveryReload(reason: string): boolean {
-  try {
-    const last = Number(sessionStorage.getItem(CHUNK_RELOAD_GUARD_KEY) || 0);
-    if (Date.now() - last < CHUNK_RELOAD_COOLDOWN_MS) {
-      console.warn("[error-boundary chunk-recover] skip reload, recently attempted");
-      return false;
-    }
-    sessionStorage.setItem(CHUNK_RELOAD_GUARD_KEY, String(Date.now()));
-  } catch {
-    // If sessionStorage is unavailable, still try one reload.
-  }
-
-  console.warn(`[error-boundary chunk-recover] forcing reload (${reason})`);
-  const url = new URL(window.location.href);
-  url.searchParams.set("_v", String(Date.now()));
-  window.location.replace(url.toString());
-  return true;
-}
-
-/**
- * Mobile-aware Error Boundary Component
- * Catches JavaScript errors anywhere in the child component tree
- * and displays a fallback UI
- */
 class MobileErrorBoundary extends Component<Props, State> {
+  private recoverTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(props: Props) {
     super(props);
     this.state = {
       hasError: false,
       error: null,
       errorInfo: null,
+      isStaleDeploy: false,
+      isRecovering: false,
     };
   }
 
-  static getDerivedStateFromError(error: Error): State {
-    // Update state so the next render will show the fallback UI
+  componentWillUnmount() {
+    if (this.recoverTimer) clearTimeout(this.recoverTimer);
+  }
+
+  static getDerivedStateFromError(error: Error): Partial<State> | null {
+    if (isChunkLoadError(error)) {
+      // Avoid flashing the generic crash screen while we reload for a new build.
+      return { isRecovering: true, hasError: false, error: null, errorInfo: null };
+    }
     return {
       hasError: true,
       error,
       errorInfo: null,
+      isStaleDeploy: false,
+      isRecovering: false,
     };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Log the error to console
     console.error('Error caught by boundary:', error, errorInfo);
 
-    // Auto-recover stale deploy chunk mismatches without user action.
     if (isChunkLoadError(error)) {
-      const reloading = tryChunkRecoveryReload(error.message || "chunk load failure");
-      if (reloading) return;
+      const reloaded = tryChunkRecoveryReload(error.message || 'chunk load failure');
+      if (reloaded) return;
+
+      // Cooldown exhausted — retry once after a short delay (CDN/index may lag).
+      this.recoverTimer = setTimeout(() => {
+        const forced = tryChunkRecoveryReload('chunk load failure (retry)', {
+          force: true,
+        });
+        if (!forced) {
+          this.setState({
+            hasError: true,
+            error,
+            errorInfo,
+            isStaleDeploy: true,
+            isRecovering: false,
+          });
+        }
+      }, 1200);
+      return;
     }
-    
-    // You could also log to an error reporting service here
-    // Example: Sentry.captureException(error);
-    
+
     this.setState({
       error,
       errorInfo,
+      isStaleDeploy: false,
+      isRecovering: false,
     });
   }
 
   handleReload = () => {
-    // Reload the page/app
-    if (isNativePlatform()) {
-      // On native, just reset the state and re-render
-      this.setState({
-        hasError: false,
-        error: null,
-        errorInfo: null,
-      });
-      // Optionally, you could reload the webview
-      window.location.reload();
-    } else {
-      // On web, reload the page
-      window.location.reload();
-    }
+    clearChunkRecoveryGuard();
+    const url = new URL(window.location.href);
+    url.searchParams.set('_v', String(Date.now()));
+    window.location.replace(url.toString());
   };
 
   handleGoHome = () => {
-    // Navigate to home
-    window.location.href = '/';
+    clearChunkRecoveryGuard();
+    const url = new URL('/', window.location.origin);
+    url.searchParams.set('_v', String(Date.now()));
+    window.location.replace(url.toString());
   };
 
   render() {
+    if (this.state.isRecovering) {
+      return (
+        <div className="min-h-screen bg-cuephoria-dark flex items-center justify-center p-4">
+          <div className="text-center space-y-3" role="status" aria-live="polite">
+            <RefreshCw className="h-10 w-10 text-cuephoria-lightpurple animate-spin mx-auto" />
+            <p className="text-lg font-medium text-white">Updating application…</p>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              A new version was deployed. Reloading to load the latest files.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     if (this.state.hasError) {
+      const stale = this.state.isStaleDeploy;
       return (
         <div className="min-h-screen bg-cuephoria-dark flex items-center justify-center p-4">
           <Card className="w-full max-w-md border-red-500/20 bg-cuephoria-darker">
@@ -125,18 +127,18 @@ class MobileErrorBoundary extends Component<Props, State> {
                 </div>
               </div>
               <CardTitle className="text-2xl text-white">
-                Oops! Something went wrong
+                {stale ? 'Update required' : 'Oops! Something went wrong'}
               </CardTitle>
               <CardDescription className="text-gray-400 mt-2">
-                {isNativePlatform() 
-                  ? "The app encountered an unexpected error. Don't worry, we can fix this!"
-                  : "The application encountered an unexpected error."
-                }
+                {stale
+                  ? 'This tab was open during a new release. Reload once to load the latest version.'
+                  : isNativePlatform()
+                    ? "The app encountered an unexpected error. Don't worry, we can fix this!"
+                    : 'The application encountered an unexpected error.'}
               </CardDescription>
             </CardHeader>
-            
+
             <CardContent className="space-y-4">
-              {/* Error details (only in development) */}
               {process.env.NODE_ENV === 'development' && this.state.error && (
                 <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
                   <p className="text-xs font-mono text-red-400 break-words">
@@ -154,21 +156,26 @@ class MobileErrorBoundary extends Component<Props, State> {
                   )}
                 </div>
               )}
-              
-              {/* User-friendly message */}
+
               <div className="text-center text-sm text-gray-400">
-                <p>Try reloading the app or returning to the home screen.</p>
-                <p className="mt-2">If the problem persists, please contact support.</p>
+                {stale ? (
+                  <p>Your data is safe — only the app files needed refreshing.</p>
+                ) : (
+                  <>
+                    <p>Try reloading the app or returning to the home screen.</p>
+                    <p className="mt-2">If the problem persists, please contact support.</p>
+                  </>
+                )}
               </div>
             </CardContent>
-            
+
             <CardFooter className="flex flex-col gap-2">
               <Button
                 onClick={this.handleReload}
                 className="w-full bg-cuephoria-lightpurple hover:bg-cuephoria-lightpurple/80"
               >
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Reload App
+                {stale ? 'Load latest version' : 'Reload App'}
               </Button>
               <Button
                 onClick={this.handleGoHome}

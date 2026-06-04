@@ -1,6 +1,12 @@
+import { isChunkLoadError, tryChunkRecoveryReload } from "@/utils/chunkRecovery";
+
 /** Warm the lazy chunk for a route before the user navigates. */
 export function prefetchRoute(importFn: () => Promise<unknown>): void {
-  void importFn();
+  void importFn().catch((error) => {
+    if (isChunkLoadError(error)) {
+      tryChunkRecoveryReload(`prefetch: ${String(error)}`);
+    }
+  });
 }
 
 export const prefetchPOS = () => prefetchRoute(() => import('@/pages/POS'));

@@ -1,5 +1,7 @@
 // src/App.tsx
-import React, { lazy, Suspense, useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
+import { lazyWithRetry as lazy } from "@/utils/lazyWithRetry";
+import { AppBootRecovery } from "@/components/AppBootRecovery";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -380,6 +382,7 @@ const App = () => {
 
   return (
     <>
+      <AppBootRecovery />
       <QueryClientProvider client={queryClient}>
       <ViewModeProvider>
       <AuthProvider>

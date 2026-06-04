@@ -1,9 +1,11 @@
-import { lazy, Suspense, useRef, useEffect, useCallback } from "react";
+import { Suspense, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Play, Sparkles, Gamepad2, Circle, ShieldCheck } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+
+import { lazyWithRetry as lazy } from "@/utils/lazyWithRetry";
 
 const HeroScene3D = lazy(() => import("./HeroScene3D"));
 
