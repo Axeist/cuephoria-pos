@@ -6,7 +6,7 @@ import StationActions from '@/components/station/StationActions';
 import StationCustomerPanel from '@/components/station/StationCustomerPanel';
 import SessionDurationBar from '@/components/station/SessionDurationBar';
 import { Button } from '@/components/ui/button';
-import { Trash2, Edit2, ShoppingBag, ChevronRight, Globe } from 'lucide-react';
+import { Trash2, Edit2, ShoppingBag, Globe, CheckSquare, Square as SquareIcon } from 'lucide-react';
 import EditStationDialog from './EditStationDialog';
 import StationQuickShopDialog from '@/components/station/StationQuickShopDialog';
 import { CurrencyDisplay } from '@/components/ui/currency';
@@ -41,6 +41,9 @@ interface StationCardProps {
   station: Station;
   recentSessions?: CustomerRecentSession[];
   intelLoading?: boolean;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (stationId: string) => void;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -49,6 +52,9 @@ const StationCard: React.FC<StationCardProps> = ({
   station,
   recentSessions = [],
   intelLoading,
+  selectionMode = false,
+  selected = false,
+  onToggleSelect,
 }) => {
   const {
     customers,
@@ -161,6 +167,8 @@ const StationCard: React.FC<StationCardProps> = ({
     [endSession]
   );
 
+  const canSelect = selectionMode && !station.isOccupied && phase === 'idle';
+
   return (
     <>
       <article
@@ -171,7 +179,17 @@ const StationCard: React.FC<StationCardProps> = ({
           ${cardPhaseClass(phase, station.isOccupied)}
           ${cardRingClass(phase, station.isOccupied, theme.liveRing)}
           ${urgencyRing}
+          ${canSelect && selected ? 'ring-2 ring-cuephoria-purple/70 border-cuephoria-purple/50' : ''}
+          ${canSelect ? 'cursor-pointer' : ''}
         `}
+        onClick={
+          canSelect
+            ? (e) => {
+                if ((e.target as HTMLElement).closest('button, [role="switch"], a, input')) return;
+                onToggleSelect?.(station.id);
+              }
+            : undefined
+        }
       >
         <div className={`pointer-events-none absolute inset-0 ${theme.mesh}`} aria-hidden />
 
@@ -202,6 +220,23 @@ const StationCard: React.FC<StationCardProps> = ({
         </div>
 
         <div className="relative z-10 space-y-3 p-3 sm:p-4">
+          {canSelect && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSelect?.(station.id);
+              }}
+              className={`absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-lg border transition-all ${
+                selected
+                  ? 'border-cuephoria-purple bg-cuephoria-purple/30 text-white'
+                  : 'border-white/20 bg-black/40 text-muted-foreground hover:border-cuephoria-purple/50'
+              }`}
+              aria-label={selected ? 'Deselect station' : 'Select station'}
+            >
+              {selected ? <CheckSquare className="h-5 w-5" /> : <SquareIcon className="h-5 w-5" />}
+            </button>
+          )}
           {/* Header: identity + compact controls */}
           <div className="space-y-2">
             <StationInfo
@@ -307,7 +342,8 @@ const StationCard: React.FC<StationCardProps> = ({
                 </div>
               ) : (
                 <div className="flex flex-1 flex-col justify-end">
-                  <StationActions
+                  {!(selectionMode && selected) && (
+                    <StationActions
                     station={station}
                     customers={customers}
                     theme={theme}
@@ -323,6 +359,12 @@ const StationCard: React.FC<StationCardProps> = ({
                     }}
                     footerLayout
                   />
+                  )}
+                  {selectionMode && selected && (
+                    <p className="text-center text-xs text-cuephoria-lightpurple py-4">
+                      Selected for group start
+                    </p>
+                  )}
                 </div>
               )}
             </div>

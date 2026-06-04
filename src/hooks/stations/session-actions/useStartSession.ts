@@ -269,7 +269,7 @@ export const useStartSession = ({
         description: 'Failed to start session: ' + (error instanceof Error ? error.message : 'Unknown error'),
         variant: 'destructive'
       });
-      return undefined;
+      throw error;
     }
   };
   

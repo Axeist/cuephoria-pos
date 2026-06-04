@@ -1,7 +1,8 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { usePOS } from '@/context/POSContext';
 import StationCard from '@/components/StationCard';
-import { Plus, MapPin, ArrowRightLeft, Radio, CircleDot, Zap, Layers } from 'lucide-react';
+import MultiStartSessionDialog from '@/components/station/MultiStartSessionDialog';
+import { Plus, MapPin, ArrowRightLeft, Radio, CircleDot, Zap, Layers, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AddStationDialog from '@/components/AddStationDialog';
 import ReplaceLegacyStationsDialog from '@/components/station/ReplaceLegacyStationsDialog';
@@ -15,6 +16,8 @@ import { useLocation } from '@/context/LocationContext';
 import { type Station } from '@/types/pos.types';
 import { prefetchPOS } from '@/utils/viewTransition';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import type { MultiSessionStartItem } from '@/components/station/MultiStartSessionDialog';
 
 const typeSortWeight = (type: string) => {
   const normalized = type.toLowerCase();
@@ -34,7 +37,8 @@ const byNameNumber = (a: Station, b: Station) => {
 };
 
 const Stations = () => {
-  const { stations } = usePOS();
+  const { stations, startSession } = usePOS();
+  const { toast } = useToast();
   const { activeLocation } = useLocation();
   const { stationTypes } = useStationTypes();
   const [openAddDialog, setOpenAddDialog] = useState(false);
@@ -42,6 +46,9 @@ const Stations = () => {
   const [openReplaceDialog, setOpenReplaceDialog] = useState(false);
   const [openTypesDialog, setOpenTypesDialog] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedStationIds, setSelectedStationIds] = useState<Set<string>>(new Set());
+  const [openMultiStartDialog, setOpenMultiStartDialog] = useState(false);
 
   const visibleStations = useMemo(
     () => stations.filter((s) => s.category !== 'nit_event'),
@@ -97,6 +104,76 @@ const Stations = () => {
     prefetchPOS();
   }, []);
 
+  const toggleStationSelection = useCallback((stationId: string) => {
+    setSelectedStationIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(stationId)) next.delete(stationId);
+      else next.add(stationId);
+      return next;
+    });
+  }, []);
+
+  const selectedStations = useMemo(
+    () => visibleStations.filter((s) => selectedStationIds.has(s.id) && !s.isOccupied),
+    [visibleStations, selectedStationIds]
+  );
+
+  const exitSelectionMode = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedStationIds(new Set());
+  }, []);
+
+  const handleMultiStart = async (
+    customerId: string,
+    customerName: string,
+    couponCode: string | undefined,
+    sessions: MultiSessionStartItem[]
+  ) => {
+    let started = 0;
+    const failed: string[] = [];
+
+    for (const item of sessions) {
+      const station = stations.find((s) => s.id === item.stationId);
+      try {
+        await startSession(
+          item.stationId,
+          customerId,
+          item.finalRate,
+          couponCode,
+          item.playerCount,
+          item.perPersonRate,
+          item.plannedDurationMinutes
+        );
+        started += 1;
+      } catch {
+        failed.push(station?.name ?? item.stationId);
+      }
+    }
+
+    exitSelectionMode();
+    setOpenMultiStartDialog(false);
+
+    if (started === sessions.length) {
+      toast({
+        title: 'Sessions started',
+        description: `${customerName} · ${started} station${started === 1 ? '' : 's'}`,
+      });
+    } else if (started > 0) {
+      toast({
+        title: 'Partially started',
+        description: `${started} started${failed.length ? ` · failed: ${failed.join(', ')}` : ''}`,
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Could not start sessions',
+        description: 'All selected stations failed to start.',
+        variant: 'destructive',
+      });
+      throw new Error('All failed');
+    }
+  };
+
   return (
     <div className="flex-1 space-y-4 p-3 pt-3 sm:p-5 sm:pt-5">
       {/* Command centre header */}
@@ -146,7 +223,19 @@ const Stations = () => {
             </div>
           </div>
 
-          <div className="flex gap-2 lg:shrink-0">
+          <div className="flex flex-wrap gap-2 lg:shrink-0">
+            <Button
+              size="sm"
+              variant={selectionMode ? 'default' : 'outline'}
+              className={selectionMode ? 'bg-cuephoria-purple hover:bg-cuephoria-purple/80' : ''}
+              onClick={() => {
+                if (selectionMode) exitSelectionMode();
+                else setSelectionMode(true);
+              }}
+            >
+              <Users className="mr-1.5 h-3.5 w-3.5" />
+              {selectionMode ? 'Cancel select' : 'Group start'}
+            </Button>
             <Button size="sm" variant="outline" onClick={() => setOpenReplaceDialog(true)}>
               <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
               Legacy
@@ -206,6 +295,12 @@ const Stations = () => {
             );
           })}
         </div>
+
+        {selectionMode && (
+          <p className="mt-3 border-t border-white/8 pt-3 text-center text-xs text-cuephoria-lightpurple">
+            Tap open stations to select · set players per station · one customer for all
+          </p>
+        )}
       </div>
 
       <PinVerificationDialog
@@ -223,6 +318,13 @@ const Stations = () => {
       />
       <StationTypesDialog open={openTypesDialog} onOpenChange={setOpenTypesDialog} />
 
+      <MultiStartSessionDialog
+        open={openMultiStartDialog}
+        onOpenChange={setOpenMultiStartDialog}
+        stations={selectedStations}
+        onConfirm={handleMultiStart}
+      />
+
       {/* Station cards — horizontal grid */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-3">
         {filteredStations.length === 0 ? (
@@ -234,6 +336,9 @@ const Stations = () => {
             <StationCard
               key={station.id}
               station={station}
+              selectionMode={selectionMode}
+              selected={selectedStationIds.has(station.id)}
+              onToggleSelect={toggleStationSelection}
               recentSessions={
                 station.currentSession?.customerId
                   ? intel[station.currentSession.customerId]
@@ -244,6 +349,29 @@ const Stations = () => {
           ))
         )}
       </div>
+
+      {selectionMode && selectedStations.length > 0 && (
+        <div className="fixed bottom-4 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 items-center gap-3 rounded-xl border border-cuephoria-purple/40 bg-[#120818]/95 px-4 py-3 shadow-[0_8px_32px_rgba(139,92,246,0.35)] backdrop-blur-md">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-white">
+              {selectedStations.length} station{selectedStations.length === 1 ? '' : 's'} selected
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              {selectedStations.map((s) => s.name).join(' · ')}
+            </p>
+          </div>
+          <Button size="sm" variant="ghost" className="shrink-0" onClick={() => setSelectedStationIds(new Set())}>
+            <X className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            className="shrink-0 bg-cuephoria-purple hover:bg-cuephoria-purple/80"
+            onClick={() => setOpenMultiStartDialog(true)}
+          >
+            Start together
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
