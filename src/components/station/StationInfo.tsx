@@ -38,6 +38,40 @@ const StationInfo: React.FC<StationInfoProps> = ({
         ? 'Live'
         : 'Open';
 
+  if (compact) {
+    return (
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <div
+            className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 ${theme.iconBg}`}
+          >
+            <Icon className={`h-4 w-4 ${theme.accent}`} />
+            {(station.isOccupied || isStarting) && (
+              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-orange-500 ring-1 ring-black" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className={`truncate font-heading text-sm font-bold leading-tight ${theme.accent}`}>
+              {station.name}
+            </p>
+            <p className={`truncate text-[9px] font-semibold uppercase tracking-wider ${theme.accentMuted}`}>
+              {theme.label}
+            </p>
+          </div>
+          <Badge
+            variant="outline"
+            className={`shrink-0 gap-0.5 px-1.5 py-0 text-[8px] uppercase tracking-wider ${statusBadge}`}
+          >
+            {(station.isOccupied || isStarting) && !isPaused && (
+              <Zap className="h-2 w-2 fill-current" />
+            )}
+            {statusLabel}
+          </Badge>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-w-0 space-y-2">
       <div className="flex items-start gap-3">

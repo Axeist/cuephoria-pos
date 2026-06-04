@@ -1,13 +1,14 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { usePOS } from '@/context/POSContext';
 import StationCard from '@/components/StationCard';
-import { Plus, MapPin, ArrowRightLeft, Radio, CircleDot, Zap } from 'lucide-react';
+import { Plus, MapPin, ArrowRightLeft, Radio, CircleDot, Zap, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AddStationDialog from '@/components/AddStationDialog';
 import ReplaceLegacyStationsDialog from '@/components/station/ReplaceLegacyStationsDialog';
-import StationTypeManager from '@/components/station/StationTypeManager';
+import { StationTypesDialog } from '@/components/station/StationTypeManager';
 import { useStationTypes } from '@/hooks/useStationTypes';
 import { useStationCustomerIntel } from '@/hooks/stations/useStationCustomerIntel';
+import { useStationGridLayout } from '@/hooks/stations/useStationGridLayout';
 import { stationTypeLabel } from '@/utils/stationTypeUtils';
 import { getStationTheme } from '@/utils/stationTheme';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
@@ -40,6 +41,7 @@ const Stations = () => {
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [openPinDialog, setOpenPinDialog] = useState(false);
   const [openReplaceDialog, setOpenReplaceDialog] = useState(false);
+  const [openTypesDialog, setOpenTypesDialog] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>('all');
 
   const visibleStations = useMemo(
@@ -91,119 +93,111 @@ const Stations = () => {
   );
 
   const { intel, loading: intelLoading } = useStationCustomerIntel(activeCustomerIds);
+  const { gridRef, layout } = useStationGridLayout(filteredStations.length);
 
   useEffect(() => {
     prefetchPOS();
   }, []);
 
   return (
-    <div className="flex-1 space-y-4 p-3 pt-3 sm:p-5 sm:pt-5">
-      {/* Command centre header */}
-      <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#0f0a1a] via-[#120818] to-[#0a0612] p-4 sm:p-5 shadow-[0_8px_40px_rgba(139,92,246,0.12)]">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <Radio className="h-5 w-5 text-cuephoria-purple animate-pulse-soft" />
-              <h2 className="gradient-text font-heading text-2xl font-bold sm:text-3xl">
+    <div className="flex h-[calc(100dvh-3rem)] max-h-[calc(100dvh-3rem)] flex-col overflow-hidden p-3 pt-2 sm:p-4 sm:pt-3 md:h-[calc(100dvh-3.25rem)]">
+      {/* Compact command bar */}
+      <div className="mb-2 shrink-0 rounded-xl border border-white/10 bg-black/40 px-3 py-2 backdrop-blur-sm">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <Radio className="h-4 w-4 shrink-0 text-cuephoria-purple animate-pulse-soft" />
+            <div className="min-w-0">
+              <h2 className="gradient-text font-heading text-base font-bold leading-tight sm:text-lg">
                 Station Command
               </h2>
+              {activeLocation && (
+                <p className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
+                  <MapPin className="h-2.5 w-2.5 shrink-0" />
+                  {activeLocation.name}
+                </p>
+              )}
             </div>
-            {activeLocation && (
-              <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-                <MapPin className="h-3.5 w-3.5" />
-                {activeLocation.name}
-              </p>
-            )}
           </div>
 
-          <div className="grid grid-cols-3 gap-3 sm:gap-4">
-            <div className="rounded-xl border border-orange-500/30 bg-orange-950/30 px-4 py-3 text-center">
-              <div className="flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-orange-300/80">
-                <Zap className="h-3 w-3" />
-                Live
-              </div>
-              <p className="mt-0.5 font-mono text-2xl font-bold tabular-nums text-orange-200">
-                {totalActive}
-              </p>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 rounded-lg border border-orange-500/30 bg-orange-950/30 px-2 py-1">
+              <Zap className="h-3 w-3 text-orange-400" />
+              <span className="font-mono text-sm font-bold tabular-nums text-orange-200">{totalActive}</span>
+              <span className="text-[9px] uppercase text-orange-300/70">live</span>
             </div>
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/30 px-4 py-3 text-center">
-              <div className="flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-emerald-300/80">
-                <CircleDot className="h-3 w-3" />
-                Open
-              </div>
-              <p className="mt-0.5 font-mono text-2xl font-bold tabular-nums text-emerald-200">
-                {totalAvailable}
-              </p>
+            <div className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-950/30 px-2 py-1">
+              <CircleDot className="h-3 w-3 text-emerald-400" />
+              <span className="font-mono text-sm font-bold tabular-nums text-emerald-200">{totalAvailable}</span>
+              <span className="text-[9px] uppercase text-emerald-300/70">open</span>
             </div>
-            <div className="rounded-xl border border-violet-500/30 bg-violet-950/30 px-4 py-3 text-center">
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-violet-300/80">
-                Total
-              </div>
-              <p className="mt-0.5 font-mono text-2xl font-bold tabular-nums text-violet-200">
+            <div className="hidden sm:flex items-center gap-1 rounded-lg border border-violet-500/30 bg-violet-950/30 px-2 py-1">
+              <span className="font-mono text-sm font-bold tabular-nums text-violet-200">
                 {visibleStations.length}
-              </p>
+              </span>
+              <span className="text-[9px] uppercase text-violet-300/70">total</span>
             </div>
           </div>
 
-          <div className="flex gap-2 lg:shrink-0">
-            <Button size="sm" variant="outline" onClick={() => setOpenReplaceDialog(true)}>
-              <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setTypeFilter('all')}
+              className={cn(
+                'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-all',
+                typeFilter === 'all'
+                  ? 'border-cuephoria-purple/60 bg-cuephoria-purple/20 text-white'
+                  : 'border-white/10 bg-black/30 text-muted-foreground hover:border-white/20'
+              )}
+            >
+              All
+              <span className="tabular-nums opacity-70">{visibleStations.length}</span>
+            </button>
+            {typeGroups.map((group) => {
+              const theme = getStationTheme({ type: group.type });
+              const Icon = theme.icon;
+              const isActive = typeFilter === group.type;
+              return (
+                <button
+                  key={group.type}
+                  type="button"
+                  onClick={() => setTypeFilter(group.type)}
+                  className={cn(
+                    'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-all',
+                    isActive
+                      ? `${theme.border} bg-white/10 text-white`
+                      : 'border-white/10 bg-black/30 text-muted-foreground hover:border-white/20'
+                  )}
+                >
+                  <Icon className={`h-3 w-3 ${isActive ? theme.accent : ''}`} />
+                  {stationTypeLabel(group.type, stationTypes)}
+                  <span className={`tabular-nums ${isActive ? theme.accentMuted : 'opacity-60'}`}>
+                    {group.activeCount}/{group.stations.length}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex shrink-0 gap-1.5">
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setOpenReplaceDialog(true)}>
+              <ArrowRightLeft className="mr-1 h-3 w-3" />
               Legacy
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setOpenTypesDialog(true)}>
+              <Layers className="mr-1 h-3 w-3" />
+              Types
             </Button>
             <Button
               size="sm"
-              className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
+              className="h-7 text-xs bg-cuephoria-purple hover:bg-cuephoria-purple/80"
               onClick={() => setOpenPinDialog(true)}
             >
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              <Plus className="mr-1 h-3 w-3" />
               Add Station
             </Button>
           </div>
         </div>
-
-        {/* Type filter chips */}
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-white/8 pt-4">
-          <button
-            type="button"
-            onClick={() => setTypeFilter('all')}
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all',
-              typeFilter === 'all'
-                ? 'border-cuephoria-purple/60 bg-cuephoria-purple/20 text-white'
-                : 'border-white/10 bg-black/30 text-muted-foreground hover:border-white/20'
-            )}
-          >
-            All stations
-            <span className="tabular-nums opacity-70">{visibleStations.length}</span>
-          </button>
-          {typeGroups.map((group) => {
-            const theme = getStationTheme({ type: group.type });
-            const Icon = theme.icon;
-            const isActive = typeFilter === group.type;
-            return (
-              <button
-                key={group.type}
-                type="button"
-                onClick={() => setTypeFilter(group.type)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all',
-                  isActive
-                    ? `${theme.border} bg-white/10 text-white`
-                    : 'border-white/10 bg-black/30 text-muted-foreground hover:border-white/20'
-                )}
-              >
-                <Icon className={`h-3.5 w-3.5 ${isActive ? theme.accent : ''}`} />
-                {stationTypeLabel(group.type, stationTypes)}
-                <span className={`tabular-nums ${isActive ? theme.accentMuted : 'opacity-60'}`}>
-                  {group.activeCount}/{group.stations.length}
-                </span>
-              </button>
-            );
-          })}
-        </div>
       </div>
-
-      <StationTypeManager />
 
       <PinVerificationDialog
         open={openPinDialog}
@@ -218,26 +212,37 @@ const Stations = () => {
         onOpenChange={setOpenReplaceDialog}
         onComplete={() => {}}
       />
+      <StationTypesDialog open={openTypesDialog} onOpenChange={setOpenTypesDialog} />
 
-      {/* Full-width command cards — one per row, uses horizontal space */}
-      <div className="space-y-4">
+      {/* Square tile grid — fills remaining viewport, no page scroll */}
+      <div ref={gridRef} className="min-h-0 flex-1 overflow-hidden">
         {filteredStations.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-white/10 py-16 text-center text-muted-foreground">
+          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-white/10 text-muted-foreground">
             No stations in this category
           </div>
         ) : (
-          filteredStations.map((station) => (
-            <StationCard
-              key={station.id}
-              station={station}
-              recentSessions={
-                station.currentSession?.customerId
-                  ? intel[station.currentSession.customerId]
-                  : undefined
-              }
-              intelLoading={intelLoading}
-            />
-          ))
+          <div
+            className="grid h-full w-full place-content-center"
+            style={{
+              gap: layout.gap,
+              gridTemplateColumns: `repeat(${layout.cols}, ${layout.tileSize}px)`,
+              gridTemplateRows: `repeat(${layout.rows}, ${layout.tileSize}px)`,
+            }}
+          >
+            {filteredStations.map((station) => (
+              <div key={station.id} className="min-h-0 min-w-0">
+                <StationCard
+                  station={station}
+                  recentSessions={
+                    station.currentSession?.customerId
+                      ? intel[station.currentSession.customerId]
+                      : undefined
+                  }
+                  intelLoading={intelLoading}
+                />
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
