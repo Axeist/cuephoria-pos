@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { VenueLocation } from "@/context/LocationContext";
+import { useTenantBrandingOptional } from "@/branding/BrandingProvider";
 
 interface Props {
   isVisible: boolean;
@@ -14,7 +15,20 @@ const LINES = [
   "Branch switch complete.",
 ];
 
+const LITE_PRIMARY = "#06b6d4";
+const DEFAULT_PRIMARY = "#9b87f5";
+
 export function BranchSwitchOverlay({ isVisible, targetLocation }: Props) {
+  const branding = useTenantBrandingOptional();
+  const override = branding?.override ?? {};
+  const logoUrl =
+    override.logo_url ||
+    branding?.brand.assets.logoDarkUrl ||
+    branding?.brand.assets.logoLightUrl;
+  const workspaceName =
+    override.display_name?.trim() || branding?.brand.name || "Workspace";
+  const [logoBroken, setLogoBroken] = useState(false);
+
   const [lineIdx, setLineIdx] = useState(0);
   const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
@@ -22,14 +36,14 @@ export function BranchSwitchOverlay({ isVisible, targetLocation }: Props) {
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isLite = targetLocation?.slug === "lite";
-  const primary = isLite ? "#06b6d4" : "#9b87f5";
-  const ring1 = isLite
-    ? "border-cyan-500/40 border-t-cyan-400"
-    : "border-purple-500/40 border-t-purple-400";
-  const ring2 = isLite
-    ? "border-cyan-600/20 border-r-cyan-500"
-    : "border-purple-600/20 border-r-purple-500";
-  const gradFrom = isLite ? "from-cyan-950" : "from-purple-950";
+  const primary = override.primary_color ?? (isLite ? LITE_PRIMARY : DEFAULT_PRIMARY);
+  const accent = override.accent_color ?? primary;
+  const gradFrom = isLite && !override.primary_color ? "from-cyan-950" : "from-purple-950";
+  const initial = workspaceName.charAt(0).toUpperCase() || "W";
+
+  useEffect(() => {
+    setLogoBroken(false);
+  }, [logoUrl]);
 
   useEffect(() => {
     if (isVisible) {
@@ -58,7 +72,6 @@ export function BranchSwitchOverlay({ isVisible, targetLocation }: Props) {
     } else {
       if (lineTimer.current) clearTimeout(lineTimer.current);
       if (progressTimer.current) clearInterval(progressTimer.current);
-      // Delay removal so fade-out animation plays
       const hideTimer = setTimeout(() => setVisible(false), 300);
       return () => clearTimeout(hideTimer);
     }
@@ -71,6 +84,8 @@ export function BranchSwitchOverlay({ isVisible, targetLocation }: Props) {
 
   if (!visible || !targetLocation) return null;
 
+  const showLogo = logoUrl && !logoBroken;
+
   return (
     <div
       className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center
@@ -78,24 +93,46 @@ export function BranchSwitchOverlay({ isVisible, targetLocation }: Props) {
         transition-opacity duration-300 ${isVisible ? "opacity-100" : "opacity-0"}`}
       style={{ backdropFilter: "blur(8px)" }}
     >
-      {/* Spinning rings */}
       <div className="relative flex items-center justify-center mb-10">
         <div
-          className={`w-32 h-32 rounded-full border-4 animate-spin absolute ${ring1}`}
-          style={{ animationDuration: "1s" }}
+          className="w-32 h-32 rounded-full border-4 border-transparent animate-spin absolute"
+          style={{
+            animationDuration: "1s",
+            borderColor: `${primary}66`,
+            borderTopColor: primary,
+          }}
         />
         <div
-          className={`w-24 h-24 rounded-full border-4 border-transparent animate-spin absolute ${ring2}`}
-          style={{ animationDuration: "1.6s", animationDirection: "reverse" }}
+          className="w-24 h-24 rounded-full border-4 border-transparent animate-spin absolute"
+          style={{
+            animationDuration: "1.6s",
+            animationDirection: "reverse",
+            borderColor: `${accent}33`,
+            borderRightColor: accent,
+          }}
         />
-        <img
-          src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
-          alt="Cuephoria"
-          className="h-14 relative z-10 drop-shadow-[0_0_20px_rgba(168,85,247,0.5)] animate-pulse-soft"
-        />
+        <div
+          className="relative z-10 h-14 w-14 rounded-xl overflow-hidden grid place-items-center shadow-lg"
+          style={{
+            background: showLogo
+              ? "rgba(15,12,28,0.9)"
+              : `linear-gradient(135deg, ${primary}, ${accent})`,
+            boxShadow: `0 0 20px ${primary}80`,
+          }}
+        >
+          {showLogo ? (
+            <img
+              src={logoUrl}
+              alt={workspaceName}
+              className="h-full w-full object-contain p-1.5 animate-pulse-soft"
+              onError={() => setLogoBroken(true)}
+            />
+          ) : (
+            <span className="text-xl font-bold text-white drop-shadow-sm">{initial}</span>
+          )}
+        </div>
       </div>
 
-      {/* Branch badge */}
       <div
         className="mb-5 px-5 py-1.5 rounded-full text-xs font-mono font-bold tracking-widest uppercase border"
         style={{
@@ -108,7 +145,6 @@ export function BranchSwitchOverlay({ isVisible, targetLocation }: Props) {
         {targetLocation.name}
       </div>
 
-      {/* Terminal lines */}
       <div className="font-mono text-[11px] text-left w-72 mb-6 space-y-0.5">
         {LINES.slice(0, Math.min(lineIdx + 1, LINES.length)).map((line, i) => (
           <div
@@ -127,7 +163,6 @@ export function BranchSwitchOverlay({ isVisible, targetLocation }: Props) {
         ))}
       </div>
 
-      {/* Progress bar */}
       <div className="w-72 h-[3px] bg-white/10 rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-75"

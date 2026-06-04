@@ -1106,11 +1106,11 @@ export default function BookingManagement() {
     const totalRevenue = calculateRevenue(calendarBookings);
 
     return (
-      <Card className="bg-background border-border shadow-lg">
-        <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-b">
+      <Card className="bg-card border-border shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-blue-950/30 to-indigo-950/30 border-b border-border">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-3 text-2xl">
-              <CalendarIcon className="h-6 w-6 text-blue-600" />
+            <CardTitle className="flex items-center gap-3 text-2xl text-foreground">
+              <CalendarIcon className="h-6 w-6 text-blue-400" />
               Calendar View - {getDateLabel(selectedCalendarDate)}
             </CardTitle>
             <div className="flex items-center gap-3">
@@ -1134,23 +1134,23 @@ export default function BookingManagement() {
           {/* Daily Stats — 2 cols on mobile, 4 from sm up so the figures
               stay readable on 360px phones. */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4">
-            <div className="text-center p-3 bg-background rounded-lg border border-border shadow-sm">
+            <div className="text-center p-3 bg-muted/30 rounded-lg border border-border">
               <p className="text-xs sm:text-sm text-muted-foreground">Total Bookings</p>
-              <p className="text-xl sm:text-2xl font-bold text-blue-600">{totalBookings}</p>
+              <p className="text-xl sm:text-2xl font-bold text-blue-400">{totalBookings}</p>
             </div>
-            <div className="text-center p-3 bg-background rounded-lg border border-border shadow-sm">
+            <div className="text-center p-3 bg-muted/30 rounded-lg border border-border">
               <p className="text-xs sm:text-sm text-muted-foreground">Completed</p>
-              <p className="text-xl sm:text-2xl font-bold text-green-600">{completedBookings}</p>
+              <p className="text-xl sm:text-2xl font-bold text-green-400">{completedBookings}</p>
               <p className="text-[10px] sm:text-xs text-muted-foreground">{totalBookings ? Math.round((completedBookings/totalBookings)*100) : 0}%</p>
             </div>
-            <div className="text-center p-3 bg-background rounded-lg border border-border shadow-sm">
+            <div className="text-center p-3 bg-muted/30 rounded-lg border border-border">
               <p className="text-xs sm:text-sm text-muted-foreground">With Coupons</p>
-              <p className="text-xl sm:text-2xl font-bold text-purple-600">{couponBookings}</p>
+              <p className="text-xl sm:text-2xl font-bold text-purple-400">{couponBookings}</p>
               <p className="text-[10px] sm:text-xs text-muted-foreground">{totalBookings ? Math.round((couponBookings/totalBookings)*100) : 0}%</p>
             </div>
-            <div className="text-center p-3 bg-background rounded-lg border border-border shadow-sm">
+            <div className="text-center p-3 bg-muted/30 rounded-lg border border-border">
               <p className="text-xs sm:text-sm text-muted-foreground">Revenue</p>
-              <p className="text-xl sm:text-2xl font-bold text-green-600">₹{totalRevenue.toLocaleString()}</p>
+              <p className="text-xl sm:text-2xl font-bold text-green-400">₹{totalRevenue.toLocaleString()}</p>
             </div>
           </div>
         </CardHeader>
@@ -1168,7 +1168,7 @@ export default function BookingManagement() {
               <div className="w-24 flex-shrink-0 border-r border-border bg-muted/20 sticky left-0 z-10">
                 <div className="h-12 border-b border-border bg-muted/30"></div> {/* Header spacer */}
                 {timeSlots.map(slot => (
-                  <div key={slot.hour} className="h-16 border-b border-border flex items-start justify-end pr-3 pt-1.5 bg-background/50">
+                  <div key={slot.hour} className="h-16 border-b border-border flex items-start justify-end pr-3 pt-1.5 bg-card/50">
                     <span className="text-sm font-semibold text-foreground">
                       {slot.label}
                     </span>
@@ -1258,8 +1258,8 @@ export default function BookingManagement() {
                         key={booking.id}
                         className={`absolute rounded-lg border-2 cursor-pointer transition-all duration-200 z-20 ${
                           booking.coupon_code 
-                            ? 'bg-gradient-to-r from-purple-100 to-purple-50 border-purple-300 shadow-purple-100 dark:from-purple-900/30 dark:to-purple-800/20 dark:border-purple-500' 
-                            : 'bg-gradient-to-r from-blue-100 to-blue-50 border-blue-300 shadow-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 dark:border-blue-500'
+                            ? 'bg-gradient-to-r from-purple-900/40 to-purple-800/25 border-purple-500/50' 
+                            : 'bg-gradient-to-r from-blue-900/40 to-blue-800/25 border-blue-500/50'
                         } ${isExpanded ? 'shadow-lg z-30' : 'shadow-sm hover:shadow-md'}`}
                         style={{
                           top: `${topPositionRem}rem`,
@@ -1275,7 +1275,7 @@ export default function BookingManagement() {
                             <div className="h-full flex flex-col justify-between">
                               <div>
                                 <div className={`text-sm font-semibold truncate ${
-                                  booking.coupon_code ? 'text-purple-800' : 'text-blue-800'
+                                  booking.coupon_code ? 'text-purple-200' : 'text-blue-200'
                                 }`}>
                                   {booking.customer.name}
                                 </div>
@@ -1313,7 +1313,7 @@ export default function BookingManagement() {
                             <div className="space-y-3 text-sm overflow-y-auto max-h-full">
                               <div className="flex items-center justify-between">
                                 <div className={`font-bold text-lg ${
-                                  booking.coupon_code ? 'text-purple-800' : 'text-blue-800'
+                                  booking.coupon_code ? 'text-purple-200' : 'text-blue-200'
                                 }`}>
                                   {booking.customer.name}
                                 </div>
@@ -2496,7 +2496,7 @@ export default function BookingManagement() {
                   <Filter className="h-5 w-5 text-blue-600" />
                   Advanced Filters
                 </CardTitle>
-                <Button variant="outline" size="sm" onClick={resetFilters} className="hover:bg-red-50 hover:border-red-200 hover:text-red-600">
+                <Button variant="outline" size="sm" onClick={resetFilters} className="hover:bg-red-950/30 hover:border-red-500/40 hover:text-red-400">
                   Reset All
                 </Button>
               </div>
@@ -2542,9 +2542,9 @@ export default function BookingManagement() {
                     />
                   </div>
                   
-                  <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-2 flex items-center">
-                    <Calendar className="h-4 w-4 text-blue-600 mr-2" />
-                    <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                  <div className="bg-blue-950/40 border border-blue-500/30 rounded-lg px-4 py-2 flex items-center">
+                    <Calendar className="h-4 w-4 text-blue-400 mr-2" />
+                    <span className="text-sm font-medium text-blue-200">
                       {getDateRangeLabel()}
                     </span>
                   </div>
@@ -3192,7 +3192,7 @@ export default function BookingManagement() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card 
                   className={`cursor-pointer transition-all hover:shadow-lg ${
-                    selectedFrequencyFilter === 'High' ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-950/20' : ''
+                    selectedFrequencyFilter === 'High' ? 'ring-2 ring-green-500 bg-green-950/25' : ''
                   }`}
                   onClick={() => setSelectedFrequencyFilter(selectedFrequencyFilter === 'High' ? 'All' : 'High')}
                 >
@@ -3212,7 +3212,7 @@ export default function BookingManagement() {
 
                 <Card 
                   className={`cursor-pointer transition-all hover:shadow-lg ${
-                    selectedFrequencyFilter === 'Medium' ? 'ring-2 ring-yellow-500 bg-yellow-50 dark:bg-yellow-950/20' : ''
+                    selectedFrequencyFilter === 'Medium' ? 'ring-2 ring-yellow-500 bg-yellow-950/25' : ''
                   }`}
                   onClick={() => setSelectedFrequencyFilter(selectedFrequencyFilter === 'Medium' ? 'All' : 'Medium')}
                 >
@@ -3232,7 +3232,7 @@ export default function BookingManagement() {
 
                 <Card 
                   className={`cursor-pointer transition-all hover:shadow-lg ${
-                    selectedFrequencyFilter === 'Low' ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-950/20' : ''
+                    selectedFrequencyFilter === 'Low' ? 'ring-2 ring-red-500 bg-red-950/25' : ''
                   }`}
                   onClick={() => setSelectedFrequencyFilter(selectedFrequencyFilter === 'Low' ? 'All' : 'Low')}
                 >
@@ -3254,41 +3254,41 @@ export default function BookingManagement() {
               {/* Quick Stats for Filtered Customers */}
               {filteredStats && filteredCustomerInsights.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                  <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/20 dark:to-blue-900/20">
+                  <Card className="bg-gradient-to-br from-blue-950/25 to-blue-900/30 border-border/60">
                     <CardContent className="p-4">
                       <p className="text-xs text-muted-foreground mb-1">Filtered Revenue</p>
-                      <p className="text-lg font-bold text-blue-600">₹{Math.round(filteredStats.totalRevenue).toLocaleString()}</p>
+                      <p className="text-lg font-bold text-blue-400">₹{Math.round(filteredStats.totalRevenue).toLocaleString()}</p>
                     </CardContent>
                   </Card>
-                  <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/20 dark:to-green-900/20">
+                  <Card className="bg-gradient-to-br from-green-950/25 to-green-900/30 border-border/60">
                     <CardContent className="p-4">
                       <p className="text-xs text-muted-foreground mb-1">Avg Revenue</p>
-                      <p className="text-lg font-bold text-green-600">₹{Math.round(filteredStats.avgRevenue).toLocaleString()}</p>
+                      <p className="text-lg font-bold text-green-400">₹{Math.round(filteredStats.avgRevenue).toLocaleString()}</p>
                     </CardContent>
                   </Card>
-                  <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/20 dark:to-purple-900/20">
+                  <Card className="bg-gradient-to-br from-purple-950/25 to-purple-900/30 border-border/60">
                     <CardContent className="p-4">
                       <p className="text-xs text-muted-foreground mb-1">Total Bookings</p>
-                      <p className="text-lg font-bold text-purple-600">{filteredStats.totalBookings}</p>
+                      <p className="text-lg font-bold text-purple-400">{filteredStats.totalBookings}</p>
                     </CardContent>
                   </Card>
-                  <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/20 dark:to-orange-900/20">
+                  <Card className="bg-gradient-to-br from-orange-950/25 to-orange-900/30 border-border/60">
                     <CardContent className="p-4">
                       <p className="text-xs text-muted-foreground mb-1">Avg Bookings</p>
-                      <p className="text-lg font-bold text-orange-600">{filteredStats.avgBookings.toFixed(1)}</p>
+                      <p className="text-lg font-bold text-orange-400">{filteredStats.avgBookings.toFixed(1)}</p>
                     </CardContent>
                   </Card>
-                  <Card className="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950/20 dark:to-teal-900/20">
+                  <Card className="bg-gradient-to-br from-teal-950/25 to-teal-900/30 border-border/60">
                     <CardContent className="p-4">
                       <p className="text-xs text-muted-foreground mb-1">Active</p>
-                      <p className="text-lg font-bold text-teal-600">{filteredStats.activeCount}</p>
+                      <p className="text-lg font-bold text-teal-400">{filteredStats.activeCount}</p>
                       <p className="text-xs text-muted-foreground">{((filteredStats.activeCount / filteredStats.totalCustomers) * 100).toFixed(0)}%</p>
                     </CardContent>
                   </Card>
-                  <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950/20 dark:to-yellow-900/20">
+                  <Card className="bg-gradient-to-br from-yellow-950/25 to-yellow-900/30 border-border/60">
                     <CardContent className="p-4">
                       <p className="text-xs text-muted-foreground mb-1">VIP Customers</p>
-                      <p className="text-lg font-bold text-yellow-600">{filteredStats.vipCount}</p>
+                      <p className="text-lg font-bold text-yellow-400">{filteredStats.vipCount}</p>
                       <p className="text-xs text-muted-foreground">{((filteredStats.vipCount / filteredStats.totalCustomers) * 100).toFixed(0)}%</p>
                     </CardContent>
                   </Card>
@@ -4007,7 +4007,7 @@ export default function BookingManagement() {
                                                 key={booking.id} 
                                                 className={`p-4 border rounded-lg bg-card shadow-sm ${
                                                   booking.coupon_code 
-                                                    ? 'ring-2 ring-purple-200 bg-purple-50/30 dark:bg-purple-950/30' 
+                                                    ? 'ring-2 ring-purple-500/40 bg-purple-950/30' 
                                                     : ''
                                                 }`}
                                               >
@@ -4114,7 +4114,7 @@ export default function BookingManagement() {
                                                             {booking.coupon_code}
                                                           </Badge>
                                                         )}
-                                                        <div className="mt-1 pt-1 border-t border-gray-200 dark:border-gray-700">
+                                                        <div className="mt-1 pt-1 border-t border-border">
                                                           {booking.payment_mode && booking.payment_mode !== 'venue' ? (
                                                             <div className="text-xs text-green-600 font-medium">
                                                               ✓ Paid: ₹{booking.final_price || 0}
