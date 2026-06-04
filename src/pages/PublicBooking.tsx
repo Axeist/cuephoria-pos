@@ -215,6 +215,14 @@ const stationsForTypeFilter = (stations: Station[], stationType: 'all' | Station
   return base.filter((s) => s.type === stationType);
 };
 
+/** Map DB station.type values to booking UI types */
+const normalizeStationType = (raw: string | null | undefined): StationType => {
+  const t = String(raw ?? '').toLowerCase().trim();
+  if (t === 'vr') return 'vr';
+  if (t === '8ball' || t === '8-ball' || t === '8_ball' || t === 'snooker') return '8ball';
+  return 'ps5';
+};
+
 const getBookingDuration = (stationIds: string[], stations: Station[]) => {
   // Find the first selected station to determine duration
   const firstStation = stations.find(s => stationIds.includes(s.id));
@@ -551,25 +559,23 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     };
   }, [selectedDate, hasSearched, customerInfo]);
 
-  // NEW FLOW: Fetch slots when date changes OR when customer info is complete OR when event type changes
-  // No longer requires station selection first
+  // Fetch slots when date/type changes — wait until stations are loaded
   useEffect(() => {
-    const nitReady = true;
-    if (isCustomerInfoComplete && selectedDate && nitReady) {
+    if (isCustomerInfoComplete && selectedDate && stations.length > 0) {
       fetchAvailableSlots();
-    } else {
+    } else if (!isCustomerInfoComplete || !selectedDate) {
       setAvailableSlots([]);
       setSelectedSlot(null);
       setSelectedSlots([]);
     }
-  }, [selectedDate, selectedStations, isCustomerInfoComplete, stationType]);
+  }, [selectedDate, selectedStations, isCustomerInfoComplete, stationType, stations.length]);
   
   // Re-fetch slots when stations change to update availability
   useEffect(() => {
-    if (selectedStations.length > 0 && selectedDate && isCustomerInfoComplete) {
+    if (selectedDate && isCustomerInfoComplete && stations.length > 0) {
       fetchAvailableSlots();
     }
-  }, [selectedStations, selectedDate, isCustomerInfoComplete]);
+  }, [selectedStations, selectedDate, isCustomerInfoComplete, stations.length]);
   
   // NEW: Update available stations when a time slot is selected
   useEffect(() => {
@@ -628,17 +634,21 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         .from("stations")
         .select("id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate, category, event_enabled, slot_duration, max_players, occupancy_rates, pricing_mode")
         .eq("location_id", publicLocationId)
-        .or("event_enabled.eq.true,and(category.is.null,event_enabled.is.null)")
         .neq("category", "nit_event")
         .order("name");
       if (error) throw error;
-      setStations(((data || []) as any[]).map((station) => ({
-        ...station,
-        type: station.type as StationType,
-        max_players: station.max_players ?? station.max_capacity ?? 1,
-        occupancy_rates: station.occupancy_rates ?? {},
-        pricing_mode: station.pricing_mode ?? undefined,
-      })));
+      const rows = ((data || []) as any[]).filter(
+        (s) => s.event_enabled !== false
+      );
+      setStations(
+        rows.map((station) => ({
+          ...station,
+          type: normalizeStationType(station.type),
+          max_players: station.max_players ?? station.max_capacity ?? 1,
+          occupancy_rates: station.occupancy_rates ?? {},
+          pricing_mode: station.pricing_mode ?? undefined,
+        }))
+      );
     } catch (e) {
       console.error(e);
       toast.error("Failed to load stations");
@@ -654,7 +664,6 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       
       if (stations.length === 0) {
         setAvailableSlots([]);
-        setSlotsLoading(false);
         return;
       }
       
@@ -2613,13 +2622,20 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                         Available Time Slots
                       </Label>
                       <div className="mt-2">
-                        <TimeSlotPicker
-                          slots={availableSlots}
-                          selectedSlot={selectedSlot}
-                          selectedSlots={selectedSlots}
-                          onSlotSelect={handleSlotSelect}
-                          loading={slotsLoading}
-                        />
+                        {stations.length === 0 && !slotsLoading ? (
+                          <div className="rounded-xl border border-amber-500/30 bg-amber-950/30 p-4 text-center text-sm text-amber-200">
+                            <AlertTriangle className="h-6 w-6 mx-auto mb-2 text-amber-400" />
+                            No bookable stations for this branch. Enable public booking on stations in Station Command, or contact the venue.
+                          </div>
+                        ) : (
+                          <TimeSlotPicker
+                            slots={availableSlots}
+                            selectedSlot={selectedSlot}
+                            selectedSlots={selectedSlots}
+                            onSlotSelect={handleSlotSelect}
+                            loading={slotsLoading}
+                          />
+                        )}
                       </div>
                     </div>
                   </div>
