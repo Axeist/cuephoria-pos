@@ -3,6 +3,7 @@ import { useStartSession } from './useStartSession';
 import { useEndSession } from './useEndSession';
 import { usePauseSession } from './usePauseSession';
 import { useExtendSession } from './useExtendSession';
+import { useMoveSession } from './useMoveSession';
 import { SessionActionsProps } from './types';
 import { Customer } from '@/types/pos.types';
 import { useToast } from '@/hooks/use-toast';
@@ -17,6 +18,7 @@ export const useSessionActions = (props: SessionActionsProps) => {
   const endSessionHook = useEndSession({...props, updateCustomer});
   const pauseSessionHook = usePauseSession(props);
   const extendSessionHook = useExtendSession(props);
+  const moveSessionHook = useMoveSession(props);
   
   const startSession = async (
     stationId: string,
@@ -51,6 +53,17 @@ export const useSessionActions = (props: SessionActionsProps) => {
     try {
       setIsLoading(true);
       await extendSessionHook.extendSession(stationId, extraMinutes);
+    } catch (error) {
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const moveSession = async (fromStationId: string, toStationId: string): Promise<void> => {
+    try {
+      setIsLoading(true);
+      await moveSessionHook.moveSession(fromStationId, toStationId);
     } catch (error) {
       throw error;
     } finally {
@@ -134,6 +147,7 @@ export const useSessionActions = (props: SessionActionsProps) => {
     pauseSession,
     resumeSession,
     extendSession,
+    moveSession,
     isLoading
   };
 };

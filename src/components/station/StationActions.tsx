@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Station, Customer } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS } from '@/context/POSContext';
-import { Pause, Play, Square, ShoppingBag, Loader2, Plus, Users } from 'lucide-react';
+import { Pause, Play, Square, ShoppingBag, Loader2, Plus, Users, ArrowRightLeft } from 'lucide-react';
 import StartSessionDialog from '@/components/StartSessionDialog';
+import MoveSessionDialog from '@/components/station/MoveSessionDialog';
 import { getRateForPlayerCount } from '@/utils/stationPricing';
-import { getDurationPresets } from '@/utils/sessionDuration.utils';
+import { getDurationPresets, stationsMatchForMove } from '@/utils/sessionDuration.utils';
 import type { StationTheme, StationPhase } from '@/utils/stationTheme';
 import { prefetchPOS, navigateToPOS, sleep, SESSION_TRANSITION } from '@/utils/viewTransition';
 
@@ -53,9 +54,23 @@ const StationActions: React.FC<StationActionsProps> = ({
 }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { selectCustomer } = usePOS();
+  const { selectCustomer, stations, moveSession } = usePOS();
   const [isLoading, setIsLoading] = useState(false);
   const [isStartDialogOpen, setIsStartDialogOpen] = useState(false);
+  const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+
+  const canMoveSession = useMemo(
+    () =>
+      stations.some(
+        (s) =>
+          s.id !== station.id &&
+          s.category !== 'nit_event' &&
+          stationsMatchForMove(s, station) &&
+          !s.isOccupied &&
+          !s.currentSession
+      ),
+    [stations, station]
+  );
   const isPaused = station.currentSession?.isPaused;
   const isTransitioning = phase === 'starting' || phase === 'ending';
 
@@ -155,11 +170,29 @@ const StationActions: React.FC<StationActionsProps> = ({
     if (phase === 'starting') return null;
 
     return (
+      <>
       <div
         className={`animate-station-content-in ${
           footerLayout ? 'w-full space-y-2 border-t border-white/8 pt-3' : 'flex w-full flex-col gap-1.5'
         }`}
       >
+        {canMoveSession && (
+          <Button
+            type="button"
+            size={footerLayout ? 'default' : 'sm'}
+            variant="outline"
+            className={
+              footerLayout
+                ? 'h-10 w-full border-white/15 bg-white/5 text-sm font-semibold text-gray-200 hover:bg-white/10'
+                : 'h-7 w-full border-white/15 bg-white/5 text-[10px] font-semibold text-gray-200 hover:bg-white/10'
+            }
+            onClick={() => setIsMoveDialogOpen(true)}
+            disabled={isLoading || isTransitioning}
+          >
+            <ArrowRightLeft className={`mr-1.5 ${footerLayout ? 'h-4 w-4' : 'h-3 w-3'}`} />
+            Move station
+          </Button>
+        )}
         {station.currentSession?.plannedDurationMinutes && onExtendSession && (
           <div className={`flex gap-2 ${footerLayout ? '' : 'gap-1'}`}>
             {extendPresets.map((mins) => (
@@ -247,6 +280,14 @@ const StationActions: React.FC<StationActionsProps> = ({
         </Button>
         </div>
       </div>
+      <MoveSessionDialog
+        open={isMoveDialogOpen}
+        onOpenChange={setIsMoveDialogOpen}
+        sourceStation={station}
+        stations={stations}
+        onMove={moveSession}
+      />
+      </>
     );
   }
 

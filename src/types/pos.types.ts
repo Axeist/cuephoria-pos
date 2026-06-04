@@ -188,6 +188,7 @@ export interface POSContextType {
     sessionGroupId?: string
   ) => Promise<void>;
   extendSession: (stationId: string, extraMinutes: number) => Promise<void>;
+  moveSession: (fromStationId: string, toStationId: string) => Promise<void>;
   endSession: (stationId: string) => Promise<void>;
   endSessionGroup: (stationId: string) => Promise<void>;
   pauseSession: (stationId: string) => Promise<void>;

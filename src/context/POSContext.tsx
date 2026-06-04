@@ -54,6 +54,7 @@ const POSContext = createContext<POSContextType>({
   pauseSession: async () => {},
   resumeSession: async () => {},
   extendSession: async () => {},
+  moveSession: async () => {},
   deleteStation: async () => false,
   updateStation: async () => false,
   refreshStations: async () => {},
@@ -137,6 +138,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     pauseSession: pauseSessionBase,
     resumeSession: resumeSessionBase,
     extendSession: extendSessionBase,
+    moveSession: moveSessionBase,
     deleteStation,
     updateStation,
     refreshStations,
@@ -612,6 +614,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const extendSession = async (stationId: string, extraMinutes: number): Promise<void> => {
     await extendSessionBase(stationId, extraMinutes);
   };
+
+  const moveSession = async (fromStationId: string, toStationId: string): Promise<void> => {
+    await moveSessionBase(fromStationId, toStationId);
+  };
   
   const endSession = async (stationId: string): Promise<void> => {
     try {
@@ -1007,6 +1013,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     pauseSession,
     resumeSession,
     extendSession,
+    moveSession,
     deleteStation,
     updateStation,
     refreshStations,
@@ -1053,7 +1060,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     categories, setIsStudentDiscount, setBills, setCustomers, setStations,
     addProduct, updateProduct, deleteProduct,
     addCategory, updateCategory, deleteCategory,
-    startSession, endSession, endSessionGroup, pauseSession, resumeSession, extendSession, deleteStation, updateStation, refreshStations,
+    startSession, endSession, endSessionGroup, pauseSession, resumeSession, extendSession, moveSession, deleteStation, updateStation, refreshStations,
     addCustomer, updateCustomer, updateCustomerMembershipWrapper,
     deleteCustomer, selectCustomer, checkMembershipValidity, deductMembershipHours,
     addToCart, removeFromCart, updateCartItem, handleClearCart,

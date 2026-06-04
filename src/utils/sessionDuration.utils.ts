@@ -172,4 +172,48 @@ export function wouldExtensionConflict(
   return { blocked: false };
 }
 
+/** Wall-clock window the session will occupy on a station after a move (from now until planned end). */
+export function getSessionMoveBlockWindow(
+  session: Session,
+  now = new Date()
+): { startMin: number; endMin: number } {
+  const state = getSessionDurationState(session, now);
+  const startMin = timeToMinutes(dateToTimeStr(now));
+
+  if (state) {
+    const plannedEnd = new Date(session.startTime.getTime() + state.plannedMs);
+    const blockEnd =
+      plannedEnd > now ? plannedEnd : new Date(now.getTime() + 15 * 60 * 1000);
+    let endMin = timeToMinutes(dateToTimeStr(blockEnd));
+    if (endMin <= startMin) endMin = startMin + 15;
+    return { startMin, endMin };
+  }
+
+  const fallbackEnd = new Date(now.getTime() + 60 * 60 * 1000);
+  return { startMin, endMin: timeToMinutes(dateToTimeStr(fallbackEnd)) };
+}
+
+/** True when moving the session to a station would overlap a confirmed booking there. */
+export function wouldSessionMoveConflict(
+  bookings: BookingConflict[],
+  session: Session,
+  now = new Date()
+): { blocked: boolean; conflict?: BookingConflict } {
+  const { startMin, endMin } = getSessionMoveBlockWindow(session, now);
+
+  for (const booking of bookings) {
+    const bStart = timeToMinutes(booking.startTime.slice(0, 5));
+    const bEnd = timeToMinutes(booking.endTime.slice(0, 5));
+    if (rangesOverlapMinutes(startMin, endMin, bStart, bEnd)) {
+      return { blocked: true, conflict: booking };
+    }
+  }
+
+  return { blocked: false };
+}
+
+export function stationsMatchForMove(a: { type: string }, b: { type: string }): boolean {
+  return (a.type || '').toLowerCase() === (b.type || '').toLowerCase();
+}
+
 export { dateToYmd, dateToTimeStr, minutesToTime };
