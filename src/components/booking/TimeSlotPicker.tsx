@@ -70,14 +70,16 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
         {slots.map((slot, index) => {
-          const isSelected = selectedSlot?.start_time === slot.start_time;
+          const isSelected =
+            selectedSlot?.start_time === slot.start_time &&
+            selectedSlot?.end_time === slot.end_time;
           const isInMultipleSelection = selectedSlots.some(
             s => s.start_time === slot.start_time && s.end_time === slot.end_time
           );
 
           return (
             <Button
-              key={index}
+              key={`${slot.start_time}-${slot.end_time}-${index}`}
               variant={isSelected || isInMultipleSelection ? "default" : slot.is_available ? "outline" : "ghost"}
               disabled={!slot.is_available}
               onClick={() => slot.is_available && onSlotSelect(slot)}

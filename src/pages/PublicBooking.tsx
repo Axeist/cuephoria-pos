@@ -190,12 +190,29 @@ const validatePhoneNumber = (phone: string): { valid: boolean; error?: string } 
 };
 
 const getSlotDuration = (station: Station) => {
-  // Use slot_duration from station if available, otherwise fallback to type-based logic
   if (station.slot_duration) {
     return station.slot_duration;
   }
-  // Fallback: VR is 15 mins, others are 60 mins
   return station.type === 'vr' ? 15 : 60;
+};
+
+const getSlotDurationMinutesFromTime = (startTime: string, endTime: string): number => {
+  const parseT = (t: string) => {
+    const [h, m, s] = t.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0) + (s ? 0 : 0);
+  };
+  let mins = parseT(endTime) - parseT(startTime);
+  if (mins <= 0) mins += 24 * 60;
+  return mins;
+};
+
+const regularStations = (stations: Station[]) =>
+  stations.filter((s) => !s.category || s.category !== 'nit_event');
+
+const stationsForTypeFilter = (stations: Station[], stationType: 'all' | StationType) => {
+  const base = regularStations(stations);
+  if (stationType === 'all') return base;
+  return base.filter((s) => s.type === stationType);
 };
 
 const getBookingDuration = (stationIds: string[], stations: Station[]) => {
@@ -298,7 +315,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   const customerSession = getCustomerSession();
   
   const [stations, setStations] = useState<Station[]>([]);
-  const [stationType, setStationType] = useState<"all" | StationType | "nit_event">("all");
+  const [stationType, setStationType] = useState<'all' | StationType>('all');
   const [selectedStations, setSelectedStations] = useState<string[]>([]);
   const [stationPlayerCounts, setStationPlayerCounts] = useState<Record<string, number>>({});
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -378,10 +395,6 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   const [paymentStatus, setPaymentStatus] = useState<"processing" | "success" | "failed" | null>(null);
   const [razorpayKeyId, setRazorpayKeyId] = useState<string>("");
   const [loggedInCustomer, setLoggedInCustomer] = useState<any>(null);
-  
-  // IIM EVENT booking state
-  const [isNitEventBooking, setIsNitEventBooking] = useState<boolean>(false);
-  const [nitEventMode, setNitEventMode] = useState<"vr" | "ps5" | "8ball" | null>(null); // For EVENT only
 
   // Dynamic settings from database
   const [eventName, setEventName] = useState("IIM Event");
@@ -455,18 +468,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     fetchBookingSettings();
   }, [publicLocationId]);
 
-  // When switching to EVENT, force-remove any applied coupons
-  useEffect(() => {
-    if (isNitEventBooking === true && Object.keys(appliedCoupons).length > 0) {
-      setAppliedCoupons({});
-      setCouponCode("");
-      toast.info(`Coupons are not applicable for ${eventName} bookings.`, { duration: 2500 });
-    }
-  }, [isNitEventBooking, appliedCoupons, eventName]);
 
-  // Old PhonePe payment handling removed - now using Razorpay with separate success page
-
-  // Check for logged-in customer and auto-fill information
+  // Check if customer info is complete (using useMemo to avoid initialization issues)
   useEffect(() => {
     const customerSession = getCustomerSession();
     if (customerSession) {
@@ -492,23 +495,24 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     fetchTodaysBookings();
   }, [publicLocationId]);
 
-  // Check if there are enabled event stations for Event option
-  const hasEnabledEventStations = useMemo(() => 
-    stations.some(s => s.category === 'nit_event' && s.event_enabled),
-    [stations]
-  );
 
-  // Reset booking type when customer info is cleared
+  // Reset selections when customer info is cleared
   useEffect(() => {
     if (!isCustomerInfoComplete) {
-      setIsNitEventBooking(null);
-      setNitEventMode(null);
       setSelectedStations([]);
       setSelectedSlot(null);
       setSelectedSlots([]);
       setSelectedDate(new Date());
+      setStationType('all');
     }
   }, [isCustomerInfoComplete]);
+
+  const handleStationTypeChange = (type: 'all' | StationType) => {
+    setStationType(type);
+    setSelectedSlot(null);
+    setSelectedSlots([]);
+    setSelectedStations([]);
+  };
 
   useEffect(() => {
     if (appliedCoupons["8ball"] === "HH99" && !isHappyHour(selectedDate, selectedSlot)) {
@@ -558,7 +562,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       setSelectedSlot(null);
       setSelectedSlots([]);
     }
-  }, [selectedDate, selectedStations, isCustomerInfoComplete, isNitEventBooking, nitEventMode]);
+  }, [selectedDate, selectedStations, isCustomerInfoComplete, stationType]);
   
   // Re-fetch slots when stations change to update availability
   useEffect(() => {
@@ -589,7 +593,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     
     updateAvailableStations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSlot, selectedSlots, selectedDate, stations.length]);
+  }, [selectedSlot, selectedSlots, selectedDate, stations.length, stationType]);
 
   // Check for booking confirmation from payment success redirect
   useEffect(() => {
@@ -658,179 +662,34 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       const openingTime = 11; // 11 AM
       const closingTime = 23; // 11 PM
       
-      const allSlots: TimeSlot[] = [];
-      
-      // Determine slot duration based on booking type and selected stations
-      // For EVENT: user chooses PS5 (30min), 8-Ball (30min), OR VR (15min)
-      // For Regular: PS5 = 60min, VR = 15min (or station.slot_duration)
-      let slotDuration = 60; // Default
-      if (isNitEventBooking === true) {
-        if (nitEventMode === "vr") slotDuration = 15;
-        else if (nitEventMode === "ps5" || nitEventMode === "8ball") slotDuration = 30; // Both PS5 and 8-Ball use 30min
-        else {
-          // Event selected but mode not picked yet
-          setAvailableSlots([]);
-          setSlotsLoading(false);
-          return;
-        }
+      const builtSlots: TimeSlot[] = [];
+      const pool = stationsForTypeFilter(stations, stationType);
+
+      let durationsToBuild: number[];
+      if (selectedStations.length > 0) {
+        const firstStation = stations.find((s) => selectedStations.includes(s.id));
+        durationsToBuild = firstStation ? [getSlotDuration(firstStation)] : [60];
+      } else if (stationType === 'vr') {
+        durationsToBuild = [15];
+      } else if (stationType === 'ps5' || stationType === '8ball') {
+        const typed = pool.filter((s) => s.type === stationType);
+        durationsToBuild = typed.length > 0 ? [getSlotDuration(typed[0])] : [60];
       } else {
-        // Regular booking: Use slot_duration from first selected station, or fallback to type-based logic
-        if (selectedStations.length > 0) {
-          const firstStation = stations.find(s => selectedStations.includes(s.id));
-          if (firstStation) {
-            slotDuration = getSlotDuration(firstStation);
-          } else {
-            // Fallback: Check if any selected station is VR
-            const hasVRSelected = selectedStations.some(id => 
-              stations.find(s => s.id === id && s.type === 'vr')
-            );
-            slotDuration = hasVRSelected ? 15 : 60;
-          }
-        } else if (stations.length > 0) {
-          // No stations selected yet, use first station's duration as default
-          slotDuration = getSlotDuration(stations[0]);
-        }
+        durationsToBuild = [...new Set(pool.map(getSlotDuration))].sort((a, b) => a - b);
+        if (durationsToBuild.length === 0) durationsToBuild = [60];
       }
-      
-      if (isNitEventBooking === true) {
-        if (slotDuration === 30) {
-          // EVENT: PS5 and 8-Ball (30min slots)
-          for (let hour = openingTime; hour <= closingTime; hour++) {
-            for (let half = 0; half < 2; half++) {
-              const minutes = half * 30;
-              const startTime = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-              
-              let endHour = hour;
-              let endMinutes = minutes + 30;
-              if (endMinutes >= 60) {
-                endMinutes = 0;
-                endHour = hour + 1;
-              }
-              if (endHour >= 24) {
-                endHour = 0;
-              }
-              const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`;
-              
-              // Check if past
-              let isPast = false;
-              if (isToday) {
-                const now = new Date();
-                const currentHour = now.getHours();
-                const currentMinute = now.getMinutes();
-                isPast = hour < currentHour || (hour === currentHour && minutes <= currentMinute);
-              }
-              
-              if (isPast) {
-                allSlots.push({
-                  start_time: startTime,
-                  end_time: endTime,
-                  is_available: false,
-                  status: 'elapsed'
-                });
-                continue;
-              }
-              
-              // Include both PS5 and 8-Ball stations for 30min slots
-              const eventStations30min = stations.filter(s => 
-                (s.category === 'nit_event' && s.event_enabled && (s.type === 'ps5' || s.type === '8ball')) &&
-                (selectedStations.length === 0 || selectedStations.includes(s.id))
-              );
-              let anyAvailable30min = false;
-              
-              if (eventStations30min.length > 0) {
-                try {
-                  const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
-                    p_date: dateStr,
-                    p_start_time: startTime,
-                    p_end_time: endTime,
-                    p_station_ids: eventStations30min.map(s => s.id)
-                  });
-                  if (!availError && availabilityData) {
-                    anyAvailable30min = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
-                  }
-                } catch (e) {
-                  console.error("Error checking 30min event station availability:", e);
-                }
-              }
-              
-              allSlots.push({
-                start_time: startTime,
-                end_time: endTime,
-                is_available: anyAvailable30min,
-                status: anyAvailable30min ? 'available' : 'booked'
-              });
-            }
-          }
-        } else if (slotDuration === 15) {
-          // EVENT: VR (15min slots)
-          for (let hour = openingTime; hour <= closingTime; hour++) {
-            for (let quarter = 0; quarter < 4; quarter++) {
-              const minutes = quarter * 15;
-              const startTime = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-              
-              let endHour = hour;
-              let endMinutes = minutes + 15;
-              if (endMinutes >= 60) {
-                endMinutes = 0;
-                endHour = hour + 1;
-              }
-              if (endHour >= 24) {
-                endHour = 0;
-              }
-              const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`;
-              
-              // Check if past
-              let isPast = false;
-              if (isToday) {
-                const now = new Date();
-                const currentHour = now.getHours();
-                const currentMinute = now.getMinutes();
-                isPast = hour < currentHour || (hour === currentHour && minutes <= currentMinute);
-              }
-              
-              if (isPast) {
-                allSlots.push({
-                  start_time: startTime,
-                  end_time: endTime,
-                  is_available: false,
-                  status: 'elapsed'
-                });
-                continue;
-              }
-              
-              const eventVrStations = stations.filter(s => 
-                s.category === 'nit_event' && s.event_enabled && s.type === 'vr' &&
-                (selectedStations.length === 0 || selectedStations.includes(s.id))
-              );
-              let anyVRAvailable = false;
-              
-              if (eventVrStations.length > 0) {
-                try {
-                  const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
-                    p_date: dateStr,
-                    p_start_time: startTime,
-                    p_end_time: endTime,
-                    p_station_ids: eventVrStations.map(s => s.id)
-                  });
-                  if (!availError && availabilityData) {
-                    anyVRAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
-                  }
-                } catch (e) {
-                  console.error("Error checking VR event station availability:", e);
-                }
-              }
-              
-              allSlots.push({
-                start_time: startTime,
-                end_time: endTime,
-                is_available: anyVRAvailable,
-                status: anyVRAvailable ? 'available' : 'booked'
-              });
-            }
-          }
+
+      const stationsForDuration = (duration: number) => {
+        let list = pool.filter((s) => getSlotDuration(s) === duration);
+        if (selectedStations.length > 0) {
+          list = list.filter((s) => selectedStations.includes(s.id));
         }
-      } else if (slotDuration === 15) {
-        // VR slots: 15-minute intervals (regular booking)
+        return list;
+      };
+
+      for (const slotDuration of durationsToBuild) {
+        if (slotDuration === 15) {
+        // VR slots: 15-minute intervals
         for (let hour = openingTime; hour <= closingTime; hour++) {
           for (let quarter = 0; quarter < 4; quarter++) {
             const minutes = quarter * 15;
@@ -847,7 +706,6 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
             }
             const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`;
             
-            // Check if past
             let isPast = false;
             if (isToday) {
               const now = new Date();
@@ -857,7 +715,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
             }
             
             if (isPast) {
-              allSlots.push({
+              builtSlots.push({
                 start_time: startTime,
                 end_time: endTime,
                 is_available: false,
@@ -866,10 +724,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
               continue;
             }
             
-            // Check VR station availability (exclude event + 8-Ball)
-            const vrStations = stations.filter(
-              (s) => s.type === 'vr' && (!s.category || s.category !== 'nit_event')
-            );
+            const vrStations = stationsForDuration(15);
             let anyVRAvailable = false;
             
             if (vrStations.length > 0) {
@@ -889,7 +744,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
               }
             }
             
-            allSlots.push({
+            builtSlots.push({
               start_time: startTime,
               end_time: endTime,
               is_available: anyVRAvailable,
@@ -898,7 +753,6 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           }
         }
       } else if (slotDuration === 30) {
-        // Event slots: 30-minute intervals (for event PS5 and 8-Ball)
         for (let hour = openingTime; hour <= closingTime; hour++) {
           for (let half = 0; half < 2; half++) {
             const minutes = half * 30;
@@ -915,7 +769,6 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
             }
             const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`;
             
-            // Check if past
             let isPast = false;
             if (isToday) {
               const now = new Date();
@@ -925,7 +778,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
             }
             
             if (isPast) {
-              allSlots.push({
+              builtSlots.push({
                 start_time: startTime,
                 end_time: endTime,
                 is_available: false,
@@ -934,30 +787,27 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
               continue;
             }
             
-            // Check station availability for 30-min slots
-            const eventStations = stations.filter(s => 
-              selectedStations.length === 0 || selectedStations.includes(s.id)
-            );
+            const halfHourStations = stationsForDuration(30);
             let anyAvailable = false;
             
-            if (eventStations.length > 0) {
+            if (halfHourStations.length > 0) {
               try {
                 const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
                   p_date: dateStr,
                   p_start_time: startTime,
                   p_end_time: endTime,
-                  p_station_ids: eventStations.map(s => s.id)
+                  p_station_ids: halfHourStations.map(s => s.id)
                 });
                 
                 if (!availError && availabilityData) {
                   anyAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
                 }
               } catch (e) {
-                console.error("Error checking event station availability:", e);
+                console.error("Error checking 30-min station availability:", e);
               }
             }
             
-            allSlots.push({
+            builtSlots.push({
               start_time: startTime,
               end_time: endTime,
               is_available: anyAvailable,
@@ -966,18 +816,16 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           }
         }
       } else {
-        // Regular slots: 60-minute intervals (PS5 + 8-Ball)
+        // 60-minute (and other long) slots
         for (let hour = openingTime; hour <= closingTime; hour++) {
           const startTime = `${hour.toString().padStart(2, '0')}:00:00`;
           let endHour = hour + 1;
           let endTime = `${endHour.toString().padStart(2, '0')}:00:00`;
           
-          // Handle midnight crossover
           if (endHour >= 24) {
             endTime = '00:00:00';
           }
           
-          // Check if this slot is past (for today)
           let isPast = false;
           if (isToday) {
             const now = new Date();
@@ -987,7 +835,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           }
           
           if (isPast) {
-            allSlots.push({
+            builtSlots.push({
               start_time: startTime,
               end_time: endTime,
               is_available: false,
@@ -996,36 +844,27 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
             continue;
           }
           
-          // Check if ANY non-VR regular station is available for this time slot (exclude IIM event)
-          const nonVRStations = stations.filter(
-            (s) => s.type !== 'vr' && (!s.category || s.category !== 'nit_event')
-          );
-          
+          const longStations = stationsForDuration(slotDuration);
           let anyStationAvailable = false;
           
-          if (nonVRStations.length > 0) {
+          if (longStations.length > 0) {
             try {
               const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
                 p_date: dateStr,
                 p_start_time: startTime,
                 p_end_time: endTime,
-                p_station_ids: nonVRStations.map(s => s.id)
+                p_station_ids: longStations.map(s => s.id)
               });
               
               if (!availError && availabilityData) {
-                // TIME SLOT AVAILABILITY: Show as available if ANY station is free
-                // Don't restrict by teams here - let users see all available time slots
-                // Team restrictions will be applied in Step 3 (station selection)
-                anyStationAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => {
-                  return item.is_available; // If ANY station is available, slot is available
-                });
+                anyStationAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
               }
             } catch (e) {
               console.error("Error checking station availability:", e);
             }
           }
           
-          allSlots.push({
+          builtSlots.push({
             start_time: startTime,
             end_time: endTime,
             is_available: anyStationAvailable,
@@ -1033,13 +872,18 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           });
         }
       }
-      
-      setAvailableSlots(allSlots);
-      setSlotsLoading(false);
+      }
+
+      builtSlots.sort((a, b) => {
+        const cmp = a.start_time.localeCompare(b.start_time);
+        return cmp !== 0 ? cmp : a.end_time.localeCompare(b.end_time);
+      });
+
+      setAvailableSlots(builtSlots);
 
       if (
         selectedSlot &&
-        !availableSlots.some(
+        !builtSlots.some(
           (s) =>
             s.start_time === selectedSlot.start_time &&
             s.end_time === selectedSlot.end_time &&
@@ -1050,9 +894,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         setSelectedSlots([]);
       }
       
-      // Also clear selectedSlots that are no longer available
       setSelectedSlots(prev => prev.filter(slot =>
-        availableSlots.some(
+        builtSlots.some(
           (s) =>
             s.start_time === slot.start_time &&
             s.end_time === slot.end_time &&
@@ -1238,6 +1081,16 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       return;
     }
     
+    if (selectedSlots.length > 0 || selectedSlot) {
+      const ref = selectedSlot ?? selectedSlots[0];
+      const refDur = getSlotDurationMinutesFromTime(ref.start_time, ref.end_time);
+      const newDur = getSlotDurationMinutesFromTime(slot.start_time, slot.end_time);
+      if (refDur !== newDur) {
+        toast.error('Cannot mix different session lengths. Deselect other slots first.');
+        return;
+      }
+    }
+    
     if (selectedStations.length > 0) {
       const filtered = await filterStationsForSlot(slot);
       if (filtered.length === 0) {
@@ -1274,12 +1127,6 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   }
 
   function applyCoupon(raw: string) {
-    // Block all coupon usage for Event bookings
-    if (isNitEventBooking === true) {
-      toast.error(`Coupons cannot be applied for ${eventName} bookings.`);
-      return;
-    }
-
     if (!onlinePaymentEnabled) {
       toast.error("Online payment is unavailable. Coupons cannot be applied — pay at venue without a coupon or call us.");
       return;
@@ -1499,36 +1346,18 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       // Check availability for ALL stations for the selected slots
       const availableStationIds: Set<string> = new Set();
       
-      // Pick stations relevant to current booking type.
-      // - Regular: only regular stations (exclude event category)
-      // - EVENT: All enabled event stations (PS5, 8-Ball, VR) - NO RESTRICTIONS
-      let stationsToCheck: Station[] = [];
-      if (isNitEventBooking === true) {
-        // ✅ CHANGED: No longer exclude 8ball - all event stations are allowed
-        stationsToCheck = stations.filter(s => s.category === 'nit_event' && s.event_enabled);
-      } else {
-        stationsToCheck = stations.filter(s => !s.category || s.category !== 'nit_event');
-      }
+      let stationsToCheck = regularStations(stations);
 
-      if (isNitEventBooking === true && slotsToCheck.length > 0) {
-        // Get the duration of the first slot (in minutes)
-        const firstSlot = slotsToCheck[0];
-        const slotDurationMinutes = (() => {
-          const start = new Date(`2000-01-01T${firstSlot.start_time}`);
-          const end = new Date(`2000-01-01T${firstSlot.end_time}`);
-          return (end.getTime() - start.getTime()) / (1000 * 60);
-        })();
-        
-        // Filter stations by duration: 30min = PS5 and 8-Ball, 15min = VR
-        if (slotDurationMinutes === 30) {
-          stationsToCheck = stations.filter(s => 
-            s.category === 'nit_event' && s.event_enabled && (s.type === 'ps5' || s.type === '8ball')
-          );
-        } else if (slotDurationMinutes === 15) {
-          stationsToCheck = stations.filter(s => 
-            s.category === 'nit_event' && s.event_enabled && s.type === 'vr'
-          );
-        }
+      const firstSlot = slotsToCheck[0];
+      const slotDurationMinutes = getSlotDurationMinutesFromTime(
+        firstSlot.start_time,
+        firstSlot.end_time
+      );
+      stationsToCheck = stationsToCheck.filter(
+        (s) => getSlotDuration(s) === slotDurationMinutes
+      );
+      if (stationType !== 'all') {
+        stationsToCheck = stationsToCheck.filter((s) => s.type === stationType);
       }
       
       const allStationIds = stationsToCheck.map(s => s.id);
@@ -2708,7 +2537,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                     )}
                   </div>
                   Step 2: Choose Date & Time
-                  {isCustomerInfoComplete && isNitEventBooking !== null && selectedSlot && (
+                  {isCustomerInfoComplete && selectedSlot && (
                     <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />
                   )}
                 </CardTitle>
@@ -2721,118 +2550,34 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                       Complete customer information to select date and time
                     </p>
                   </div>
-                ) : isNitEventBooking === null ? (
-                  <div className="space-y-4">
-                    <Label className="text-base font-medium text-gray-200 block text-center mb-4">
-                      Select Booking Type
-                    </Label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Button
-                        onClick={() => {
-                          setIsNitEventBooking(false);
-                          setNitEventMode(null);
-                          setSelectedSlot(null);
-                          setSelectedSlots([]);
-                          setSelectedStations([]);
-                          toast.info("📅 Regular booking mode selected.", {
-                            duration: 2000
-                          });
-                        }}
-                        className="w-full h-auto py-6 bg-gradient-to-r from-cuephoria-purple/50 to-cuephoria-lightpurple/40 border-2 border-white/15 hover:from-cuephoria-purple/60 hover:to-cuephoria-lightpurple/50 text-white font-bold text-lg shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
-                      >
-                        <div className="flex flex-col items-center gap-2">
-                          <Gamepad2 className="h-6 w-6 text-white" />
-                          <span>Regular</span>
-                          <span className="text-xs font-normal text-white/75">
-                            Standard booking flow
-                          </span>
-                        </div>
-                      </Button>
-                      {hasEnabledEventStations && (
-                        <Button
-                          onClick={() => {
-                            setIsNitEventBooking(true);
-                            setNitEventMode(null);
-                            setSelectedSlot(null);
-                            setSelectedSlots([]);
-                            setSelectedStations([]);
-                            toast.success(`🎯 ${eventName} selected! Choose VR or PS5 Gaming next.`, { duration: 2500 });
-                          }}
-                          className="w-full h-auto py-6 bg-gradient-to-r from-yellow-500/45 to-orange-500/35 border-2 border-white/15 hover:from-yellow-500/55 hover:to-orange-500/45 text-white font-bold text-lg shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
-                        >
-                          <div className="flex flex-col items-center gap-2">
-                            <CalendarIcon className="h-6 w-6 text-white" />
-                            <span>{eventName}</span>
-                            <span className="text-xs font-normal text-white/75">
-                              {eventDescription}
-                            </span>
-                          </div>
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ) : isNitEventBooking === true && nitEventMode === null ? (
-                  <div className="space-y-4">
-                    <Label className="text-base font-medium text-gray-200 block text-center mb-2">
-                      {eventName}: What would you like to book?
-                    </Label>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Button
-                        onClick={() => {
-                          setNitEventMode("ps5");
-                          setStationType("ps5");
-                          setSelectedSlot(null);
-                          setSelectedSlots([]);
-                          setSelectedStations([]);
-                          toast.info(`🎮 ${eventName} PS5 selected (30 min slots).`, { duration: 2000 });
-                        }}
-                        className="w-full h-auto py-6 bg-gradient-to-r from-cuephoria-purple/45 to-cuephoria-lightpurple/35 border-2 border-white/15 hover:from-cuephoria-purple/55 hover:to-cuephoria-lightpurple/45 text-white font-bold text-lg"
-                      >
-                        <div className="flex flex-col items-center gap-2">
-                          <Gamepad2 className="h-6 w-6 text-white" />
-                          <span>PS5 Gaming</span>
-                          <span className="text-xs font-normal text-white/75">30 min slots</span>
-                        </div>
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setNitEventMode("8ball");
-                          setStationType("8ball");
-                          setSelectedSlot(null);
-                          setSelectedSlots([]);
-                          setSelectedStations([]);
-                          toast.info(`🎱 ${eventName} 8-Ball selected (30 min slots).`, { duration: 2000 });
-                        }}
-                        className="w-full h-auto py-6 bg-gradient-to-r from-green-600/35 to-emerald-600/25 border-2 border-white/15 hover:from-green-600/45 hover:to-emerald-600/35 text-white font-bold text-lg"
-                      >
-                        <div className="flex flex-col items-center gap-2">
-                          <div className="h-6 w-6 rounded-full bg-white flex items-center justify-center">
-                            <span className="text-black text-sm font-bold">8</span>
-                          </div>
-                          <span>8-Ball Pool</span>
-                          <span className="text-xs font-normal text-white/75">30 min slots</span>
-                        </div>
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setNitEventMode("vr");
-                          setStationType("vr");
-                          setSelectedSlot(null);
-                          setSelectedSlots([]);
-                          setSelectedStations([]);
-                          toast.info(`🥽 ${eventName} VR selected (15 min slots).`, { duration: 2000 });
-                        }}
-                        className="w-full h-auto py-6 bg-gradient-to-r from-blue-500/35 to-cyan-500/25 border-2 border-white/15 hover:from-blue-500/45 hover:to-cyan-500/35 text-white font-bold text-lg"
-                      >
-                        <div className="flex flex-col items-center gap-2">
-                          <Headset className="h-6 w-6 text-white" />
-                          <span>VR</span>
-                          <span className="text-xs font-normal text-white/75">15 min slots</span>
-                        </div>
-                      </Button>
-                    </div>
-                  </div>
                 ) : (
+                  <div className="space-y-5">
+                    <div>
+                      <Label className="text-base font-medium text-gray-200 block mb-3">
+                        Station type
+                      </Label>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Pick a type to see the right slot length (VR = 15 min, PS5 & 8-Ball = 60 min). All shows every type.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {(['all', 'ps5', '8ball', 'vr'] as const).map((type) => (
+                          <Button
+                            key={type}
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleStationTypeChange(type)}
+                            className={cn(
+                              'h-9 rounded-full border-white/15 text-[12px]',
+                              stationType === type
+                                ? 'bg-cuephoria-purple/20 text-white border-cuephoria-purple/40'
+                                : 'bg-transparent text-gray-300'
+                            )}
+                          >
+                            {type === 'all' ? 'All' : type === 'ps5' ? 'PS5' : type === '8ball' ? '8-Ball' : 'VR'}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>
                       <Label className="text-base font-medium text-gray-200">
@@ -2878,6 +2623,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                       </div>
                     </div>
                   </div>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -2909,15 +2655,14 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
               <CardContent className="relative pt-3">
                 <div
                   className={cn(
-                    "grid gap-2 sm:gap-3 mb-4",
-                    isNitEventBooking === true ? "grid-cols-4" : "grid-cols-5",
+                    "grid grid-cols-4 gap-2 sm:gap-3 mb-4",
                     (!isCustomerInfoComplete || !selectedSlot) && "pointer-events-none"
                   )}
                 >
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => setStationType("all")}
+                    onClick={() => handleStationTypeChange("all")}
                     className={cn(
                       "h-9 rounded-full border-white/15 text-[12px]",
                       stationType === "all"
@@ -2930,7 +2675,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => setStationType("ps5")}
+                    onClick={() => handleStationTypeChange("ps5")}
                     className={cn(
                       "h-9 rounded-full border-white/15 text-[12px]",
                       stationType === "ps5"
@@ -2943,7 +2688,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => setStationType("8ball")}
+                    onClick={() => handleStationTypeChange("8ball")}
                     className={cn(
                       "h-9 rounded-full border-white/15 text-[12px]",
                       stationType === "8ball"
@@ -2956,7 +2701,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => setStationType("vr")}
+                    onClick={() => handleStationTypeChange("vr")}
                     className={cn(
                       "h-9 rounded-full border-white/15 text-[12px]",
                       stationType === "vr"
@@ -2966,27 +2711,6 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                   >
                     VR
                   </Button>
-                  {isNitEventBooking !== true && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setStationType("nit_event")}
-                      className={cn(
-                        "h-9 rounded-full border-white/15 text-[12px]",
-                        stationType === "nit_event"
-                          ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
-                          : "bg-transparent text-yellow-400"
-                      )}
-                    >
-                      {eventName}
-                    </Button>
-                  )}
-                  {isNitEventBooking === true && (
-                    <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[12px]">
-                      <CalendarIcon className="h-3.5 w-3.5" />
-                      {eventName}
-                    </div>
-                  )}
                 </div>
 
                 {(!isCustomerInfoComplete || !selectedSlot) ? (
@@ -3013,11 +2737,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                       <>
                         {/* Filter by booking type (EVENT vs Regular), then by type/category, then by availability */}
                         <StationSelector
-                          stations={(
-                            stationType === "all"
-                              ? stations.filter((s) => s.category !== 'nit_event')
-                              : stations.filter((s) => s.type === stationType && s.category !== 'nit_event')
-                          ).filter((s) => availableStationIds.includes(s.id))}
+                          stations={stationsForTypeFilter(stations, stationType).filter((s) =>
+                            availableStationIds.includes(s.id)
+                          )}
                           selectedStations={selectedStations}
                           stationPlayerCounts={stationPlayerCounts}
                           onStationToggle={handleStationToggle}
@@ -3051,39 +2773,17 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                         if (!s) return null;
                         return (
                           <div key={id} className="flex items-center gap-2">
-                            <div className={cn(
-                              "w-5 h-5 rounded-md border flex items-center justify-center",
-                              s.category === 'nit_event'
-                                ? "bg-yellow-500/20 border-yellow-500/30"
-                                : "bg-cuephoria-purple/20 border-white/10"
-                            )}>
+                            <div className="w-5 h-5 rounded-md border flex items-center justify-center bg-cuephoria-purple/20 border-white/10">
                               {s.type === "ps5" ? (
-                                <Gamepad2 className={cn(
-                                  "h-3.5 w-3.5",
-                                  s.category === 'nit_event' ? "text-yellow-400" : "text-cuephoria-purple"
-                                )} />
+                                <Gamepad2 className="h-3.5 w-3.5 text-cuephoria-purple" />
                               ) : s.type === "vr" ? (
-                                <Headset className={cn(
-                                  "h-3.5 w-3.5",
-                                  s.category === 'nit_event' ? "text-yellow-400" : "text-blue-400"
-                                )} />
+                                <Headset className="h-3.5 w-3.5 text-blue-400" />
                               ) : (
-                                <Timer className={cn(
-                                  "h-3.5 w-3.5",
-                                  s.category === 'nit_event' ? "text-yellow-400" : "text-green-400"
-                                )} />
+                                <Timer className="h-3.5 w-3.5 text-green-400" />
                               )}
                             </div>
-                            <Badge className={cn(
-                              "rounded-full px-2.5 py-1",
-                              s.category === 'nit_event' 
-                                ? "bg-yellow-500/20 border-yellow-500/30 text-yellow-300" 
-                                : "bg-white/5 border-white/10 text-gray-200"
-                            )}>
+                            <Badge className="rounded-full px-2.5 py-1 bg-white/5 border-white/10 text-gray-200">
                               {s.name}
-                              {s.category === 'nit_event' && (
-                                <span className="ml-1 text-[10px]">🎯</span>
-                              )}
                             </Badge>
                           </div>
                         );
@@ -3109,8 +2809,11 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                       Session Duration & Time
                     </Label>
                     <p className="mt-1 text-sm text-gray-200">
-                      {selectedStations.some(id => stations.find(s => s.id === id && s.type === 'vr')) 
-                        ? '15 minutes' : '60 minutes'}
+                      {selectedSlot
+                        ? `${getSlotDurationMinutesFromTime(selectedSlot.start_time, selectedSlot.end_time)} minutes`
+                        : selectedSlots[0]
+                          ? `${getSlotDurationMinutesFromTime(selectedSlots[0].start_time, selectedSlots[0].end_time)} minutes`
+                          : '—'}
                     </p>
                     {selectedSlots.length > 0 ? (
                       <div className="mt-2 space-y-1">
@@ -3147,8 +2850,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                   </div>
                 )}
 
-                {isNitEventBooking !== true && (
-                  <div>
+                <div>
                     <Label className="text-xs font-semibold text-gray-400 uppercase">
                       Coupon Code
                     </Label>
@@ -3244,9 +2946,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                       </div>
                     </div>
                   </div>
-                )}
 
-                  {isNitEventBooking !== true && Object.entries(appliedCoupons).length > 0 && (
+                  {Object.entries(appliedCoupons).length > 0 && (
                     <div className="mt-3 space-y-2">
                       <Label className="text-xs font-semibold text-gray-400 uppercase mb-1 block">
                         ✅ Applied Coupons
@@ -3285,7 +2986,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                     </div>
                   )}
 
-                {onlinePaymentEnabled && isNitEventBooking !== true && (
+                {onlinePaymentEnabled && (
                   <div className="mt-3 rounded-xl border border-[#3395FF]/20 bg-[#3395FF]/10 px-3 py-2.5 text-xs text-sky-100/95 leading-relaxed">
                     <span className="font-semibold text-white">Book online on this page</span>
                     {" "}for instant confirmation, secure Razorpay checkout, and the ability to use coupons.
