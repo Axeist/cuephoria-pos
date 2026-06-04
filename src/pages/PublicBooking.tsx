@@ -14,6 +14,7 @@ import { StationSelector } from "@/components/booking/StationSelector";
 import { BookingStationTypeChips } from "@/components/booking/BookingStationTypeChips";
 import { getRateForPlayerCount } from "@/utils/stationPricing";
 import { isStationPublicBookable } from "@/utils/stationTransform";
+import { usePublicBookingBrand } from "@/hooks/usePublicBookingBrand";
 import {
   buildPublicBookingSlots,
   type DayOccupancyRow,
@@ -249,13 +250,26 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { isMobile: viewIsMobile } = useViewMode();
-  const isLiteBranch = branchSlug === "lite";
 
   const [publicLocationId, setPublicLocationId] = useState<string | null>(null);
   const [branchLocationLoading, setBranchLocationLoading] = useState(true);
   const [accessSettingsLoading, setAccessSettingsLoading] = useState(false);
   const [publicBookingEnabled, setPublicBookingEnabled] = useState(true);
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(true);
+
+  const {
+    displayName: tenantDisplayName,
+    tagline: tenantTagline,
+    logoUrl: tenantLogoUrl,
+    locationName: tenantLocationName,
+    primaryHex: tenantPrimaryHex,
+    isLiteBranch,
+    hidePoweredBy,
+    workspaceSlug,
+    loading: brandLoading,
+  } = usePublicBookingBrand(publicLocationId, branchSlug);
+
+  const isCuephoriaWorkspace = workspaceSlug === "cuephoria";
 
   useEffect(() => {
     let cancelled = false;
@@ -706,7 +720,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
       try {
         const res = await fetch(
-          `/api/public/bookable-stations?branch=${encodeURIComponent(branchSlug)}`
+          `/api/public/bookable-stations?location=${encodeURIComponent(publicLocationId)}`
         );
         if (res.ok) {
           const json = await res.json();
@@ -1573,7 +1587,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       
       // Pre-fetch Razorpay key ID for faster payment initiation
       if (!razorpayKeyId) {
-        const profileQs = branchSlug === "lite" ? "?profile=lite" : "";
+        const profileQs = isLiteBranch ? "?profile=lite" : "";
         fetch(`/api/razorpay/get-key-id${profileQs}`)
           .then((res) => res.json())
           .then((data) => {
@@ -1707,11 +1721,11 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           },
           booking_payload: pendingBooking,
           kind: "booking",
-          ...(branchSlug === "lite" ? { profile: "lite" } : {}),
+          ...(isLiteBranch ? { profile: "lite" } : {}),
         }),
       });
 
-      const profileQs = branchSlug === "lite" ? "?profile=lite" : "";
+      const profileQs = isLiteBranch ? "?profile=lite" : "";
       // Fetch key ID in parallel with order creation if not already cached
       const keyPromise = razorpayKeyId 
         ? Promise.resolve({ keyId: razorpayKeyId })
@@ -1753,7 +1767,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       }
 
       const origin = window.location.origin;
-      const callbackProfileQs = branchSlug === "lite" ? "?profile=lite" : "";
+      const callbackProfileQs = isLiteBranch ? "?profile=lite" : "";
       const callbackUrl = `${origin}/api/razorpay/callback${callbackProfileQs}`;
 
       // Razorpay checkout options
@@ -1761,13 +1775,13 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         key: finalKeyId,
         amount: orderData.amount, // Amount in paise
         currency: orderData.currency || "INR",
-        name: branchSlug === "lite" ? "Cuephoria Lite" : "Cuephoria Gaming Lounge",
+        name: tenantDisplayName,
         description: `Booking for ${slotsToBook.length} slot(s)`,
         order_id: orderData.orderId,
         handler: function (response: any) {
           console.log("✅ Razorpay payment success:", response);
           // Redirect to success page with payment details
-          const liteQs = branchSlug === "lite" ? "&profile=lite" : "";
+          const liteQs = isLiteBranch ? "&profile=lite" : "";
           window.location.href = `/public/payment/success?payment_id=${encodeURIComponent(response.razorpay_payment_id)}&order_id=${encodeURIComponent(response.razorpay_order_id)}&signature=${encodeURIComponent(response.razorpay_signature)}${liteQs}`;
         },
         prefill: {
@@ -1781,7 +1795,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           customer_phone: customerInfo.phone,
         },
         theme: {
-          color: "#8B5CF6", // Cuephoria purple
+          color: tenantPrimaryHex,
         },
         modal: {
           ondismiss: function() {
@@ -1800,7 +1814,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         toast.error(`Payment failed: ${error}`);
         setLoading(false);
         // Redirect to failure page
-        const liteQs = branchSlug === "lite" ? "&profile=lite" : "";
+        const liteQs = isLiteBranch ? "&profile=lite" : "";
         window.location.href = `/public/payment/failed?order_id=${encodeURIComponent(orderData.orderId)}&error=${encodeURIComponent(error)}${liteQs}`;
       });
 
@@ -2081,18 +2095,19 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   };
 
   const gateLoading =
-    branchLocationLoading || (!!publicLocationId && accessSettingsLoading);
+    branchLocationLoading ||
+    (!!publicLocationId && (accessSettingsLoading || brandLoading));
 
   if (gateLoading) {
     return (
       <div
         className={`min-h-screen flex flex-col items-center justify-center p-6 ${
-          branchSlug === "lite"
+          isLiteBranch
             ? "bg-gradient-to-br from-[#060d10] via-[#080e14] to-[#060d10]"
             : "bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]"
         }`}
       >
-        <Loader2 className="h-10 w-10 animate-spin text-cuephoria-purple mb-4" />
+        <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
         <p className="text-gray-400 text-sm">Loading booking…</p>
       </div>
     );
@@ -2102,7 +2117,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     return (
       <div
         className={`min-h-screen flex flex-col items-center justify-center p-6 ${
-          branchSlug === "lite"
+          isLiteBranch
             ? "bg-gradient-to-br from-[#060d10] via-[#080e14] to-[#060d10]"
             : "bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]"
         }`}
@@ -2120,12 +2135,12 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     return (
       <div
         className={`min-h-screen flex flex-col items-center justify-center p-6 ${
-          branchSlug === "lite"
+          isLiteBranch
             ? "bg-gradient-to-br from-[#060d10] via-[#080e14] to-[#060d10]"
             : "bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]"
         }`}
       >
-        <Headset className="h-14 w-14 text-cuephoria-purple mb-4 opacity-90" />
+        <Headset className="h-14 w-14 text-primary mb-4 opacity-90" />
         <h1 className="text-xl font-semibold text-white mb-3 text-center">
           Booking service unavailable
         </h1>
@@ -2143,12 +2158,12 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
   return (
     <div className={`min-h-screen relative overflow-hidden ${
-      branchSlug === "lite"
+      isLiteBranch
         ? "bg-gradient-to-br from-[#060d10] via-[#080e14] to-[#060d10]"
         : "bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]"
     } ${customerSession ? 'pb-20' : ''}`}>
       <div className="pointer-events-none absolute inset-0">
-        {branchSlug === "lite" ? (
+        {isLiteBranch ? (
           <>
             <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-cyan-500/15 blur-3xl" />
             <div className="absolute top-1/3 -right-24 h-64 w-64 rounded-full bg-sky-600/10 blur-3xl" />
@@ -2163,7 +2178,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         )}
       </div>
 
-      {!isLiteBranch && (
+      {isCuephoriaWorkspace && !isLiteBranch && (
       <CouponPromotionalPopup 
         onCouponSelect={applyCoupon} 
         blockWhenOpen={showOnlinePaymentPromo || showInstagramFollowDialog || showFollowConfirmation}
@@ -2185,25 +2200,29 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           )}
           
           <div className="flex flex-col items-center mb-8 w-full text-center">
-            <div className="mb-6 mx-auto">
-              <img
-                src={branchSlug === "lite"
-                  ? "/lovable-uploads/cuephoria-lite-logo.png"
-                  : "/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"}
-                alt={branchSlug === "lite" ? "Cuephoria Lite Logo" : "Cuephoria Logo"}
-                className="h-24 drop-shadow-[0_0_25px_rgba(168,85,247,0.15)]"
-              />
-            </div>
+            {tenantLogoUrl ? (
+              <div className="mb-6 mx-auto">
+                <img
+                  src={tenantLogoUrl}
+                  alt={`${tenantDisplayName} logo`}
+                  className="h-24 max-w-[220px] object-contain drop-shadow-[0_0_25px_rgba(168,85,247,0.15)]"
+                />
+              </div>
+            ) : (
+              <h2 className="mb-4 text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                {tenantDisplayName}
+              </h2>
+            )}
 
-            {branchSlug === "lite" ? (
+            {isLiteBranch ? (
               <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-xs tracking-widest uppercase text-cyan-300 backdrop-blur-md">
                 <MapPin className="h-3.5 w-3.5 text-cyan-400" />
-                Cuephoria Lite
+                {tenantLocationName || `${tenantDisplayName} Lite`}
               </span>
             ) : (
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs tracking-widest uppercase text-gray-300 backdrop-blur-md">
-                <Sparkles className="h-3.5 w-3.5 text-cuephoria-lightpurple" />
-                Premium Gaming Lounge
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                {tenantTagline}
               </span>
             )}
 
@@ -2211,9 +2230,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
               Book Your Gaming Session
             </h1>
             <p className="mt-2 w-full text-base sm:text-lg text-gray-300/90 max-w-2xl text-center px-2">
-              {branchSlug === "lite"
-                ? "Reserve your session at Cuephoria Lite — the compact branch experience"
-                : "Reserve PlayStation 5, Pool Table, or VR Gaming sessions at Cuephoria"}
+              {isLiteBranch
+                ? `Reserve your session at ${tenantDisplayName}${tenantLocationName ? ` — ${tenantLocationName}` : ""}`
+                : `Reserve PlayStation 5, Pool Table, or VR Gaming sessions at ${tenantDisplayName}`}
             </p>
 
             <Button
@@ -2229,19 +2248,17 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
             </Button>
 
               <div className={`mt-3 w-full max-w-2xl rounded-2xl border px-4 py-2 text-[11px] sm:text-xs backdrop-blur-md ${
-                branchSlug === "lite"
+                isLiteBranch
                   ? "border-cyan-500/20 bg-cyan-500/5 text-cyan-200/70"
                   : "border-white/10 bg-white/5 text-gray-300"
               }`}>
                 <div className="flex flex-col items-center justify-center gap-1 text-center sm:flex-row sm:gap-2">
-                  <span className={`font-semibold tracking-wide ${branchSlug === "lite" ? "text-cyan-100" : "text-gray-200"}`}>
-                    {branchSlug === "lite" ? "Cuephoria Lite Branch" : "Line of Business"}
+                  <span className={`font-semibold tracking-wide ${isLiteBranch ? "text-cyan-100" : "text-gray-200"}`}>
+                    {tenantLocationName || tenantDisplayName}
                   </span>
                   <span className="hidden sm:inline text-white/25">•</span>
                   <span className="leading-snug">
-                    {branchSlug === "lite"
-                      ? "Time-based gaming rentals at our Lite location"
-                      : "Amusement & Gaming Lounge Services (time-based PS5, 8-Ball & VR rentals)"}
+                    Amusement &amp; Gaming Lounge Services (time-based PS5, 8-Ball &amp; VR rentals)
                   </span>
                 </div>
               </div>
@@ -2251,21 +2268,30 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
       <main className="px-4 sm:px-6 md:px-8 max-w-7xl mx-auto pb-14 relative z-10">
         <section className={`mb-6 rounded-2xl border px-4 py-4 text-sm ${
-          branchSlug === "lite"
+          isLiteBranch
             ? "border-cyan-500/20 bg-cyan-500/5 text-cyan-200/80"
             : "border-white/10 bg-white/5 text-gray-300"
         }`}>
-          <h2 className={`mb-1 text-base font-semibold ${branchSlug === "lite" ? "text-cyan-100" : "text-white"}`}>
-            About {branchSlug === "lite" ? "Cuephoria Lite" : "Cuephoria"}
+          <h2 className={`mb-1 text-base font-semibold ${isLiteBranch ? "text-cyan-100" : "text-white"}`}>
+            About {tenantDisplayName}
           </h2>
           <p>
-            {branchSlug === "lite"
-              ? <>Cuephoria Lite is our <span className="font-medium">compact branch</span> — offering the same quality gaming experience in a focused environment. Book your session and enjoy premium gaming at the Lite location.</>
-              : <>Cuephoria offers <span className="font-medium">time-based rentals</span> of PlayStation 5 stations, 8-Ball pool tables, and VR Gaming. All bookings are 1-hour slots; VR supports up to {VR_HOURLY_PASSES} passes per hour.</>
-            }
+            {isLiteBranch ? (
+              <>
+                {tenantDisplayName} offers a <span className="font-medium">compact branch</span> experience —
+                premium gaming in a focused environment. Book your session and enjoy your visit
+                {tenantLocationName ? ` at ${tenantLocationName}` : ""}.
+              </>
+            ) : (
+              <>
+                {tenantDisplayName} offers <span className="font-medium">time-based rentals</span> of PlayStation 5
+                stations, 8-Ball pool tables, and VR Gaming. All bookings are 1-hour slots; VR supports up to{" "}
+                {VR_HOURLY_PASSES} passes per hour.
+              </>
+            )}
           </p>
-          <p className={`mt-2 ${branchSlug === "lite" ? "text-cyan-300/60" : "text-gray-400"}`}>
-            <span className={`font-medium ${branchSlug === "lite" ? "text-cyan-200" : "text-gray-200"}`}>Pricing:</span> All prices are
+          <p className={`mt-2 ${isLiteBranch ? "text-cyan-300/60" : "text-gray-400"}`}>
+            <span className={`font-medium ${isLiteBranch ? "text-cyan-200" : "text-gray-200"}`}>Pricing:</span> All prices are
             displayed in <span className="ml-1 font-semibold">INR (₹)</span>.
           </p>
         </section>
@@ -3189,16 +3215,16 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       <footer className="py-10 px-4 sm:px-6 md:px-8 border-t border-white/10 backdrop-blur-md bg-black/30 relative z-10">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center mb-4 md:mb-0">
-              <img
-                src={branchSlug === "lite"
-                  ? "/lovable-uploads/cuephoria-lite-logo.png"
-                  : "/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"}
-                alt={branchSlug === "lite" ? "Cuephoria Lite Logo" : "Cuephoria Logo"}
-                className="h-8 mr-3"
-              />
+            <div className="flex items-center mb-4 md:mb-0 gap-3">
+              {tenantLogoUrl ? (
+                <img
+                  src={tenantLogoUrl}
+                  alt={`${tenantDisplayName} logo`}
+                  className="h-8 max-w-[120px] object-contain"
+                />
+              ) : null}
               <p className="text-gray-400 text-sm">
-                © {new Date().getFullYear()} {branchSlug === "lite" ? "Cuephoria Lite" : "Cuephoria"}. All rights reserved.
+                © {new Date().getFullYear()} {tenantDisplayName}. All rights reserved.
               </p>
             </div>
             <div className="flex items-center space-x-4">
@@ -3255,21 +3281,37 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
               </button>
             </div>
 
-            <div className="flex flex-col md:flex-row items-center gap-4 text-sm text-gray-400">
-              <div className="flex items-center gap-1">
-                <Phone className="h-4 w-4" />
-                <a href="tel:918637625155" className="hover:text-white transition-colors">
-                  +91 86376 25155
-                </a>
+            {isCuephoriaWorkspace ? (
+              <div className="flex flex-col md:flex-row items-center gap-4 text-sm text-gray-400">
+                <div className="flex items-center gap-1">
+                  <Phone className="h-4 w-4" />
+                  <a href="tel:918637625155" className="hover:text-white transition-colors">
+                    +91 86376 25155
+                  </a>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Mail className="h-4 w-4" />
+                  <a href="mailto:contact@cuephoria.in" className="hover:text-white transition-colors">
+                    contact@cuephoria.in
+                  </a>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <Mail className="h-4 w-4" />
-                <a href="mailto:contact@cuephoria.in" className="hover:text-white transition-colors">
-                  contact@cuephoria.in
-                </a>
-              </div>
-            </div>
+            ) : null}
           </div>
+
+          {!hidePoweredBy ? (
+            <div className="pt-4 border-t border-white/5 text-center text-[11px] text-gray-500 flex items-center justify-center gap-2">
+              <span>Powered by</span>
+              <a
+                href="https://cuephoriatech.in/cuetronix"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-gray-300 hover:text-white transition-colors font-semibold"
+              >
+                Cuetronix
+              </a>
+            </div>
+          ) : null}
         </div>
       </footer>
 
@@ -3281,7 +3323,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         />
       )}
 
-      {!isLiteBranch && (
+      {isCuephoriaWorkspace && !isLiteBranch && (
       <OnlinePaymentPromoDialog
         isOpen={showOnlinePaymentPromo}
         onClose={() => setShowOnlinePaymentPromo(false)}
@@ -3292,7 +3334,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       )}
 
       {/* Instagram Follow Dialog for New Customers */}
-      {!isLiteBranch && (
+      {isCuephoriaWorkspace && !isLiteBranch && (
       <Dialog open={showInstagramFollowDialog} onOpenChange={setShowInstagramFollowDialog}>
         <DialogContent className="sm:max-w-md bg-gradient-to-br from-pink-900/95 via-purple-900/95 to-indigo-900/95 border-2 border-pink-400/50 text-white"
         style={{
@@ -3366,7 +3408,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       )}
 
       {/* Follow Confirmation Dialog */}
-      {!isLiteBranch && (
+      {isCuephoriaWorkspace && !isLiteBranch && (
       <Dialog open={showFollowConfirmation} onOpenChange={setShowFollowConfirmation}>
         <DialogContent className="sm:max-w-md bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12] border-white/10 text-white"
         style={{
@@ -3539,17 +3581,23 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                 <li>If approved, refunds are processed within <strong>3 days</strong> to the original payment method.</li>
               </ul>
 
-              <p className="mt-4 text-xs text-gray-400">
-                Need help? Call{' '}
-                <a className="underline hover:text-white" href="tel:918637625155">
-                  +91 86376 25155
-                </a>{' '}
-                or email{' '}
-                <a className="ml-1 underline hover:text-white" href="mailto:contact@cuephoria.in">
-                  contact@cuephoria.in
-                </a>
-                .
-              </p>
+              {isCuephoriaWorkspace ? (
+                <p className="mt-4 text-xs text-gray-400">
+                  Need help? Call{" "}
+                  <a className="underline hover:text-white" href="tel:918637625155">
+                    +91 86376 25155
+                  </a>{" "}
+                  or email{" "}
+                  <a className="ml-1 underline hover:text-white" href="mailto:contact@cuephoria.in">
+                    contact@cuephoria.in
+                  </a>
+                  .
+                </p>
+              ) : (
+                <p className="mt-4 text-xs text-gray-400">
+                  Need help? Contact {tenantDisplayName} directly for refund requests.
+                </p>
+              )}
             </div>
           </div>
         </div>

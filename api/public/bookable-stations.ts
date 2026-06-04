@@ -1,8 +1,8 @@
 /**
- * GET /api/public/bookable-stations?branch=main|lite
+ * GET /api/public/bookable-stations?location=<uuid>
+ *        or ?branch=main|lite (legacy — first matching active branch globally)
  *
- * Returns stations visible on the public booking page for a branch.
- * Uses service role so visibility matches Station Command regardless of client RLS quirks.
+ * Prefer `location` so multi-tenant workspaces load the correct stations.
  */
 
 import { j } from "../../src/server/adminApiUtils";
@@ -18,19 +18,37 @@ export default async function handler(req: Request) {
 
   try {
     const url = new URL(req.url);
+    const locationId = (url.searchParams.get("location") || "").trim();
     const branch = (url.searchParams.get("branch") || "main").trim().toLowerCase();
-    if (!BRANCH_SLUGS.has(branch)) {
-      return j({ ok: false, error: "Invalid branch" }, 400);
-    }
 
     const supabase = supabaseServiceClient("cuephoria-public-bookable-stations");
 
-    const { data: location, error: locError } = await supabase
-      .from("locations")
-      .select("id")
-      .eq("slug", branch)
-      .eq("is_active", true)
-      .maybeSingle();
+    let location: { id: string } | null = null;
+    let locError: { message: string } | null = null;
+
+    if (locationId) {
+      const r = await supabase
+        .from("locations")
+        .select("id")
+        .eq("id", locationId)
+        .eq("is_active", true)
+        .maybeSingle();
+      location = r.data;
+      locError = r.error;
+    } else {
+      if (!BRANCH_SLUGS.has(branch)) {
+        return j({ ok: false, error: "Invalid branch" }, 400);
+      }
+      const r = await supabase
+        .from("locations")
+        .select("id")
+        .eq("slug", branch)
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle();
+      location = r.data;
+      locError = r.error;
+    }
 
     if (locError) throw locError;
     if (!location?.id) {
