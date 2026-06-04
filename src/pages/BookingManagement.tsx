@@ -59,6 +59,7 @@ interface Booking {
   status_updated_by?: string | null;
   payment_mode?: string | null;
   payment_txn_id?: string | null;
+  player_count?: number;
   station: {
     name: string;
     type: string;
@@ -584,6 +585,7 @@ export default function BookingManagement() {
             payment_txn_id,
             station_id,
             customer_id,
+            player_count,
             created_at
           `)
           .gte('booking_date', analyticsFromDate)
@@ -596,7 +598,43 @@ export default function BookingManagement() {
           q = q.eq('location_id', activeLocationId);
         }
 
-        const { data: bookingsData, error } = await q;
+        let { data: bookingsData, error } = await q;
+
+        if (error?.code === '42703' && String(error.message || '').includes('player_count')) {
+          let qFallback = supabase
+            .from('bookings')
+            .select(`
+            id,
+            booking_date,
+            start_time,
+            end_time,
+            duration,
+            status,
+            notes,
+            original_price,
+            final_price,
+            discount_percentage,
+            coupon_code,
+            booking_group_id,
+            status_updated_at,
+            status_updated_by,
+            payment_mode,
+            payment_txn_id,
+            station_id,
+            customer_id,
+            created_at
+          `)
+            .gte('booking_date', analyticsFromDate)
+            .order('booking_date', { ascending: false })
+            .order('start_time', { ascending: false })
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+          if (branchView === 'current' && activeLocationId) {
+            qFallback = qFallback.eq('location_id', activeLocationId);
+          }
+          const fallback = await qFallback;
+          bookingsData = fallback.data;
+          error = fallback.error;
+        }
 
         if (error) throw error;
 
@@ -756,6 +794,7 @@ export default function BookingManagement() {
           status_updated_by: b.status_updated_by ?? null,
           payment_mode: b.payment_mode ?? null,
           payment_txn_id: b.payment_txn_id ?? null,
+          player_count: Number(b.player_count) > 0 ? Number(b.player_count) : 1,
           created_at: b.created_at,
           booking_views: [], // ✅ Lazy load booking_views only when needed
           station: stationObj,
@@ -3949,7 +3988,7 @@ export default function BookingManagement() {
                                                 }`}
                                               >
                                                 <div className="flex items-center justify-between">
-                                                  <div className="grid grid-cols-1 md:grid-cols-7 gap-4 flex-1">
+                                                  <div className="grid grid-cols-1 md:grid-cols-8 gap-4 flex-1">
                                                     <div>
                                                       <div className="text-sm text-muted-foreground">Booking Details</div>
                                                       <div className="space-y-1">
@@ -3987,6 +4026,14 @@ export default function BookingManagement() {
                                                       )}>
                                                         {getStationTypeLabel(booking.station?.type || 'unknown', booking.station?.category || null)}
                                                       </Badge>
+                                                    </div>
+
+                                                    <div>
+                                                      <div className="text-sm text-muted-foreground">Players</div>
+                                                      <div className="font-medium tabular-nums flex items-center gap-1">
+                                                        <Users className="h-3 w-3 text-muted-foreground" />
+                                                        {(booking.player_count ?? 1)} player{(booking.player_count ?? 1) !== 1 ? 's' : ''}
+                                                      </div>
                                                     </div>
                                                     
                                                     <div>

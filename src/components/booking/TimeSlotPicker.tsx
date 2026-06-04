@@ -2,11 +2,13 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface TimeSlot {
-  start_time: string; // e.g., "11:00"
-  end_time: string;   // e.g., "12:00"
+  start_time: string;
+  end_time: string;
   is_available: boolean;
+  passes_left?: number;
 }
 
 interface TimeSlotPickerProps {
@@ -15,11 +17,10 @@ interface TimeSlotPickerProps {
   selectedSlots?: TimeSlot[];
   onSlotSelect: (slot: TimeSlot) => void;
   loading?: boolean;
+  showVrPasses?: boolean;
 }
 
-// Helper to format a "HH:mm" string into a localized time (e.g., 11:00 AM)
 const formatTime = (timeString: string) => {
-  // Safely construct a Date at an arbitrary fixed date with the given time
   const [h, m] = timeString.split(":").map(Number);
   const d = new Date(2000, 0, 1, h || 0, m || 0, 0, 0);
   return d.toLocaleTimeString("en-US", {
@@ -29,18 +30,29 @@ const formatTime = (timeString: string) => {
   });
 };
 
+const SKELETON_COUNT = 12;
+
 export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
   slots,
   selectedSlot,
   selectedSlots = [],
   onSlotSelect,
   loading = false,
+  showVrPasses = false,
 }) => {
   if (loading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-12 bg-muted/50 rounded-md animate-pulse" />
+      <div
+        className="grid grid-cols-2 md:grid-cols-3 gap-2"
+        aria-busy="true"
+        aria-label="Loading time slots"
+      >
+        {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+          <div
+            key={i}
+            className="h-14 rounded-lg bg-white/[0.06] border border-white/5"
+            style={{ animationDelay: `${i * 40}ms` }}
+          />
         ))}
       </div>
     );
@@ -48,7 +60,7 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
 
   if (slots.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
+      <div className="text-center py-8 text-muted-foreground transition-opacity duration-300">
         <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
         <p>No time slots available for this date</p>
       </div>
@@ -56,8 +68,8 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+    <div className="space-y-4 animate-in fade-in duration-300">
+      <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-primary rounded-sm" />
           <span>Available</span>
@@ -66,6 +78,9 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
           <div className="w-3 h-3 bg-muted border rounded-sm" />
           <span>Booked</span>
         </div>
+        {showVrPasses && (
+          <span className="text-xs text-cuephoria-blue/90">VR: passes left shown on slot</span>
+        )}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
@@ -74,25 +89,43 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
             selectedSlot?.start_time === slot.start_time &&
             selectedSlot?.end_time === slot.end_time;
           const isInMultipleSelection = selectedSlots.some(
-            s => s.start_time === slot.start_time && s.end_time === slot.end_time
+            (s) => s.start_time === slot.start_time && s.end_time === slot.end_time
           );
 
           return (
             <Button
               key={`${slot.start_time}-${slot.end_time}-${index}`}
-              variant={isSelected || isInMultipleSelection ? "default" : slot.is_available ? "outline" : "ghost"}
+              variant={
+                isSelected || isInMultipleSelection
+                  ? "default"
+                  : slot.is_available
+                    ? "outline"
+                    : "ghost"
+              }
               disabled={!slot.is_available}
               onClick={() => slot.is_available && onSlotSelect(slot)}
-              className={`h-12 flex flex-col items-center justify-center text-xs relative ${
-                !slot.is_available ? "opacity-50 cursor-not-allowed" : ""
-              } ${isInMultipleSelection ? "ring-2 ring-primary ring-offset-2" : ""}`}
+              className={cn(
+                "h-14 flex flex-col items-center justify-center text-xs relative",
+                "transition-all duration-200 ease-out",
+                !slot.is_available && "opacity-45 cursor-not-allowed",
+                isInMultipleSelection && "ring-2 ring-primary ring-offset-2 ring-offset-background"
+              )}
               aria-pressed={isSelected || isInMultipleSelection}
             >
-              <div className="font-medium">{formatTime(slot.start_time)}</div>
-              <div className="text-xs opacity-70">{formatTime(slot.end_time)}</div>
+              <div className="font-medium leading-tight">{formatTime(slot.start_time)}</div>
+              <div className="text-[10px] opacity-70 leading-tight">{formatTime(slot.end_time)}</div>
+
+              {showVrPasses &&
+                slot.is_available &&
+                slot.passes_left != null &&
+                slot.passes_left > 0 && (
+                  <span className="text-[9px] text-cuephoria-blue mt-0.5 tabular-nums">
+                    {slot.passes_left} pass{slot.passes_left !== 1 ? "es" : ""}
+                  </span>
+                )}
 
               {isInMultipleSelection && (
-                <div className="absolute -top-1 -right-1">
+                <div className="absolute -top-1 -right-1 transition-transform duration-200">
                   <Badge
                     variant="default"
                     className="text-xs px-1 py-0 text-[10px] leading-3 bg-primary"

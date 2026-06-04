@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { StationSelector } from "@/components/booking/StationSelector";
 import { getRateForPlayerCount } from "@/utils/stationPricing";
 import { isStationPublicBookable } from "@/utils/stationTransform";
+import {
+  buildPublicBookingSlots,
+  type DayOccupancyRow,
+  fetchDayOccupancy,
+  getPublicSlotDurationMinutes,
+  stationsAvailableForSlot,
+  VR_HOURLY_PASSES,
+} from "@/utils/publicBookingAvailability";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import CouponPromotionalPopup from "@/components/CouponPromotionalPopup";
 import BookingConfirmationDialog from "@/components/BookingConfirmationDialog";
@@ -190,12 +198,7 @@ const validatePhoneNumber = (phone: string): { valid: boolean; error?: string } 
   return { valid: true };
 };
 
-const getSlotDuration = (station: Station) => {
-  if (station.slot_duration) {
-    return station.slot_duration;
-  }
-  return station.type === 'vr' ? 15 : 60;
-};
+const getSlotDuration = (station: Station) => getPublicSlotDurationMinutes(station);
 
 const getSlotDurationMinutesFromTime = (startTime: string, endTime: string): number => {
   const parseT = (t: string) => {
@@ -335,6 +338,12 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   const [checkingStationAvailability, setCheckingStationAvailability] = useState(false); // NEW: Loading state for station availability check
   // Generate a unique session ID for this booking session
   const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
+  const dayOccupancyRef = useRef<{
+    dateStr: string;
+    bookings: DayOccupancyRow[];
+    sessionBlocks: DayOccupancyRow[];
+  } | null>(null);
+  const slotsFetchGenRef = useRef(0);
 
   const [customerNumber, setCustomerNumber] = useState("");
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
@@ -560,29 +569,31 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     };
   }, [selectedDate, hasSearched, customerInfo]);
 
-  // Fetch slots when date/type changes — wait until stations are loaded
+  // Fetch slots when date/type/stations change (single effect — avoids double fetch flicker)
   useEffect(() => {
-    if (isCustomerInfoComplete && selectedDate && stations.length > 0) {
+    if (isCustomerInfoComplete && selectedDate && stations.length > 0 && publicLocationId) {
       fetchAvailableSlots();
     } else if (!isCustomerInfoComplete || !selectedDate) {
       setAvailableSlots([]);
       setSelectedSlot(null);
       setSelectedSlots([]);
     }
-  }, [selectedDate, selectedStations, isCustomerInfoComplete, stationType, stations.length]);
-  
-  // Re-fetch slots when stations change to update availability
-  useEffect(() => {
-    if (selectedDate && isCustomerInfoComplete && stations.length > 0) {
-      fetchAvailableSlots();
-    }
-  }, [selectedStations, selectedDate, isCustomerInfoComplete, stations.length]);
+  }, [
+    selectedDate,
+    selectedStations,
+    isCustomerInfoComplete,
+    stationType,
+    stations.length,
+    publicLocationId,
+  ]);
   
   // NEW: Update available stations when a time slot is selected
   useEffect(() => {
     const updateAvailableStations = async () => {
       if ((selectedSlot || selectedSlots.length > 0) && stations.length > 0 && selectedDate) {
-        setCheckingStationAvailability(true);
+        const dateStr = format(selectedDate, "yyyy-MM-dd");
+        const hasCache = dayOccupancyRef.current?.dateStr === dateStr;
+        if (!hasCache) setCheckingStationAvailability(true);
         try {
           const available = await getAvailableStationsForSlot();
           setAvailableStationIds(available);
@@ -597,7 +608,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         setCheckingStationAvailability(false);
       }
     };
-    
+
     updateAvailableStations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSlot, selectedSlots, selectedDate, stations.length, stationType]);
@@ -691,238 +702,38 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   }
 
   async function fetchAvailableSlots() {
-    // NEW FLOW: Show time slots as available if ANY station is available
+    const gen = ++slotsFetchGenRef.current;
     setSlotsLoading(true);
     try {
       const dateStr = format(selectedDate, "yyyy-MM-dd");
       const isToday = dateStr === format(new Date(), "yyyy-MM-dd");
-      
-      if (stations.length === 0) {
+
+      if (stations.length === 0 || !publicLocationId) {
         setAvailableSlots([]);
         return;
       }
-      
-      // Generate all possible time slots (11 AM to 11 PM)
-      const openingTime = 11; // 11 AM
-      const closingTime = 23; // 11 PM
-      
-      const builtSlots: TimeSlot[] = [];
+
       const pool = stationsForTypeFilter(stations, stationType);
+      const stationIds = pool.map((s) => s.id);
+      const occupancy = await fetchDayOccupancy(dateStr, publicLocationId, stationIds);
+      if (gen !== slotsFetchGenRef.current) return;
 
-      let durationsToBuild: number[];
-      if (selectedStations.length > 0) {
-        const firstStation = stations.find((s) => selectedStations.includes(s.id));
-        durationsToBuild = firstStation ? [getSlotDuration(firstStation)] : [60];
-      } else if (stationType === 'vr') {
-        durationsToBuild = [15];
-      } else if (stationType === 'ps5' || stationType === '8ball') {
-        const typed = pool.filter((s) => s.type === stationType);
-        durationsToBuild = typed.length > 0 ? [getSlotDuration(typed[0])] : [60];
-      } else {
-        durationsToBuild = [...new Set(pool.map(getSlotDuration))].sort((a, b) => a - b);
-        if (durationsToBuild.length === 0) durationsToBuild = [60];
-      }
-
-      const stationsForDuration = (duration: number) => {
-        let list = pool.filter((s) => getSlotDuration(s) === duration);
-        if (selectedStations.length > 0) {
-          list = list.filter((s) => selectedStations.includes(s.id));
-        }
-        return list;
+      dayOccupancyRef.current = {
+        dateStr,
+        bookings: occupancy.bookings,
+        sessionBlocks: occupancy.sessionBlocks,
       };
 
-      for (const slotDuration of durationsToBuild) {
-        if (slotDuration === 15) {
-        // VR slots: 15-minute intervals
-        for (let hour = openingTime; hour <= closingTime; hour++) {
-          for (let quarter = 0; quarter < 4; quarter++) {
-            const minutes = quarter * 15;
-            const startTime = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-            
-            let endHour = hour;
-            let endMinutes = minutes + 15;
-            if (endMinutes >= 60) {
-              endMinutes = 0;
-              endHour = hour + 1;
-            }
-            if (endHour >= 24) {
-              endHour = 0;
-            }
-            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`;
-            
-            let isPast = false;
-            if (isToday) {
-              const now = new Date();
-              const currentHour = now.getHours();
-              const currentMinute = now.getMinutes();
-              isPast = hour < currentHour || (hour === currentHour && minutes <= currentMinute);
-            }
-            
-            if (isPast) {
-              builtSlots.push({
-                start_time: startTime,
-                end_time: endTime,
-                is_available: false,
-                status: 'elapsed'
-              });
-              continue;
-            }
-            
-            const vrStations = stationsForDuration(15);
-            let anyVRAvailable = false;
-            
-            if (vrStations.length > 0) {
-              try {
-                const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
-                  p_date: dateStr,
-                  p_start_time: startTime,
-                  p_end_time: endTime,
-                  p_station_ids: vrStations.map(s => s.id)
-                });
-                
-                if (!availError && availabilityData) {
-                  anyVRAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
-                }
-              } catch (e) {
-                console.error("Error checking VR availability:", e);
-              }
-            }
-            
-            builtSlots.push({
-              start_time: startTime,
-              end_time: endTime,
-              is_available: anyVRAvailable,
-              status: anyVRAvailable ? 'available' : 'booked'
-            });
-          }
-        }
-      } else if (slotDuration === 30) {
-        for (let hour = openingTime; hour <= closingTime; hour++) {
-          for (let half = 0; half < 2; half++) {
-            const minutes = half * 30;
-            const startTime = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-            
-            let endHour = hour;
-            let endMinutes = minutes + 30;
-            if (endMinutes >= 60) {
-              endMinutes = 0;
-              endHour = hour + 1;
-            }
-            if (endHour >= 24) {
-              endHour = 0;
-            }
-            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`;
-            
-            let isPast = false;
-            if (isToday) {
-              const now = new Date();
-              const currentHour = now.getHours();
-              const currentMinute = now.getMinutes();
-              isPast = hour < currentHour || (hour === currentHour && minutes <= currentMinute);
-            }
-            
-            if (isPast) {
-              builtSlots.push({
-                start_time: startTime,
-                end_time: endTime,
-                is_available: false,
-                status: 'elapsed'
-              });
-              continue;
-            }
-            
-            const halfHourStations = stationsForDuration(30);
-            let anyAvailable = false;
-            
-            if (halfHourStations.length > 0) {
-              try {
-                const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
-                  p_date: dateStr,
-                  p_start_time: startTime,
-                  p_end_time: endTime,
-                  p_station_ids: halfHourStations.map(s => s.id)
-                });
-                
-                if (!availError && availabilityData) {
-                  anyAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
-                }
-              } catch (e) {
-                console.error("Error checking 30-min station availability:", e);
-              }
-            }
-            
-            builtSlots.push({
-              start_time: startTime,
-              end_time: endTime,
-              is_available: anyAvailable,
-              status: anyAvailable ? 'available' : 'booked'
-            });
-          }
-        }
-      } else {
-        // 60-minute (and other long) slots
-        for (let hour = openingTime; hour <= closingTime; hour++) {
-          const startTime = `${hour.toString().padStart(2, '0')}:00:00`;
-          let endHour = hour + 1;
-          let endTime = `${endHour.toString().padStart(2, '0')}:00:00`;
-          
-          if (endHour >= 24) {
-            endTime = '00:00:00';
-          }
-          
-          let isPast = false;
-          if (isToday) {
-            const now = new Date();
-            const currentHour = now.getHours();
-            const currentMinute = now.getMinutes();
-            isPast = hour < currentHour || (hour === currentHour && 0 <= currentMinute);
-          }
-          
-          if (isPast) {
-            builtSlots.push({
-              start_time: startTime,
-              end_time: endTime,
-              is_available: false,
-              status: 'elapsed'
-            });
-            continue;
-          }
-          
-          const longStations = stationsForDuration(slotDuration);
-          let anyStationAvailable = false;
-          
-          if (longStations.length > 0) {
-            try {
-              const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
-                p_date: dateStr,
-                p_start_time: startTime,
-                p_end_time: endTime,
-                p_station_ids: longStations.map(s => s.id)
-              });
-              
-              if (!availError && availabilityData) {
-                anyStationAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
-              }
-            } catch (e) {
-              console.error("Error checking station availability:", e);
-            }
-          }
-          
-          builtSlots.push({
-            start_time: startTime,
-            end_time: endTime,
-            is_available: anyStationAvailable,
-            status: anyStationAvailable ? 'available' : 'booked'
-          });
-        }
-      }
-      }
-
-      builtSlots.sort((a, b) => {
-        const cmp = a.start_time.localeCompare(b.start_time);
-        return cmp !== 0 ? cmp : a.end_time.localeCompare(b.end_time);
+      const builtSlots = buildPublicBookingSlots({
+        stations: pool,
+        stationType,
+        selectedStationIds: selectedStations,
+        bookings: occupancy.bookings,
+        sessionBlocks: occupancy.sessionBlocks,
+        isToday,
       });
 
+      if (gen !== slotsFetchGenRef.current) return;
       setAvailableSlots(builtSlots);
 
       if (
@@ -1062,7 +873,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     );
     // Use slot duration from selected stations
     const firstSelectedStation = stations.find(s => selectedStations.includes(s.id));
-    const slotDuration = firstSelectedStation ? getSlotDuration(firstSelectedStation) : (hasVR ? 15 : 60);
+    const slotDuration = firstSelectedStation ? getSlotDuration(firstSelectedStation) : 60;
     
     const checks = await Promise.all(
       selectedStations.map(async (stationId) => {
@@ -1379,111 +1190,43 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   // IMPORTANT: For PS5 teams, if ANY controller from a team is booked, hide ALL controllers from that team
   const getAvailableStationsForSlot = async (): Promise<string[]> => {
     if (!selectedSlot && selectedSlots.length === 0) return [];
-    if (stations.length === 0) return [];
-    
-    const slotsToCheck = selectedSlots.length > 0 ? selectedSlots : (selectedSlot ? [selectedSlot] : []);
-    if (slotsToCheck.length === 0) return [];
-    
-    const dateStr = format(selectedDate, "yyyy-MM-dd");
-    
-    try {
-      // Check availability for ALL stations for the selected slots
-      const availableStationIds: Set<string> = new Set();
-      
-      let stationsToCheck = regularStations(stations);
+    if (stations.length === 0 || !publicLocationId) return [];
 
-      const firstSlot = slotsToCheck[0];
-      const slotDurationMinutes = getSlotDurationMinutesFromTime(
-        firstSlot.start_time,
-        firstSlot.end_time
-      );
-      stationsToCheck = stationsToCheck.filter(
-        (s) => getSlotDuration(s) === slotDurationMinutes
-      );
-      if (stationType !== 'all') {
-        stationsToCheck = stationsToCheck.filter((s) => s.type === stationType);
+    const slotsToCheck =
+      selectedSlots.length > 0 ? selectedSlots : selectedSlot ? [selectedSlot] : [];
+    if (slotsToCheck.length === 0) return [];
+
+    const dateStr = format(selectedDate, "yyyy-MM-dd");
+    const pool = regularStations(stations);
+
+    try {
+      let occupancy = dayOccupancyRef.current;
+      if (!occupancy || occupancy.dateStr !== dateStr) {
+        occupancy = await fetchDayOccupancy(
+          dateStr,
+          publicLocationId,
+          pool.map((s) => s.id)
+        );
+        dayOccupancyRef.current = { dateStr, ...occupancy };
       }
-      
-      const allStationIds = stationsToCheck.map(s => s.id);
-      
-      // Group stations by team
-      const teamGroups: Map<string, string[]> = new Map();
-      stations.forEach(s => {
-        if (s.team_name) {
-          if (!teamGroups.has(s.team_name)) {
-            teamGroups.set(s.team_name, []);
-          }
-          teamGroups.get(s.team_name)!.push(s.id);
-        }
-      });
-      
+
+      let result: string[] | null = null;
       for (const slot of slotsToCheck) {
-        const { data, error } = await supabase.rpc("check_stations_availability", {
-          p_date: dateStr,
-          p_start_time: slot.start_time,
-          p_end_time: slot.end_time,
-          p_station_ids: allStationIds
-        });
-        
-        if (error) {
-          console.error("Error checking station availability:", error);
-          continue;
-        }
-        
-        if (data) {
-          // Create a map of station_id -> is_available
-          const availabilityMap = new Map<string, boolean>();
-          data.forEach((item: { station_id: string, is_available: boolean }) => {
-            availabilityMap.set(item.station_id, item.is_available);
-          });
-          
-          // For PS5 teams: if ANY controller from a team is booked, ALL controllers from that team are unavailable
-          const unavailableTeamStations = new Set<string>();
-          
-          teamGroups.forEach((teamStationIds, teamName) => {
-            // Check if ANY controller from this team is booked
-            const anyBooked = teamStationIds.some(id => {
-              const isAvailable = availabilityMap.get(id);
-              return isAvailable === false; // Explicitly booked
-            });
-            
-            if (anyBooked) {
-              // If any controller is booked, mark ALL controllers from this team as unavailable
-              teamStationIds.forEach(id => unavailableTeamStations.add(id));
-            }
-          });
-          
-          // For the first slot, add all available stations (excluding team-blocked ones)
-          if (availableStationIds.size === 0) {
-            data.forEach((item: { station_id: string, is_available: boolean }) => {
-              // Station is available if:
-              // 1. It's marked as available in the database
-              // 2. It's not blocked by team rules (no teammate is booked)
-              if (item.is_available && !unavailableTeamStations.has(item.station_id)) {
-                availableStationIds.add(item.station_id);
-              }
-            });
-          } else {
-            // For subsequent slots, keep only stations that are available in ALL slots
-            const slotAvailableIds = new Set<string>();
-            data.forEach((item: { station_id: string, is_available: boolean }) => {
-              if (item.is_available && !unavailableTeamStations.has(item.station_id)) {
-                slotAvailableIds.add(item.station_id);
-              }
-            });
-            // Keep only stations that are available in both previous slots AND this slot
-            const toRemove: string[] = [];
-            availableStationIds.forEach(id => {
-              if (!slotAvailableIds.has(id)) {
-                toRemove.push(id);
-              }
-            });
-            toRemove.forEach(id => availableStationIds.delete(id));
-          }
+        const forSlot = stationsAvailableForSlot(
+          pool,
+          slot,
+          occupancy.bookings,
+          occupancy.sessionBlocks,
+          stationType
+        );
+        if (result === null) {
+          result = forSlot;
+        } else {
+          const set = new Set(forSlot);
+          result = result.filter((id) => set.has(id));
         }
       }
-      
-      return Array.from(availableStationIds);
+      return result ?? [];
     } catch (e) {
       console.error("Error getting available stations:", e);
       return [];
@@ -1710,7 +1453,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       const hasVR = selectedStations.some(id => 
         stations.find(s => s.id === id && s.type === 'vr')
       );
-      const sessionDuration = hasVR ? "15 minutes" : "60 minutes";
+      const sessionDuration = hasVR
+        ? `60 minutes (${VR_HOURLY_PASSES} VR passes per hour)`
+        : "60 minutes";
       
       // Use first slot for confirmation display (or selectedSlot if available)
       const displaySlot = selectedSlot || slotsToBook[0];
@@ -2455,7 +2200,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           <p>
             {branchSlug === "lite"
               ? <>Cuephoria Lite is our <span className="font-medium">compact branch</span> — offering the same quality gaming experience in a focused environment. Book your session and enjoy premium gaming at the Lite location.</>
-              : <>Cuephoria offers <span className="font-medium">time-based rentals</span> of PlayStation 5 stations, 8-Ball pool tables, and VR Gaming stations. Book 60-minute sessions for PS5/Pool or 15-minute sessions for VR Gaming.</>
+              : <>Cuephoria offers <span className="font-medium">time-based rentals</span> of PlayStation 5 stations, 8-Ball pool tables, and VR Gaming. All bookings are 1-hour slots; VR supports up to {VR_HOURLY_PASSES} passes per hour.</>
             }
           </p>
           <p className={`mt-2 ${branchSlug === "lite" ? "text-cyan-300/60" : "text-gray-400"}`}>
@@ -2570,7 +2315,12 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
               </CardContent>
             </Card>
 
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
+            <Card
+              className={cn(
+                "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl transition-[opacity,transform] duration-300 ease-out",
+                isCustomerInfoComplete ? "opacity-100 translate-y-0" : "opacity-95"
+              )}
+            >
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white">
                   <div className="w-8 h-8 rounded-lg bg-cuephoria-lightpurple/20 ring-1 ring-white/10 flex items-center justify-center">
@@ -2601,7 +2351,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                         Station type
                       </Label>
                       <p className="text-xs text-muted-foreground mb-3">
-                        Pick a type to see the right slot length (VR = 15 min, PS5 & 8-Ball = 60 min). All shows every type.
+                        All types use 1-hour slots. VR has up to {VR_HOURLY_PASSES} passes per hour.
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {(['all', 'ps5', '8ball', 'vr'] as const).map((type) => (
@@ -2670,6 +2420,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                             selectedSlots={selectedSlots}
                             onSlotSelect={handleSlotSelect}
                             loading={slotsLoading}
+                            showVrPasses={stationType === "vr" || stationType === "all"}
                           />
                         )}
                       </div>
@@ -2773,10 +2524,10 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                     </p>
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-white/10 p-3 sm:p-4 bg-white/6">
+                  <div className="rounded-2xl border border-white/10 p-3 sm:p-4 bg-white/6 transition-opacity duration-300 ease-out">
                     {checkingStationAvailability ? (
                       <div className="text-center py-8 text-gray-400">
-                        <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin" />
+                        <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin motion-reduce:animate-none" />
                         <p>Checking station availability...</p>
                       </div>
                     ) : availableStationIds.length === 0 && (selectedSlot || selectedSlots.length > 0) ? (
@@ -2836,6 +2587,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                             </div>
                             <Badge className="rounded-full px-2.5 py-1 bg-white/5 border-white/10 text-gray-200">
                               {s.name}
+                              <span className="ml-1.5 text-gray-400 font-normal">
+                                · {(stationPlayerCounts[id] ?? 1)}P
+                              </span>
                             </Badge>
                           </div>
                         );
@@ -3306,7 +3060,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
               Terms & Conditions (Summary)
             </h3>
             <ul className="ml-5 list-disc text-sm text-gray-300 space-y-1.5">
-              <li>Bookings are for specified time slots (60 min for PS5/Pool, 15 min for VR); extensions subject to availability.</li>
+              <li>Bookings are 1-hour time slots (PS5, Pool &amp; VR). VR allows up to {VR_HOURLY_PASSES} passes per hour; extensions subject to availability.</li>
               <li>Arrive on time; late arrivals may reduce play time without fee adjustment.</li>
               <li>Damage to equipment may incur charges as per in-store policy.</li>
               <li>Management may refuse service in cases of misconduct or safety concerns.</li>
