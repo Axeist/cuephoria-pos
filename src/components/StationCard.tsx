@@ -6,7 +6,7 @@ import StationActions from '@/components/station/StationActions';
 import StationCustomerPanel from '@/components/station/StationCustomerPanel';
 import SessionDurationBar from '@/components/station/SessionDurationBar';
 import { Button } from '@/components/ui/button';
-import { Trash2, Edit2, ShoppingBag, Globe, CheckSquare, Square as SquareIcon } from 'lucide-react';
+import { Trash2, Edit2, ShoppingBag, Globe, CheckSquare, Square as SquareIcon, ArrowRight, Play } from 'lucide-react';
 import EditStationDialog from './EditStationDialog';
 import StationQuickShopDialog from '@/components/station/StationQuickShopDialog';
 import { CurrencyDisplay } from '@/components/ui/currency';
@@ -24,6 +24,7 @@ import {
   getUrgencyRingClass,
 } from '@/utils/sessionDuration.utils';
 import { hapticImpact } from '@/utils/capacitor';
+import { runWithMinDuration, SESSION_TRANSITION } from '@/utils/viewTransition';
 import type { CustomerRecentSession } from '@/hooks/stations/useStationCustomerIntel';
 import {
   AlertDialog,
@@ -46,7 +47,6 @@ interface StationCardProps {
   onToggleSelect?: (stationId: string) => void;
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const StationCard: React.FC<StationCardProps> = ({
   station,
@@ -142,17 +142,24 @@ const StationCard: React.FC<StationCardProps> = ({
     ) => {
       setPhase('starting');
       void hapticImpact('medium');
-      await startSession(
-        stationId,
-        customerId,
-        hourlyRate,
-        couponCode,
-        playerCount,
-        perPersonRate,
-        plannedDurationMinutes
-      );
-      await sleep(400);
-      setPhase('live');
+      try {
+        await runWithMinDuration(
+          startSession(
+            stationId,
+            customerId,
+            hourlyRate,
+            couponCode,
+            playerCount,
+            perPersonRate,
+            plannedDurationMinutes
+          ),
+          SESSION_TRANSITION.startMinMs
+        );
+        setPhase('live');
+      } catch (error) {
+        setPhase('idle');
+        throw error;
+      }
     },
     [startSession]
   );
@@ -161,9 +168,13 @@ const StationCard: React.FC<StationCardProps> = ({
     async (stationId: string) => {
       setPhase('ending');
       void hapticImpact('heavy');
-      await sleep(480);
-      await endSession(stationId);
-      setPhase('idle');
+      try {
+        await runWithMinDuration(endSession(stationId), SESSION_TRANSITION.endMinMs);
+        setPhase('idle');
+      } catch (error) {
+        setPhase('idle');
+        throw error;
+      }
     },
     [endSession]
   );
@@ -180,9 +191,13 @@ const StationCard: React.FC<StationCardProps> = ({
     async (stationId: string) => {
       setPhase('ending');
       void hapticImpact('heavy');
-      await sleep(480);
-      await endSessionGroup(stationId);
-      setPhase('idle');
+      try {
+        await runWithMinDuration(endSessionGroup(stationId), SESSION_TRANSITION.endMinMs);
+        setPhase('idle');
+      } catch (error) {
+        setPhase('idle');
+        throw error;
+      }
     },
     [endSessionGroup]
   );
@@ -194,7 +209,7 @@ const StationCard: React.FC<StationCardProps> = ({
       <article
         className={`
           group relative overflow-hidden rounded-xl border backdrop-blur-md
-          transition-all duration-300 ease-out
+          transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]
           ${theme.border} ${theme.bg} ${theme.glow}
           ${cardPhaseClass(phase, station.isOccupied)}
           ${cardRingClass(phase, station.isOccupied, theme.liveRing)}
@@ -212,6 +227,24 @@ const StationCard: React.FC<StationCardProps> = ({
         }
       >
         <div className={`pointer-events-none absolute inset-0 ${theme.mesh}`} aria-hidden />
+
+        {phase === 'starting' && (
+          <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-black/35 backdrop-blur-[1px] animate-station-phase-in">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-orange-400/50 bg-orange-500/20 shadow-[0_0_24px_rgba(249,115,22,0.35)]">
+              <Play className="h-4 w-4 fill-orange-200 text-orange-200" />
+            </div>
+            <span className="text-sm font-semibold tracking-wide text-orange-100">Starting session</span>
+          </div>
+        )}
+
+        {phase === 'ending' && (
+          <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-black/40 backdrop-blur-[2px] animate-station-phase-in">
+            <div className="flex items-center gap-2 rounded-full border border-emerald-500/45 bg-emerald-950/85 px-4 py-2 shadow-[0_0_20px_rgba(16,185,129,0.25)]">
+              <span className="text-sm font-semibold text-emerald-100">Sending to checkout</span>
+              <ArrowRight className="h-4 w-4 text-emerald-400 animate-checkout-nudge" />
+            </div>
+          </div>
+        )}
 
         {isLive && phase !== 'ending' && (
           <div
@@ -360,13 +393,16 @@ const StationCard: React.FC<StationCardProps> = ({
                   )}
                 </div>
               ) : phase === 'starting' ? (
-                <div className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-8 animate-pulse-soft">
-                  <span className="h-2 w-2 rounded-full bg-orange-400 animate-ping" />
-                  <span className="text-sm font-medium text-orange-200">Starting…</span>
+                <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-8 animate-station-phase-in">
+                  <span className="relative flex h-3 w-3">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-60" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-orange-400" />
+                  </span>
+                  <span className="text-sm font-medium text-orange-200">Warming up…</span>
                 </div>
               ) : phase === 'ending' ? (
                 <div className="flex flex-1 items-center justify-center rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-8 animate-station-content-out">
-                  <span className="text-sm font-medium text-red-200">Ending…</span>
+                  <span className="text-sm font-medium text-red-200/90">Closing session…</span>
                 </div>
               ) : (
                 <div className="flex flex-1 flex-col justify-end">

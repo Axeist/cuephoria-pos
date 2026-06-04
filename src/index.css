@@ -365,6 +365,39 @@
   animation: pageEnterFast 0.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+/* Stations → POS checkout handoff (View Transitions API) */
+@supports (view-transition-name: none) {
+  body.pos-handoff-active::view-transition-old(root) {
+    animation: stations-pos-exit 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  body.pos-handoff-active::view-transition-new(root) {
+    animation: stations-pos-enter 0.44s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+
+@keyframes stations-pos-exit {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-32px) scale(0.985);
+  }
+}
+
+@keyframes stations-pos-enter {
+  from {
+    opacity: 0;
+    transform: translateX(36px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
 @keyframes pageEnterFast {
   from {
     opacity: 0;
@@ -382,6 +415,11 @@
   .animate-fade-in,
   .animate-scale-in,
   .page-enter-fast {
+    animation: none !important;
+  }
+
+  body.pos-handoff-active::view-transition-old(root),
+  body.pos-handoff-active::view-transition-new(root) {
     animation: none !important;
   }
 }

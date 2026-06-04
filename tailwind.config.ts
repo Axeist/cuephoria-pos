@@ -224,28 +224,70 @@ export default {
         },
         'station-boot': {
           '0%': {
-            transform: 'scale(1)',
-            filter: 'brightness(1)',
+            transform: 'scale(0.97)',
+            opacity: '0.88',
+            filter: 'brightness(0.92)',
           },
-          '35%': {
-            transform: 'scale(1.025)',
-            filter: 'brightness(1.15)',
+          '40%': {
+            transform: 'scale(1.022)',
+            opacity: '1',
+            filter: 'brightness(1.18)',
           },
           '100%': {
             transform: 'scale(1)',
+            opacity: '1',
             filter: 'brightness(1)',
           },
         },
         'station-shutdown': {
           '0%': {
-            transform: 'scale(1)',
+            transform: 'scale(1) translateX(0)',
             opacity: '1',
-            filter: 'brightness(1)',
+            filter: 'brightness(1) blur(0)',
+          },
+          '35%': {
+            transform: 'scale(0.99) translateX(2px)',
+            opacity: '0.92',
+            filter: 'brightness(1.08) blur(0)',
           },
           '100%': {
-            transform: 'scale(0.96)',
-            opacity: '0.7',
-            filter: 'brightness(0.85)',
+            transform: 'scale(0.93) translateX(10px)',
+            opacity: '0.5',
+            filter: 'brightness(0.72) blur(1px)',
+          },
+        },
+        'station-phase-in': {
+          '0%': {
+            opacity: '0',
+            transform: 'scale(0.94) translateY(6px)',
+          },
+          '100%': {
+            opacity: '1',
+            transform: 'scale(1) translateY(0)',
+          },
+        },
+        'checkout-nudge': {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '50%': { transform: 'translateX(4px)' },
+        },
+        'pos-cart-handoff': {
+          '0%': {
+            opacity: '0',
+            transform: 'translateX(-24px) scale(0.98)',
+          },
+          '100%': {
+            opacity: '1',
+            transform: 'translateX(0) scale(1)',
+          },
+        },
+        'pos-cart-item-handoff': {
+          '0%': {
+            opacity: '0',
+            transform: 'translateX(-18px)',
+          },
+          '100%': {
+            opacity: '1',
+            transform: 'translateX(0)',
           },
         },
         'station-live-glow': {
@@ -263,7 +305,7 @@ export default {
         'station-content-in': {
           '0%': {
             opacity: '0',
-            transform: 'translateY(10px) scale(0.98)',
+            transform: 'translateY(12px) scale(0.96)',
           },
           '100%': {
             opacity: '1',
@@ -273,11 +315,11 @@ export default {
         'station-content-out': {
           '0%': {
             opacity: '1',
-            transform: 'translateY(0)',
+            transform: 'translateY(0) scale(1)',
           },
           '100%': {
             opacity: '0',
-            transform: 'translateY(-6px)',
+            transform: 'translateY(-8px) scale(0.97)',
           },
         },
       },
@@ -301,12 +343,16 @@ export default {
         'float-shadow': 'float-shadow 5s infinite ease-in-out',
         'neon-pulse': 'neon-pulse 3s infinite ease-in-out',
         'pulse-ring': 'pulse-ring 2s cubic-bezier(0.1, 0, 0.3, 1) infinite',
-        'station-boot': 'station-boot 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
-        'station-shutdown': 'station-shutdown 0.45s ease-in forwards',
+        'station-boot': 'station-boot 0.58s cubic-bezier(0.34, 1.45, 0.64, 1) forwards',
+        'station-shutdown': 'station-shutdown 0.58s cubic-bezier(0.4, 0, 0.2, 1) forwards',
+        'station-phase-in': 'station-phase-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards',
+        'checkout-nudge': 'checkout-nudge 0.9s ease-in-out infinite',
+        'pos-cart-handoff': 'pos-cart-handoff 0.48s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'pos-cart-item-handoff': 'pos-cart-item-handoff 0.42s cubic-bezier(0.16, 1, 0.3, 1) forwards',
         'station-live-glow': 'station-live-glow 2.5s ease-in-out infinite',
         'station-bar-shimmer': 'station-bar-shimmer 3s linear infinite',
-        'station-content-in': 'station-content-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards',
-        'station-content-out': 'station-content-out 0.35s ease-in forwards',
+        'station-content-in': 'station-content-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards',
+        'station-content-out': 'station-content-out 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards',
       }
     }
   },

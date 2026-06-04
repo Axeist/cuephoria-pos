@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -24,8 +25,11 @@ import SavedCartsManager from '@/components/SavedCartsManager';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useViewMode } from '@/context/ViewModeContext';
 import { hapticImpact } from '@/utils/capacitor';
+import { isSessionEndNavigation } from '@/utils/viewTransition';
 
 const POS = () => {
+  const location = useLocation();
+  const fromSessionEnd = isSessionEndNavigation(location.state);
   const {
     products,
     customers,
@@ -384,6 +388,13 @@ const POS = () => {
   }
   const total = calculateTotal();
 
+  useEffect(() => {
+    if (!fromSessionEnd) return;
+    if (cart.length > 0) {
+      void hapticImpact('light');
+    }
+  }, [fromSessionEnd, cart.length]);
+
   return (
     <div className={`flex-1 p-3 sm:p-6 md:p-8 pt-3 sm:pt-6 ${mobileView ? 'pb-28' : ''}`}>
       {/* Mobile-optimized header */}
@@ -397,7 +408,7 @@ const POS = () => {
           the bottom to drive checkout. Desktop layout is untouched. */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
         {/* Cart Section - Mobile optimized */}
-        <Card className={`lg:col-span-1 order-2 lg:order-1 ${isMobile ? 'h-auto min-h-[300px]' : 'h-[calc(100vh-12rem)]'} flex flex-col animate-slide-up`}>
+        <Card className={`lg:col-span-1 order-2 lg:order-1 ${isMobile ? 'h-auto min-h-[300px]' : 'h-[calc(100vh-12rem)]'} flex flex-col ${fromSessionEnd ? 'animate-pos-cart-handoff' : 'animate-slide-up'}`}>
           <CardHeader className="pb-3 sm:pb-4 bg-gradient-to-r from-cuephoria-purple/20 to-transparent px-3 sm:px-6 pt-4 sm:pt-6 border-b border-border/40">
             <div className="flex justify-between items-center gap-2">
               <CardTitle className="text-base sm:text-xl font-heading">
@@ -445,8 +456,8 @@ const POS = () => {
                 {cart.map((item, index) => (
                   <div 
                     key={item.id} 
-                    className={`rounded-lg border border-border/50 bg-card/60 px-3 py-2.5 sm:py-3 animate-fade-in shadow-sm ${isMobile ? 'grid grid-cols-[2fr_1fr] gap-2' : 'grid grid-cols-[2fr_1fr_1fr] gap-2 items-center'}`} 
-                    style={{animationDelay: `${index * 50}ms`}}
+                    className={`rounded-lg border border-border/50 bg-card/60 px-3 py-2.5 sm:py-3 shadow-sm ${fromSessionEnd ? 'animate-pos-cart-item-handoff' : 'animate-fade-in'} ${isMobile ? 'grid grid-cols-[2fr_1fr] gap-2' : 'grid grid-cols-[2fr_1fr_1fr] gap-2 items-center'}`} 
+                    style={{ animationDelay: `${index * 70}ms` }}
                   >
                     <div className="flex flex-col justify-center">
                       <p className="font-medium font-quicksand truncate text-sm sm:text-base">{item.name}</p>

@@ -9,7 +9,7 @@ import StartSessionDialog from '@/components/StartSessionDialog';
 import { getRateForPlayerCount } from '@/utils/stationPricing';
 import { getDurationPresets } from '@/utils/sessionDuration.utils';
 import type { StationTheme, StationPhase } from '@/utils/stationTheme';
-import { prefetchPOS } from '@/utils/viewTransition';
+import { prefetchPOS, navigateToPOS, sleep, SESSION_TRANSITION } from '@/utils/viewTransition';
 
 interface StationActionsProps {
   station: Station;
@@ -84,10 +84,12 @@ const StationActions: React.FC<StationActionsProps> = ({
         perPersonRate,
         plannedDurationMinutes
       );
-      toast({
-        title: 'Session Started',
-        description: `${customerName} · ${station.name} · ${plannedDurationMinutes ?? 60} min`,
-      });
+      window.setTimeout(() => {
+        toast({
+          title: 'Session Started',
+          description: `${customerName} · ${station.name} · ${plannedDurationMinutes ?? 60} min`,
+        });
+      }, 120);
     } catch {
       toast({ title: 'Error', description: 'Failed to start session.', variant: 'destructive' });
     } finally {
@@ -102,8 +104,8 @@ const StationActions: React.FC<StationActionsProps> = ({
       const customer = customers.find((c) => c.id === station.currentSession!.customerId);
       if (customer) selectCustomer(customer.id);
       await onEndSession(station.id);
-      toast({ title: 'Session Ended', description: 'Items are ready in the cart.' });
-      navigate('/pos');
+      await sleep(SESSION_TRANSITION.posHandoffMs);
+      navigateToPOS(navigate, { stationName: station.name });
     } catch {
       toast({ title: 'Error', description: 'Failed to end session.', variant: 'destructive' });
     } finally {
@@ -118,7 +120,8 @@ const StationActions: React.FC<StationActionsProps> = ({
       const customer = customers.find((c) => c.id === station.currentSession!.customerId);
       if (customer) selectCustomer(customer.id);
       await onEndSessionGroup(station.id);
-      navigate('/pos');
+      await sleep(SESSION_TRANSITION.posHandoffMs);
+      navigateToPOS(navigate, { stationName: station.name });
     } catch {
       toast({ title: 'Error', description: 'Failed to end group sessions.', variant: 'destructive' });
     } finally {

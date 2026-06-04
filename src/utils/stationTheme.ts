@@ -171,6 +171,7 @@ export function cardPhaseClass(phase: StationPhase, isOccupied: boolean): string
 
 export function cardRingClass(phase: StationPhase, isOccupied: boolean, liveRing: string): string {
   if (phase === 'starting') return 'ring-2 ring-orange-400/60';
+  if (phase === 'ending') return 'ring-2 ring-emerald-400/45';
   if (phase === 'live' || isOccupied) return `ring-2 ${liveRing}`;
   return '';
 }
