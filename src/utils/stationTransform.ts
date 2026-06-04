@@ -53,6 +53,10 @@ export function parseCurrentSession(
             sessionData.planned_duration_minutes ??
             0
         ) || undefined,
+      sessionGroupId:
+        (sessionData.sessionGroupId ?? sessionData.session_group_id) != null
+          ? String(sessionData.sessionGroupId ?? sessionData.session_group_id)
+          : undefined,
     };
   } catch {
     return null;

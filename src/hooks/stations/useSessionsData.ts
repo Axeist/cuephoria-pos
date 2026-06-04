@@ -38,7 +38,7 @@ export const useSessionsData = () => {
       // ✅ OPTIMIZED: Added .limit(100) to fetch only recent sessions
       const { data, error } = await supabase
         .from('sessions')
-        .select('id, station_id, customer_id, start_time, end_time, duration, hourly_rate, original_rate, coupon_code, discount_amount, is_paused, paused_at, total_paused_time, player_count, per_person_rate, planned_duration_minutes')
+        .select('id, station_id, customer_id, start_time, end_time, duration, hourly_rate, original_rate, coupon_code, discount_amount, is_paused, paused_at, total_paused_time, player_count, per_person_rate, planned_duration_minutes, session_group_id')
         .eq('location_id', activeLocationId)
         .order('created_at', { ascending: false })
         .limit(100); // Only fetch 100 most recent sessions
@@ -76,6 +76,7 @@ export const useSessionsData = () => {
           playerCount: Number(item.player_count) || 1,
           perPersonRate: Number(item.per_person_rate) || undefined,
           plannedDurationMinutes: Number(item.planned_duration_minutes) || undefined,
+          sessionGroupId: item.session_group_id ? String(item.session_group_id) : undefined,
         }));
         
         console.log(`✅ Loaded ${transformedSessions.length} sessions from Supabase (limited to 100)`);

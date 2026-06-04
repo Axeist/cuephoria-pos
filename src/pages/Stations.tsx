@@ -2,10 +2,9 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { usePOS } from '@/context/POSContext';
 import StationCard from '@/components/StationCard';
 import MultiStartSessionDialog from '@/components/station/MultiStartSessionDialog';
-import { Plus, MapPin, ArrowRightLeft, Radio, CircleDot, Zap, Layers, Users, X } from 'lucide-react';
+import { Plus, MapPin, Radio, CircleDot, Zap, Layers, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AddStationDialog from '@/components/AddStationDialog';
-import ReplaceLegacyStationsDialog from '@/components/station/ReplaceLegacyStationsDialog';
 import { StationTypesDialog } from '@/components/station/StationTypeManager';
 import { useStationTypes } from '@/hooks/useStationTypes';
 import { useStationCustomerIntel } from '@/hooks/stations/useStationCustomerIntel';
@@ -17,6 +16,7 @@ import { type Station } from '@/types/pos.types';
 import { prefetchPOS } from '@/utils/viewTransition';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { generateId } from '@/utils/pos.utils';
 import type { MultiSessionStartItem } from '@/components/station/MultiStartSessionDialog';
 
 const typeSortWeight = (type: string) => {
@@ -43,7 +43,6 @@ const Stations = () => {
   const { stationTypes } = useStationTypes();
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [openPinDialog, setOpenPinDialog] = useState(false);
-  const [openReplaceDialog, setOpenReplaceDialog] = useState(false);
   const [openTypesDialog, setOpenTypesDialog] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [selectionMode, setSelectionMode] = useState(false);
@@ -131,6 +130,7 @@ const Stations = () => {
   ) => {
     let started = 0;
     const failed: string[] = [];
+    const sessionGroupId = generateId();
 
     for (const item of sessions) {
       const station = stations.find((s) => s.id === item.stationId);
@@ -142,7 +142,8 @@ const Stations = () => {
           couponCode,
           item.playerCount,
           item.perPersonRate,
-          item.plannedDurationMinutes
+          item.plannedDurationMinutes,
+          sessionGroupId
         );
         started += 1;
       } catch {
@@ -259,10 +260,6 @@ const Stations = () => {
               <Users className="mr-1.5 h-3.5 w-3.5" />
               {selectionMode ? 'Cancel select' : 'Group start'}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setOpenReplaceDialog(true)}>
-              <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
-              Legacy
-            </Button>
             <Button size="sm" variant="outline" onClick={() => setOpenTypesDialog(true)}>
               <Layers className="mr-1.5 h-3.5 w-3.5" />
               Types
@@ -334,11 +331,6 @@ const Stations = () => {
         description="Enter the admin PIN to add a new game station"
       />
       <AddStationDialog open={openAddDialog} onOpenChange={setOpenAddDialog} />
-      <ReplaceLegacyStationsDialog
-        open={openReplaceDialog}
-        onOpenChange={setOpenReplaceDialog}
-        onComplete={() => {}}
-      />
       <StationTypesDialog open={openTypesDialog} onOpenChange={setOpenTypesDialog} />
 
       <MultiStartSessionDialog

@@ -1,4 +1,4 @@
-import { Session, Station, Customer, CartItem, SessionResult } from '@/types/pos.types';
+import { Session, Station, Customer, CartItem, SessionResult, SessionGroupResult } from '@/types/pos.types';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { SessionActionsProps } from '../session-actions/types';
@@ -29,7 +29,11 @@ export const useEndSession = ({
   /**
    * End an active session for a station
    */
-  const endSession = async (stationId: string, customersList?: Customer[]): Promise<SessionResult | undefined> => {
+  const endSession = async (
+    stationId: string,
+    customersList?: Customer[],
+    options?: { silent?: boolean }
+  ): Promise<SessionResult | undefined> => {
     try {
       console.log("Ending session for station:", stationId);
       
@@ -195,10 +199,12 @@ export const useEndSession = ({
         updateCustomer(updatedCustomer);
       }
       
-      toast({
-        title: 'Success',
-        description: 'Session ended successfully',
-      });
+      if (!options?.silent) {
+        toast({
+          title: 'Success',
+          description: 'Session ended successfully',
+        });
+      }
       
       return { 
         updatedSession, 
@@ -216,5 +222,63 @@ export const useEndSession = ({
     }
   };
   
-  return { endSession };
+  const endSessionGroup = async (
+    stationId: string,
+    customersList?: Customer[]
+  ): Promise<SessionGroupResult | undefined> => {
+    try {
+      const anchor = stations.find((s) => s.id === stationId);
+      const groupId = anchor?.currentSession?.sessionGroupId;
+
+      if (!anchor?.currentSession || !groupId) {
+        toast({
+          title: 'Not a group session',
+          description: 'This session was not started as part of a group.',
+          variant: 'destructive',
+        });
+        throw new Error('Not a group session');
+      }
+
+      const groupStationIds = stations
+        .filter((s) => s.isOccupied && s.currentSession?.sessionGroupId === groupId)
+        .map((s) => s.id);
+
+      if (groupStationIds.length === 0) {
+        throw new Error('No active group sessions');
+      }
+
+      const sessionCartItems: CartItem[] = [];
+      let customer: Customer | undefined;
+
+      for (const sid of groupStationIds) {
+        const result = await endSession(sid, customersList, { silent: true });
+        if (result?.sessionCartItem) {
+          sessionCartItems.push(result.sessionCartItem);
+        }
+        if (result?.customer) {
+          customer = result.customer;
+        }
+      }
+
+      toast({
+        title: 'Group ended',
+        description: `${sessionCartItems.length} station${sessionCartItems.length === 1 ? '' : 's'} ready in POS`,
+      });
+
+      return { sessionCartItems, customer };
+    } catch (error) {
+      console.error('Error in endSessionGroup:', error);
+      if (error instanceof Error && error.message === 'Not a group session') {
+        throw error;
+      }
+      toast({
+        title: 'Error',
+        description: 'Failed to end group sessions',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
+  return { endSession, endSessionGroup };
 };

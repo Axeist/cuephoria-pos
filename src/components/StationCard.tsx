@@ -60,6 +60,7 @@ const StationCard: React.FC<StationCardProps> = ({
     customers,
     startSession,
     endSession,
+    endSessionGroup,
     pauseSession,
     resumeSession,
     extendSession,
@@ -165,6 +166,25 @@ const StationCard: React.FC<StationCardProps> = ({
       setPhase('idle');
     },
     [endSession]
+  );
+
+  const sessionGroupId = session?.sessionGroupId;
+  const groupSize =
+    sessionGroupId != null
+      ? stations.filter(
+          (s) => s.isOccupied && s.currentSession?.sessionGroupId === sessionGroupId
+        ).length
+      : 0;
+
+  const wrappedEndSessionGroup = useCallback(
+    async (stationId: string) => {
+      setPhase('ending');
+      void hapticImpact('heavy');
+      await sleep(480);
+      await endSessionGroup(stationId);
+      setPhase('idle');
+    },
+    [endSessionGroup]
   );
 
   const canSelect = selectionMode && !station.isOccupied && phase === 'idle';
@@ -358,6 +378,8 @@ const StationCard: React.FC<StationCardProps> = ({
                     phase={phase}
                     onStartSession={wrappedStartSession}
                     onEndSession={wrappedEndSession}
+                    onEndSessionGroup={wrappedEndSessionGroup}
+                    groupSize={groupSize}
                     onPauseSession={pauseSession}
                     onResumeSession={resumeSession}
                     onExtendSession={extendSession}
@@ -386,6 +408,8 @@ const StationCard: React.FC<StationCardProps> = ({
               phase={phase}
               onStartSession={wrappedStartSession}
               onEndSession={wrappedEndSession}
+              onEndSessionGroup={wrappedEndSessionGroup}
+              groupSize={groupSize}
               onPauseSession={pauseSession}
               onResumeSession={resumeSession}
               onExtendSession={extendSession}

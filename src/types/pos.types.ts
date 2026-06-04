@@ -73,6 +73,8 @@ export interface Session {
   totalPausedMs?: number;
   /** Target billable play time set at session start (minutes). */
   plannedDurationMinutes?: number;
+  /** Shared id when started via group start (multiple stations, one customer). */
+  sessionGroupId?: string;
 }
 
 export interface CartItem {
@@ -116,6 +118,11 @@ export interface ResetOptions {
 export interface SessionResult {
   updatedSession?: Session;
   sessionCartItem?: CartItem;
+  customer?: Customer;
+}
+
+export interface SessionGroupResult {
+  sessionCartItems: CartItem[];
   customer?: Customer;
 }
 
@@ -177,10 +184,12 @@ export interface POSContextType {
     couponCode?: string,
     playerCount?: number,
     perPersonRate?: number,
-    plannedDurationMinutes?: number
+    plannedDurationMinutes?: number,
+    sessionGroupId?: string
   ) => Promise<void>;
   extendSession: (stationId: string, extraMinutes: number) => Promise<void>;
   endSession: (stationId: string) => Promise<void>;
+  endSessionGroup: (stationId: string) => Promise<void>;
   pauseSession: (stationId: string) => Promise<void>;
   resumeSession: (stationId: string) => Promise<void>;
   deleteStation: (stationId: string) => Promise<boolean>;

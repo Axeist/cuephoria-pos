@@ -28,5 +28,6 @@ export function serializeSessionForDb(session: Session): Record<string, unknown>
         : session.pausedAt ?? undefined,
     totalPausedMs: session.totalPausedMs ?? 0,
     plannedDurationMinutes: session.plannedDurationMinutes,
+    sessionGroupId: session.sessionGroupId,
   };
 }

@@ -28,7 +28,8 @@ export const useStartSession = ({
     couponCode?: string,
     playerCount?: number,
     perPersonRate?: number,
-    plannedDurationMinutes?: number
+    plannedDurationMinutes?: number,
+    sessionGroupId?: string
   ): Promise<Session | undefined> => {
     try {
       console.log("🚀 Starting session for station:", stationId, "for customer:", customerId);
@@ -102,6 +103,7 @@ export const useStartSession = ({
         playerCount: pricingPlayerCount,
         perPersonRate: resolvedPerPerson,
         plannedDurationMinutes: resolvedPlanned,
+        sessionGroupId,
       };
       
       console.log("📦 Created new session object:", JSON.stringify(newSession, null, 2));
@@ -137,6 +139,7 @@ export const useStartSession = ({
             player_count: pricingPlayerCount,
             per_person_rate: resolvedPerPerson,
             planned_duration_minutes: resolvedPlanned,
+            session_group_id: sessionGroupId ?? null,
           } as any)
           .select()
           .single();

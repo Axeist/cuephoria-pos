@@ -6,7 +6,7 @@ import { useExtendSession } from './useExtendSession';
 import { SessionActionsProps } from './types';
 import { Customer } from '@/types/pos.types';
 import { useToast } from '@/hooks/use-toast';
-import type { SessionResult } from '@/types/pos.types';
+import type { SessionResult, SessionGroupResult } from '@/types/pos.types';
 
 export const useSessionActions = (props: SessionActionsProps) => {
   const { stations, setStations, sessions, setSessions, updateCustomer } = props;
@@ -25,7 +25,8 @@ export const useSessionActions = (props: SessionActionsProps) => {
     couponCode?: string,
     playerCount?: number,
     perPersonRate?: number,
-    plannedDurationMinutes?: number
+    plannedDurationMinutes?: number,
+    sessionGroupId?: string
   ): Promise<void> => {
     try {
       setIsLoading(true);
@@ -36,7 +37,8 @@ export const useSessionActions = (props: SessionActionsProps) => {
         couponCode,
         playerCount,
         perPersonRate,
-        plannedDurationMinutes
+        plannedDurationMinutes,
+        sessionGroupId
       );
     } catch (error) {
       throw error;
@@ -89,6 +91,17 @@ export const useSessionActions = (props: SessionActionsProps) => {
       setIsLoading(false);
     }
   };
+
+  const endSessionGroup = async (stationId: string, customersList?: Customer[]): Promise<SessionGroupResult | undefined> => {
+    try {
+      setIsLoading(true);
+      return await endSessionHook.endSessionGroup(stationId, customersList);
+    } catch (error) {
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   const pauseSession = async (stationId: string): Promise<void> => {
     try {
@@ -117,6 +130,7 @@ export const useSessionActions = (props: SessionActionsProps) => {
   return {
     startSession,
     endSession,
+    endSessionGroup,
     pauseSession,
     resumeSession,
     extendSession,

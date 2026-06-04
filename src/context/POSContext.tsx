@@ -50,6 +50,7 @@ const POSContext = createContext<POSContextType>({
   deleteCategory: () => {},
   startSession: async () => {},
   endSession: async () => {},
+  endSessionGroup: async () => {},
   pauseSession: async () => {},
   resumeSession: async () => {},
   extendSession: async () => {},
@@ -132,6 +133,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSessions, 
     startSession: startSessionBase, 
     endSession: endSessionBase,
+    endSessionGroup: endSessionGroupBase,
     pauseSession: pauseSessionBase,
     resumeSession: resumeSessionBase,
     extendSession: extendSessionBase,
@@ -592,7 +594,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     couponCode?: string,
     playerCount?: number,
     perPersonRate?: number,
-    plannedDurationMinutes?: number
+    plannedDurationMinutes?: number,
+    sessionGroupId?: string
   ): Promise<void> => {
     await startSessionBase(
       stationId,
@@ -601,7 +604,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       couponCode,
       playerCount,
       perPersonRate,
-      plannedDurationMinutes
+      plannedDurationMinutes,
+      sessionGroupId
     );
   };
 
@@ -655,6 +659,58 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch (error) {
       console.error('Error in endSession:', error);
+      throw error;
+    }
+  };
+
+  const endSessionGroup = async (stationId: string): Promise<void> => {
+    try {
+      const anchor = stations.find((s) => s.id === stationId);
+      const groupId = anchor?.currentSession?.sessionGroupId;
+
+      if (!anchor?.currentSession || !groupId) {
+        throw new Error('Not a group session');
+      }
+
+      const groupStations = stations.filter(
+        (s) => s.isOccupied && s.currentSession?.sessionGroupId === groupId
+      );
+
+      const quickShopSnapshots = groupStations.map((s) => ({
+        sessionId: s.currentSession!.id,
+        items: getStationQuickShopItems(s.currentSession!.id),
+      }));
+
+      const result = await endSessionGroupBase(stationId, customers);
+
+      if (result) {
+        const { sessionCartItems, customer } = result;
+        const quickShopItems = quickShopSnapshots.flatMap((q) => q.items);
+
+        if (customer) {
+          const mergedCart: CartItem[] = [...quickShopItems, ...sessionCartItems];
+
+          for (const q of quickShopSnapshots) {
+            clearStationQuickShopSession(q.sessionId);
+          }
+
+          if (mergedCart.length > 0 && activeLocationId) {
+            await persistSavedCart(
+              customer.id,
+              customer.name,
+              mergedCart,
+              0,
+              'percentage',
+              0
+            );
+          }
+
+          selectCustomer(customer.id);
+          setCart(mergedCart);
+        }
+      }
+    } catch (error) {
+      console.error('Error in endSessionGroup:', error);
       throw error;
     }
   };
@@ -947,6 +1003,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     deleteCategory,
     startSession,
     endSession,
+    endSessionGroup,
     pauseSession,
     resumeSession,
     extendSession,
@@ -996,7 +1053,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     categories, setIsStudentDiscount, setBills, setCustomers, setStations,
     addProduct, updateProduct, deleteProduct,
     addCategory, updateCategory, deleteCategory,
-    startSession, endSession, pauseSession, resumeSession, extendSession, deleteStation, updateStation, refreshStations,
+    startSession, endSession, endSessionGroup, pauseSession, resumeSession, extendSession, deleteStation, updateStation, refreshStations,
     addCustomer, updateCustomer, updateCustomerMembershipWrapper,
     deleteCustomer, selectCustomer, checkMembershipValidity, deductMembershipHours,
     addToCart, removeFromCart, updateCartItem, handleClearCart,

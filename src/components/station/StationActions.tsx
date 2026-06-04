@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Station, Customer } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS } from '@/context/POSContext';
-import { Pause, Play, Square, ShoppingBag, Loader2, Plus } from 'lucide-react';
+import { Pause, Play, Square, ShoppingBag, Loader2, Plus, Users } from 'lucide-react';
 import StartSessionDialog from '@/components/StartSessionDialog';
 import { getRateForPlayerCount } from '@/utils/stationPricing';
 import { getDurationPresets } from '@/utils/sessionDuration.utils';
@@ -26,6 +26,8 @@ interface StationActionsProps {
     plannedDurationMinutes?: number
   ) => Promise<void>;
   onEndSession: (stationId: string) => Promise<void>;
+  onEndSessionGroup?: (stationId: string) => Promise<void>;
+  groupSize?: number;
   onPauseSession: (stationId: string) => Promise<void>;
   onResumeSession: (stationId: string) => Promise<void>;
   onExtendSession?: (stationId: string, extraMinutes: number) => Promise<void>;
@@ -41,6 +43,8 @@ const StationActions: React.FC<StationActionsProps> = ({
   phase = 'idle',
   onStartSession,
   onEndSession,
+  onEndSessionGroup,
+  groupSize = 0,
   onPauseSession,
   onResumeSession,
   onExtendSession,
@@ -107,6 +111,21 @@ const StationActions: React.FC<StationActionsProps> = ({
     }
   };
 
+  const handleEndSessionGroup = async () => {
+    if (!station.isOccupied || !station.currentSession || !onEndSessionGroup || groupSize < 2) return;
+    try {
+      setIsLoading(true);
+      const customer = customers.find((c) => c.id === station.currentSession!.customerId);
+      if (customer) selectCustomer(customer.id);
+      await onEndSessionGroup(station.id);
+      navigate('/pos');
+    } catch {
+      toast({ title: 'Error', description: 'Failed to end group sessions.', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const btnBase = footerLayout
     ? 'h-11 text-sm font-semibold px-3 transition-all duration-200 active:scale-95'
     : 'h-8 flex-1 text-xs font-semibold px-2 transition-all duration-200 active:scale-95';
@@ -154,6 +173,22 @@ const StationActions: React.FC<StationActionsProps> = ({
               </Button>
             ))}
           </div>
+        )}
+        {groupSize >= 2 && onEndSessionGroup && (
+          <Button
+            size={footerLayout ? 'default' : 'sm'}
+            variant="destructive"
+            className={`${footerLayout ? 'h-11 w-full' : btnBase} bg-gradient-to-r from-rose-700 to-red-700 hover:from-rose-600 hover:to-red-600 shadow-[0_0_10px_rgba(225,29,72,0.2)]`}
+            onClick={handleEndSessionGroup}
+            disabled={isLoading || isTransitioning}
+          >
+            {isLoading ? (
+              <Loader2 className={`mr-1.5 animate-spin ${footerLayout ? 'h-4 w-4' : 'h-3 w-3'}`} />
+            ) : (
+              <Users className={`mr-1.5 ${footerLayout ? 'h-4 w-4' : 'h-3 w-3'}`} />
+            )}
+            End group ({groupSize})
+          </Button>
         )}
         <div
           className={
