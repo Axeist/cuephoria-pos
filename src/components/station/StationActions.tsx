@@ -15,6 +15,7 @@ interface StationActionsProps {
   onEndSession: (stationId: string) => Promise<void>;
   onPauseSession: (stationId: string) => Promise<void>;
   onResumeSession: (stationId: string) => Promise<void>;
+  onQuickShop?: () => void;
 }
 
 const StationActions: React.FC<StationActionsProps> = ({ 
@@ -24,6 +25,7 @@ const StationActions: React.FC<StationActionsProps> = ({
   onEndSession,
   onPauseSession,
   onResumeSession,
+  onQuickShop,
 }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -73,19 +75,7 @@ const StationActions: React.FC<StationActionsProps> = ({
 
   const handleQuickShop = () => {
     if (!station.isOccupied || !station.currentSession) return;
-
-    const customerId = station.currentSession.customerId;
-    const customer = customers.find(c => c.id === customerId);
-
-    if (customer) {
-      selectCustomer(customer.id);
-    }
-
-    const params = new URLSearchParams({
-      quickShop: 'true',
-      station: station.name,
-    });
-    navigate(`/pos?${params.toString()}`);
+    onQuickShop?.();
   };
 
   const handleEndSession = async () => {

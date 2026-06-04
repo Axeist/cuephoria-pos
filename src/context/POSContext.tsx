@@ -13,6 +13,7 @@ import { useProducts } from '@/hooks/useProducts';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useStations } from '@/hooks/useStations';
 import { useCart } from '@/hooks/useCart';
+import { useStationQuickShop } from '@/hooks/useStationQuickShop';
 import { useBills } from '@/hooks/useBills';
 import { useToast } from '@/hooks/use-toast';
 import { supabase, handleSupabaseError } from '@/integrations/supabase/client';
@@ -69,6 +70,10 @@ const POSContext = createContext<POSContextType>({
   removeFromCart: () => {},
   updateCartItem: () => {},
   clearCart: () => {},
+  getStationQuickShopItems: () => [],
+  addToStationQuickShop: () => {},
+  updateStationQuickShopQuantity: () => {},
+  removeFromStationQuickShop: () => {},
   setDiscount: () => {},
   setLoyaltyPointsUsed: () => {},
   calculateTotal: () => 0,
@@ -155,6 +160,15 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     calculateTotal,
     resetPaymentInfo
   } = useCart();
+
+  const {
+    itemsBySession,
+    getStationQuickShopItems,
+    addToStationQuickShop,
+    updateStationQuickShopQuantity,
+    removeFromStationQuickShop,
+    clearStationQuickShopSession,
+  } = useStationQuickShop();
   
   const { 
     bills, 
@@ -516,9 +530,9 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         throw new Error("No active session found");
       }
       
+      const sessionId = station.currentSession.id;
       const customerId = station.currentSession.customerId;
-      const wasAlreadySelected = selectedCustomer?.id === customerId;
-      const savedCart = loadCartFromStorage(customerId);
+      const stationQuickShopItems = getStationQuickShopItems(sessionId);
       
       const result = await endSessionBase(stationId, customers);
       
@@ -528,42 +542,19 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (customer) {
           console.log("Auto-selecting customer:", customer.name);
 
-          let existingProductItems: CartItem[] = [];
-          const inMemoryProducts = cart.filter(item => item.type === 'product');
-          const savedProducts = savedCart?.items.filter(item => item.type === 'product') ?? [];
-          existingProductItems = inMemoryProducts.length > 0 ? inMemoryProducts : savedProducts;
-
           const mergedCart: CartItem[] = [
-            ...existingProductItems,
+            ...stationQuickShopItems,
             ...(sessionCartItem ? [sessionCartItem] : []),
           ];
 
-          const mergedDiscount = wasAlreadySelected
-            ? discount
-            : (savedCart?.discount ?? 0);
-          const mergedDiscountType = wasAlreadySelected
-            ? discountType
-            : (savedCart?.discountType ?? 'percentage');
-          const mergedLoyaltyPoints = wasAlreadySelected
-            ? loyaltyPointsUsed
-            : (savedCart?.loyaltyPointsUsed ?? 0);
+          clearStationQuickShopSession(sessionId);
 
           if (mergedCart.length > 0) {
-            saveCartToStorage(
-              customer.id,
-              mergedCart,
-              customer.name,
-              mergedDiscount,
-              mergedDiscountType,
-              mergedLoyaltyPoints
-            );
+            saveCartToStorage(customer.id, mergedCart, customer.name, 0, 'percentage', 0);
           }
 
-          if (!wasAlreadySelected) {
-            selectCustomer(customer.id);
-          } else {
-            setCart(mergedCart);
-          }
+          selectCustomer(customer.id);
+          setCart(mergedCart);
 
           console.log("Merged cart for checkout:", mergedCart);
         }
@@ -875,6 +866,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     removeFromCart,
     updateCartItem,
     clearCart,
+    getStationQuickShopItems,
+    addToStationQuickShop,
+    updateStationQuickShopQuantity,
+    removeFromStationQuickShop,
     setDiscount,
     setLoyaltyPointsUsed,
     calculateTotal,
@@ -891,6 +886,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     stations, customers, sessions, bills,
     cart, selectedCustomer,
     discount, discountType, loyaltyPointsUsed,
+    itemsBySession,
     isStudentDiscount, isSplitPayment, cashAmount, upiAmount,
     setIsSplitPayment, setCashAmount, setUpiAmount, updateSplitAmounts,
     categories, setIsStudentDiscount, setBills, setCustomers, setStations,
@@ -900,6 +896,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addCustomer, updateCustomer, updateCustomerMembershipWrapper,
     deleteCustomer, selectCustomer, checkMembershipValidity, deductMembershipHours,
     addToCart, removeFromCart, updateCartItem, clearCart,
+    getStationQuickShopItems, addToStationQuickShop,
+    updateStationQuickShopQuantity, removeFromStationQuickShop,
     setDiscount, setLoyaltyPointsUsed, calculateTotal,
     completeSale, updateBill, realiseCreditPayment, deleteBill,
     exportBills, exportCustomers,

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,7 +10,7 @@ import {
   ResponsiveDialogContent,
 } from '@/components/ui/responsive-dialog';
 import StickyMobileActionBar from '@/components/ui/sticky-mobile-action-bar';
-import { ShoppingCart, X, User, Plus, Search, ArrowRight, Trash2, ReceiptIcon, Download, Check, Award, Gift, Calendar, Clock, Lock, ShieldCheck, ShoppingBag, Gamepad2 } from 'lucide-react';
+import { ShoppingCart, X, User, Plus, Search, ArrowRight, Trash2, ReceiptIcon, Download, Check, Award, Gift, Calendar, Clock, Lock, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS, Customer, Product, Bill } from '@/context/POSContext';
 import { CurrencyDisplay, formatCurrency } from '@/components/ui/currency';
@@ -26,7 +25,6 @@ import SavedCartsManager from '@/components/SavedCartsManager';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useViewMode } from '@/context/ViewModeContext';
 import { hapticImpact } from '@/utils/capacitor';
-import { prefetchStations } from '@/utils/viewTransition';
 
 const POS = () => {
   const {
@@ -58,23 +56,8 @@ const POS = () => {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const { isMobile: mobileView } = useViewMode();
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
 
-  const isQuickShop = searchParams.get('quickShop') === 'true';
-  const quickShopStation = searchParams.get('station') ?? '';
-  const contentEnter = isQuickShop ? 'page-enter-fast' : 'animate-slide-down';
-  const panelEnter = isQuickShop ? 'page-enter-fast' : 'animate-slide-up';
-  const panelEnterDelay = isQuickShop ? '' : 'delay-200';
-  const productEnter = isQuickShop ? '' : 'animate-scale-in';
-
-  useEffect(() => {
-    if (isQuickShop) {
-      prefetchStations();
-    }
-  }, [isQuickShop]);
-
-  const [activeTab, setActiveTab] = useState(isQuickShop ? 'food' : 'all');
+  const [activeTab, setActiveTab] = useState('all');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
@@ -125,8 +108,7 @@ const POS = () => {
   }, [isCheckoutDialogOpen, isCompDialogOpen]);
 
   const productsWithStock = products.filter(product => 
-    (product.category === 'membership' || product.stock > 0) &&
-    (!isQuickShop || product.category === 'food' || product.category === 'drinks')
+    product.category === 'membership' || product.stock > 0
   );
 
   const categoryCounts = productsWithStock.reduce((acc, product) => {
@@ -137,8 +119,7 @@ const POS = () => {
 
   categoryCounts.all = productsWithStock.length;
 
-  const quickShopCategoryOrder = ['food', 'drinks'];
-  const categoryOrder = isQuickShop ? quickShopCategoryOrder : ['food', 'drinks', 'tobacco', 'challenges', 'membership'];
+  const categoryOrder = ['food', 'drinks', 'tobacco', 'challenges', 'membership'];
 
   const getSortedProducts = (productList: Product[]) => {
     if (activeTab === 'all') {
@@ -395,41 +376,9 @@ const POS = () => {
   return (
     <div className={`flex-1 p-3 sm:p-6 md:p-8 pt-3 sm:pt-6 ${mobileView ? 'pb-28' : ''}`}>
       {/* Mobile-optimized header */}
-      <div className={`flex items-center justify-between mb-4 sm:mb-6 ${contentEnter}`}>
-        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight gradient-text font-heading">
-          {isQuickShop ? 'Quick Shop' : 'Point of Sale'}
-        </h2>
+      <div className="flex items-center justify-between mb-4 sm:mb-6 animate-slide-down">
+        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight gradient-text font-heading">Point of Sale</h2>
       </div>
-
-      {isQuickShop && (
-        <div className={`mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-950/30 px-4 py-3 ${contentEnter}`}>
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20">
-              <ShoppingBag className="h-4 w-4 text-emerald-400" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-emerald-100">Session Quick Shop</p>
-              <p className="text-xs sm:text-sm text-emerald-200/70">
-                {selectedCustomer
-                  ? `Adding snacks & drinks for ${selectedCustomer.name}`
-                  : 'Select a customer to add items'}
-                {quickShopStation ? ` · ${quickShopStation} session still active` : ''}
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="shrink-0 border-emerald-500/30 text-emerald-100 hover:bg-emerald-500/10"
-            onClick={() => navigate('/stations')}
-            onMouseEnter={prefetchStations}
-            onFocus={prefetchStations}
-          >
-            <Gamepad2 className="h-4 w-4 mr-2" />
-            Back to Stations
-          </Button>
-        </div>
-      )}
 
       {/* Mobile-optimized grid layout.
           On mobile we flip the visual order (products first, cart second) so
@@ -437,7 +386,7 @@ const POS = () => {
           the bottom to drive checkout. Desktop layout is untouched. */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
         {/* Cart Section - Mobile optimized */}
-        <Card className={`lg:col-span-1 order-2 lg:order-1 ${isMobile ? 'h-auto min-h-[300px]' : 'h-[calc(100vh-12rem)]'} flex flex-col ${panelEnter}`}>
+        <Card className={`lg:col-span-1 order-2 lg:order-1 ${isMobile ? 'h-auto min-h-[300px]' : 'h-[calc(100vh-12rem)]'} flex flex-col animate-slide-up`}>
           <CardHeader className="pb-2 sm:pb-3 bg-gradient-to-r from-cuephoria-purple/20 to-transparent px-3 sm:px-6 pt-3 sm:pt-6">
             <div className="flex justify-between items-center">
               <CardTitle className="text-base sm:text-xl font-heading">
@@ -610,7 +559,7 @@ const POS = () => {
         </Card>
 
         {/* Products Section - Mobile optimized */}
-        <Card className={`lg:col-span-2 order-1 lg:order-2 ${isMobile ? 'h-auto min-h-[500px]' : 'h-[calc(100vh-12rem)]'} flex flex-col ${panelEnter} ${panelEnterDelay}`}>
+        <Card className={`lg:col-span-2 order-1 lg:order-2 ${isMobile ? 'h-auto min-h-[500px]' : 'h-[calc(100vh-12rem)]'} flex flex-col animate-slide-up delay-200`}>
           <CardHeader className="pb-2 sm:pb-3 bg-gradient-to-r from-transparent to-cuephoria-blue/10 flex-shrink-0 px-3 sm:px-6 pt-3 sm:pt-6">
             <CardTitle className="text-base sm:text-xl font-heading mb-2 sm:mb-3">Products</CardTitle>
             <div className="flex space-x-2">
@@ -628,8 +577,8 @@ const POS = () => {
 
           <div className="flex flex-col flex-grow min-h-0">
             {/* Mobile-optimized category toggle buttons */}
-            <div className={`px-2 sm:px-3 md:px-6 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-blue/10 flex-shrink-0 ${isQuickShop ? 'page-enter-fast' : 'animate-scale-in'}`}>
-              <div className={`${isMobile ? 'flex w-full overflow-x-auto scrollbar-hide gap-1 mb-3 p-1' : `grid w-full ${isQuickShop ? 'grid-cols-3' : 'grid-cols-6'} gap-1 mb-4 p-1`}`}>
+            <div className="px-2 sm:px-3 md:px-6 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-blue/10 flex-shrink-0 animate-scale-in">
+              <div className={`${isMobile ? 'flex w-full overflow-x-auto scrollbar-hide gap-1 mb-3 p-1' : 'grid w-full grid-cols-6 gap-1 mb-4 p-1'}`}>
                 <button
                   type="button"
                   onClick={() => setActiveTab('all')}
@@ -663,44 +612,40 @@ const POS = () => {
                 >
                   Drinks ({categoryCounts.drinks || 0})
                 </button>
-                {!isQuickShop && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('tobacco')}
-                      className={`text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 rounded-lg font-medium transition-all duration-200 ${
-                        activeTab === 'tobacco'
-                          ? 'bg-red-500 text-white shadow-lg shadow-red-500/30'
-                          : 'text-muted-foreground hover:text-white hover:bg-red-500/20'
-                      }`}
-                    >
-                      Tobacco ({categoryCounts.tobacco || 0})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('challenges')}
-                      className={`text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 rounded-lg font-medium transition-all duration-200 ${
-                        activeTab === 'challenges'
-                          ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
-                          : 'text-muted-foreground hover:text-white hover:bg-green-500/20'
-                      }`}
-                    >
-                      Challenges ({categoryCounts.challenges || 0})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('membership')}
-                      className={`text-[10px] sm:text-xs px-1 py-2 whitespace-nowrap flex-shrink-0 rounded-lg font-medium transition-all duration-200 flex items-center gap-1 justify-center ${
-                        activeTab === 'membership'
-                          ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/30'
-                          : 'text-muted-foreground hover:text-white hover:bg-violet-600/20'
-                      }`}
-                    >
-                      <Award className="h-3 w-3" />
-                      Membership ({categoryCounts.membership || 0})
-                    </button>
-                  </>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('tobacco')}
+                  className={`text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 rounded-lg font-medium transition-all duration-200 ${
+                    activeTab === 'tobacco'
+                      ? 'bg-red-500 text-white shadow-lg shadow-red-500/30'
+                      : 'text-muted-foreground hover:text-white hover:bg-red-500/20'
+                  }`}
+                >
+                  Tobacco ({categoryCounts.tobacco || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('challenges')}
+                  className={`text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 rounded-lg font-medium transition-all duration-200 ${
+                    activeTab === 'challenges'
+                      ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
+                      : 'text-muted-foreground hover:text-white hover:bg-green-500/20'
+                  }`}
+                >
+                  Challenges ({categoryCounts.challenges || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('membership')}
+                  className={`text-[10px] sm:text-xs px-1 py-2 whitespace-nowrap flex-shrink-0 rounded-lg font-medium transition-all duration-200 flex items-center gap-1 justify-center ${
+                    activeTab === 'membership'
+                      ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/30'
+                      : 'text-muted-foreground hover:text-white hover:bg-violet-600/20'
+                  }`}
+                >
+                  <Award className="h-3 w-3" />
+                  Membership ({categoryCounts.membership || 0})
+                </button>
               </div>
             </div>
 
@@ -710,7 +655,7 @@ const POS = () => {
                   {searchedProducts.map((product, index) => (
                     <div
                       key={product.id}
-                      className={productEnter || undefined}
+                      className="animate-scale-in"
                       style={{ animationDelay: `${(index % 8) * 50}ms` }}
                     >
                       <ProductCard 

@@ -5,8 +5,10 @@ import StationInfo from '@/components/station/StationInfo';
 import StationTimer from '@/components/station/StationTimer';
 import StationActions from '@/components/station/StationActions';
 import { Button } from '@/components/ui/button';
-import { Trash2, Edit2, Tag, TrendingDown } from 'lucide-react';
+import { Trash2, Edit2, Tag, TrendingDown, ShoppingBag, ChevronRight } from 'lucide-react';
 import EditStationDialog from './EditStationDialog';
+import StationQuickShopDialog from '@/components/station/StationQuickShopDialog';
+import { CurrencyDisplay } from '@/components/ui/currency';
 import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -42,12 +44,14 @@ interface StationCardProps {
 }
 
 const StationCard: React.FC<StationCardProps> = ({ station }) => {
-  const { customers, startSession, endSession, pauseSession, resumeSession, deleteStation, updateStation, stations, setStations } = usePOS();
+  const { customers, startSession, endSession, pauseSession, resumeSession, deleteStation, updateStation, stations, setStations, getStationQuickShopItems } = usePOS();
   const { toast } = useToast();
   const isPoolTable = station.type === '8ball';
   const isVR = station.type === 'vr';
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isTogglingPublic, setIsTogglingPublic] = useState(false);
+  const [quickShopOpen, setQuickShopOpen] = useState(false);
+  const [quickShopTab, setQuickShopTab] = useState<'products' | 'order'>('products');
 
   const getCustomer = (id: string) => {
     return customers.find(c => c.id === id);
@@ -65,6 +69,16 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
   const discountedRate = session?.hourlyRate || station.hourlyRate;
   const originalRate = session?.originalRate || station.hourlyRate;
   const isDiscounted = hasCoupon && discountedRate !== originalRate;
+
+  const sessionId = session?.id ?? '';
+  const quickShopItems = sessionId ? getStationQuickShopItems(sessionId) : [];
+  const quickShopCount = quickShopItems.reduce((sum, item) => sum + item.quantity, 0);
+  const quickShopTotal = quickShopItems.reduce((sum, item) => sum + item.total, 0);
+
+  const openQuickShop = (tab: 'products' | 'order') => {
+    setQuickShopTab(tab);
+    setQuickShopOpen(true);
+  };
     
   const handleDeleteStation = async () => {
     await deleteStation(station.id);
@@ -324,6 +338,30 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
                     </div>
                   </div>
                 )}
+
+                {quickShopCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => openQuickShop('order')}
+                    className="mt-2 w-full flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-950/40 px-3 py-2.5 text-left transition-colors hover:bg-emerald-950/60 hover:border-emerald-500/60"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-500/20">
+                        <ShoppingBag className="h-4 w-4 text-emerald-400" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-emerald-200">Quick Shop Order</p>
+                        <p className="text-[11px] text-emerald-300/70 truncate">
+                          {quickShopCount} item{quickShopCount !== 1 ? 's' : ''} added
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <CurrencyDisplay amount={quickShopTotal} className="text-sm font-bold text-emerald-300" />
+                      <ChevronRight className="h-4 w-4 text-emerald-400/70" />
+                    </div>
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -336,9 +374,21 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
             onEndSession={endSession}
             onPauseSession={pauseSession}
             onResumeSession={resumeSession}
+            onQuickShop={() => openQuickShop('products')}
           />
         </CardFooter>
       </Card>
+
+      {station.isOccupied && session && (
+        <StationQuickShopDialog
+          open={quickShopOpen}
+          onOpenChange={setQuickShopOpen}
+          station={station}
+          customer={customer}
+          sessionId={session.id}
+          initialTab={quickShopTab}
+        />
+      )}
 
       {/* Edit Station Dialog */}
       <EditStationDialog
