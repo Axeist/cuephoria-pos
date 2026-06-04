@@ -14,7 +14,6 @@ import type { StationTheme } from '@/utils/stationTheme';
 interface StationTimerProps {
   station: Station;
   theme: StationTheme;
-  compact?: boolean;
 }
 
 function toTimeMs(value: Date | string | undefined): number | null {
@@ -23,7 +22,7 @@ function toTimeMs(value: Date | string | undefined): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-const StationTimer: React.FC<StationTimerProps> = ({ station, theme, compact = false }) => {
+const StationTimer: React.FC<StationTimerProps> = ({ station, theme }) => {
   const [hours, setHours] = useState(0);
   const [minutes, setMinutes] = useState(0);
   const [seconds, setSeconds] = useState(0);
@@ -101,33 +100,6 @@ const StationTimer: React.FC<StationTimerProps> = ({ station, theme, compact = f
   const timeStr = `${hours.toString().padStart(2, '0')}:${minutes
     .toString()
     .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-
-  if (compact) {
-    return (
-      <div
-        className={`relative flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 border backdrop-blur-sm ${
-          isPaused
-            ? 'bg-amber-950/60 border-amber-500/35'
-            : 'bg-black/55 border-white/10'
-        } ${tick && !isPaused ? 'scale-[1.01]' : ''}`}
-      >
-        <div className="flex items-center gap-1 min-w-0">
-          <Timer className={`h-3 w-3 shrink-0 ${isPaused ? 'text-amber-400' : theme.accent}`} />
-          <span
-            className={`font-mono text-lg font-bold tabular-nums ${isPaused ? 'text-amber-100' : 'text-white'}`}
-          >
-            {timeStr}
-          </span>
-        </div>
-        <CurrencyDisplay
-          amount={cost}
-          className={`text-sm font-bold shrink-0 ${
-            isPaused ? 'text-amber-300' : 'text-cuephoria-orange'
-          }`}
-        />
-      </div>
-    );
-  }
 
   return (
     <div

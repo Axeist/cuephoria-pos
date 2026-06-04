@@ -15,7 +15,6 @@ interface StationActionsProps {
   customers: Customer[];
   theme: StationTheme;
   phase?: StationPhase;
-  compact?: boolean;
   onStartSession: (
     stationId: string,
     customerId: string,
@@ -35,7 +34,6 @@ const StationActions: React.FC<StationActionsProps> = ({
   customers,
   theme,
   phase = 'idle',
-  compact = false,
   onStartSession,
   onEndSession,
   onPauseSession,
@@ -93,17 +91,14 @@ const StationActions: React.FC<StationActionsProps> = ({
     }
   };
 
-  const btnBase = compact
-    ? 'h-7 flex-1 text-[10px] font-semibold px-1.5 transition-all duration-200 active:scale-95'
-    : 'h-10 flex-1 text-sm font-semibold px-3 transition-all duration-200 active:scale-95';
+  const btnBase =
+    'h-10 flex-1 text-sm font-semibold px-3 transition-all duration-200 active:scale-95';
 
   if (station.isOccupied || phase === 'live' || phase === 'starting') {
     if (phase === 'starting') return null;
 
     return (
-      <div
-        className={`flex w-full animate-station-content-in ${compact ? 'flex-row gap-1' : 'flex-col gap-2'}`}
-      >
+      <div className="flex w-full flex-col gap-2 animate-station-content-in">
         {isPaused ? (
           <Button
             size="sm"
@@ -158,10 +153,8 @@ const StationActions: React.FC<StationActionsProps> = ({
   return (
     <>
       <Button
-        size={compact ? 'sm' : 'default'}
-        className={`w-full font-bold text-white transition-all duration-300 active:scale-[0.98] hover:brightness-110 ${
-          compact ? 'h-8 text-xs' : 'h-11 text-base'
-        } ${theme.startBtn}`}
+        size="default"
+        className={`w-full h-11 text-base font-bold text-white transition-all duration-300 active:scale-[0.98] hover:brightness-110 ${theme.startBtn}`}
         disabled={isLoading || customers.length === 0 || isTransitioning}
         onClick={() => setIsStartDialogOpen(true)}
       >
