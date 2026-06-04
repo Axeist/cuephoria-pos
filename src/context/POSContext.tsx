@@ -52,6 +52,7 @@ const POSContext = createContext<POSContextType>({
   endSession: async () => {},
   pauseSession: async () => {},
   resumeSession: async () => {},
+  extendSession: async () => {},
   deleteStation: async () => false,
   updateStation: async () => false,
   refreshStations: async () => {},
@@ -133,6 +134,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     endSession: endSessionBase,
     pauseSession: pauseSessionBase,
     resumeSession: resumeSessionBase,
+    extendSession: extendSessionBase,
     deleteStation,
     updateStation,
     refreshStations,
@@ -589,7 +591,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     finalRate?: number,
     couponCode?: string,
     playerCount?: number,
-    perPersonRate?: number
+    perPersonRate?: number,
+    plannedDurationMinutes?: number
   ): Promise<void> => {
     await startSessionBase(
       stationId,
@@ -597,8 +600,13 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       finalRate,
       couponCode,
       playerCount,
-      perPersonRate
+      perPersonRate,
+      plannedDurationMinutes
     );
+  };
+
+  const extendSession = async (stationId: string, extraMinutes: number): Promise<void> => {
+    await extendSessionBase(stationId, extraMinutes);
   };
   
   const endSession = async (stationId: string): Promise<void> => {
@@ -941,6 +949,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     endSession,
     pauseSession,
     resumeSession,
+    extendSession,
     deleteStation,
     updateStation,
     refreshStations,
@@ -987,7 +996,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     categories, setIsStudentDiscount, setBills, setCustomers, setStations,
     addProduct, updateProduct, deleteProduct,
     addCategory, updateCategory, deleteCategory,
-    startSession, endSession, pauseSession, resumeSession, deleteStation, updateStation, refreshStations,
+    startSession, endSession, pauseSession, resumeSession, extendSession, deleteStation, updateStation, refreshStations,
     addCustomer, updateCustomer, updateCustomerMembershipWrapper,
     deleteCustomer, selectCustomer, checkMembershipValidity, deductMembershipHours,
     addToCart, removeFromCart, updateCartItem, handleClearCart,

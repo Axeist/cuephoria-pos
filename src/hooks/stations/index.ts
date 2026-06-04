@@ -63,7 +63,8 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
       a.isPaused === b.isPaused &&
       (a.pausedAt?.getTime() ?? null) === (b.pausedAt?.getTime() ?? null) &&
       (a.totalPausedMs ?? 0) === (b.totalPausedMs ?? 0) &&
-      (a.hourlyRate ?? 0) === (b.hourlyRate ?? 0);
+      (a.hourlyRate ?? 0) === (b.hourlyRate ?? 0) &&
+      (a.plannedDurationMinutes ?? 0) === (b.plannedDurationMinutes ?? 0);
 
     setStations(prev => prev.map(station => {
       const activeSession = activeSessionMap.get(station.id);
@@ -100,6 +101,7 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
     endSession,
     pauseSession,
     resumeSession,
+    extendSession,
     isLoading
   } = useSessionActions({
     stations,
@@ -118,6 +120,7 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
     endSession,
     pauseSession,
     resumeSession,
+    extendSession,
     deleteStation,
     updateStation,
     stationsLoading,

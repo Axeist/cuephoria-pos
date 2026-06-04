@@ -71,6 +71,8 @@ export interface Session {
   isPaused?: boolean;
   pausedAt?: Date;
   totalPausedMs?: number;
+  /** Target billable play time set at session start (minutes). */
+  plannedDurationMinutes?: number;
 }
 
 export interface CartItem {
@@ -174,8 +176,10 @@ export interface POSContextType {
     hourlyRate?: number,
     couponCode?: string,
     playerCount?: number,
-    perPersonRate?: number
+    perPersonRate?: number,
+    plannedDurationMinutes?: number
   ) => Promise<void>;
+  extendSession: (stationId: string, extraMinutes: number) => Promise<void>;
   endSession: (stationId: string) => Promise<void>;
   pauseSession: (stationId: string) => Promise<void>;
   resumeSession: (stationId: string) => Promise<void>;

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStartSession } from './useStartSession';
 import { useEndSession } from './useEndSession';
 import { usePauseSession } from './usePauseSession';
+import { useExtendSession } from './useExtendSession';
 import { SessionActionsProps } from './types';
 import { Customer } from '@/types/pos.types';
 import { useToast } from '@/hooks/use-toast';
@@ -12,10 +13,10 @@ export const useSessionActions = (props: SessionActionsProps) => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   
-  // Get the functionality from existing hooks
   const startSessionHook = useStartSession(props);
   const endSessionHook = useEndSession({...props, updateCustomer});
   const pauseSessionHook = usePauseSession(props);
+  const extendSessionHook = useExtendSession(props);
   
   const startSession = async (
     stationId: string,
@@ -23,7 +24,8 @@ export const useSessionActions = (props: SessionActionsProps) => {
     finalRate?: number,
     couponCode?: string,
     playerCount?: number,
-    perPersonRate?: number
+    perPersonRate?: number,
+    plannedDurationMinutes?: number
   ): Promise<void> => {
     try {
       setIsLoading(true);
@@ -33,7 +35,8 @@ export const useSessionActions = (props: SessionActionsProps) => {
         finalRate,
         couponCode,
         playerCount,
-        perPersonRate
+        perPersonRate,
+        plannedDurationMinutes
       );
     } catch (error) {
       throw error;
@@ -41,14 +44,23 @@ export const useSessionActions = (props: SessionActionsProps) => {
       setIsLoading(false);
     }
   };
+
+  const extendSession = async (stationId: string, extraMinutes: number): Promise<void> => {
+    try {
+      setIsLoading(true);
+      await extendSessionHook.extendSession(stationId, extraMinutes);
+    } catch (error) {
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
-  // End an active session (NO CHANGES)
   const endSession = async (stationId: string, customersList?: Customer[]): Promise<SessionResult | undefined> => {
     try {
       setIsLoading(true);
       console.log('Ending session for station:', stationId);
       
-      // Find the station
       const station = stations.find(s => s.id === stationId);
       if (!station) {
         console.error('Station not found:', stationId);
@@ -60,7 +72,6 @@ export const useSessionActions = (props: SessionActionsProps) => {
         throw new Error('No active session found');
       }
       
-      // Call the original hook implementation to handle session ending
       const result = await endSessionHook.endSession(stationId, customersList);
       console.log("Session ended successfully, result:", result);
       
@@ -108,6 +119,7 @@ export const useSessionActions = (props: SessionActionsProps) => {
     endSession,
     pauseSession,
     resumeSession,
+    extendSession,
     isLoading
   };
 };

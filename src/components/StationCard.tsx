@@ -4,6 +4,7 @@ import StationInfo from '@/components/station/StationInfo';
 import StationTimer from '@/components/station/StationTimer';
 import StationActions from '@/components/station/StationActions';
 import StationCustomerPanel from '@/components/station/StationCustomerPanel';
+import SessionDurationBar from '@/components/station/SessionDurationBar';
 import { Button } from '@/components/ui/button';
 import { Trash2, Edit2, ShoppingBag, ChevronRight, Globe } from 'lucide-react';
 import EditStationDialog from './EditStationDialog';
@@ -18,6 +19,10 @@ import {
   cardRingClass,
   type StationPhase,
 } from '@/utils/stationTheme';
+import {
+  getSessionDurationState,
+  getUrgencyRingClass,
+} from '@/utils/sessionDuration.utils';
 import { hapticImpact } from '@/utils/capacitor';
 import type { CustomerRecentSession } from '@/hooks/stations/useStationCustomerIntel';
 import {
@@ -51,6 +56,7 @@ const StationCard: React.FC<StationCardProps> = ({
     endSession,
     pauseSession,
     resumeSession,
+    extendSession,
     deleteStation,
     updateStation,
     stations,
@@ -64,6 +70,7 @@ const StationCard: React.FC<StationCardProps> = ({
   const [quickShopOpen, setQuickShopOpen] = useState(false);
   const [quickShopTab, setQuickShopTab] = useState<'products' | 'order'>('products');
   const [phase, setPhase] = useState<StationPhase>(station.isOccupied ? 'live' : 'idle');
+  const [durationTick, setDurationTick] = useState(0);
   const prevOccupiedRef = useRef(station.isOccupied);
 
   useEffect(() => {
@@ -82,12 +89,22 @@ const StationCard: React.FC<StationCardProps> = ({
   const customerName = customer?.name ?? 'Unknown';
   const session = station.currentSession;
   const sessionId = session?.id ?? '';
+
+  useEffect(() => {
+    if (!session?.plannedDurationMinutes) return;
+    const id = window.setInterval(() => setDurationTick((t) => t + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [session?.plannedDurationMinutes, sessionId]);
+
   const quickShopItems = sessionId ? getStationQuickShopItems(sessionId) : [];
   const quickShopCount = quickShopItems.reduce((sum, item) => sum + item.quantity, 0);
   const quickShopTotal = quickShopItems.reduce((sum, item) => sum + item.total, 0);
   const isPublicLive = station.eventEnabled ?? (station.category ? false : true);
   const isLive = station.isOccupied || phase === 'live' || phase === 'starting';
   const showSessionBlock = station.isOccupied && session && phase !== 'ending';
+  void durationTick;
+  const durationState = session ? getSessionDurationState(session) : null;
+  const urgencyRing = durationState ? getUrgencyRingClass(durationState.urgency) : '';
 
   const handleTogglePublicBooking = async (nextValue: boolean) => {
     if (isTogglingPublic) return;
@@ -113,11 +130,20 @@ const StationCard: React.FC<StationCardProps> = ({
       hourlyRate?: number,
       couponCode?: string,
       playerCount?: number,
-      perPersonRate?: number
+      perPersonRate?: number,
+      plannedDurationMinutes?: number
     ) => {
       setPhase('starting');
       void hapticImpact('medium');
-      await startSession(stationId, customerId, hourlyRate, couponCode, playerCount, perPersonRate);
+      await startSession(
+        stationId,
+        customerId,
+        hourlyRate,
+        couponCode,
+        playerCount,
+        perPersonRate,
+        plannedDurationMinutes
+      );
       await sleep(400);
       setPhase('live');
     },
@@ -144,6 +170,7 @@ const StationCard: React.FC<StationCardProps> = ({
           ${theme.border} ${theme.bg} ${theme.glow}
           ${cardPhaseClass(phase, station.isOccupied)}
           ${cardRingClass(phase, station.isOccupied, theme.liveRing)}
+          ${urgencyRing}
         `}
       >
         <div className={`pointer-events-none absolute inset-0 ${theme.mesh}`} aria-hidden />
@@ -165,10 +192,14 @@ const StationCard: React.FC<StationCardProps> = ({
         )}
 
         <div
-          className={`relative z-10 h-1 w-full shrink-0 ${
-            isLive && phase !== 'ending' ? theme.topBarLive : theme.topBarIdle
+          className={`relative z-10 w-full shrink-0 ${
+            durationState ? '' : `h-1 ${isLive && phase !== 'ending' ? theme.topBarLive : theme.topBarIdle}`
           }`}
-        />
+        >
+          {durationState && session && (
+            <SessionDurationBar session={session} className="px-3 pt-2" />
+          )}
+        </div>
 
         <div className="relative z-10 space-y-3 p-3 sm:p-4">
           {/* Header: identity + compact controls */}
@@ -285,6 +316,7 @@ const StationCard: React.FC<StationCardProps> = ({
                 onEndSession={wrappedEndSession}
                 onPauseSession={pauseSession}
                 onResumeSession={resumeSession}
+                onExtendSession={extendSession}
                 onQuickShop={() => {
                   setQuickShopTab('products');
                   setQuickShopOpen(true);

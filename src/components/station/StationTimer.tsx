@@ -8,6 +8,10 @@ import {
   formatBillableTime,
   getBillableMs,
 } from '@/utils/sessionTimer.utils';
+import {
+  formatRemainingTime,
+  getSessionDurationState,
+} from '@/utils/sessionDuration.utils';
 import { Timer } from 'lucide-react';
 import type { StationTheme } from '@/utils/stationTheme';
 
@@ -28,6 +32,7 @@ const StationTimer: React.FC<StationTimerProps> = ({ station, theme, compact = f
   const [minutes, setMinutes] = useState(0);
   const [seconds, setSeconds] = useState(0);
   const [cost, setCost] = useState(0);
+  const [remainingLabel, setRemainingLabel] = useState<string | null>(null);
   const [tick, setTick] = useState(false);
   const { customers } = usePOS();
   const customersRef = useRef(customers);
@@ -76,6 +81,17 @@ const StationTimer: React.FC<StationTimerProps> = ({ station, theme, compact = f
       setMinutes(time.minutes);
       setHours(time.hours);
       setCost(calculateSessionCost(station, rate, billableMs, isMember));
+
+      const durationState = getSessionDurationState(sessionSnapshot);
+      if (durationState) {
+        setRemainingLabel(
+          durationState.isOverdue
+            ? `+${formatRemainingTime(durationState.remainingMs)}`
+            : formatRemainingTime(durationState.remainingMs)
+        );
+      } else {
+        setRemainingLabel(null);
+      }
     };
 
     updateTimer();
@@ -139,6 +155,17 @@ const StationTimer: React.FC<StationTimerProps> = ({ station, theme, compact = f
           compact ? 'text-sm' : 'text-lg'
         } ${isPaused ? 'text-amber-300' : 'text-cuephoria-orange drop-shadow-[0_0_8px_rgba(249,115,22,0.4)]'}`}
       />
+      {remainingLabel && (
+        <span
+          className={`relative text-[10px] font-semibold tabular-nums ${
+            remainingLabel.startsWith('+')
+              ? 'text-red-400'
+              : 'text-emerald-300/90'
+          }`}
+        >
+          {remainingLabel.startsWith('+') ? remainingLabel : `${remainingLabel} left`}
+        </span>
+      )}
     </div>
   );
 };

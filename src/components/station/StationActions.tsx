@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Station, Customer } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS } from '@/context/POSContext';
-import { Pause, Play, Square, ShoppingBag, Loader2 } from 'lucide-react';
+import { Pause, Play, Square, ShoppingBag, Loader2, Plus } from 'lucide-react';
 import StartSessionDialog from '@/components/StartSessionDialog';
 import { getRateForPlayerCount } from '@/utils/stationPricing';
+import { getDurationPresets } from '@/utils/sessionDuration.utils';
 import type { StationTheme, StationPhase } from '@/utils/stationTheme';
 import { prefetchPOS } from '@/utils/viewTransition';
 
@@ -21,11 +22,13 @@ interface StationActionsProps {
     hourlyRate?: number,
     couponCode?: string,
     playerCount?: number,
-    perPersonRate?: number
+    perPersonRate?: number,
+    plannedDurationMinutes?: number
   ) => Promise<void>;
   onEndSession: (stationId: string) => Promise<void>;
   onPauseSession: (stationId: string) => Promise<void>;
   onResumeSession: (stationId: string) => Promise<void>;
+  onExtendSession?: (stationId: string, extraMinutes: number) => Promise<void>;
   onQuickShop?: () => void;
 }
 
@@ -38,6 +41,7 @@ const StationActions: React.FC<StationActionsProps> = ({
   onEndSession,
   onPauseSession,
   onResumeSession,
+  onExtendSession,
   onQuickShop,
 }) => {
   const navigate = useNavigate();
@@ -58,15 +62,24 @@ const StationActions: React.FC<StationActionsProps> = ({
     finalRate: number,
     couponCode?: string,
     playerCount?: number,
-    perPersonRate?: number
+    perPersonRate?: number,
+    plannedDurationMinutes?: number
   ) => {
     try {
       setIsLoading(true);
       setIsStartDialogOpen(false);
-      await onStartSession(station.id, customerId, finalRate, couponCode, playerCount, perPersonRate);
+      await onStartSession(
+        station.id,
+        customerId,
+        finalRate,
+        couponCode,
+        playerCount,
+        perPersonRate,
+        plannedDurationMinutes
+      );
       toast({
         title: 'Session Started',
-        description: `${customerName} · ${station.name}`,
+        description: `${customerName} · ${station.name} · ${plannedDurationMinutes ?? 60} min`,
       });
     } catch {
       toast({ title: 'Error', description: 'Failed to start session.', variant: 'destructive' });
@@ -94,11 +107,43 @@ const StationActions: React.FC<StationActionsProps> = ({
   const btnBase =
     'h-8 flex-1 text-xs font-semibold px-2 transition-all duration-200 active:scale-95';
 
+  const extendPresets = getDurationPresets(station.slotDuration).slice(0, 3);
+
+  const handleExtend = async (extraMinutes: number) => {
+    if (!onExtendSession) return;
+    try {
+      setIsLoading(true);
+      await onExtendSession(station.id, extraMinutes);
+    } catch {
+      /* toast handled in hook */
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (station.isOccupied || phase === 'live' || phase === 'starting') {
     if (phase === 'starting') return null;
 
     return (
-      <div className="flex w-full flex-row flex-wrap gap-1 animate-station-content-in sm:flex-col sm:gap-1.5">
+      <div className="flex w-full flex-col gap-1.5 animate-station-content-in">
+        {station.currentSession?.plannedDurationMinutes && onExtendSession && (
+          <div className="flex gap-1">
+            {extendPresets.map((mins) => (
+              <Button
+                key={mins}
+                size="sm"
+                variant="outline"
+                className="h-7 flex-1 border-cuephoria-purple/40 bg-cuephoria-purple/10 px-1 text-[10px] font-semibold text-cuephoria-lightpurple hover:bg-cuephoria-purple/20"
+                onClick={() => void handleExtend(mins)}
+                disabled={isLoading || isTransitioning}
+              >
+                <Plus className="mr-0.5 h-3 w-3" />
+                {mins}m
+              </Button>
+            ))}
+          </div>
+        )}
+        <div className="flex w-full flex-row flex-wrap gap-1 sm:flex-col sm:gap-1.5">
         {isPaused ? (
           <Button
             size="sm"
@@ -144,6 +189,7 @@ const StationActions: React.FC<StationActionsProps> = ({
           )}
           End
         </Button>
+        </div>
       </div>
     );
   }

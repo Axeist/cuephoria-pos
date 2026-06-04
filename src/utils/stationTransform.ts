@@ -47,6 +47,12 @@ export function parseCurrentSession(
           ? new Date((sessionData.pausedAt ?? sessionData.paused_at) as string)
           : undefined,
       totalPausedMs: Number(sessionData.totalPausedMs ?? sessionData.total_paused_time ?? 0) || 0,
+      plannedDurationMinutes:
+        Number(
+          sessionData.plannedDurationMinutes ??
+            sessionData.planned_duration_minutes ??
+            0
+        ) || undefined,
     };
   } catch {
     return null;

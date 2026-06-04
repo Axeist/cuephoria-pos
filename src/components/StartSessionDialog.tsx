@@ -12,6 +12,7 @@ import { CurrencyDisplay } from '@/components/ui/currency';
 import { hapticImpact } from '@/utils/capacitor';
 
 import { getRateForPlayerCount, getRateSuffix as pricingRateSuffix, isPerPlayerPricing } from '@/utils/stationPricing';
+import { getDefaultPlannedDuration, getDurationPresets } from '@/utils/sessionDuration.utils';
 import type { Station } from '@/types/pos.types';
 
 const LATE_NIGHT_OVERRIDE_PIN = '2101';
@@ -36,7 +37,8 @@ interface StartSessionDialogProps {
     finalRate: number,
     couponCode?: string,
     playerCount?: number,
-    perPersonRate?: number
+    perPersonRate?: number,
+    plannedDurationMinutes?: number
   ) => void;
 }
 
@@ -67,6 +69,16 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   const [lateNightPinUnlocked, setLateNightPinUnlocked] = useState(false);
   const [lateNightPinInput, setLateNightPinInput] = useState('');
   const [lateNightPinError, setLateNightPinError] = useState(false);
+  const durationPresets = getDurationPresets(slotDuration);
+  const [plannedDuration, setPlannedDuration] = useState(() =>
+    getDefaultPlannedDuration(slotDuration)
+  );
+
+  useEffect(() => {
+    if (open) {
+      setPlannedDuration(getDefaultPlannedDuration(slotDuration));
+    }
+  }, [open, slotDuration]);
 
   const lateNightLocked = isLateNight() && !lateNightPinUnlocked;
 
@@ -212,7 +224,8 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
       finalRate,
       selectedCoupon !== 'none' ? selectedCoupon : undefined,
       playerCount,
-      perPersonRate
+      perPersonRate,
+      plannedDuration
     );
 
     // Native: heavy haptic so the user feels the session start.
@@ -222,6 +235,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     setSelectedCustomer(null);
     setSelectedCoupon('none');
     setPlayerCount(1);
+    setPlannedDuration(getDefaultPlannedDuration(slotDuration));
     setCustomerSearchQuery('');
     onOpenChange(false);
   };
@@ -230,6 +244,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     setSelectedCustomer(null);
     setSelectedCoupon('none');
     setPlayerCount(1);
+    setPlannedDuration(getDefaultPlannedDuration(slotDuration));
     setCustomerSearchQuery('');
     onOpenChange(false);
   };
@@ -277,6 +292,43 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
               </div>
             </div>
           )}
+
+          <div className="space-y-2 rounded-lg border p-3 bg-muted/20">
+            <Label className="text-base font-medium flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Play duration
+            </Label>
+            <div className="flex flex-wrap gap-2">
+              {durationPresets.map((mins) => (
+                <Button
+                  key={mins}
+                  type="button"
+                  size="sm"
+                  variant={plannedDuration === mins ? 'default' : 'outline'}
+                  className={plannedDuration === mins ? 'bg-cuephoria-purple hover:bg-cuephoria-purple/90' : ''}
+                  onClick={() => setPlannedDuration(mins)}
+                >
+                  {mins} min
+                </Button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <Label htmlFor="custom-duration" className="text-sm text-muted-foreground shrink-0">
+                Custom
+              </Label>
+              <Input
+                id="custom-duration"
+                type="number"
+                min={15}
+                step={15}
+                max={480}
+                value={plannedDuration}
+                onChange={(e) => setPlannedDuration(Math.max(15, Number(e.target.value) || 60))}
+                className="h-9 w-24"
+              />
+              <span className="text-sm text-muted-foreground">minutes</span>
+            </div>
+          </div>
 
           {/* Customer Selection */}
           <div className="space-y-3">

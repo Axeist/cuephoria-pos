@@ -6,6 +6,7 @@ import React from 'react';
 import { generateId } from '@/utils/pos.utils';
 import { useLocation } from '@/context/LocationContext';
 import { serializeSessionForDb } from '@/utils/sessionStorage.utils';
+import { getDefaultPlannedDuration } from '@/utils/sessionDuration.utils';
 import { CACHE_KEYS, cacheKeyWithLocation, invalidateCache } from '@/utils/dataCache';
 
 /**
@@ -26,7 +27,8 @@ export const useStartSession = ({
     finalRate?: number,
     couponCode?: string,
     playerCount?: number,
-    perPersonRate?: number
+    perPersonRate?: number,
+    plannedDurationMinutes?: number
   ): Promise<Session | undefined> => {
     try {
       console.log("🚀 Starting session for station:", stationId, "for customer:", customerId);
@@ -76,6 +78,8 @@ export const useStartSession = ({
       const discountAmount = Math.max(0, originalRate - sessionRate);
       const resolvedPerPerson =
         perPersonRate ?? (pricingPlayerCount > 0 ? sessionRate / pricingPlayerCount : sessionRate);
+      const resolvedPlanned =
+        plannedDurationMinutes ?? getDefaultPlannedDuration(station.slotDuration);
       
       console.log("💰 Rate calculation:", {
         originalRate,
@@ -97,6 +101,7 @@ export const useStartSession = ({
         discountAmount: discountAmount,
         playerCount: pricingPlayerCount,
         perPersonRate: resolvedPerPerson,
+        plannedDurationMinutes: resolvedPlanned,
       };
       
       console.log("📦 Created new session object:", JSON.stringify(newSession, null, 2));
@@ -131,6 +136,7 @@ export const useStartSession = ({
             discount_amount: discountAmount,
             player_count: pricingPlayerCount,
             per_person_rate: resolvedPerPerson,
+            planned_duration_minutes: resolvedPlanned,
           } as any)
           .select()
           .single();
@@ -250,7 +256,7 @@ export const useStartSession = ({
       
       toast({
         title: 'Success',
-        description: `Session started successfully${couponText}`,
+        description: `Session started · ${resolvedPlanned} min${couponText}`,
       });
       
       console.log("🎉 Session start complete!");
