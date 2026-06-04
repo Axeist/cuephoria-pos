@@ -66,6 +66,8 @@ export interface GeneralSettings {
 
 /** PIN for staff-gated actions (delete bill, add station, reset leaderboard, etc.). */
 export interface SecuritySettings {
+  /** When false, restricted actions run without a PIN prompt for anyone. */
+  pinProtectionEnabled: boolean;
   /** 4–8 digit numeric PIN for the active branch. */
   adminPin: string;
 }
@@ -137,6 +139,7 @@ const defaultSettings: AppSettings = {
     timezone: 'Asia/Kolkata'
   },
   securitySettings: {
+    pinProtectionEnabled: true,
     adminPin: '1234',
   },
 };

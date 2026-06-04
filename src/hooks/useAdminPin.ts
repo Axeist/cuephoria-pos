@@ -25,6 +25,11 @@ export function useAdminPin() {
     [settings.securitySettings?.adminPin],
   );
 
+  const isPinProtectionEnabled = useMemo(
+    () => settings.securitySettings?.pinProtectionEnabled !== false,
+    [settings.securitySettings?.pinProtectionEnabled],
+  );
+
   const verifyAdminPin = useCallback(
     (entered: string) => {
       const normalized = entered.trim();
@@ -36,6 +41,7 @@ export function useAdminPin() {
 
   return {
     loading,
+    isPinProtectionEnabled,
     expectedPinLength: expectedPin.length,
     verifyAdminPin,
   };

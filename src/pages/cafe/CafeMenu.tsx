@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import type { CafeMenuItem } from '@/types/cafe.types';
 import { uploadMenuItemImage } from '@/utils/cafeImageUpload';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
+import { useAdminPin } from '@/hooks/useAdminPin';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from '@/components/ui/dialog';
@@ -24,6 +25,7 @@ import { CafePageShell } from '@/components/cafe/CafePageShell';
 const CafeMenu: React.FC = () => {
   const { user } = useCafeAuth();
   const isCafeAdmin = user?.role === 'cafe_admin';
+  const { isPinProtectionEnabled } = useAdminPin();
   const { categories, items, addCategory, updateCategory, deleteCategory, addItem, updateItem, deleteItem, refresh, adjustStock } = useCafeMenu(user?.locationId);
   const { tables, zones, tablesByZone, addTable, updateTable, deleteTable } = useCafeTables(user?.locationId);
   const { partner } = useCafePartner(user?.locationId);
@@ -336,7 +338,7 @@ const CafeMenu: React.FC = () => {
       return;
     }
     if (invDialog === 'reduce') {
-      if (isCafeAdmin) {
+      if (isCafeAdmin || !isPinProtectionEnabled) {
         await runStockReduce(invItem.id, q);
       } else {
         setPendingStockReduce({ itemId: invItem.id, qty: q });

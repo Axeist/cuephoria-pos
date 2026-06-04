@@ -89,6 +89,7 @@ const formSchema = z.object({
     timezone: z.string().min(1),
   }),
   securitySettings: z.object({
+    pinProtectionEnabled: z.boolean(),
     adminPin: z
       .string()
       .regex(/^\d{4,8}$/, { message: 'Admin PIN must be 4–8 digits.' }),
@@ -790,13 +791,32 @@ const GeneralSettings = () => {
                       <h3 className="text-lg font-semibold">Security</h3>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Staff use this PIN to confirm sensitive actions (add stations, delete bills/sessions/products,
-                      reset leaderboard, stock adjustments, and more). Applies to{' '}
+                      When enabled, staff must enter the PIN below for sensitive actions (add stations, delete
+                      bills/sessions/products, reset leaderboard, POS discount unlock, late-night rates, cafe stock
+                      reductions, and more). Venue admins skip PIN unless the action requires everyone (e.g. add
+                      station). Applies to{' '}
                       <span className="font-medium text-foreground">
                         {activeLocation?.name ?? 'the active branch'}
                       </span>
                       .
                     </p>
+                    <FormField
+                      control={form.control}
+                      name="securitySettings.pinProtectionEnabled"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel>Require PIN for restricted actions</FormLabel>
+                            <FormDescription>
+                              Turn off to allow staff to perform gated actions without a PIN prompt.
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
                     <FormField
                       control={form.control}
                       name="securitySettings.adminPin"
@@ -810,11 +830,12 @@ const GeneralSettings = () => {
                               autoComplete="off"
                               maxLength={8}
                               placeholder="4–8 digits"
+                              disabled={!form.watch('securitySettings.pinProtectionEnabled')}
                               {...field}
                             />
                           </FormControl>
                           <FormDescription>
-                            Numbers only, 4–8 digits. Share only with trusted managers.
+                            Numbers only, 4–8 digits. Used when PIN protection is on.
                           </FormDescription>
                           <FormMessage />
                         </FormItem>

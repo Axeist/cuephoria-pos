@@ -11,6 +11,7 @@ import { useStationCustomerIntel } from '@/hooks/stations/useStationCustomerInte
 import { stationTypeLabel } from '@/utils/stationTypeUtils';
 import { getStationTheme } from '@/utils/stationTheme';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
+import { usePinVerification } from '@/hooks/usePinVerification';
 import { useLocation } from '@/context/LocationContext';
 import { type Station } from '@/types/pos.types';
 import { prefetchPOS } from '@/utils/viewTransition';
@@ -42,7 +43,12 @@ const Stations = () => {
   const { activeLocation } = useLocation();
   const { stationTypes } = useStationTypes();
   const [openAddDialog, setOpenAddDialog] = useState(false);
-  const [openPinDialog, setOpenPinDialog] = useState(false);
+  const {
+    showPinDialog,
+    requestPinVerification,
+    handlePinSuccess,
+    handlePinCancel,
+  } = usePinVerification();
   const [openTypesDialog, setOpenTypesDialog] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [selectionMode, setSelectionMode] = useState(false);
@@ -267,7 +273,9 @@ const Stations = () => {
             <Button
               size="sm"
               className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
-              onClick={() => setOpenPinDialog(true)}
+              onClick={() =>
+                requestPinVerification(() => setOpenAddDialog(true), { requireForAdmin: true })
+              }
             >
               <Plus className="mr-1.5 h-3.5 w-3.5" />
               Add Station
@@ -324,9 +332,11 @@ const Stations = () => {
       </div>
 
       <PinVerificationDialog
-        open={openPinDialog}
-        onOpenChange={setOpenPinDialog}
-        onSuccess={() => setOpenAddDialog(true)}
+        open={showPinDialog}
+        onOpenChange={(open) => {
+          if (!open) handlePinCancel();
+        }}
+        onSuccess={handlePinSuccess}
         title="Admin Access Required"
         description="Enter the admin PIN to add a new game station"
       />
