@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useStationTypes } from '@/hooks/useStationTypes';
 import { useToast } from '@/hooks/use-toast';
-import { Layers, RefreshCw, Trash2 } from 'lucide-react';
+import { Layers, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { DEFAULT_STATION_TYPES } from '@/types/stationType.types';
 import {
   AlertDialog,
@@ -19,10 +28,20 @@ import {
 
 const presetSlugs = new Set(DEFAULT_STATION_TYPES.map((t) => t.slug));
 
-const StationTypeManager: React.FC = () => {
-  const { stationTypes, loading, refresh, removeType } = useStationTypes();
+interface StationTypesDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export const StationTypesDialog: React.FC<StationTypesDialogProps> = ({ open, onOpenChange }) => {
+  const { stationTypes, loading, refresh, addType, removeType } = useStationTypes();
   const { toast } = useToast();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newMaxPlayers, setNewMaxPlayers] = useState(4);
+  const [newSlotMinutes, setNewSlotMinutes] = useState(60);
+  const [saving, setSaving] = useState(false);
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -49,27 +68,102 @@ const StationTypeManager: React.FC = () => {
     setDeleteId(null);
   };
 
+  const handleAddType = async () => {
+    if (!newName.trim()) return;
+    setSaving(true);
+    try {
+      const created = await addType({
+        name: newName.trim(),
+        defaultMaxPlayers: newMaxPlayers,
+        defaultSlotMinutes: newSlotMinutes,
+      });
+      toast({
+        title: 'Type created',
+        description: `"${created.name}" is ready to use when adding stations.`,
+      });
+      setNewName('');
+      setShowAddForm(false);
+    } catch {
+      toast({ title: 'Error', description: 'Could not create station type.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <>
-      <Card className="border-cuephoria-purple/20">
-        <CardHeader className="pb-2 flex flex-row items-center justify-between">
-          <CardTitle className="text-base font-heading flex items-center gap-2">
-            <Layers className="h-4 w-4 text-cuephoria-lightpurple" />
-            Station Types
-          </CardTitle>
-          <Button variant="ghost" size="sm" onClick={() => void refresh()} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-muted-foreground mb-3">
-            PS5, 8 Ball, Snooker, Turf, and VR are included by default. Add custom types from the Add Station dialog.
-          </p>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-heading">
+              <Layers className="h-5 w-5 text-cuephoria-lightpurple" />
+              Station Types
+            </DialogTitle>
+            <DialogDescription>
+              PS5, 8 Ball, Snooker, Turf, and VR are included by default. Add custom types for
+              Arcade, Darts, etc.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center justify-between gap-2">
+            <Button variant="ghost" size="sm" onClick={() => void refresh()} disabled={loading}>
+              <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowAddForm((v) => !v)}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Add custom type
+            </Button>
+          </div>
+
+          {showAddForm && (
+            <div className="space-y-3 rounded-lg border border-cuephoria-purple/30 bg-cuephoria-purple/5 p-4">
+              <div className="space-y-1">
+                <Label>Type name</Label>
+                <Input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="e.g. Arcade, Darts, Sim Racing"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Default max players</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={newMaxPlayers}
+                    onChange={(e) => setNewMaxPlayers(Number(e.target.value) || 1)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Slot (minutes)</Label>
+                  <Input
+                    type="number"
+                    min={15}
+                    step={15}
+                    value={newSlotMinutes}
+                    onChange={(e) => setNewSlotMinutes(Number(e.target.value) || 60)}
+                  />
+                </div>
+              </div>
+              <DialogFooter className="gap-2 sm:justify-end px-0 pb-0">
+                <Button variant="outline" size="sm" onClick={() => setShowAddForm(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleAddType} disabled={saving || !newName.trim()}>
+                  {saving ? 'Saving…' : 'Create type'}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2">
             {stationTypes.map((type) => (
               <div
                 key={type.id}
-                className="flex items-center gap-1 rounded-full border border-cuephoria-purple/30 bg-cuephoria-purple/10 pl-3 pr-1 py-1"
+                className="flex items-center gap-1 rounded-full border border-cuephoria-purple/30 bg-cuephoria-purple/10 pl-3 pr-1 py-1.5"
               >
                 <Badge variant="secondary" className="bg-transparent border-0 px-0 text-sm">
                   {type.name}
@@ -91,11 +185,13 @@ const StationTypeManager: React.FC = () => {
               </div>
             ))}
             {stationTypes.length === 0 && !loading && (
-              <p className="text-sm text-muted-foreground">No types yet — add a station to seed defaults.</p>
+              <p className="text-sm text-muted-foreground">
+                No types yet — add a station to seed defaults.
+              </p>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
@@ -115,4 +211,4 @@ const StationTypeManager: React.FC = () => {
   );
 };
 
-export default StationTypeManager;
+export default StationTypesDialog;

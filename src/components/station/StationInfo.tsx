@@ -40,12 +40,12 @@ const StationInfo: React.FC<StationInfoProps> = ({
         : 'Open';
 
   return (
-    <div className="min-w-0 space-y-2">
+    <div className="min-w-0 space-y-3">
       <div className="flex items-start gap-3">
         <div
-          className={`relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ring-1 transition-transform duration-300 ${theme.iconBg}`}
+          className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ring-1 ${theme.iconBg}`}
         >
-          <Icon className={`h-7 w-7 ${theme.accent}`} />
+          <Icon className={`h-6 w-6 ${theme.accent}`} />
           {(station.isOccupied || isStarting) && (
             <span className="absolute -top-1 -right-1 flex h-3 w-3">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-50" />
@@ -54,12 +54,14 @@ const StationInfo: React.FC<StationInfoProps> = ({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className={`truncate font-heading text-xl font-bold leading-tight ${theme.accent}`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p
+                className={`font-heading text-lg font-bold leading-snug break-words sm:text-xl ${theme.accent}`}
+              >
                 {station.name}
               </p>
-              <p className={`text-xs font-semibold uppercase tracking-widest ${theme.accentMuted}`}>
+              <p className={`mt-0.5 text-xs font-semibold uppercase tracking-widest ${theme.accentMuted}`}>
                 {theme.label}
               </p>
             </div>
@@ -78,35 +80,35 @@ const StationInfo: React.FC<StationInfoProps> = ({
 
       {!compact && (
         <p
-          className={`rounded-lg border border-white/8 bg-black/25 px-3 py-1.5 text-sm leading-snug ${theme.accentMuted}`}
+          className={`rounded-lg border border-white/8 bg-black/25 px-3 py-2 text-sm leading-relaxed ${theme.accentMuted}`}
         >
           {stationPricingBadge(station)}
         </p>
       )}
 
       {station.isOccupied && station.currentSession && customerName && (
-        <div className="flex flex-wrap items-center gap-2 text-sm animate-fade-in">
-          <span className={`font-medium ${theme.accent}`}>Now playing</span>
-          <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-0.5 font-semibold text-white">
-            {customerName}
-          </span>
-          <span
-            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-semibold tabular-nums ${theme.border} bg-white/5 ${theme.accent}`}
-          >
-            <Users className="h-3 w-3" />
-            {sessionPlayers} {sessionPlayers === 1 ? 'player' : 'players'}
-          </span>
-          <SessionRateBadge
-            station={station}
-            session={station.currentSession}
-            theme={theme}
-          />
-          {hasCoupon && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-orange-500/20 px-2 py-0.5 text-orange-300 ring-1 ring-orange-500/30">
-              <Tag className="h-3 w-3" />
-              {hasCoupon}
+        <div className="space-y-2.5 rounded-lg border border-white/8 bg-black/20 p-3 animate-fade-in">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className={`font-medium ${theme.accent}`}>Now playing</span>
+            <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-0.5 font-semibold text-white break-words">
+              {customerName}
             </span>
-          )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-semibold tabular-nums ${theme.border} bg-white/5 ${theme.accent}`}
+            >
+              <Users className="h-3.5 w-3.5 shrink-0" />
+              {sessionPlayers} {sessionPlayers === 1 ? 'player' : 'players'}
+            </span>
+            <SessionRateBadge station={station} session={station.currentSession} theme={theme} />
+            {hasCoupon && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-orange-500/20 px-2 py-1 text-xs text-orange-300 ring-1 ring-orange-500/30">
+                <Tag className="h-3 w-3" />
+                {hasCoupon}
+              </span>
+            )}
+          </div>
         </div>
       )}
     </div>

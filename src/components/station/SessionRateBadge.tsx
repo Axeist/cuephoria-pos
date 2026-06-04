@@ -22,7 +22,7 @@ const SessionRateBadge: React.FC<SessionRateBadgeProps> = ({
 
   return (
     <span
-      className={`inline-flex items-center gap-0.5 rounded-md border px-2 py-0.5 text-[10px] font-bold tabular-nums sm:text-xs ${theme.border} bg-cuephoria-orange/15 text-cuephoria-orange shadow-[0_0_12px_rgba(249,115,22,0.12)] ${className}`}
+      className={`inline-flex max-w-full flex-wrap items-center gap-x-1 gap-y-0.5 rounded-md border px-2.5 py-1 text-xs font-bold tabular-nums ${theme.border} bg-cuephoria-orange/15 text-cuephoria-orange shadow-[0_0_12px_rgba(249,115,22,0.12)] ${className}`}
     >
       <CurrencyDisplay amount={totalRate} className="text-inherit font-bold" />
       <span className="font-semibold opacity-95">{suffix}</span>

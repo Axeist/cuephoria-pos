@@ -1,11 +1,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { usePOS } from '@/context/POSContext';
 import StationCard from '@/components/StationCard';
-import { Plus, MapPin, ArrowRightLeft, Radio, CircleDot, Zap } from 'lucide-react';
+import { Plus, MapPin, ArrowRightLeft, Radio, CircleDot, Zap, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AddStationDialog from '@/components/AddStationDialog';
 import ReplaceLegacyStationsDialog from '@/components/station/ReplaceLegacyStationsDialog';
-import StationTypeManager from '@/components/station/StationTypeManager';
+import { StationTypesDialog } from '@/components/station/StationTypeManager';
 import { useStationTypes } from '@/hooks/useStationTypes';
 import { useStationCustomerIntel } from '@/hooks/stations/useStationCustomerIntel';
 import { stationTypeLabel } from '@/utils/stationTypeUtils';
@@ -40,6 +40,7 @@ const Stations = () => {
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [openPinDialog, setOpenPinDialog] = useState(false);
   const [openReplaceDialog, setOpenReplaceDialog] = useState(false);
+  const [openTypesDialog, setOpenTypesDialog] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>('all');
 
   const visibleStations = useMemo(
@@ -150,6 +151,10 @@ const Stations = () => {
               <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
               Legacy
             </Button>
+            <Button size="sm" variant="outline" onClick={() => setOpenTypesDialog(true)}>
+              <Layers className="mr-1.5 h-3.5 w-3.5" />
+              Types
+            </Button>
             <Button
               size="sm"
               className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
@@ -203,8 +208,6 @@ const Stations = () => {
         </div>
       </div>
 
-      <StationTypeManager />
-
       <PinVerificationDialog
         open={openPinDialog}
         onOpenChange={setOpenPinDialog}
@@ -218,11 +221,10 @@ const Stations = () => {
         onOpenChange={setOpenReplaceDialog}
         onComplete={() => {}}
       />
+      <StationTypesDialog open={openTypesDialog} onOpenChange={setOpenTypesDialog} />
 
-      {/* Station cards — horizontal grid (side by side) */}
-      <div
-        className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3"
-      >
+      {/* Station cards — horizontal grid */}
+      <div className="grid gap-5 grid-cols-1 xl:grid-cols-2">
         {filteredStations.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-white/10 py-16 text-center text-muted-foreground">
             No stations in this category

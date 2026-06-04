@@ -170,18 +170,17 @@ const StationCard: React.FC<StationCardProps> = ({
           }`}
         />
 
-        <div className="relative z-10 p-4 lg:p-5">
-          {/* Command row — horizontal on lg+ */}
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-5">
-            {/* Station identity */}
-            <div className="flex min-w-0 shrink-0 flex-col justify-between lg:w-[220px] xl:w-[240px]">
+        <div className="relative z-10 p-4 sm:p-5">
+          <div className="flex flex-col gap-5">
+            {/* Station identity + controls */}
+            <div className="flex flex-col gap-3">
               <StationInfo
                 station={station}
                 customerName={customerName}
                 phase={phase}
                 compact={!station.isOccupied}
               />
-              <div className="mt-3 flex items-center justify-between rounded-lg border border-white/8 bg-black/30 px-3 py-2">
+              <div className="flex items-center justify-between rounded-lg border border-white/8 bg-black/30 px-3 py-2">
                 <div className="flex items-center gap-2">
                   <Globe className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground">On booking page</span>
@@ -193,7 +192,7 @@ const StationCard: React.FC<StationCardProps> = ({
                   onCheckedChange={handleTogglePublicBooking}
                 />
               </div>
-              <div className="mt-2 flex gap-1 opacity-80 group-hover:opacity-100">
+              <div className="flex gap-2 opacity-80 group-hover:opacity-100">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -237,19 +236,17 @@ const StationCard: React.FC<StationCardProps> = ({
               </div>
             </div>
 
-            {/* Customer / station intel — grows to fill space */}
-            <div className="min-w-0 flex-1">
-              <StationCustomerPanel
-                station={station}
-                customer={customer}
-                recentSessions={recentSessions}
-                intelLoading={intelLoading}
-                theme={theme}
-              />
-            </div>
+            {/* Customer / station intel */}
+            <StationCustomerPanel
+              station={station}
+              customer={customer}
+              recentSessions={recentSessions}
+              intelLoading={intelLoading}
+              theme={theme}
+            />
 
-            {/* Session + actions column */}
-            <div className="flex shrink-0 flex-col justify-between gap-3 lg:w-[200px] xl:w-[220px]">
+            {/* Session timer + actions */}
+            <div className="flex flex-col gap-3">
               {showSessionBlock ? (
                 <div key={sessionId} className="space-y-2 animate-station-content-in">
                   <StationTimer station={station} theme={theme} />
