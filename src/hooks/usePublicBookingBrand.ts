@@ -1,6 +1,10 @@
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { applyTenantTheme, resetTenantTheme } from "@/branding/applyTenantTheme";
+import {
+  applyDocumentFavicon,
+  applyTenantTheme,
+  resetTenantTheme,
+} from "@/branding/applyTenantTheme";
 import {
   resolvePublicBookingBrand,
   type PublicWorkspacePayload,
@@ -45,7 +49,9 @@ export function usePublicBookingBrand(
     });
     const prevTitle = document.title;
     document.title = `${resolved.displayName} — Book a session`;
+    const restoreFavicon = applyDocumentFavicon(resolved.faviconUrl);
     return () => {
+      restoreFavicon();
       resetTenantTheme();
       document.title = prevTitle;
     };

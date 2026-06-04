@@ -99,7 +99,8 @@ export function resolveBrand(
       ...base.assets,
       logoLightUrl: override.logo_url ?? base.assets.logoLightUrl,
       logoDarkUrl: override.logo_url ?? base.assets.logoDarkUrl,
-      faviconUrl: override.icon_url ?? base.assets.faviconUrl,
+      faviconUrl:
+        override.icon_url ?? override.logo_url ?? base.assets.faviconUrl,
     },
     hidePoweredBy:
       typeof override.hide_powered_by === "boolean"

@@ -96,6 +96,62 @@ export function applyTenantTheme(
   root.setAttribute("data-tenant-ready", "true");
 }
 
+const FAVICON_LINK_SELECTOR =
+  "link[rel='icon'], link[rel='shortcut icon'], link[rel='apple-touch-icon']";
+
+/**
+ * Swap document favicon(s) for a tenant (public booking, branded login, etc.).
+ * Returns a restore function that puts prior hrefs back on unmount.
+ */
+export function applyDocumentFavicon(url: string | undefined | null): () => void {
+  if (typeof document === "undefined") return () => {};
+
+  const trimmed = url?.trim() ?? "";
+  const links = Array.from(
+    document.querySelectorAll<HTMLLinkElement>(FAVICON_LINK_SELECTOR),
+  );
+  const snapshot = links.map((el) => ({
+    el,
+    href: el.getAttribute("href") ?? el.href,
+    type: el.getAttribute("type"),
+  }));
+
+  const restore = () => {
+    for (const { el, href, type } of snapshot) {
+      if (href) el.setAttribute("href", href);
+      else el.removeAttribute("href");
+      if (type) el.setAttribute("type", type);
+      else el.removeAttribute("type");
+    }
+  };
+
+  if (!trimmed) return restore;
+
+  const targets =
+    links.length > 0
+      ? links
+      : (() => {
+          const link = document.createElement("link");
+          link.rel = "icon";
+          document.head.appendChild(link);
+          return [link];
+        })();
+
+  const mime = trimmed.endsWith(".svg")
+    ? "image/svg+xml"
+    : trimmed.match(/\.(png|jpe?g|webp|gif)$/i)
+      ? "image/png"
+      : null;
+
+  for (const el of targets) {
+    el.href = trimmed;
+    if (mime) el.type = mime;
+    else el.removeAttribute("type");
+  }
+
+  return restore;
+}
+
 export function resetTenantTheme(target?: HTMLElement) {
   if (typeof document === "undefined") return;
   const root = target ?? document.documentElement;

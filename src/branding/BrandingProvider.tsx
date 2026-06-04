@@ -17,7 +17,7 @@
 
 import React from "react";
 import { useAuth } from "@/context/AuthContext";
-import { applyTenantTheme } from "./applyTenantTheme";
+import { applyDocumentFavicon, applyTenantTheme } from "./applyTenantTheme";
 import { DEFAULT_TENANT_BRAND, type TenantBrand } from "./brand";
 import { resolveBrand, type TenantBrandingOverride } from "./resolveBranding";
 
@@ -106,17 +106,7 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       console.warn("BrandingProvider: applyTenantTheme failed", err);
     }
 
-    if (brand.assets.faviconUrl) {
-      const existing = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
-      if (existing) {
-        existing.href = brand.assets.faviconUrl;
-      } else {
-        const link = document.createElement("link");
-        link.rel = "icon";
-        link.href = brand.assets.faviconUrl;
-        document.head.appendChild(link);
-      }
-    }
+    applyDocumentFavicon(brand.assets.faviconUrl);
   }, [brand, override.primary_color, override.accent_color]);
 
   const value = React.useMemo<BrandingContextValue>(

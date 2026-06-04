@@ -26,6 +26,7 @@ export function resolvePublicBookingBrand(
   displayName: string;
   tagline: string;
   logoUrl: string;
+  faviconUrl: string;
   locationSlug: string;
   locationName: string | null;
   primaryHex: string;
@@ -55,6 +56,12 @@ export function resolvePublicBookingBrand(
     override?.icon_url?.trim() ||
     legacyLogo ||
     "";
+  const faviconUrl =
+    override?.icon_url?.trim() ||
+    brand.assets.faviconUrl ||
+    override?.logo_url?.trim() ||
+    logoUrl ||
+    "";
   const primaryHex = override?.primary_color || "#7c3aed";
   const accentHex = override?.accent_color || "#ec4899";
 
@@ -63,6 +70,7 @@ export function resolvePublicBookingBrand(
     displayName,
     tagline,
     logoUrl,
+    faviconUrl,
     locationSlug,
     locationName: workspace?.location?.name ?? null,
     primaryHex,
