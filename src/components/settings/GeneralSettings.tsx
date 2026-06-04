@@ -27,8 +27,10 @@ import {
   CreditCard, 
   Bell,
   Globe,
-  Loader2
+  Loader2,
+  Shield,
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import { useAppSettings, AppSettings } from '@/hooks/useAppSettings';
 import { Separator } from '@/components/ui/separator';
 import { useLocation } from '@/context/LocationContext';
@@ -86,12 +88,19 @@ const formSchema = z.object({
     timeFormat: z.enum(['12h', '24h']),
     timezone: z.string().min(1),
   }),
+  securitySettings: z.object({
+    adminPin: z
+      .string()
+      .regex(/^\d{4,8}$/, { message: 'Admin PIN must be 4–8 digits.' }),
+  }),
 });
 
 type FormData = z.infer<typeof formSchema>;
 
 const GeneralSettings = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.isAdmin || false;
   const { settings, loading, saving, saveSettings } = useAppSettings();
   const { activeLocation } = useLocation();
   const isLiteBranch = activeLocation?.slug === 'lite';
@@ -109,6 +118,7 @@ const GeneralSettings = () => {
       paymentSettings: settings.paymentSettings,
       notificationSettings: settings.notificationSettings,
       generalSettings: settings.generalSettings,
+      securitySettings: settings.securitySettings,
     },
   });
 
@@ -125,6 +135,7 @@ const GeneralSettings = () => {
         paymentSettings: settings.paymentSettings,
         notificationSettings: settings.notificationSettings,
         generalSettings: settings.generalSettings,
+        securitySettings: settings.securitySettings,
       });
     }
   }, [loading, settings, form]);
@@ -769,6 +780,50 @@ const GeneralSettings = () => {
               </div>
 
               <Separator />
+
+              {/* Security — admin PIN for restricted actions */}
+              {isAdmin ? (
+                <>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-5 w-5 text-cuephoria-lightpurple" />
+                      <h3 className="text-lg font-semibold">Security</h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Staff use this PIN to confirm sensitive actions (add stations, delete bills/sessions/products,
+                      reset leaderboard, stock adjustments, and more). Applies to{' '}
+                      <span className="font-medium text-foreground">
+                        {activeLocation?.name ?? 'the active branch'}
+                      </span>
+                      .
+                    </p>
+                    <FormField
+                      control={form.control}
+                      name="securitySettings.adminPin"
+                      render={({ field }) => (
+                        <FormItem className="max-w-xs">
+                          <FormLabel>Admin access PIN</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              inputMode="numeric"
+                              autoComplete="off"
+                              maxLength={8}
+                              placeholder="4–8 digits"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Numbers only, 4–8 digits. Share only with trusted managers.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <Separator />
+                </>
+              ) : null}
 
               {/* General Settings */}
               <div className="space-y-4">

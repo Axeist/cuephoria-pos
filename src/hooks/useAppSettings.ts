@@ -64,6 +64,12 @@ export interface GeneralSettings {
   timezone: string;
 }
 
+/** PIN for staff-gated actions (delete bill, add station, reset leaderboard, etc.). */
+export interface SecuritySettings {
+  /** 4–8 digit numeric PIN for the active branch. */
+  adminPin: string;
+}
+
 export interface AppSettings {
   businessInfo: BusinessInfo;
   loyaltyPoints: LoyaltyPointsConfig;
@@ -74,6 +80,7 @@ export interface AppSettings {
   paymentSettings: PaymentSettings;
   notificationSettings: NotificationSettings;
   generalSettings: GeneralSettings;
+  securitySettings: SecuritySettings;
 }
 
 const defaultSettings: AppSettings = {
@@ -128,7 +135,10 @@ const defaultSettings: AppSettings = {
     dateFormat: 'DD/MM/YYYY',
     timeFormat: '12h',
     timezone: 'Asia/Kolkata'
-  }
+  },
+  securitySettings: {
+    adminPin: '1234',
+  },
 };
 
 export const useAppSettings = () => {
