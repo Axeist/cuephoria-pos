@@ -87,7 +87,7 @@ const BranchManagementSettings: React.FC = () => {
 
   if (loading) {
     return (
-      <Card>
+      <Card id="branches">
         <CardContent className="py-10 flex justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -97,14 +97,21 @@ const BranchManagementSettings: React.FC = () => {
 
   const limits = data?.limits;
   const locations = data?.locations ?? [];
+  const apiMissing = !data && !loading;
 
   return (
-    <Card>
+    <Card id="branches">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Building2 className="h-5 w-5" />
           Branches
         </CardTitle>
+        {apiMissing ? (
+          <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
+            Could not load branches. If you just deployed, wait a minute and refresh — the app needs the latest
+            release with <code className="text-xs">/api/tenant/locations</code>.
+          </p>
+        ) : null}
         <CardDescription>
           {limits?.is_trialing ? (
             <>Trial workspaces can add branches up to your plan limit ({limits?.max_branches ?? 0} active).</>

@@ -12,6 +12,9 @@ import { useToast } from '@/components/ui/use-toast';
 import { Plus, Trash2, Save, Calendar, Ticket, Loader2, AlertCircle, MapPin } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useLocation } from '@/context/LocationContext';
+import { useAuth } from '@/context/AuthContext';
+import PublicBookingPopupsSettings from '@/components/settings/PublicBookingPopupsSettings';
+import { Separator } from '@/components/ui/separator';
 
 interface Coupon {
   code: string;
@@ -27,6 +30,8 @@ interface EventSettings {
 }
 
 const BookingSettings = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.isAdmin || false;
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -502,6 +507,13 @@ const BookingSettings = () => {
           </Button>
         </CardContent>
       </Card>
+
+      {isAdmin && (
+        <>
+          <Separator className="my-8" />
+          <PublicBookingPopupsSettings />
+        </>
+      )}
     </div>
   );
 };

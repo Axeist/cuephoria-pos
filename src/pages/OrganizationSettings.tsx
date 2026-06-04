@@ -326,10 +326,12 @@ const OrganizationSettings: React.FC = () => {
         </CardContent>
       </Card>
 
+      <div id="branches" className="scroll-mt-24">
+        <BranchManagementSettings />
+      </div>
+
       {/* Branding card */}
       <BrandingCard canEdit={canEdit} />
-
-      <BranchManagementSettings />
 
       {/* Plan card */}
       <Card className="relative overflow-hidden">
