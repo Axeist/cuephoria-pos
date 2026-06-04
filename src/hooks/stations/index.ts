@@ -83,7 +83,6 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
         // row itself does not have a currentsession stored in the DB.
         // If station.currentSession came from the DB (via refreshStationsFromDB),
         // trust the DB value — the sessions list might just lag behind slightly.
-      } else {
         if (station.currentSession) {
           return station;
         }
