@@ -9,14 +9,12 @@ interface StationInfoProps {
   station: Station;
   customerName?: string;
   phase?: StationPhase;
-  compact?: boolean;
 }
 
 const StationInfo: React.FC<StationInfoProps> = ({
   station,
   customerName,
   phase = 'idle',
-  compact = false,
 }) => {
   const theme = getStationTheme(station);
   const Icon = theme.icon;
@@ -40,75 +38,64 @@ const StationInfo: React.FC<StationInfoProps> = ({
         : 'Open';
 
   return (
-    <div className="min-w-0 space-y-3">
-      <div className="flex items-start gap-3">
+    <div className="min-w-0">
+      <div className="flex items-start gap-2.5">
         <div
-          className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ring-1 ${theme.iconBg}`}
+          className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 ${theme.iconBg}`}
         >
-          <Icon className={`h-6 w-6 ${theme.accent}`} />
+          <Icon className={`h-4 w-4 ${theme.accent}`} />
           {(station.isOccupied || isStarting) && (
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+            <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-50" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-orange-500" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-orange-500" />
             </span>
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <p
-                className={`font-heading text-lg font-bold leading-snug break-words sm:text-xl ${theme.accent}`}
-              >
+              <p className={`font-heading text-base font-bold leading-snug break-words ${theme.accent}`}>
                 {station.name}
               </p>
-              <p className={`mt-0.5 text-xs font-semibold uppercase tracking-widest ${theme.accentMuted}`}>
+              <p className={`text-[10px] font-semibold uppercase tracking-widest ${theme.accentMuted}`}>
                 {theme.label}
               </p>
             </div>
             <Badge
               variant="outline"
-              className={`shrink-0 gap-1 px-2 py-0.5 text-[10px] uppercase tracking-wider ${statusBadge}`}
+              className={`shrink-0 gap-0.5 px-1.5 py-0 text-[9px] uppercase tracking-wider ${statusBadge}`}
             >
               {(station.isOccupied || isStarting) && !isPaused && (
-                <Zap className="h-3 w-3 fill-current" />
+                <Zap className="h-2.5 w-2.5 fill-current" />
               )}
               {statusLabel}
             </Badge>
           </div>
+          <p className={`mt-1 text-xs leading-snug ${theme.accentMuted}`}>
+            {stationPricingBadge(station)}
+          </p>
         </div>
       </div>
 
-      {!compact && (
-        <p
-          className={`rounded-lg border border-white/8 bg-black/25 px-3 py-2 text-sm leading-relaxed ${theme.accentMuted}`}
-        >
-          {stationPricingBadge(station)}
-        </p>
-      )}
-
       {station.isOccupied && station.currentSession && customerName && (
-        <div className="space-y-2.5 rounded-lg border border-white/8 bg-black/20 p-3 animate-fade-in">
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className={`font-medium ${theme.accent}`}>Now playing</span>
-            <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-0.5 font-semibold text-white break-words">
-              {customerName}
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 animate-fade-in">
+          <span className={`text-xs font-medium ${theme.accent}`}>Now playing</span>
+          <span className="max-w-full rounded border border-white/10 bg-white/5 px-2 py-0.5 text-xs font-semibold text-white break-words">
+            {customerName}
+          </span>
+          <span
+            className={`inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${theme.border} bg-white/5 ${theme.accent}`}
+          >
+            <Users className="h-3 w-3 shrink-0" />
+            {sessionPlayers}p
+          </span>
+          <SessionRateBadge station={station} session={station.currentSession} theme={theme} />
+          {hasCoupon && (
+            <span className="inline-flex items-center gap-0.5 rounded bg-orange-500/20 px-1.5 py-0.5 text-[10px] text-orange-300 ring-1 ring-orange-500/30">
+              <Tag className="h-2.5 w-2.5" />
+              {hasCoupon}
             </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-semibold tabular-nums ${theme.border} bg-white/5 ${theme.accent}`}
-            >
-              <Users className="h-3.5 w-3.5 shrink-0" />
-              {sessionPlayers} {sessionPlayers === 1 ? 'player' : 'players'}
-            </span>
-            <SessionRateBadge station={station} session={station.currentSession} theme={theme} />
-            {hasCoupon && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-orange-500/20 px-2 py-1 text-xs text-orange-300 ring-1 ring-orange-500/30">
-                <Tag className="h-3 w-3" />
-                {hasCoupon}
-              </span>
-            )}
-          </div>
+          )}
         </div>
       )}
     </div>

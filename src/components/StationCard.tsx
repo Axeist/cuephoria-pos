@@ -139,7 +139,7 @@ const StationCard: React.FC<StationCardProps> = ({
     <>
       <article
         className={`
-          group relative overflow-hidden rounded-2xl border backdrop-blur-md
+          group relative overflow-hidden rounded-xl border backdrop-blur-md
           transition-all duration-300 ease-out
           ${theme.border} ${theme.bg} ${theme.glow}
           ${cardPhaseClass(phase, station.isOccupied)}
@@ -150,7 +150,7 @@ const StationCard: React.FC<StationCardProps> = ({
 
         {isLive && phase !== 'ending' && (
           <div
-            className="pointer-events-none absolute inset-0 rounded-2xl animate-station-live-glow opacity-30"
+            className="pointer-events-none absolute inset-0 rounded-xl animate-station-live-glow opacity-30"
             style={{
               background: `radial-gradient(circle at 50% 0%, rgba(249,115,22,0.15), transparent 70%)`,
             }}
@@ -165,54 +165,51 @@ const StationCard: React.FC<StationCardProps> = ({
         )}
 
         <div
-          className={`relative z-10 h-1.5 w-full shrink-0 ${
+          className={`relative z-10 h-1 w-full shrink-0 ${
             isLive && phase !== 'ending' ? theme.topBarLive : theme.topBarIdle
           }`}
         />
 
-        <div className="relative z-10 p-4 sm:p-5">
-          <div className="flex flex-col gap-5">
-            {/* Station identity + controls */}
-            <div className="flex flex-col gap-3">
-              <StationInfo
-                station={station}
-                customerName={customerName}
-                phase={phase}
-                compact={!station.isOccupied}
-              />
-              <div className="flex items-center justify-between rounded-lg border border-white/8 bg-black/30 px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">On booking page</span>
-                </div>
+        <div className="relative z-10 space-y-3 p-3 sm:p-4">
+          {/* Header: identity + compact controls */}
+          <div className="space-y-2">
+            <StationInfo
+              station={station}
+              customerName={customerName}
+              phase={phase}
+            />
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-white/8 bg-black/25 px-2.5 py-1.5">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
+                <span className="truncate text-[11px] text-muted-foreground">On booking page</span>
                 <Switch
-                  className="data-[state=checked]:bg-green-600"
+                  className="ml-1 scale-90 data-[state=checked]:bg-green-600"
                   checked={!!isPublicLive}
                   disabled={isTogglingPublic}
                   onCheckedChange={handleTogglePublicBooking}
                 />
               </div>
-              <div className="flex gap-2 opacity-80 group-hover:opacity-100">
+              <div className="flex shrink-0 gap-0.5 opacity-80 group-hover:opacity-100">
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className={`h-8 flex-1 hover:bg-white/10 ${theme.accent}`}
+                  size="icon"
+                  className={`h-7 w-7 hover:bg-white/10 ${theme.accent}`}
                   disabled={station.isOccupied}
                   onClick={() => setEditDialogOpen(true)}
+                  title="Edit station"
                 >
-                  <Edit2 className="mr-1.5 h-3.5 w-3.5" />
-                  Edit
+                  <Edit2 className="h-3.5 w-3.5" />
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="sm"
-                      className="h-8 flex-1 text-muted-foreground hover:text-destructive hover:bg-red-500/10"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-red-500/10"
                       disabled={station.isOccupied}
+                      title="Delete station"
                     >
-                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                      Delete
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
@@ -235,8 +232,10 @@ const StationCard: React.FC<StationCardProps> = ({
                 </AlertDialog>
               </div>
             </div>
+          </div>
 
-            {/* Customer / station intel */}
+          {/* Body: intel + session side by side */}
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
             <StationCustomerPanel
               station={station}
               customer={customer}
@@ -245,11 +244,10 @@ const StationCard: React.FC<StationCardProps> = ({
               theme={theme}
             />
 
-            {/* Session timer + actions */}
-            <div className="flex flex-col gap-3">
+            <div className="flex min-w-[148px] flex-col gap-2 sm:w-[148px]">
               {showSessionBlock ? (
-                <div key={sessionId} className="space-y-2 animate-station-content-in">
-                  <StationTimer station={station} theme={theme} />
+                <div key={sessionId} className="space-y-1.5 animate-station-content-in">
+                  <StationTimer station={station} theme={theme} compact />
                   {quickShopCount > 0 && (
                     <button
                       type="button"
@@ -257,34 +255,26 @@ const StationCard: React.FC<StationCardProps> = ({
                         setQuickShopTab('order');
                         setQuickShopOpen(true);
                       }}
-                      className="flex w-full items-center justify-between gap-2 rounded-lg border border-emerald-500/35 bg-emerald-950/40 px-3 py-2 text-left transition-all hover:bg-emerald-950/60 hover:border-emerald-400/50"
+                      className="flex w-full items-center justify-between gap-1.5 rounded-md border border-emerald-500/35 bg-emerald-950/40 px-2 py-1.5 text-left transition-all hover:bg-emerald-950/60"
                     >
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <ShoppingBag className="h-4 w-4 text-emerald-400 shrink-0" />
-                        <span className="text-xs text-emerald-200">{quickShopCount} items</span>
+                      <div className="flex min-w-0 items-center gap-1">
+                        <ShoppingBag className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                        <span className="truncate text-[11px] text-emerald-200">{quickShopCount} items</span>
                       </div>
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        <CurrencyDisplay amount={quickShopTotal} className="text-sm font-bold text-emerald-300" />
-                        <ChevronRight className="h-3 w-3 text-emerald-400/60" />
-                      </div>
+                      <CurrencyDisplay amount={quickShopTotal} className="shrink-0 text-xs font-bold text-emerald-300" />
                     </button>
                   )}
                 </div>
               ) : phase === 'starting' ? (
-                <div className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500/10 border border-orange-500/30 py-6 animate-pulse-soft">
-                  <span className="h-2.5 w-2.5 rounded-full bg-orange-400 animate-ping" />
-                  <span className="text-sm font-medium text-orange-200">Starting session…</span>
+                <div className="flex items-center justify-center gap-1.5 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-4 animate-pulse-soft">
+                  <span className="h-2 w-2 rounded-full bg-orange-400 animate-ping" />
+                  <span className="text-xs font-medium text-orange-200">Starting…</span>
                 </div>
               ) : phase === 'ending' ? (
-                <div className="flex flex-1 items-center justify-center rounded-xl bg-red-500/10 border border-red-500/25 py-6 animate-station-content-out">
-                  <span className="text-sm font-medium text-red-200">Ending session…</span>
+                <div className="flex items-center justify-center rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-4 animate-station-content-out">
+                  <span className="text-xs font-medium text-red-200">Ending…</span>
                 </div>
-              ) : (
-                <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-center">
-                  <p className={`text-sm font-semibold ${theme.accent}`}>Station open</p>
-                  <p className="mt-1 text-xs text-muted-foreground">No active session</p>
-                </div>
-              )}
+              ) : null}
 
               <StationActions
                 station={station}
