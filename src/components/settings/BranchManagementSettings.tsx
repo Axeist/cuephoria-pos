@@ -6,9 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "@/context/LocationContext";
-import { Building2, Check, Loader2, Pencil, Plus, X } from "lucide-react";
+import { Building2, Check, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { slugifyBranch } from "@/utils/publicBookingPopups";
+import DeleteBranchDialog from "@/components/settings/DeleteBranchDialog";
 
 type LocationRow = {
   id: string;
@@ -32,11 +33,12 @@ type LocationsResponse = {
     requires_paid_plan?: boolean;
   };
   canEdit: boolean;
+  mainLocationId?: string | null;
 };
 
 const BranchManagementSettings: React.FC = () => {
   const { toast } = useToast();
-  const { reloadLocations } = useLocation();
+  const { reloadLocations, activeLocationId, setActiveLocationId } = useLocation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingNameId, setSavingNameId] = useState<string | null>(null);
@@ -46,6 +48,7 @@ const BranchManagementSettings: React.FC = () => {
   const [shortCode, setShortCode] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<LocationRow | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -146,6 +149,19 @@ const BranchManagementSettings: React.FC = () => {
   const locations = data?.locations ?? [];
   const apiMissing = !data && !loading;
   const canEdit = data?.canEdit ?? false;
+  const mainLocationId = data?.mainLocationId ?? null;
+  const mainBranch = mainLocationId ? locations.find((l) => l.id === mainLocationId) : null;
+  const canDeleteBranch = (loc: LocationRow) =>
+    canEdit && mainLocationId !== null && loc.id !== mainLocationId && locations.length > 1;
+
+  const handleBranchDeleted = async (result: { mainLocationId: string }) => {
+    if (deleteTarget && activeLocationId === deleteTarget.id) {
+      setActiveLocationId(result.mainLocationId);
+    }
+    setDeleteTarget(null);
+    await load();
+    await reloadLocations();
+  };
 
   return (
     <Card id="branches">
@@ -248,16 +264,30 @@ const BranchManagementSettings: React.FC = () => {
                       </span>
                     </div>
                     {canEdit && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-2 shrink-0"
-                        onClick={() => startEdit(loc)}
-                        aria-label={`Rename ${loc.name}`}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
+                      <div className="flex shrink-0 gap-0.5">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2"
+                          onClick={() => startEdit(loc)}
+                          aria-label={`Rename ${loc.name}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        {canDeleteBranch(loc) && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setDeleteTarget(loc)}
+                            aria-label={`Delete ${loc.name}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
@@ -313,6 +343,16 @@ const BranchManagementSettings: React.FC = () => {
           </div>
         ) : null}
       </CardContent>
+
+      <DeleteBranchDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        branch={deleteTarget}
+        mainBranchName={mainBranch?.name ?? null}
+        onDeleted={handleBranchDeleted}
+      />
     </Card>
   );
 };

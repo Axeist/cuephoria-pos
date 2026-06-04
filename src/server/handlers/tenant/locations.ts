@@ -1,5 +1,5 @@
 /**
- * GET/POST /api/tenant/locations
+ * GET/POST/PATCH/DELETE /api/tenant/locations
  *
  * List branches and create new ones when within plan limits (including trial).
  */
@@ -181,7 +181,33 @@ async function handler(req: Request, ctx: OrgContext) {
   if (req.method === "GET") return listLocations(ctx);
   if (req.method === "POST") return createLocation(req, ctx);
   if (req.method === "PATCH") return patchLocation(req, ctx);
+  if (req.method === "DELETE") return deleteLocation(req, ctx);
   return j({ ok: false, error: "Method not allowed" }, 405);
+}
+
+async function resolveMainLocationId(
+  ctx: OrgContext,
+): Promise<{ mainId: string | null; error: Response | null }> {
+  const { data: mainRow } = await ctx.supabase
+    .from("locations")
+    .select("id")
+    .eq("organization_id", ctx.organizationId)
+    .eq("slug", "main")
+    .order("sort_order", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (mainRow?.id) return { mainId: mainRow.id, error: null };
+
+  const { data: fallback, error } = await ctx.supabase
+    .from("locations")
+    .select("id")
+    .eq("organization_id", ctx.organizationId)
+    .order("sort_order", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) return { mainId: null, error: j({ ok: false, error: error.message }, 500) };
+  return { mainId: fallback?.id ?? null, error: null };
 }
 
 async function listLocations(ctx: OrgContext) {
@@ -195,11 +221,13 @@ async function listLocations(ctx: OrgContext) {
   const activeCount = (locations ?? []).filter((l) => l.is_active).length;
   const canEdit = EDITOR_ROLES.has(ctx.role);
   const limits = await resolveBranchLimits(ctx, activeCount, canEdit);
+  const { mainId: mainLocationId } = await resolveMainLocationId(ctx);
 
   return j(
     {
       ok: true,
       locations: locations ?? [],
+      mainLocationId,
       limits: {
         max_branches: limits.max_branches,
         plan_max_branches: limits.plan_max_branches,
@@ -385,6 +413,115 @@ async function patchLocation(req: Request, ctx: OrgContext) {
   });
 
   return j({ ok: true, location: updated }, 200);
+}
+
+type DeleteBranchMode = "delete_all" | "migrate_to_main";
+
+async function deleteLocation(req: Request, ctx: OrgContext) {
+  if (!EDITOR_ROLES.has(ctx.role)) {
+    return j({ ok: false, error: "Only owners and admins can delete branches." }, 403);
+  }
+  if (req.headers.get("content-type")?.split(";")[0].trim() !== "application/json") {
+    return j({ ok: false, error: "Expected JSON body." }, 415);
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return j({ ok: false, error: "Invalid JSON body." }, 400);
+  }
+
+  const locationId = typeof body.id === "string" ? body.id.trim() : "";
+  if (!locationId) return j({ ok: false, error: "Branch id is required." }, 400);
+
+  const modeRaw = typeof body.mode === "string" ? body.mode.trim() : "";
+  if (modeRaw !== "delete_all" && modeRaw !== "migrate_to_main") {
+    return j(
+      {
+        ok: false,
+        error: 'mode must be "delete_all" or "migrate_to_main".',
+      },
+      400,
+    );
+  }
+  const mode = modeRaw as DeleteBranchMode;
+
+  const confirmName = typeof body.confirmName === "string" ? body.confirmName.trim() : "";
+  if (!confirmName) {
+    return j({ ok: false, error: "Type the branch name to confirm deletion." }, 400);
+  }
+
+  const { data: existing, error: findErr } = await ctx.supabase
+    .from("locations")
+    .select("id, name, slug")
+    .eq("id", locationId)
+    .eq("organization_id", ctx.organizationId)
+    .maybeSingle();
+  if (findErr) return j({ ok: false, error: findErr.message }, 500);
+  if (!existing) return j({ ok: false, error: "Branch not found." }, 404);
+
+  const { mainId: mainLocationId, error: mainErr } = await resolveMainLocationId(ctx);
+  if (mainErr) return mainErr;
+  if (!mainLocationId) {
+    return j({ ok: false, error: "No main branch found for this workspace." }, 500);
+  }
+  if (locationId === mainLocationId) {
+    return j({ ok: false, error: "The main branch cannot be deleted." }, 400);
+  }
+
+  const { count: branchCount, error: countErr } = await ctx.supabase
+    .from("locations")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", ctx.organizationId);
+  if (countErr) return j({ ok: false, error: countErr.message }, 500);
+  if ((branchCount ?? 0) <= 1) {
+    return j({ ok: false, error: "Cannot delete the only branch in this workspace." }, 400);
+  }
+
+  const { data: result, error: rpcErr } = await ctx.supabase.rpc("tenant_delete_location", {
+    p_org_id: ctx.organizationId,
+    p_location_id: locationId,
+    p_mode: mode,
+    p_confirm_name: confirmName,
+  });
+
+  if (rpcErr) {
+    const msg = rpcErr.message || "Branch deletion failed.";
+    const status =
+      msg.includes("Confirmation name") || msg.includes("cannot be deleted") || msg.includes("only branch")
+        ? 400
+        : 500;
+    return j({ ok: false, error: msg, code: rpcErr.code }, status);
+  }
+
+  await ctx.supabase.from("audit_log").insert({
+    actor_type: "admin_user",
+    actor_id: ctx.user.id,
+    actor_label: ctx.user.username,
+    organization_id: ctx.organizationId,
+    action: "location.deleted",
+    target_type: "location",
+    target_id: locationId,
+    meta: {
+      mode,
+      branch_name: existing.name,
+      branch_slug: existing.slug,
+      main_location_id: mainLocationId,
+      counts: result?.counts ?? null,
+      source: "tenant",
+    },
+  });
+
+  return j(
+    {
+      ok: true,
+      mode,
+      mainLocationId,
+      counts: result?.counts ?? {},
+    },
+    200,
+  );
 }
 
 export default withOrgContext(handler);
