@@ -15,6 +15,7 @@ import {
   BOOKING_ACCESS_KEYS,
   parseBookingSettingBool,
 } from '@/utils/bookingAccessSettings';
+import { buildPublicBookingUrl } from '@/utils/publicBookingUrl';
 import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
 import { BookingEditDialog } from '@/components/booking/BookingEditDialog';
 import { BookingDeleteDialog } from '@/components/booking/BookingDeleteDialog';
@@ -2352,7 +2353,21 @@ export default function BookingManagement() {
           )}
           <Button
             className="flex items-center gap-2"
-            onClick={() => window.open('https://admin.cuephoria.in/public/booking', '_blank', 'noopener,noreferrer')}
+            onClick={() => {
+              const loc = activeLocation ?? locations[0];
+              if (!loc) {
+                toast.error('No branch configured for this workspace');
+                return;
+              }
+              window.open(
+                buildPublicBookingUrl({
+                  branchSlug: loc.slug,
+                  locationId: loc.id,
+                }),
+                '_blank',
+                'noopener,noreferrer'
+              );
+            }}
           >
             <Plus className="h-4 w-4" />
             New Booking
@@ -2383,8 +2398,10 @@ export default function BookingManagement() {
                   publicBooking: true,
                   onlinePayment: true,
                 };
-                const publicPath =
-                  loc.slug === 'lite' ? '/lite/public/booking' : '/public/booking';
+                const customerBookingUrl = buildPublicBookingUrl({
+                  branchSlug: loc.slug,
+                  locationId: loc.id,
+                });
                 return (
                   <div
                     key={loc.id}
@@ -2392,9 +2409,16 @@ export default function BookingManagement() {
                   >
                     <div>
                       <p className="font-semibold text-foreground">{loc.name}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <p className="text-xs text-muted-foreground mt-0.5 break-all">
                         Customer URL:{' '}
-                        <span className="font-mono text-cuephoria-purple/90">{publicPath}</span>
+                        <a
+                          href={customerBookingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-cuephoria-purple/90 hover:underline"
+                        >
+                          {customerBookingUrl}
+                        </a>
                       </p>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">

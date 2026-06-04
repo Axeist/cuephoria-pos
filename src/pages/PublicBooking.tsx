@@ -247,6 +247,7 @@ const getBookingDuration = (stationIds: string[], stations: Station[]) => {
    ========================= */
 export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: string }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { isMobile: viewIsMobile } = useViewMode();
   const isLiteBranch = branchSlug === "lite";
 
@@ -260,6 +261,26 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     let cancelled = false;
     (async () => {
       setBranchLocationLoading(true);
+      const locationIdParam = searchParams.get("location")?.trim();
+
+      if (locationIdParam) {
+        const { data, error } = await supabase
+          .from("locations")
+          .select("id, slug")
+          .eq("id", locationIdParam)
+          .eq("is_active", true)
+          .maybeSingle();
+        if (cancelled) return;
+        if (!error && data?.id) {
+          setPublicLocationId(data.id);
+        } else {
+          console.warn("Location id not found or inactive:", locationIdParam, error);
+          setPublicLocationId(null);
+        }
+        setBranchLocationLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("locations")
         .select("id")
@@ -277,7 +298,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     return () => {
       cancelled = true;
     };
-  }, [branchSlug]);
+  }, [branchSlug, searchParams]);
 
   useEffect(() => {
     if (!publicLocationId) {
@@ -420,7 +441,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   const [expandedCoupons, setExpandedCoupons] = useState<Record<string, boolean>>({});
   const [pendingCoupon, setPendingCoupon] = useState<{ code: string; type: "all" | "per-station"; stationTypes?: { ps5?: string; "8ball"?: string; vr?: string } } | null>(null);
   
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [, setSearchParams] = useSearchParams();
   const [paymentStatus, setPaymentStatus] = useState<"processing" | "success" | "failed" | null>(null);
   const [razorpayKeyId, setRazorpayKeyId] = useState<string>("");
   const [loggedInCustomer, setLoggedInCustomer] = useState<any>(null);
