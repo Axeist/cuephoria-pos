@@ -1281,6 +1281,73 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_carts: {
+        Row: {
+          created_at: string
+          customer_id: string
+          customer_name: string
+          discount: number
+          discount_type: string
+          expires_at: string
+          id: string
+          items: Json
+          location_id: string
+          loyalty_points_used: number
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          customer_name: string
+          discount?: number
+          discount_type?: string
+          expires_at?: string
+          id?: string
+          items?: Json
+          location_id: string
+          loyalty_points_used?: number
+          organization_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          customer_name?: string
+          discount?: number
+          discount_type?: string
+          expires_at?: string
+          id?: string
+          items?: Json
+          location_id?: string
+          loyalty_points_used?: number
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_carts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_carts_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_carts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sessions: {
         Row: {
           created_at: string

@@ -126,15 +126,17 @@ export const useCart = () => {
     }
   };
   
-  const clearCart = () => {
+  const clearCart = (options?: { silent?: boolean }) => {
     setCart([]);
     setDiscountAmount(0);
     setLoyaltyPointsUsedAmount(0);
     resetPaymentInfo();
-    toast({
-      title: "Cart Cleared",
-      description: "All items removed from cart",
-    });
+    if (!options?.silent) {
+      toast({
+        title: "Cart Cleared",
+        description: "All items removed from cart",
+      });
+    }
   };
   
   const setDiscount = (amount: number, type: 'percentage' | 'fixed') => {

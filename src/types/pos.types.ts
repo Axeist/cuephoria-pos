@@ -107,6 +107,19 @@ export interface SessionResult {
   customer?: Customer;
 }
 
+export interface SavedCartSummary {
+  customerId: string;
+  customerName: string;
+  itemCount: number;
+  timestamp: number;
+  record: {
+    items: CartItem[];
+    discount: number;
+    discount_type: 'percentage' | 'fixed';
+    loyalty_points_used: number;
+  };
+}
+
 export interface POSContextType {
   products: Product[];
   productsLoading?: boolean;
@@ -168,7 +181,14 @@ export interface POSContextType {
   addToCart: (item: Omit<CartItem, 'total'>) => void;
   removeFromCart: (id: string) => void;
   updateCartItem: (id: string, quantity: number) => void;
-  clearCart: () => void;
+  clearCart: (options?: { silent?: boolean; skipSavedCartDelete?: boolean }) => void;
+
+  savedCarts: SavedCartSummary[];
+  savedCartsLoading: boolean;
+  refreshSavedCarts: () => Promise<void>;
+  removeSavedCart: (customerId: string) => Promise<void>;
+  removeAllSavedCarts: () => Promise<number>;
+  moveCartToSaved: () => Promise<void>;
 
   getStationQuickShopItems: (sessionId: string) => CartItem[];
   addToStationQuickShop: (sessionId: string, product: Product, quantity?: number) => void;

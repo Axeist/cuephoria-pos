@@ -10,7 +10,7 @@ import {
   ResponsiveDialogContent,
 } from '@/components/ui/responsive-dialog';
 import StickyMobileActionBar from '@/components/ui/sticky-mobile-action-bar';
-import { ShoppingCart, X, User, Plus, Search, ArrowRight, Trash2, ReceiptIcon, Download, Check, Award, Gift, Calendar, Clock, Lock, ShieldCheck } from 'lucide-react';
+import { ShoppingCart, X, User, Plus, Search, ArrowRight, Trash2, ReceiptIcon, Download, Check, Award, Gift, Calendar, Clock, Lock, ShieldCheck, BookmarkPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS, Customer, Product, Bill } from '@/context/POSContext';
 import { CurrencyDisplay, formatCurrency } from '@/components/ui/currency';
@@ -20,7 +20,6 @@ import Receipt from '@/components/Receipt';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import SplitPaymentForm from '@/components/checkout/SplitPaymentForm';
-import { getCartInfo } from '@/utils/cartStorage';
 import SavedCartsManager from '@/components/SavedCartsManager';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useViewMode } from '@/context/ViewModeContext';
@@ -48,6 +47,8 @@ const POS = () => {
     updateCartItem,
     clearCart,
     selectCustomer,
+    savedCarts,
+    moveCartToSaved,
     setDiscount,
     setLoyaltyPointsUsed,
     calculateTotal,
@@ -72,6 +73,15 @@ const POS = () => {
   const [showReceipt, setShowReceipt] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [isCompletingSale, setIsCompletingSale] = useState(false);
+  const [isSavingCart, setIsSavingCart] = useState(false);
+
+  const getSavedCartInfo = (customerId: string) => {
+    const saved = savedCarts.find((c) => c.customerId === customerId);
+    return {
+      hasCart: Boolean(saved && saved.itemCount > 0),
+      itemCount: saved?.itemCount ?? 0,
+    };
+  };
 
   // Custom Date/Time States
   const [customBillDate, setCustomBillDate] = useState('');
@@ -163,20 +173,21 @@ const POS = () => {
     removeFromCart(id);
   };
 
+  const handleMoveToSavedCart = async () => {
+    setIsSavingCart(true);
+    try {
+      await moveCartToSaved();
+    } finally {
+      setIsSavingCart(false);
+    }
+  };
+
   const handleSelectCustomer = (customer: Customer) => {
-    const cartInfo = getCartInfo(customer.id);
-    
     selectCustomer(customer.id);
     setIsCustomerDialogOpen(false);
-    
-    if (cartInfo.hasCart) {
-      toast({
-        title: 'Cart Restored',
-        description: `${customer.name}'s cart with ${cartInfo.itemCount} item(s) has been restored.`,
-        variant: 'default',
-        duration: 3000,
-      });
-    } else {
+
+    const cartInfo = getSavedCartInfo(customer.id);
+    if (!cartInfo.hasCart) {
       toast({
         title: 'Customer Selected',
         description: `${customer.name} has been selected for this transaction.`,
@@ -387,32 +398,54 @@ const POS = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
         {/* Cart Section - Mobile optimized */}
         <Card className={`lg:col-span-1 order-2 lg:order-1 ${isMobile ? 'h-auto min-h-[300px]' : 'h-[calc(100vh-12rem)]'} flex flex-col animate-slide-up`}>
-          <CardHeader className="pb-2 sm:pb-3 bg-gradient-to-r from-cuephoria-purple/20 to-transparent px-3 sm:px-6 pt-3 sm:pt-6">
-            <div className="flex justify-between items-center">
+          <CardHeader className="pb-3 sm:pb-4 bg-gradient-to-r from-cuephoria-purple/20 to-transparent px-3 sm:px-6 pt-4 sm:pt-6 border-b border-border/40">
+            <div className="flex justify-between items-center gap-2">
               <CardTitle className="text-base sm:text-xl font-heading">
                 <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 inline-block mr-2 text-cuephoria-lightpurple" />
                 Cart
               </CardTitle>
-              <Button 
-                variant="ghost" 
-                size={isMobile ? "sm" : "default"}
-                onClick={clearCart}
-                className="hover:text-red-500 transition-colors h-8 sm:h-10 px-2 sm:px-4 text-xs sm:text-sm"
-              >
-                Clear
-              </Button>
+              <div className="flex items-center gap-1 sm:gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleMoveToSavedCart}
+                  disabled={cart.length === 0 || !selectedCustomer || isSavingCart}
+                  className="h-8 px-2 sm:px-3 text-[10px] sm:text-xs border-cuephoria-purple/40 hover:bg-cuephoria-purple/10 hover:text-cuephoria-lightpurple"
+                  title="Move cart to Saved Carts"
+                >
+                  <BookmarkPlus className="h-3.5 w-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">{isSavingCart ? 'Saving…' : 'Save cart'}</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size={isMobile ? "sm" : "default"}
+                  onClick={clearCart}
+                  disabled={cart.length === 0}
+                  className="hover:text-red-500 transition-colors h-8 sm:h-10 px-2 sm:px-4 text-xs sm:text-sm"
+                >
+                  Clear
+                </Button>
+              </div>
             </div>
-            <CardDescription className="text-xs sm:text-sm">
+            <CardDescription className="text-xs sm:text-sm mt-1">
               {cart.length} {cart.length === 1 ? 'item' : 'items'} in cart
+              {selectedCustomer ? ` · ${selectedCustomer.name}` : ''}
             </CardDescription>
           </CardHeader>
-          <CardContent className={`flex-grow overflow-auto px-3 sm:px-6 ${isMobile ? 'max-h-[400px]' : ''}`}>
+          <CardContent className={`flex-grow overflow-auto px-3 sm:px-6 pt-4 sm:pt-5 pb-3 ${isMobile ? 'max-h-[400px]' : ''}`}>
             {cart.length > 0 ? (
-              <div className="space-y-3 sm:space-y-4">
+              <div className="space-y-2 sm:space-y-2.5">
+                {!isMobile && (
+                  <div className="sticky top-0 z-10 grid grid-cols-[2fr_1fr_1fr] gap-2 px-3 py-2 -mx-1 rounded-lg bg-muted/60 backdrop-blur-sm text-[10px] sm:text-xs font-medium uppercase tracking-wide text-muted-foreground border border-border/30">
+                    <span>Item</span>
+                    <span className="text-center">Qty</span>
+                    <span className="text-right">Total</span>
+                  </div>
+                )}
                 {cart.map((item, index) => (
                   <div 
                     key={item.id} 
-                    className={`flex items-center justify-between border-b pb-2 sm:pb-3 animate-fade-in ${isMobile ? 'grid grid-cols-[2fr_1fr] gap-2' : 'grid grid-cols-[2fr_1fr_1fr] gap-2'}`} 
+                    className={`rounded-lg border border-border/50 bg-card/60 px-3 py-2.5 sm:py-3 animate-fade-in shadow-sm ${isMobile ? 'grid grid-cols-[2fr_1fr] gap-2' : 'grid grid-cols-[2fr_1fr_1fr] gap-2 items-center'}`} 
                     style={{animationDelay: `${index * 50}ms`}}
                   >
                     <div className="flex flex-col justify-center">
@@ -712,7 +745,7 @@ const POS = () => {
             {filteredCustomers.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredCustomers.map((customer, index) => {
-                  const cartInfo = getCartInfo(customer.id);
+                  const cartInfo = getSavedCartInfo(customer.id);
                   
                   return (
                     <div 

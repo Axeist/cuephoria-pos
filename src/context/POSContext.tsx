@@ -14,16 +14,11 @@ import { useCustomers } from '@/hooks/useCustomers';
 import { useStations } from '@/hooks/useStations';
 import { useCart } from '@/hooks/useCart';
 import { useStationQuickShop } from '@/hooks/useStationQuickShop';
+import { useSavedCarts } from '@/hooks/useSavedCarts';
 import { useBills } from '@/hooks/useBills';
 import { useToast } from '@/hooks/use-toast';
 import { supabase, handleSupabaseError } from '@/integrations/supabase/client';
 import { useLocation } from '@/context/LocationContext';
-import { 
-  saveCartToStorage, 
-  loadCartFromStorage, 
-  clearCartFromStorage,
-  cleanupExpiredCarts 
-} from '@/utils/cartStorage';
 
 const POSContext = createContext<POSContextType>({
   products: [],
@@ -70,6 +65,12 @@ const POSContext = createContext<POSContextType>({
   removeFromCart: () => {},
   updateCartItem: () => {},
   clearCart: () => {},
+  savedCarts: [],
+  savedCartsLoading: false,
+  refreshSavedCarts: async () => {},
+  removeSavedCart: async () => {},
+  removeAllSavedCarts: async () => 0,
+  moveCartToSaved: async () => {},
   getStationQuickShopItems: () => [],
   addToStationQuickShop: () => {},
   updateStationQuickShopQuantity: () => {},
@@ -169,6 +170,20 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     removeFromStationQuickShop,
     clearStationQuickShopSession,
   } = useStationQuickShop();
+
+  const { toast } = useToast();
+  const { activeLocationId } = useLocation();
+
+  const {
+    savedCarts,
+    loading: savedCartsLoading,
+    refreshSavedCarts,
+    persistSavedCart,
+    schedulePersistSavedCart,
+    loadSavedCartForCustomer,
+    removeSavedCart,
+    removeAllSavedCarts,
+  } = useSavedCarts(activeLocationId);
   
   const { 
     bills, 
@@ -181,69 +196,122 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     exportCustomers: exportCustomersBase 
   } = useBills(updateCustomer, updateProduct);
 
-  const { toast } = useToast();
-  const { activeLocationId } = useLocation();
-
-  // ============================================
-  // CART PERSISTENCE: Cleanup expired carts on mount
-  // ============================================
+  // Load saved cart from DB when customer is selected
   useEffect(() => {
-    const cleaned = cleanupExpiredCarts();
-    if (cleaned > 0) {
-      console.log(`Cleaned up ${cleaned} expired cart(s)`);
-    }
-  }, []);
+    if (!selectedCustomer || !activeLocationId) return;
 
-  // ============================================
-  // CART PERSISTENCE: Load cart when customer is selected
-  // ============================================
-  useEffect(() => {
-    if (selectedCustomer) {
-      const savedCartData = loadCartFromStorage(selectedCustomer.id);
-      
-      if (savedCartData && savedCartData.items.length > 0) {
-        console.log(`Loading saved cart for ${selectedCustomer.name} with ${savedCartData.items.length} items`);
-        
-        // Restore cart items
-        setCart(savedCartData.items);
-        
-        // Restore discount
-        if (savedCartData.discount !== undefined) {
-          setDiscountAmount(savedCartData.discount);
+    let cancelled = false;
+
+    setCart([]);
+    setDiscountAmount(0);
+    setDiscountType('percentage');
+    setLoyaltyPointsUsedAmount(0);
+
+    void loadSavedCartForCustomer(selectedCustomer.id).then((savedCartData) => {
+      if (cancelled || !savedCartData?.items.length) return;
+
+      setCart(savedCartData.items);
+      setDiscountAmount(Number(savedCartData.discount ?? 0));
+      setDiscountType(savedCartData.discount_type ?? 'percentage');
+      setLoyaltyPointsUsedAmount(Number(savedCartData.loyalty_points_used ?? 0));
+
+      toast({
+        title: 'Cart Restored',
+        description: `Loaded ${savedCartData.items.length} item(s) from ${selectedCustomer.name}'s saved cart`,
+        duration: 3000,
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCustomer?.id, activeLocationId, loadSavedCartForCustomer, setCart, setDiscountAmount, setDiscountType, setLoyaltyPointsUsedAmount, toast]);
+
+  const handleClearCart = useCallback(
+    async (options?: { silent?: boolean; skipSavedCartDelete?: boolean }) => {
+      if (!options?.skipSavedCartDelete && selectedCustomer && activeLocationId) {
+        try {
+          await removeSavedCart(selectedCustomer.id);
+        } catch (error) {
+          console.error('handleClearCart: failed to remove saved cart', error);
         }
-        if (savedCartData.discountType) {
-          setDiscountType(savedCartData.discountType);
-        }
-        
-        // Restore loyalty points
-        if (savedCartData.loyaltyPointsUsed !== undefined) {
-          setLoyaltyPointsUsedAmount(savedCartData.loyaltyPointsUsed);
-        }
-        
-        toast({
-          title: 'Cart Restored',
-          description: `Loaded ${savedCartData.items.length} item(s) from ${selectedCustomer.name}'s saved cart`,
-          duration: 3000,
-        });
       }
-    }
-  }, [selectedCustomer?.id]);
+      clearCart(options);
+    },
+    [selectedCustomer, activeLocationId, removeSavedCart, clearCart]
+  );
 
-  // ============================================
-  // CART PERSISTENCE: Save cart whenever it changes
-  // ============================================
+  // Debounced sync to DB while building a cart (global across terminals)
   useEffect(() => {
-    if (selectedCustomer && cart.length > 0) {
-      saveCartToStorage(
-        selectedCustomer.id, 
-        cart, 
-        selectedCustomer.name,
+    if (!selectedCustomer || !activeLocationId || cart.length === 0) return;
+
+    schedulePersistSavedCart(
+      selectedCustomer.id,
+      selectedCustomer.name,
+      cart,
+      discount,
+      discountType,
+      loyaltyPointsUsed
+    );
+  }, [cart, discount, discountType, loyaltyPointsUsed, selectedCustomer?.id, activeLocationId]);
+
+  const moveCartToSaved = useCallback(async () => {
+    if (!selectedCustomer) {
+      toast({
+        title: 'No Customer Selected',
+        description: 'Select a customer before saving the cart.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (cart.length === 0) {
+      toast({
+        title: 'Empty Cart',
+        description: 'Add items before saving the cart.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const customerName = selectedCustomer.name;
+
+      await persistSavedCart(
+        selectedCustomer.id,
+        customerName,
+        cart,
         discount,
         discountType,
         loyaltyPointsUsed
       );
+
+      clearCart({ silent: true, skipSavedCartDelete: true });
+      selectCustomer(null);
+
+      toast({
+        title: 'Cart Saved',
+        description: `${customerName}'s cart is now in Saved Carts.`,
+      });
+    } catch (error) {
+      console.error('moveCartToSaved failed:', error);
+      toast({
+        title: 'Save Failed',
+        description: 'Could not save the cart. Please try again.',
+        variant: 'destructive',
+      });
     }
-  }, [cart, discount, discountType, loyaltyPointsUsed, selectedCustomer?.id]);
+  }, [
+    selectedCustomer,
+    cart,
+    discount,
+    discountType,
+    loyaltyPointsUsed,
+    persistSavedCart,
+    clearCart,
+    selectCustomer,
+    toast,
+  ]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -549,8 +617,15 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           clearStationQuickShopSession(sessionId);
 
-          if (mergedCart.length > 0) {
-            saveCartToStorage(customer.id, mergedCart, customer.name, 0, 'percentage', 0);
+          if (mergedCart.length > 0 && activeLocationId) {
+            await persistSavedCart(
+              customer.id,
+              customer.name,
+              mergedCart,
+              0,
+              'percentage',
+              0
+            );
           }
 
           selectCustomer(customer.id);
@@ -685,7 +760,9 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // ============================================
         // CART PERSISTENCE: Clear from localStorage after successful sale
         // ============================================
-        clearCartFromStorage(selectedCustomer.id);
+        if (selectedCustomer && activeLocationId) {
+          await removeSavedCart(selectedCustomer.id);
+        }
         console.log(`Cleared saved cart for ${selectedCustomer.name}`);
         
         if (membershipItems.length > 0) {
@@ -865,7 +942,13 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addToCart,
     removeFromCart,
     updateCartItem,
-    clearCart,
+    clearCart: handleClearCart,
+    savedCarts,
+    savedCartsLoading,
+    refreshSavedCarts,
+    removeSavedCart,
+    removeAllSavedCarts,
+    moveCartToSaved,
     getStationQuickShopItems,
     addToStationQuickShop,
     updateStationQuickShopQuantity,
@@ -886,7 +969,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     stations, customers, sessions, bills,
     cart, selectedCustomer,
     discount, discountType, loyaltyPointsUsed,
-    itemsBySession,
+    itemsBySession, savedCarts, savedCartsLoading,
     isStudentDiscount, isSplitPayment, cashAmount, upiAmount,
     setIsSplitPayment, setCashAmount, setUpiAmount, updateSplitAmounts,
     categories, setIsStudentDiscount, setBills, setCustomers, setStations,
@@ -895,7 +978,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     startSession, endSession, pauseSession, resumeSession, deleteStation, updateStation,
     addCustomer, updateCustomer, updateCustomerMembershipWrapper,
     deleteCustomer, selectCustomer, checkMembershipValidity, deductMembershipHours,
-    addToCart, removeFromCart, updateCartItem, clearCart,
+    addToCart, removeFromCart, updateCartItem, handleClearCart,
+    savedCarts, savedCartsLoading, refreshSavedCarts, removeSavedCart, removeAllSavedCarts, moveCartToSaved,
     getStationQuickShopItems, addToStationQuickShop,
     updateStationQuickShopQuantity, removeFromStationQuickShop,
     setDiscount, setLoyaltyPointsUsed, calculateTotal,
