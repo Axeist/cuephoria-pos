@@ -61,7 +61,8 @@ type BackdoorWorkspace = {
   organizationId: string;
   orgSlug: string;
   orgName: string;
-  username: string;
+  loginEmail: string;
+  username?: string;
   password: string;
   loginUrl: string;
   createdAt: string;
@@ -325,7 +326,9 @@ const PlatformDashboard: React.FC = () => {
     const needle = backdoorFilter.trim().toLowerCase();
     if (!needle) return list;
     return list.filter((w) =>
-      [w.orgName, w.orgSlug, w.username].some((v) => v?.toLowerCase().includes(needle)),
+      [w.orgName, w.orgSlug, w.loginEmail, w.username].some((v) =>
+        v?.toLowerCase().includes(needle),
+      ),
     );
   }, [backdoorQuery.data, backdoorFilter]);
 
@@ -602,7 +605,8 @@ const PlatformDashboard: React.FC = () => {
               Workspace backdoor access
             </div>
             <p className="mt-1 text-xs text-zinc-500 max-w-2xl">
-              Hidden super-admin login per tenant for Cuetronix testing. Not shown in tenant staff lists.
+              Hidden super-admin login per tenant for Cuetronix testing. Use the login email on the sign-in
+              page (not the old cuephoria-slug username). Not shown in tenant staff lists.
               {backdoorQuery.data?.provisioned ? (
                 <span className="text-indigo-300/90">
                   {" "}
@@ -647,7 +651,7 @@ const PlatformDashboard: React.FC = () => {
             <Input
               value={backdoorFilter}
               onChange={(e) => setBackdoorFilter(e.target.value)}
-              placeholder="Filter workspace, slug, or username"
+              placeholder="Filter workspace, slug, or login email"
               className="pl-8 h-9 bg-black/40 border-white/10 text-sm"
             />
           </div>
@@ -698,7 +702,7 @@ const PlatformDashboard: React.FC = () => {
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wider text-zinc-500 border-b border-white/5">
                   <th className="px-5 py-3 font-medium">Workspace</th>
-                  <th className="px-3 py-3 font-medium">Username</th>
+                  <th className="px-3 py-3 font-medium">Login email</th>
                   <th className="px-3 py-3 font-medium">Password</th>
                   <th className="px-3 py-3 font-medium text-right">Actions</th>
                 </tr>
@@ -710,7 +714,9 @@ const PlatformDashboard: React.FC = () => {
                       <div className="font-medium text-zinc-100">{w.orgName}</div>
                       <div className="text-xs text-zinc-500">/app/t/{w.orgSlug}</div>
                     </td>
-                    <td className="px-3 py-3 font-mono text-xs text-zinc-300">{w.username}</td>
+                    <td className="px-3 py-3 font-mono text-xs text-zinc-300 break-all">
+                      {w.loginEmail || w.username}
+                    </td>
                     <td className="px-3 py-3 font-mono text-xs text-zinc-300">
                       {showBackdoorPasswords ? w.password : "••••••••••••••••"}
                     </td>
@@ -721,10 +727,10 @@ const PlatformDashboard: React.FC = () => {
                           size="sm"
                           variant="ghost"
                           className="h-8 text-zinc-400 hover:text-zinc-100"
-                          onClick={() => void copyText("Username", w.username)}
+                          onClick={() => void copyText("Login email", w.loginEmail || w.username || "")}
                         >
                           <Copy className="h-3.5 w-3.5 mr-1" />
-                          User
+                          Email
                         </Button>
                         <Button
                           type="button"
@@ -744,7 +750,7 @@ const PlatformDashboard: React.FC = () => {
                           onClick={() =>
                             void copyText(
                               "Login",
-                              `${w.username}\n${w.password}\n${w.loginUrl}`,
+                              `${w.loginEmail || w.username}\n${w.password}\n${w.loginUrl}`,
                             )
                           }
                         >

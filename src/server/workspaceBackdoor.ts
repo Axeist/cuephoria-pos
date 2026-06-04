@@ -6,7 +6,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { hashPassword } from "./passwordUtils";
 
-const USERNAME_PREFIX = "cuephoria-";
 const PASSWORD_CHARS =
   "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*";
 
@@ -15,7 +14,8 @@ export type WorkspaceBackdoorRow = {
   orgSlug: string;
   orgName: string;
   adminUserId: string;
-  username: string;
+  /** Email-shaped login id (admin login form requires an @). */
+  loginEmail: string;
   password: string;
   loginUrl: string;
   createdAt: string;
@@ -31,15 +31,47 @@ function generatePassword(length = 18): string {
   return out;
 }
 
-function buildUsername(slug: string, suffix?: string): string {
-  const base = `${USERNAME_PREFIX}${slug}`.slice(0, suffix ? 48 : 64);
-  return suffix ? `${base}-${suffix}`.slice(0, 64) : base;
+/** Stable login email per workspace — used as both admin_users.username and .email */
+export function buildBackdoorLoginEmail(slug: string, orgId: string, variant = 0): string {
+  const safe = slug.replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 24) || "ws";
+  const tail = orgId.replace(/-/g, "").slice(0, 8).toLowerCase();
+  if (variant <= 0) {
+    return `platform+${safe}.${tail}@internal.cuetronix.app`;
+  }
+  return `platform+${safe}.${tail}.v${variant}@internal.cuetronix.app`;
 }
 
-function buildBackdoorEmail(slug: string, orgId: string): string {
-  const safe = slug.replace(/[^a-z0-9]/gi, "").slice(0, 24) || "ws";
-  const tail = orgId.replace(/-/g, "").slice(0, 8);
-  return `platform+${safe}.${tail}@internal.cuetronix.app`;
+/** Upgrade legacy cuephoria-slug usernames to email login after deploy. */
+async function syncBackdoorLoginEmail(
+  supabase: SupabaseClient,
+  organizationId: string,
+  orgSlug: string,
+  adminUserId: string,
+  storedLogin: string,
+): Promise<string> {
+  const loginEmail = buildBackdoorLoginEmail(orgSlug, organizationId);
+  const normalizedStored = storedLogin.trim().toLowerCase();
+  if (normalizedStored.includes("@") && normalizedStored === loginEmail) {
+    return loginEmail;
+  }
+
+  const { error: userErr } = await supabase
+    .from("admin_users")
+    .update({
+      username: loginEmail,
+      email: loginEmail,
+      email_verified_at: new Date().toISOString(),
+    })
+    .eq("id", adminUserId);
+  if (userErr) throw userErr;
+
+  const { error: credErr } = await supabase
+    .from("workspace_backdoor_access")
+    .update({ username: loginEmail })
+    .eq("organization_id", organizationId);
+  if (credErr) throw credErr;
+
+  return loginEmail;
 }
 
 function loginPathForSlug(slug: string): string {
@@ -70,29 +102,20 @@ async function syncAllBranchLinks(
   }
 }
 
-async function findAvailableUsername(
+async function findAvailableLoginEmail(
   supabase: SupabaseClient,
   slug: string,
+  orgId: string,
 ): Promise<string> {
-  let candidate = buildUsername(slug);
-  const { data: taken } = await supabase
-    .from("admin_users")
-    .select("id")
-    .eq("username", candidate)
-    .maybeSingle();
-  if (!taken) return candidate;
-
-  for (let i = 0; i < 8; i++) {
-    const suffix = crypto.randomUUID().slice(0, 6);
-    candidate = buildUsername(slug, suffix);
-    const { data: again } = await supabase
-      .from("admin_users")
-      .select("id")
-      .eq("username", candidate)
-      .maybeSingle();
-    if (!again) return candidate;
+  for (let variant = 0; variant < 12; variant++) {
+    const candidate = buildBackdoorLoginEmail(slug, orgId, variant);
+    const [{ data: byUser }, { data: byEmail }] = await Promise.all([
+      supabase.from("admin_users").select("id").eq("username", candidate).maybeSingle(),
+      supabase.from("admin_users").select("id").eq("email", candidate).maybeSingle(),
+    ]);
+    if (!byUser && !byEmail) return candidate;
   }
-  throw new Error("Could not allocate a unique backdoor username.");
+  throw new Error("Could not allocate a unique backdoor login email.");
 }
 
 /**
@@ -124,12 +147,19 @@ export async function ensureWorkspaceBackdoorAccess(
 
   if (existing) {
     await syncAllBranchLinks(supabase, existing.admin_user_id, organizationId);
+    const loginEmail = await syncBackdoorLoginEmail(
+      supabase,
+      organizationId,
+      org.slug,
+      existing.admin_user_id,
+      existing.username,
+    );
     return {
       organizationId: org.id,
       orgSlug: org.slug,
       orgName: org.name,
       adminUserId: existing.admin_user_id,
-      username: existing.username,
+      loginEmail,
       password: existing.password_plaintext,
       loginUrl,
       createdAt: existing.created_at,
@@ -137,16 +167,15 @@ export async function ensureWorkspaceBackdoorAccess(
     };
   }
 
-  const username = await findAvailableUsername(supabase, org.slug);
+  const loginEmail = await findAvailableLoginEmail(supabase, org.slug, org.id);
   const password = generatePassword();
-  const email = buildBackdoorEmail(org.slug, org.id);
   const passwordHash = await hashPassword(password);
 
   const { data: newUser, error: userErr } = await supabase
     .from("admin_users")
     .insert({
-      username,
-      email,
+      username: loginEmail,
+      email: loginEmail,
       display_name: "Cuetronix Platform",
       designation: "Platform support (hidden)",
       password: null,
@@ -177,7 +206,7 @@ export async function ensureWorkspaceBackdoorAccess(
     const { error: credErr } = await supabase.from("workspace_backdoor_access").insert({
       organization_id: organizationId,
       admin_user_id: newUser.id,
-      username,
+      username: loginEmail,
       password_plaintext: password,
     });
     if (credErr) throw credErr;
@@ -190,7 +219,7 @@ export async function ensureWorkspaceBackdoorAccess(
       action: "workspace.backdoor_provisioned",
       target_type: "admin_user",
       target_id: newUser.id,
-      meta: { username },
+      meta: { loginEmail },
     });
 
     return {
@@ -198,7 +227,7 @@ export async function ensureWorkspaceBackdoorAccess(
       orgSlug: org.slug,
       orgName: org.name,
       adminUserId: newUser.id,
-      username,
+      loginEmail,
       password,
       loginUrl,
       createdAt: new Date().toISOString(),
@@ -258,12 +287,19 @@ export async function listWorkspaceBackdoorAccess(
       : loginPathForSlug(org.slug);
 
     if (cred) {
+      const loginEmail = await syncBackdoorLoginEmail(
+        supabase,
+        org.id,
+        org.slug,
+        cred.admin_user_id,
+        cred.username,
+      );
       rows.push({
         organizationId: org.id,
         orgSlug: org.slug,
         orgName: org.name,
         adminUserId: cred.admin_user_id,
-        username: cred.username,
+        loginEmail,
         password: cred.password_plaintext,
         loginUrl,
         createdAt: cred.created_at,

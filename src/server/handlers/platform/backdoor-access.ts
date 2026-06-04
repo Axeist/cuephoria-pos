@@ -69,7 +69,9 @@ export default async function handler(req: Request) {
           organizationId: r.organizationId,
           orgSlug: r.orgSlug,
           orgName: r.orgName,
-          username: r.username,
+          loginEmail: r.loginEmail,
+          /** @deprecated use loginEmail — kept for older clients */
+          username: r.loginEmail,
           password: r.password,
           loginUrl: r.loginUrl,
           createdAt: r.createdAt,
