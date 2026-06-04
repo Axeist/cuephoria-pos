@@ -2069,7 +2069,7 @@ export default function BookingManagement() {
     .slice(0, 5);
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
+    <div className="flex-1 space-y-4 sm:space-y-6 p-4 sm:p-6 md:p-8 pt-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>

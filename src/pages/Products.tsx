@@ -261,7 +261,7 @@ const ProductsPage: React.FC = () => {
   }, [products]);
 
   return (
-    <div className="container mx-auto px-4 py-6">
+    <div className="flex-1 space-y-4 p-4 sm:p-6 md:p-8 pt-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
         <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Products</h2>
         <div className="flex flex-wrap gap-2">
