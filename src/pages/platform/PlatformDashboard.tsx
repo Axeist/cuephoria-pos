@@ -25,6 +25,9 @@ import {
   ChevronRight,
   ShieldCheck,
   KeyRound,
+  Copy,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -52,6 +55,16 @@ type PasswordMigrationStatus = {
   hashed: number;
   plaintextRemaining: number;
   migratedPct: number;
+};
+
+type BackdoorWorkspace = {
+  organizationId: string;
+  orgSlug: string;
+  orgName: string;
+  username: string;
+  password: string;
+  loginUrl: string;
+  createdAt: string;
 };
 
 type OrgRow = {
@@ -272,6 +285,36 @@ const PlatformDashboard: React.FC = () => {
     return p.toString();
   }, [statusFilter]);
 
+  const [showBackdoorPasswords, setShowBackdoorPasswords] = React.useState(false);
+  const [backdoorFilter, setBackdoorFilter] = React.useState("");
+
+  const backdoorQuery = useQuery({
+    queryKey: ["platform", "backdoor-access"],
+    queryFn: () =>
+      fetcher<{ ok: true; provisioned: number; workspaces: BackdoorWorkspace[] }>(
+        "/api/platform/backdoor-access?provisionMissing=1",
+      ),
+    staleTime: 120_000,
+  });
+
+  const filteredBackdoor = React.useMemo(() => {
+    const list = backdoorQuery.data?.workspaces ?? [];
+    const needle = backdoorFilter.trim().toLowerCase();
+    if (!needle) return list;
+    return list.filter((w) =>
+      [w.orgName, w.orgSlug, w.username].some((v) => v?.toLowerCase().includes(needle)),
+    );
+  }, [backdoorQuery.data, backdoorFilter]);
+
+  const copyText = async (label: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "Copied", description: label });
+    } catch {
+      toast({ variant: "destructive", title: "Copy failed", description: label });
+    }
+  };
+
   const orgsQuery = useQuery({
     queryKey: ["platform", "organizations", statusFilter],
     queryFn: () =>
@@ -346,6 +389,7 @@ const PlatformDashboard: React.FC = () => {
               onClick={() => {
                 statsQuery.refetch();
                 orgsQuery.refetch();
+                backdoorQuery.refetch();
               }}
             >
               <Activity className="h-4 w-4 mr-2" />
@@ -526,6 +570,146 @@ const PlatformDashboard: React.FC = () => {
           </motion.div>
         );
       })()}
+
+      <section className="rounded-2xl border border-indigo-500/25 bg-indigo-500/[0.04] overflow-hidden">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-5 py-4 border-b border-white/5">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
+              <KeyRound className="h-4 w-4 text-indigo-400" />
+              Workspace backdoor access
+            </div>
+            <p className="mt-1 text-xs text-zinc-500 max-w-2xl">
+              Hidden super-admin login per tenant for Cuetronix testing. Not shown in tenant staff lists.
+              {backdoorQuery.data?.provisioned ? (
+                <span className="text-indigo-300/90">
+                  {" "}
+                  Provisioned {backdoorQuery.data.provisioned} missing account
+                  {backdoorQuery.data.provisioned === 1 ? "" : "s"} on this load.
+                </span>
+              ) : null}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-white/10 bg-white/5 text-zinc-200"
+              onClick={() => setShowBackdoorPasswords((v) => !v)}
+            >
+              {showBackdoorPasswords ? (
+                <EyeOff className="h-4 w-4 mr-1.5" />
+              ) : (
+                <Eye className="h-4 w-4 mr-1.5" />
+              )}
+              {showBackdoorPasswords ? "Hide passwords" : "Show passwords"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-white/10 bg-white/5 text-zinc-200"
+              onClick={() => backdoorQuery.refetch()}
+              disabled={backdoorQuery.isFetching}
+            >
+              <ShieldCheck className="h-4 w-4 mr-1.5" />
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        <div className="px-5 py-3 border-b border-white/5">
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
+            <Input
+              value={backdoorFilter}
+              onChange={(e) => setBackdoorFilter(e.target.value)}
+              placeholder="Filter workspace, slug, or username"
+              className="pl-8 h-9 bg-black/40 border-white/10 text-sm"
+            />
+          </div>
+        </div>
+
+        {backdoorQuery.isLoading ? (
+          <div className="p-5 space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full bg-white/5" />
+            ))}
+          </div>
+        ) : backdoorQuery.isError ? (
+          <div className="p-6 text-sm text-rose-300">
+            {(backdoorQuery.error as Error)?.message}
+          </div>
+        ) : filteredBackdoor.length === 0 ? (
+          <div className="p-8 text-center text-sm text-zinc-500">No workspaces match.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-wider text-zinc-500 border-b border-white/5">
+                  <th className="px-5 py-3 font-medium">Workspace</th>
+                  <th className="px-3 py-3 font-medium">Username</th>
+                  <th className="px-3 py-3 font-medium">Password</th>
+                  <th className="px-3 py-3 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filteredBackdoor.map((w) => (
+                  <tr key={w.organizationId} className="hover:bg-white/[0.02]">
+                    <td className="px-5 py-3">
+                      <div className="font-medium text-zinc-100">{w.orgName}</div>
+                      <div className="text-xs text-zinc-500">/app/t/{w.orgSlug}</div>
+                    </td>
+                    <td className="px-3 py-3 font-mono text-xs text-zinc-300">{w.username}</td>
+                    <td className="px-3 py-3 font-mono text-xs text-zinc-300">
+                      {showBackdoorPasswords ? w.password : "••••••••••••••••"}
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="flex justify-end gap-1 flex-wrap">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-zinc-400 hover:text-zinc-100"
+                          onClick={() => void copyText("Username", w.username)}
+                        >
+                          <Copy className="h-3.5 w-3.5 mr-1" />
+                          User
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-zinc-400 hover:text-zinc-100"
+                          onClick={() => void copyText("Password", w.password)}
+                        >
+                          <Copy className="h-3.5 w-3.5 mr-1" />
+                          Pass
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-zinc-400 hover:text-zinc-100"
+                          onClick={() =>
+                            void copyText(
+                              "Login",
+                              `${w.username}\n${w.password}\n${w.loginUrl}`,
+                            )
+                          }
+                        >
+                          <KeyRound className="h-3.5 w-3.5 mr-1" />
+                          All
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       {stats && stats.suspended + stats.pastDue > 0 && (
         <motion.div

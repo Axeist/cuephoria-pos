@@ -160,8 +160,9 @@ export default async function handler(req: Request) {
 
       const { data: users, error: usersErr } = await supabase
         .from("admin_users")
-        .select("id, username, email, email_verified_at, display_name, designation, is_admin, is_super_admin")
+        .select("id, username, email, email_verified_at, display_name, designation, is_admin, is_super_admin, is_platform_backdoor")
         .in("id", allowedIds)
+        .eq("is_platform_backdoor", false)
         .order("is_admin", { ascending: false })
         .order("username", { ascending: true });
 
@@ -508,6 +509,15 @@ export default async function handler(req: Request) {
       const id = String(body?.id || "");
       if (!id) return j({ ok: false, error: "Missing id" }, 400);
 
+      const { data: patchTarget } = await supabase
+        .from("admin_users")
+        .select("is_platform_backdoor")
+        .eq("id", id)
+        .maybeSingle();
+      if (patchTarget?.is_platform_backdoor) {
+        return j({ ok: false, error: "This account cannot be edited from the workspace." }, 403);
+      }
+
       const update: Record<string, any> = {};
       let emailChangedForVerification: string | null = null;
 
@@ -719,6 +729,15 @@ export default async function handler(req: Request) {
       const url = new URL(req.url);
       const id = url.searchParams.get("id");
       if (!id) return j({ ok: false, error: "Missing id" }, 400);
+
+      const { data: target } = await supabase
+        .from("admin_users")
+        .select("is_platform_backdoor")
+        .eq("id", id)
+        .maybeSingle();
+      if (target?.is_platform_backdoor) {
+        return j({ ok: false, error: "This account cannot be removed from the workspace." }, 403);
+      }
 
       // admin_user_locations rows are cascade-deleted by FK
       const { error } = await supabase.from("admin_users").delete().eq("id", id);

@@ -145,6 +145,7 @@ export const PlatformCreateOrgDialog: React.FC<{
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["platform"] });
+      queryClient.invalidateQueries({ queryKey: ["platform", "backdoor-access"] });
       onCreated?.(result.organization);
       onOpenChange(false);
     },

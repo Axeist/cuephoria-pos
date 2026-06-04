@@ -10,6 +10,7 @@
 import { runDispatcher } from "../../src/server/dispatcherUtils";
 
 import audit from "../../src/server/handlers/platform/audit";
+import backdoorAccess from "../../src/server/handlers/platform/backdoor-access";
 import bootstrap from "../../src/server/handlers/platform/bootstrap";
 import login from "../../src/server/handlers/platform/login";
 import logout from "../../src/server/handlers/platform/logout";
@@ -36,6 +37,7 @@ type Handler = (req: Request) => Promise<Response> | Response;
 
 const routes: Record<string, Handler> = {
   "audit": audit,
+  "backdoor-access": backdoorAccess,
   "bootstrap": bootstrap,
   "login": login,
   "logout": logout,

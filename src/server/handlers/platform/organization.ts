@@ -67,7 +67,7 @@ async function getDetail(req: Request, id: string): Promise<Response> {
       supabase
         .from("org_memberships")
         .select(
-          "id, role, created_at, admin_user_id, admin_users:admin_user_id(id, username, email, google_sub, email_verified_at, is_admin, is_super_admin, created_at)",
+          "id, role, created_at, admin_user_id, admin_users:admin_user_id(id, username, email, google_sub, email_verified_at, is_admin, is_super_admin, is_platform_backdoor, created_at)",
         )
         .eq("organization_id", id)
         .order("created_at", { ascending: true }),
@@ -122,50 +122,55 @@ async function getDetail(req: Request, id: string): Promise<Response> {
         )
       : {};
 
-    const members = (membershipRes.data ?? []).map(
-      (m: {
-        id: string;
-        role: string;
-        created_at: string;
-        admin_user_id: string;
-        admin_users:
-          | {
-              id: string;
-              username: string;
-              email: string | null;
-              google_sub: string | null;
-              email_verified_at: string | null;
-              is_admin: boolean;
-              is_super_admin: boolean;
-              created_at: string;
-            }
-          | Array<{
-              id: string;
-              username: string;
-              email: string | null;
-              google_sub: string | null;
-              email_verified_at: string | null;
-              is_admin: boolean;
-              is_super_admin: boolean;
-              created_at: string;
-            }>
-          | null;
-      }) => {
-        const au = Array.isArray(m.admin_users) ? m.admin_users[0] : m.admin_users;
-        return {
-          membershipId: m.id,
-          role: m.role,
-          joinedAt: m.created_at,
-          adminUserId: m.admin_user_id,
-          username: au?.username ?? null,
-          email: au?.email ?? null,
-          googleLinked: Boolean(au?.google_sub),
-          emailVerifiedAt: au?.email_verified_at ?? null,
-          isAdmin: au?.is_admin ?? false,
-          isSuperAdmin: au?.is_super_admin ?? false,
-        };
-      },
-    );
+    const members = (membershipRes.data ?? [])
+      .map(
+        (m: {
+          id: string;
+          role: string;
+          created_at: string;
+          admin_user_id: string;
+          admin_users:
+            | {
+                id: string;
+                username: string;
+                email: string | null;
+                google_sub: string | null;
+                email_verified_at: string | null;
+                is_admin: boolean;
+                is_super_admin: boolean;
+                is_platform_backdoor?: boolean;
+                created_at: string;
+              }
+            | Array<{
+                id: string;
+                username: string;
+                email: string | null;
+                google_sub: string | null;
+                email_verified_at: string | null;
+                is_admin: boolean;
+                is_super_admin: boolean;
+                is_platform_backdoor?: boolean;
+                created_at: string;
+              }>
+            | null;
+        }) => {
+          const au = Array.isArray(m.admin_users) ? m.admin_users[0] : m.admin_users;
+          if (au?.is_platform_backdoor) return null;
+          return {
+            membershipId: m.id,
+            role: m.role,
+            joinedAt: m.created_at,
+            adminUserId: m.admin_user_id,
+            username: au?.username ?? null,
+            email: au?.email ?? null,
+            googleLinked: Boolean(au?.google_sub),
+            emailVerifiedAt: au?.email_verified_at ?? null,
+            isAdmin: au?.is_admin ?? false,
+            isSuperAdmin: au?.is_super_admin ?? false,
+          };
+        },
+      )
+      .filter(Boolean);
 
     return j(
       {
