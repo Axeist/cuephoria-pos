@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Gift, Tag, Clock, AlertCircle, User as UserIcon, Lock, ShieldCheck } from 'lucide-react';
+import { Search, Gift, Tag, Clock, AlertCircle, User as UserIcon, Lock, ShieldCheck, UserPlus } from 'lucide-react';
+import AddCustomerDialog from '@/components/customers/AddCustomerDialog';
 import { usePOS, Customer } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
 import { CurrencyDisplay } from '@/components/ui/currency';
@@ -40,6 +41,8 @@ interface StartSessionDialogProps {
     perPersonRate?: number,
     plannedDurationMinutes?: number
   ) => void;
+  /** Pre-select after inline add-customer from station card */
+  initialCustomerId?: string | null;
 }
 
 const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
@@ -56,6 +59,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   occupancyRates = {},
   hourlyRate = baseRate,
   onConfirm,
+  initialCustomerId = null,
 }) => {
   const { customers } = usePOS();
   const { toast } = useToast();
@@ -74,11 +78,20 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     getDefaultPlannedDuration(slotDuration)
   );
 
+  const [addCustomerOpen, setAddCustomerOpen] = useState(false);
+
   useEffect(() => {
-    if (open) {
-      setPlannedDuration(getDefaultPlannedDuration(slotDuration));
+    if (!open) return;
+    setPlannedDuration(getDefaultPlannedDuration(slotDuration));
+    if (initialCustomerId) {
+      const match = customers.find((c) => c.id === initialCustomerId);
+      setSelectedCustomer(match ?? null);
+      setCustomerSearchQuery(match?.name ?? '');
+    } else {
+      setSelectedCustomer(null);
+      setCustomerSearchQuery('');
     }
-  }, [open, slotDuration]);
+  }, [open, slotDuration, initialCustomerId, customers]);
 
   const lateNightLocked = isLateNight() && !lateNightPinUnlocked;
 
@@ -332,10 +345,22 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
 
           {/* Customer Selection */}
           <div className="space-y-3">
-            <Label className="text-base font-medium flex items-center gap-2">
-              <UserIcon className="h-4 w-4" />
-              Select Customer
-            </Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-base font-medium flex items-center gap-2">
+                <UserIcon className="h-4 w-4" />
+                Select Customer
+              </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs border-cuephoria-purple/30 text-cuephoria-lightpurple"
+                onClick={() => setAddCustomerOpen(true)}
+              >
+                <UserPlus className="h-3.5 w-3.5 mr-1" />
+                Add customer
+              </Button>
+            </div>
             
             {!selectedCustomer ? (
               <>
@@ -564,6 +589,15 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
           </Button>
         </DialogFooter>
       </ResponsiveDialogContent>
+
+      <AddCustomerDialog
+        open={addCustomerOpen}
+        onOpenChange={setAddCustomerOpen}
+        onAdded={(customer) => {
+          setSelectedCustomer(customer);
+          setCustomerSearchQuery(customer.name);
+        }}
+      />
     </ResponsiveDialog>
   );
 };

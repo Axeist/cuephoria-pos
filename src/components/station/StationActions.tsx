@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Station, Customer } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS } from '@/context/POSContext';
-import { Pause, Play, Square, ShoppingBag, Loader2, Plus, Users, ArrowRightLeft } from 'lucide-react';
+import { Pause, Play, Square, ShoppingBag, Loader2, Plus, Users, ArrowRightLeft, UserPlus } from 'lucide-react';
 import StartSessionDialog from '@/components/StartSessionDialog';
+import AddCustomerDialog from '@/components/customers/AddCustomerDialog';
 import MoveSessionDialog from '@/components/station/MoveSessionDialog';
+import type { Customer } from '@/types/pos.types';
 import { getRateForPlayerCount } from '@/utils/stationPricing';
 import { getDurationPresets, stationsMatchForMove } from '@/utils/sessionDuration.utils';
 import type { StationTheme, StationPhase } from '@/utils/stationTheme';
@@ -57,6 +59,8 @@ const StationActions: React.FC<StationActionsProps> = ({
   const { selectCustomer, stations, moveSession } = usePOS();
   const [isLoading, setIsLoading] = useState(false);
   const [isStartDialogOpen, setIsStartDialogOpen] = useState(false);
+  const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
+  const [preselectedCustomerId, setPreselectedCustomerId] = useState<string | null>(null);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
 
   const canMoveSession = useMemo(
@@ -293,25 +297,68 @@ const StationActions: React.FC<StationActionsProps> = ({
 
   const defaultPricing = getRateForPlayerCount(station, 1);
 
+  const handleCustomerAdded = (customer: Customer) => {
+    setPreselectedCustomerId(customer.id);
+    setIsStartDialogOpen(true);
+    toast({
+      title: 'Customer added',
+      description: `${customer.name} — pick duration and start the session.`,
+    });
+  };
+
+  const idleBtnRow = footerLayout
+    ? 'grid grid-cols-2 gap-2 w-full border-t border-white/8 pt-3'
+    : 'grid grid-cols-2 gap-2 w-full';
+
   return (
     <>
-      <Button
-        size="default"
-        className={`w-full h-11 text-sm font-bold text-white transition-all duration-300 active:scale-[0.98] hover:brightness-110 ${theme.startBtn}`}
-        disabled={isLoading || customers.length === 0 || isTransitioning}
-        onClick={() => setIsStartDialogOpen(true)}
-      >
-        {isLoading ? (
-          <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-        ) : (
-          <Play className="h-3.5 w-3.5 mr-1.5 fill-current" />
-        )}
-        {customers.length === 0 ? 'No Customers' : 'Start Session'}
-      </Button>
+      <div className={idleBtnRow}>
+        <Button
+          type="button"
+          size={footerLayout ? 'default' : 'sm'}
+          variant="outline"
+          className={
+            footerLayout
+              ? 'h-11 border-white/15 bg-white/5 text-sm font-semibold text-gray-200 hover:bg-white/10'
+              : 'h-10 border-white/15 bg-white/5 text-xs font-semibold text-gray-200'
+          }
+          disabled={isLoading || isTransitioning}
+          onClick={() => setIsAddCustomerOpen(true)}
+        >
+          <UserPlus className={`mr-1.5 ${footerLayout ? 'h-4 w-4' : 'h-3.5 w-3.5'}`} />
+          Add customer
+        </Button>
+        <Button
+          type="button"
+          size={footerLayout ? 'default' : 'sm'}
+          className={`h-11 text-sm font-bold text-white transition-all duration-300 active:scale-[0.98] hover:brightness-110 ${theme.startBtn}`}
+          disabled={isLoading || isTransitioning}
+          onClick={() => {
+            setPreselectedCustomerId(null);
+            setIsStartDialogOpen(true);
+          }}
+        >
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+          ) : (
+            <Play className="h-3.5 w-3.5 mr-1.5 fill-current" />
+          )}
+          Start session
+        </Button>
+      </div>
+
+      <AddCustomerDialog
+        open={isAddCustomerOpen}
+        onOpenChange={setIsAddCustomerOpen}
+        onAdded={handleCustomerAdded}
+      />
 
       <StartSessionDialog
         open={isStartDialogOpen}
-        onOpenChange={setIsStartDialogOpen}
+        onOpenChange={(open) => {
+          setIsStartDialogOpen(open);
+          if (!open) setPreselectedCustomerId(null);
+        }}
         stationId={station.id}
         stationName={station.name}
         baseRate={defaultPricing.totalRate}
@@ -322,6 +369,7 @@ const StationActions: React.FC<StationActionsProps> = ({
         slotDuration={station.slotDuration}
         stationType={station.type}
         pricingMode={station.pricingMode}
+        initialCustomerId={preselectedCustomerId}
         onConfirm={handleStartSession}
       />
     </>

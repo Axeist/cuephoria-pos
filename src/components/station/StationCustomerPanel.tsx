@@ -11,7 +11,10 @@ import {
   CreditCard,
   Gamepad2,
   History,
+  Users,
+  Timer,
 } from 'lucide-react';
+import { stationPricingBadge } from '@/utils/stationTheme';
 import { isMembershipActive, getMembershipBadgeText } from '@/utils/membership.utils';
 import { formatPlayTimeMinutes } from '@/utils/formatPlayTime';
 import { stationTypeLabel } from '@/utils/stationTypeUtils';
@@ -40,19 +43,42 @@ const StationCustomerPanel: React.FC<StationCustomerPanelProps> = ({
   expanded = false,
 }) => {
   if (!station.isOccupied || !customer) {
+    const statBoxClass =
+      'flex flex-1 flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.06] px-2 py-3 min-h-[72px]';
+    const statLabelClass =
+      'mt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground';
+    const statValueClass = 'text-sm font-bold tabular-nums text-foreground/90';
+
     return (
       <div
-        className={`rounded-lg border border-white/8 bg-black/30 px-3 py-2.5 ${
-          expanded ? 'flex min-h-[130px] flex-col justify-center' : ''
+        className={`rounded-lg border border-white/10 bg-black/35 ${
+          expanded ? 'flex h-full min-h-[130px] flex-col px-3 py-3' : 'px-3 py-2.5'
         }`}
       >
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          <span className="font-semibold uppercase tracking-wide">Max {station.maxPlayers ?? 1}p</span>
-          <span>·</span>
-          <span>{station.slotDuration ?? 60} min slots</span>
+        <p className={`text-center font-semibold uppercase tracking-widest text-muted-foreground shrink-0 ${expanded ? 'text-[10px] mb-3' : 'text-[9px] mb-2'}`}>
+          Station ready
+        </p>
+        <div className={`grid grid-cols-3 ${expanded ? 'gap-2 flex-1 items-stretch' : 'gap-1.5'}`}>
+          <div className={statBoxClass}>
+            <Users className={`text-violet-400 ${expanded ? 'h-5 w-5' : 'h-4 w-4'}`} />
+            <p className={statLabelClass}>Max players</p>
+            <p className={`${statValueClass} text-violet-200`}>{station.maxPlayers ?? 1}</p>
+          </div>
+          <div className={statBoxClass}>
+            <Timer className={`text-cyan-400 ${expanded ? 'h-5 w-5' : 'h-4 w-4'}`} />
+            <p className={statLabelClass}>Slot</p>
+            <p className={`${statValueClass} text-cyan-200`}>{station.slotDuration ?? 60}m</p>
+          </div>
+          <div className={statBoxClass}>
+            <Gamepad2 className={`text-emerald-400 ${expanded ? 'h-5 w-5' : 'h-4 w-4'}`} />
+            <p className={statLabelClass}>Rate</p>
+            <p className={`${statValueClass} text-emerald-200 text-[11px] leading-tight text-center px-0.5`}>
+              {stationPricingBadge(station).split('·')[0]?.trim() ?? '—'}
+            </p>
+          </div>
         </div>
-        <p className="mt-1 text-[11px] text-muted-foreground/70">
-          Start a session to load player intel
+        <p className={`text-center text-muted-foreground/80 shrink-0 ${expanded ? 'mt-3 text-xs' : 'mt-2 text-[11px]'}`}>
+          Add a customer or start a session to begin
         </p>
       </div>
     );

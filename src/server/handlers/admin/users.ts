@@ -158,7 +158,7 @@ export default async function handler(req: Request) {
         return j({ ok: true, users: [], allLocations: allLocsEmpty ?? [] }, 200);
       }
 
-      const { data: users, error: usersErr } = await supabase
+      let usersQuery = await supabase
         .from("admin_users")
         .select("id, username, email, email_verified_at, display_name, designation, is_admin, is_super_admin, is_platform_backdoor")
         .in("id", allowedIds)
@@ -166,6 +166,16 @@ export default async function handler(req: Request) {
         .order("is_admin", { ascending: false })
         .order("username", { ascending: true });
 
+      if (usersQuery.error?.message?.includes("is_platform_backdoor")) {
+        usersQuery = await supabase
+          .from("admin_users")
+          .select("id, username, email, email_verified_at, display_name, designation, is_admin, is_super_admin")
+          .in("id", allowedIds)
+          .order("is_admin", { ascending: false })
+          .order("username", { ascending: true });
+      }
+
+      const { data: users, error: usersErr } = usersQuery;
       if (usersErr) return j({ ok: false, error: usersErr.message }, 500);
 
       const userIds = (users ?? []).map((u) => u.id);

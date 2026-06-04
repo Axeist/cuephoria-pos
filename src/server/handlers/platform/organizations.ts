@@ -11,6 +11,45 @@ import { j } from "../../adminApiUtils";
 import { supabaseServiceClient, SupabaseConfigError } from "../../supabaseServer";
 import { requirePlatformSession } from "../../platformApiUtils";
 import { ensureWorkspaceBackdoorAccess } from "../../workspaceBackdoor";
+import { isBackdoorSchemaMissing } from "../../workspaceBackdoorSchema";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+async function memberCountByOrg(
+  supabase: SupabaseClient,
+  orgIds: string[],
+): Promise<Map<string, number>> {
+  const memCountByOrg = new Map<string, number>();
+  const { data: memberRows, error: memErr } = await supabase
+    .from("org_memberships")
+    .select("organization_id, admin_user_id, admin_users:admin_user_id ( is_platform_backdoor )")
+    .in("organization_id", orgIds);
+
+  if (!memErr && memberRows) {
+    for (const r of memberRows as Array<{
+      organization_id: string;
+      admin_users: { is_platform_backdoor?: boolean } | { is_platform_backdoor?: boolean }[] | null;
+    }>) {
+      const au = Array.isArray(r.admin_users) ? r.admin_users[0] : r.admin_users;
+      if (au?.is_platform_backdoor) continue;
+      memCountByOrg.set(r.organization_id, (memCountByOrg.get(r.organization_id) ?? 0) + 1);
+    }
+    return memCountByOrg;
+  }
+
+  if (isBackdoorSchemaMissing(memErr)) {
+    const { data: simple, error: simpleErr } = await supabase
+      .from("org_memberships")
+      .select("organization_id")
+      .in("organization_id", orgIds);
+    if (simpleErr) throw simpleErr;
+    for (const r of (simple ?? []) as Array<{ organization_id: string }>) {
+      memCountByOrg.set(r.organization_id, (memCountByOrg.get(r.organization_id) ?? 0) + 1);
+    }
+    return memCountByOrg;
+  }
+
+  throw memErr;
+}
 
 export const config = { runtime: "edge" };
 
@@ -89,20 +128,7 @@ async function listOrganizations(req: Request): Promise<Response> {
       locCountByOrg.set(r.organization_id, (locCountByOrg.get(r.organization_id) ?? 0) + 1);
     }
 
-    const { data: memberRows, error: memErr } = await supabase
-      .from("org_memberships")
-      .select("organization_id, admin_user_id, admin_users:admin_user_id ( is_platform_backdoor )")
-      .in("organization_id", orgIds);
-    if (memErr) return j({ ok: false, error: memErr.message }, 500);
-    const memCountByOrg = new Map<string, number>();
-    for (const r of (memberRows ?? []) as Array<{
-      organization_id: string;
-      admin_users: { is_platform_backdoor?: boolean } | { is_platform_backdoor?: boolean }[] | null;
-    }>) {
-      const au = Array.isArray(r.admin_users) ? r.admin_users[0] : r.admin_users;
-      if (au?.is_platform_backdoor) continue;
-      memCountByOrg.set(r.organization_id, (memCountByOrg.get(r.organization_id) ?? 0) + 1);
-    }
+    const memCountByOrg = await memberCountByOrg(supabase, orgIds);
 
     const enriched = (orgs ?? []).map((o) => {
       const s = subByOrg.get(o.id);

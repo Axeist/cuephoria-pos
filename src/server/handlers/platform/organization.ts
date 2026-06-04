@@ -10,6 +10,7 @@
 import { j } from "../../adminApiUtils";
 import { supabaseServiceClient, SupabaseConfigError } from "../../supabaseServer";
 import { requirePlatformSession } from "../../platformApiUtils";
+import { isBackdoorSchemaMissing } from "../../workspaceBackdoorSchema";
 
 export const config = { runtime: "edge" };
 
@@ -81,8 +82,24 @@ async function getDetail(req: Request, id: string): Promise<Response> {
       supabase.from("customers").select("id", { count: "exact", head: true }).eq("organization_id", id),
     ]);
 
-    for (const r of [subRes, plansRes, featuresRes, locationsRes, membershipRes, activityRes]) {
+    for (const r of [subRes, plansRes, featuresRes, locationsRes, activityRes, stationCountRes, customerCountRes]) {
       if (r.error) return j({ ok: false, error: r.error.message }, 500);
+    }
+
+    let membershipRows = membershipRes.data;
+    if (membershipRes.error) {
+      if (!isBackdoorSchemaMissing(membershipRes.error)) {
+        return j({ ok: false, error: membershipRes.error.message }, 500);
+      }
+      const retry = await supabase
+        .from("org_memberships")
+        .select(
+          "id, role, created_at, admin_user_id, admin_users:admin_user_id(id, username, email, google_sub, email_verified_at, is_admin, is_super_admin, created_at)",
+        )
+        .eq("organization_id", id)
+        .order("created_at", { ascending: true });
+      if (retry.error) return j({ ok: false, error: retry.error.message }, 500);
+      membershipRows = retry.data;
     }
 
     const sub = subRes.data as
@@ -122,7 +139,7 @@ async function getDetail(req: Request, id: string): Promise<Response> {
         )
       : {};
 
-    const members = (membershipRes.data ?? [])
+    const members = (membershipRows ?? [])
       .map(
         (m: {
           id: string;

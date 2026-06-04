@@ -405,36 +405,49 @@ const StationCard: React.FC<StationCardProps> = ({
                   <span className="text-sm font-medium text-red-200/90">Closing session…</span>
                 </div>
               ) : (
-                <div className="flex flex-1 flex-col justify-end">
-                  {!(selectionMode && selected) && (
-                    <StationActions
-                    station={station}
-                    customers={customers}
-                    theme={theme}
-                    phase={phase}
-                    onStartSession={wrappedStartSession}
-                    onEndSession={wrappedEndSession}
-                    onEndSessionGroup={wrappedEndSessionGroup}
-                    groupSize={groupSize}
-                    onPauseSession={pauseSession}
-                    onResumeSession={resumeSession}
-                    onExtendSession={extendSession}
-                    onQuickShop={() => {
-                      setQuickShopTab('products');
-                      setQuickShopOpen(true);
-                    }}
-                    footerLayout
-                  />
-                  )}
-                  {selectionMode && selected && (
-                    <p className="text-center text-xs text-cuephoria-lightpurple py-4">
-                      Selected for group start
-                    </p>
-                  )}
+                <div className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-white/12 bg-black/25 px-4 py-6 min-h-[130px]">
+                  <div
+                    className={`flex h-12 w-12 items-center justify-center rounded-xl ring-1 ring-white/10 ${theme.iconBg}`}
+                  >
+                    <Play className={`h-5 w-5 fill-current opacity-70 ${theme.accent}`} />
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-foreground/80">Ready for players</p>
+                  <p className="mt-1 text-center text-[11px] text-muted-foreground max-w-[180px]">
+                    Use the actions below to add a customer or start a session
+                  </p>
                 </div>
               )}
             </div>
           </div>
+
+          {!showSessionBlock && phase !== 'starting' && phase !== 'ending' && (
+            <>
+              {selectionMode && selected ? (
+                <p className="text-center text-xs text-cuephoria-lightpurple py-3 border-t border-white/8">
+                  Selected for group start
+                </p>
+              ) : (
+                <StationActions
+                  station={station}
+                  customers={customers}
+                  theme={theme}
+                  phase={phase}
+                  onStartSession={wrappedStartSession}
+                  onEndSession={wrappedEndSession}
+                  onEndSessionGroup={wrappedEndSessionGroup}
+                  groupSize={groupSize}
+                  onPauseSession={pauseSession}
+                  onResumeSession={resumeSession}
+                  onExtendSession={extendSession}
+                  onQuickShop={() => {
+                    setQuickShopTab('products');
+                    setQuickShopOpen(true);
+                  }}
+                  footerLayout
+                />
+              )}
+            </>
+          )}
 
           {showSessionBlock && (
             <StationActions

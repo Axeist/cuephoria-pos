@@ -95,6 +95,26 @@ const fetcher = async <T,>(url: string): Promise<T> => {
   return json as T;
 };
 
+type BackdoorAccessResponse = {
+  ok: boolean;
+  migrationRequired?: boolean;
+  error?: string;
+  provisioned: number;
+  workspaces: BackdoorWorkspace[];
+};
+
+const fetchBackdoorAccess = async (): Promise<BackdoorAccessResponse> => {
+  const res = await fetch("/api/platform/backdoor-access?provisionMissing=1", {
+    credentials: "same-origin",
+  });
+  const json = (await res.json()) as BackdoorAccessResponse;
+  if (json.migrationRequired) return json;
+  if (!res.ok || !json?.ok) throw new Error(json?.error || `Request failed (${res.status})`);
+  return json;
+};
+
+const BACKDOOR_MIGRATION_PATH = "supabase/migrations/20260630120000_workspace_backdoor_access.sql";
+
 const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 const relative = (iso: string | null) => {
   if (!iso) return "—";
@@ -290,12 +310,15 @@ const PlatformDashboard: React.FC = () => {
 
   const backdoorQuery = useQuery({
     queryKey: ["platform", "backdoor-access"],
-    queryFn: () =>
-      fetcher<{ ok: true; provisioned: number; workspaces: BackdoorWorkspace[] }>(
-        "/api/platform/backdoor-access?provisionMissing=1",
-      ),
+    queryFn: fetchBackdoorAccess,
     staleTime: 120_000,
+    retry: false,
   });
+
+  const backdoorNeedsMigration =
+    backdoorQuery.data?.migrationRequired === true ||
+    (backdoorQuery.error instanceof Error &&
+      /workspace_backdoor_access|is_platform_backdoor/i.test(backdoorQuery.error.message));
 
   const filteredBackdoor = React.useMemo(() => {
     const list = backdoorQuery.data?.workspaces ?? [];
@@ -630,7 +653,34 @@ const PlatformDashboard: React.FC = () => {
           </div>
         </div>
 
-        {backdoorQuery.isLoading ? (
+        {backdoorNeedsMigration ? (
+          <div className="p-6 space-y-3">
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              <p className="font-semibold flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                Database migration required
+              </p>
+              <p className="mt-2 text-amber-200/90 leading-relaxed">
+                Backdoor access needs one SQL migration on your Supabase project. Until it runs, this
+                section cannot list or create operator logins.
+              </p>
+              <ol className="mt-3 ml-4 list-decimal space-y-1.5 text-amber-200/80 text-xs sm:text-sm">
+                <li>Open Supabase → SQL Editor → New query</li>
+                <li>
+                  Paste and run the file{" "}
+                  <code className="rounded bg-black/30 px-1.5 py-0.5 text-amber-100">
+                    {BACKDOOR_MIGRATION_PATH}
+                  </code>{" "}
+                  from the repo (or copy from your open editor tab)
+                </li>
+                <li>Click Refresh below — accounts will be created for all workspaces automatically</li>
+              </ol>
+            </div>
+            <p className="text-xs text-zinc-500">
+              {backdoorQuery.data?.error ?? (backdoorQuery.error as Error)?.message}
+            </p>
+          </div>
+        ) : backdoorQuery.isLoading ? (
           <div className="p-5 space-y-2">
             {Array.from({ length: 4 }).map((_, i) => (
               <Skeleton key={i} className="h-12 w-full bg-white/5" />

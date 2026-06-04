@@ -9,6 +9,10 @@ import { j } from "../../adminApiUtils";
 import { supabaseServiceClient, SupabaseConfigError } from "../../supabaseServer";
 import { requirePlatformSession } from "../../platformApiUtils";
 import { listWorkspaceBackdoorAccess } from "../../workspaceBackdoor";
+import {
+  BACKDOOR_MIGRATION_HINT,
+  isBackdoorSchemaMissing,
+} from "../../workspaceBackdoorSchema";
 
 export const config = { runtime: "edge" };
 
@@ -34,6 +38,24 @@ export default async function handler(req: Request) {
 
   try {
     const supabase = supabaseServiceClient("cuetronix-platform-backdoor-access");
+
+    const { error: probeErr } = await supabase
+      .from("workspace_backdoor_access")
+      .select("organization_id")
+      .limit(1);
+    if (probeErr && isBackdoorSchemaMissing(probeErr)) {
+      return j(
+        {
+          ok: false,
+          migrationRequired: true,
+          error: BACKDOOR_MIGRATION_HINT,
+          workspaces: [],
+          provisioned: 0,
+        },
+        503,
+      );
+    }
+
     const { rows, provisioned } = await listWorkspaceBackdoorAccess(supabase, {
       provisionMissing,
       appBaseUrl: appBaseUrl(req),
@@ -58,6 +80,19 @@ export default async function handler(req: Request) {
   } catch (err: unknown) {
     console.error("platform/backdoor-access error:", err);
     if (err instanceof SupabaseConfigError) return j({ ok: false, error: err.message }, 503);
-    return j({ ok: false, error: String((err as Error)?.message || err) }, 500);
+    const message = String((err as Error)?.message || err);
+    if (isBackdoorSchemaMissing({ message })) {
+      return j(
+        {
+          ok: false,
+          migrationRequired: true,
+          error: BACKDOOR_MIGRATION_HINT,
+          workspaces: [],
+          provisioned: 0,
+        },
+        503,
+      );
+    }
+    return j({ ok: false, error: message }, 500);
   }
 }
