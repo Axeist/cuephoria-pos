@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { usePOS } from '@/context/POSContext';
 import { migrateStationData } from '@/services/stationMigrationService';
 import { isLegacyControllerStation } from '@/utils/stationPricing';
+import { stationTypeLabel } from '@/utils/stationTypeUtils';
 import type { Station } from '@/types/pos.types';
 import { ArrowRightLeft, AlertTriangle } from 'lucide-react';
 
@@ -45,14 +46,17 @@ const ReplaceLegacyStationsDialog: React.FC<ReplaceLegacyStationsDialogProps> = 
     [stations]
   );
 
+  /** Any non-legacy station can be a migration target (VR, static 8-ball, PS5 console, etc.) */
   const targetCandidates = useMemo(
     () =>
       stations.filter(
         (s) =>
-          !legacyStations.some((l) => l.id === s.id) &&
-          (s.maxPlayers > 1 || Object.keys(s.occupancyRates ?? {}).length > 0)
+          s.category !== 'nit_event' &&
+          !isLegacyControllerStation(s) &&
+          !s.teamName &&
+          !/controller/i.test(s.name)
       ),
-    [stations, legacyStations]
+    [stations]
   );
 
   const toggleLegacy = (id: string) => {
@@ -115,15 +119,18 @@ const ReplaceLegacyStationsDialog: React.FC<ReplaceLegacyStationsDialogProps> = 
             Replace Legacy Controllers
           </DialogTitle>
           <DialogDescription>
-            Move session and booking history from old controller rows to a new multi-player
-            station, then delete the legacy rows.
+            Move session and booking history from old controller rows to a new station,
+            then delete the legacy rows.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 flex gap-2 text-sm">
             <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500 mt-0.5" />
-            <p>Create your new PS5 console station first, then select legacy controllers to merge into it.</p>
+            <p>
+              Create the new station first (PS5, VR, 8 Ball, etc.), then select legacy
+              controllers to merge into it.
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -135,13 +142,15 @@ const ReplaceLegacyStationsDialog: React.FC<ReplaceLegacyStationsDialogProps> = 
               <SelectContent>
                 {targetCandidates.map((s: Station) => (
                   <SelectItem key={s.id} value={s.id}>
-                    {s.name} (up to {s.maxPlayers} players)
+                    {s.name} · {stationTypeLabel(s.type)} (up to {s.maxPlayers} players)
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {targetCandidates.length === 0 && (
-              <p className="text-xs text-muted-foreground">Add a new station with max players &gt; 1 first.</p>
+              <p className="text-xs text-muted-foreground">
+                Add a new station first — any type (VR, PS5, 8 Ball, Turf).
+              </p>
             )}
           </div>
 

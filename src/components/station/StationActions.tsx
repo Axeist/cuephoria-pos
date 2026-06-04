@@ -4,15 +4,17 @@ import { Button } from '@/components/ui/button';
 import { Station, Customer } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS } from '@/context/POSContext';
-import { Pause, Play, Square, ShoppingBag } from 'lucide-react';
+import { Pause, Play, Square, ShoppingBag, Loader2 } from 'lucide-react';
 import StartSessionDialog from '@/components/StartSessionDialog';
 import { getRateForPlayerCount } from '@/utils/stationPricing';
-import { getStationTheme } from '@/utils/stationTheme';
+import type { StationTheme, StationPhase } from '@/utils/stationTheme';
 import { prefetchPOS } from '@/utils/viewTransition';
 
 interface StationActionsProps {
   station: Station;
   customers: Customer[];
+  theme: StationTheme;
+  phase?: StationPhase;
   onStartSession: (
     stationId: string,
     customerId: string,
@@ -30,6 +32,8 @@ interface StationActionsProps {
 const StationActions: React.FC<StationActionsProps> = ({
   station,
   customers,
+  theme,
+  phase = 'idle',
   onStartSession,
   onEndSession,
   onPauseSession,
@@ -41,8 +45,8 @@ const StationActions: React.FC<StationActionsProps> = ({
   const { selectCustomer } = usePOS();
   const [isLoading, setIsLoading] = useState(false);
   const [isStartDialogOpen, setIsStartDialogOpen] = useState(false);
-  const theme = getStationTheme(station);
   const isPaused = station.currentSession?.isPaused;
+  const isTransitioning = phase === 'starting' || phase === 'ending';
 
   useEffect(() => {
     if (station.isOccupied) prefetchPOS();
@@ -58,11 +62,11 @@ const StationActions: React.FC<StationActionsProps> = ({
   ) => {
     try {
       setIsLoading(true);
-      await onStartSession(station.id, customerId, finalRate, couponCode, playerCount, perPersonRate);
       setIsStartDialogOpen(false);
+      await onStartSession(station.id, customerId, finalRate, couponCode, playerCount, perPersonRate);
       toast({
         title: 'Session Started',
-        description: `Session started for ${customerName} at ${station.name}`,
+        description: `${customerName} · ${station.name}`,
       });
     } catch {
       toast({ title: 'Error', description: 'Failed to start session.', variant: 'destructive' });
@@ -87,17 +91,20 @@ const StationActions: React.FC<StationActionsProps> = ({
     }
   };
 
-  const btnBase = 'h-8 flex-1 text-xs font-semibold px-2';
+  const btnBase =
+    'h-8 flex-1 text-xs font-semibold px-2 transition-all duration-200 active:scale-95';
 
-  if (station.isOccupied) {
+  if (station.isOccupied || phase === 'live' || phase === 'starting') {
+    if (phase === 'starting') return null;
+
     return (
-      <div className="flex w-full gap-1.5">
+      <div className="flex w-full gap-1.5 animate-station-content-in">
         {isPaused ? (
           <Button
             size="sm"
-            className={`${btnBase} bg-amber-600 hover:bg-amber-700 text-white`}
+            className={`${btnBase} bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-[0_0_12px_rgba(245,158,11,0.3)]`}
             onClick={() => void onResumeSession(station.id)}
-            disabled={isLoading}
+            disabled={isLoading || isTransitioning}
           >
             <Play className="h-3 w-3 mr-1 fill-current" />
             Resume
@@ -106,9 +113,9 @@ const StationActions: React.FC<StationActionsProps> = ({
           <Button
             size="sm"
             variant="secondary"
-            className={`${btnBase} bg-amber-950/50 text-amber-100 border border-amber-500/25 hover:bg-amber-950/70`}
+            className={`${btnBase} bg-amber-950/60 text-amber-100 border border-amber-500/30 hover:bg-amber-950/80`}
             onClick={() => void onPauseSession(station.id)}
-            disabled={isLoading}
+            disabled={isLoading || isTransitioning}
           >
             <Pause className="h-3 w-3 mr-1" />
             Pause
@@ -116,9 +123,9 @@ const StationActions: React.FC<StationActionsProps> = ({
         )}
         <Button
           size="sm"
-          className={`${btnBase} bg-emerald-700/80 hover:bg-emerald-700 text-white`}
+          className={`${btnBase} bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-white`}
           onClick={() => onQuickShop?.()}
-          disabled={isLoading}
+          disabled={isLoading || isTransitioning}
         >
           <ShoppingBag className="h-3 w-3 mr-1" />
           Shop
@@ -126,11 +133,15 @@ const StationActions: React.FC<StationActionsProps> = ({
         <Button
           size="sm"
           variant="destructive"
-          className={`${btnBase}`}
+          className={`${btnBase} bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 shadow-[0_0_10px_rgba(239,68,68,0.25)]`}
           onClick={handleEndSession}
-          disabled={isLoading}
+          disabled={isLoading || isTransitioning}
         >
-          <Square className="h-3 w-3 mr-1 fill-current" />
+          {isLoading && phase === 'ending' ? (
+            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+          ) : (
+            <Square className="h-3 w-3 mr-1 fill-current" />
+          )}
           End
         </Button>
       </div>
@@ -143,11 +154,15 @@ const StationActions: React.FC<StationActionsProps> = ({
     <>
       <Button
         size="sm"
-        className={`w-full h-9 text-sm font-bold text-white bg-gradient-to-r from-cuephoria-purple to-violet-600 hover:opacity-90 ${theme.glow}`}
-        disabled={isLoading || customers.length === 0}
+        className={`w-full h-9 text-sm font-bold text-white transition-all duration-300 active:scale-[0.98] hover:brightness-110 ${theme.startBtn}`}
+        disabled={isLoading || customers.length === 0 || isTransitioning}
         onClick={() => setIsStartDialogOpen(true)}
       >
-        <Play className="h-3.5 w-3.5 mr-1.5" />
+        {isLoading ? (
+          <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+        ) : (
+          <Play className="h-3.5 w-3.5 mr-1.5 fill-current" />
+        )}
         {customers.length === 0 ? 'No Customers' : 'Start Session'}
       </Button>
 

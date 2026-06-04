@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Station } from '@/context/POSContext';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { supabase } from '@/integrations/supabase/client';
 import { usePOS } from '@/context/POSContext';
 import { Session } from '@/types/pos.types';
 import {
@@ -9,11 +8,12 @@ import {
   formatBillableTime,
   getBillableMs,
 } from '@/utils/sessionTimer.utils';
-import { Clock } from 'lucide-react';
+import { Timer } from 'lucide-react';
+import type { StationTheme } from '@/utils/stationTheme';
 
 interface StationTimerProps {
   station: Station;
-  compact?: boolean;
+  theme: StationTheme;
 }
 
 function toTimeMs(value: Date | string | undefined): number | null {
@@ -22,11 +22,12 @@ function toTimeMs(value: Date | string | undefined): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
+const StationTimer: React.FC<StationTimerProps> = ({ station, theme }) => {
   const [hours, setHours] = useState(0);
   const [minutes, setMinutes] = useState(0);
   const [seconds, setSeconds] = useState(0);
   const [cost, setCost] = useState(0);
+  const [tick, setTick] = useState(false);
   const { customers } = usePOS();
   const customersRef = useRef(customers);
   customersRef.current = customers;
@@ -48,7 +49,7 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
       return;
     }
 
-    let sessionSnapshot: Session = {
+    const sessionSnapshot: Session = {
       ...session!,
       startTime: new Date(startTimeMs),
       pausedAt: pausedAtMs != null ? new Date(pausedAtMs) : undefined,
@@ -64,7 +65,13 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
       const time = formatBillableTime(billableMs);
       const rate = sessionSnapshot.hourlyRate || station.hourlyRate;
 
-      setSeconds(time.seconds);
+      setSeconds((prev) => {
+        if (time.seconds !== prev) {
+          setTick(true);
+          setTimeout(() => setTick(false), 150);
+        }
+        return time.seconds;
+      });
       setMinutes(time.minutes);
       setHours(time.hours);
       setCost(calculateSessionCost(station, rate, billableMs, isMember));
@@ -82,9 +89,7 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
     totalPausedMs,
     sessionRate,
     station.hourlyRate,
-    station.category,
-    station.slotDuration,
-    station.type,
+    station,
     session,
   ]);
 
@@ -98,25 +103,35 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
 
   return (
     <div
-      className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 ${
+      className={`relative overflow-hidden flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 border backdrop-blur-sm transition-all duration-150 ${
         isPaused
-          ? 'bg-amber-950/50 ring-1 ring-amber-500/30'
-          : 'bg-black/50 ring-1 ring-white/10'
-      }`}
+          ? 'bg-amber-950/60 border-amber-500/35'
+          : 'bg-black/55 border-white/10 shadow-inner'
+      } ${tick && !isPaused ? 'scale-[1.01]' : ''}`}
     >
-      <div className="flex items-center gap-1.5 min-w-0">
-        <Clock className={`h-3.5 w-3.5 shrink-0 ${isPaused ? 'text-amber-400' : 'text-white/60'}`} />
+      {!isPaused && (
+        <div
+          className="pointer-events-none absolute inset-0 opacity-20"
+          style={{
+            background: `linear-gradient(90deg, transparent, ${theme.accent.includes('violet') ? 'rgba(139,92,246,0.3)' : 'rgba(249,115,22,0.2)'}, transparent)`,
+          }}
+        />
+      )}
+      <div className="relative flex items-center gap-1.5 min-w-0">
+        <Timer className={`h-3.5 w-3.5 shrink-0 ${isPaused ? 'text-amber-400' : theme.accent}`} />
         <span
-          className={`font-mono text-base font-bold tabular-nums ${
+          className={`font-mono text-base font-bold tabular-nums tracking-wide transition-transform duration-150 ${
             isPaused ? 'text-amber-100' : 'text-white'
-          }`}
+          } ${tick ? 'scale-105' : ''}`}
         >
           {timeStr}
         </span>
       </div>
       <CurrencyDisplay
         amount={cost}
-        className={`text-sm font-bold shrink-0 ${isPaused ? 'text-amber-300' : 'text-cuephoria-orange'}`}
+        className={`relative text-sm font-bold shrink-0 ${
+          isPaused ? 'text-amber-300' : 'text-cuephoria-orange drop-shadow-[0_0_8px_rgba(249,115,22,0.4)]'
+        }`}
       />
     </div>
   );

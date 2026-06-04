@@ -221,7 +221,65 @@ export default {
             transform: 'scale(2)',
             opacity: '0'
           }
-        }
+        },
+        'station-boot': {
+          '0%': {
+            transform: 'scale(1)',
+            filter: 'brightness(1)',
+          },
+          '35%': {
+            transform: 'scale(1.025)',
+            filter: 'brightness(1.15)',
+          },
+          '100%': {
+            transform: 'scale(1)',
+            filter: 'brightness(1)',
+          },
+        },
+        'station-shutdown': {
+          '0%': {
+            transform: 'scale(1)',
+            opacity: '1',
+            filter: 'brightness(1)',
+          },
+          '100%': {
+            transform: 'scale(0.96)',
+            opacity: '0.7',
+            filter: 'brightness(0.85)',
+          },
+        },
+        'station-live-glow': {
+          '0%, 100%': {
+            opacity: '0.45',
+          },
+          '50%': {
+            opacity: '1',
+          },
+        },
+        'station-bar-shimmer': {
+          '0%': { backgroundPosition: '200% center' },
+          '100%': { backgroundPosition: '-200% center' },
+        },
+        'station-content-in': {
+          '0%': {
+            opacity: '0',
+            transform: 'translateY(10px) scale(0.98)',
+          },
+          '100%': {
+            opacity: '1',
+            transform: 'translateY(0) scale(1)',
+          },
+        },
+        'station-content-out': {
+          '0%': {
+            opacity: '1',
+            transform: 'translateY(0)',
+          },
+          '100%': {
+            opacity: '0',
+            transform: 'translateY(-6px)',
+          },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -242,7 +300,13 @@ export default {
         'flip-in': 'flip-in 1s ease-out',
         'float-shadow': 'float-shadow 5s infinite ease-in-out',
         'neon-pulse': 'neon-pulse 3s infinite ease-in-out',
-        'pulse-ring': 'pulse-ring 2s cubic-bezier(0.1, 0, 0.3, 1) infinite'
+        'pulse-ring': 'pulse-ring 2s cubic-bezier(0.1, 0, 0.3, 1) infinite',
+        'station-boot': 'station-boot 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+        'station-shutdown': 'station-shutdown 0.45s ease-in forwards',
+        'station-live-glow': 'station-live-glow 2.5s ease-in-out infinite',
+        'station-bar-shimmer': 'station-bar-shimmer 3s linear infinite',
+        'station-content-in': 'station-content-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards',
+        'station-content-out': 'station-content-out 0.35s ease-in forwards',
       }
     }
   },
