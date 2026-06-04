@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { CartItem, Product } from '@/types/pos.types';
+import { clampQuantityToStock, getProductStockLimit } from '@/utils/cartStock.utils';
 import {
   clearStationQuickShop,
   loadStationQuickShop,
@@ -44,14 +45,22 @@ export function useStationQuickShop() {
         (item) => item.id === product.id && item.type === 'product'
       );
 
+      const currentQty = existing?.quantity ?? 0;
+      const stockLimit = getProductStockLimit(product);
+      const { quantity: nextQty, blocked } = clampQuantityToStock(
+        currentQty + quantity,
+        stockLimit
+      );
+      if (blocked || nextQty <= currentQty) return;
+
       let updated: CartItem[];
       if (existing) {
         updated = current.map((item) =>
           item.id === product.id && item.type === 'product'
             ? {
                 ...item,
-                quantity: item.quantity + quantity,
-                total: (item.quantity + quantity) * item.price,
+                quantity: nextQty,
+                total: nextQty * item.price,
               }
             : item
         );
@@ -63,8 +72,8 @@ export function useStationQuickShop() {
             type: 'product',
             name: product.name,
             price: product.price,
-            quantity,
-            total: product.price * quantity,
+            quantity: nextQty,
+            total: product.price * nextQty,
             category: product.category,
           },
         ];
@@ -76,7 +85,7 @@ export function useStationQuickShop() {
   );
 
   const updateStationQuickShopQuantity = useCallback(
-    (sessionId: string, productId: string, quantity: number) => {
+    (sessionId: string, productId: string, quantity: number, product?: Product) => {
       const current = resolveItems(sessionId);
 
       if (quantity <= 0) {
@@ -87,11 +96,15 @@ export function useStationQuickShop() {
         return;
       }
 
+      const stockLimit = getProductStockLimit(product);
+      const { quantity: nextQty, blocked } = clampQuantityToStock(quantity, stockLimit);
+      if (blocked) return;
+
       commitItems(
         sessionId,
         current.map((item) =>
           item.id === productId && item.type === 'product'
-            ? { ...item, quantity, total: item.price * quantity }
+            ? { ...item, quantity: nextQty, total: item.price * nextQty }
             : item
         )
       );

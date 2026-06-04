@@ -338,9 +338,9 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
    * `undefined` on the row, which the typed frontend already treats as
    * "no value" — far better UX than the page hanging on an error.
    */
-  let orgQ, subQ, plansQ, invQ;
+  let orgQ, subQ, plansQ, invQ, graceQ, adminQ;
   try {
-    [orgQ, subQ, plansQ, invQ] = await Promise.all([
+    [orgQ, subQ, plansQ, invQ, graceQ, adminQ] = await Promise.all([
       withTimeout(
         "organizations",
         supabase
@@ -353,7 +353,7 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
         "subscriptions",
         supabase
           .from("subscriptions")
-          .select("*")
+          .select("*, plan:plan_id ( id, code, name )")
           .eq("organization_id", ctx.organizationId)
           .order("created_at", { ascending: false })
           .limit(1)
@@ -380,6 +380,19 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
           .eq("organization_id", ctx.organizationId)
           .order("created_at", { ascending: false })
           .limit(INVOICE_PAGE_SIZE),
+      ),
+      withTimeout(
+        "platform_settings",
+        fetchBillingAccessGraceMinutes(supabase).catch(() => DEFAULT_BILLING_ACCESS_GRACE_MINUTES),
+        5_000,
+      ),
+      withTimeout(
+        "adminUserLookup",
+        supabase
+          .from("admin_users")
+          .select("email, display_name, username")
+          .eq("id", ctx.user.id)
+          .maybeSingle(),
       ),
     ]);
   } catch (timeoutErr) {
@@ -415,39 +428,21 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
 
   let currentPlan: { id: string; code: string; name: string } | null = null;
   if (subQ.data?.plan_id) {
-    const match = (plansQ.data ?? []).find((p) => p.id === subQ.data!.plan_id);
-    if (match) {
-      currentPlan = { id: match.id, code: match.code, name: match.name };
+    const rawPlan = (subQ.data as { plan?: { id: string; code: string; name: string } | { id: string; code: string; name: string }[] | null }).plan;
+    const embedded = Array.isArray(rawPlan) ? rawPlan[0] : rawPlan;
+    if (embedded?.id) {
+      currentPlan = { id: embedded.id, code: embedded.code, name: embedded.name };
     } else {
-      try {
-        const { data: lookup } = await withTimeout(
-          "currentPlanLookup",
-          supabase
-            .from("plans")
-            .select("id, code, name")
-            .eq("id", subQ.data.plan_id)
-            .maybeSingle(),
-        );
-        if (lookup) currentPlan = lookup;
-      } catch (e) {
-        err("currentPlanLookup timeout (non-fatal)", e);
+      const match = (plansQ.data ?? []).find((p) => p.id === subQ.data!.plan_id);
+      if (match) {
+        currentPlan = { id: match.id, code: match.code, name: match.name };
       }
     }
   }
 
-  let adminRow: { email?: string | null; display_name?: string | null; username?: string | null } | null = null;
-  try {
-    const r = await withTimeout(
-      "adminUserLookup",
-      supabase
-        .from("admin_users")
-        .select("email, display_name, username")
-        .eq("id", ctx.user.id)
-        .maybeSingle(),
-    );
-    adminRow = r.data ?? null;
-  } catch (e) {
-    err("adminUserLookup timeout (non-fatal)", e);
+  const adminRow = adminQ.error ? null : adminQ.data;
+  if (adminQ.error) {
+    err("adminUserLookup failed (non-fatal)", adminQ.error);
   }
 
   let billingContactEmail: string | null = null;
@@ -460,22 +455,23 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
   else if (typeof un === "string" && un.trim()) billingPrefillName = un.trim();
 
   log("returning snapshot");
-  let billingAccessGraceMinutes = DEFAULT_BILLING_ACCESS_GRACE_MINUTES;
-  try {
-    // Reuse OrgContext service-role client. Do not construct a parallel client via
-    // supabaseServer here — differing ESM resolve paths (*.ts vs *.js imports) broke
-    // Vercel Node cold-starts with FUNCTION_INVOCATION_FAILED for some deployments.
-    billingAccessGraceMinutes = await fetchBillingAccessGraceMinutes(ctx.supabase);
-  } catch (graceErr) {
-    err("billingAccessGraceMinutes fetch failed", graceErr);
-  }
+  const billingAccessGraceMinutes =
+    typeof graceQ === "number" && Number.isFinite(graceQ) ? graceQ : DEFAULT_BILLING_ACCESS_GRACE_MINUTES;
+  const subscriptionRow = subQ.data
+    ? (() => {
+        const { plan: _plan, ...rest } = subQ.data as Record<string, unknown> & {
+          plan?: unknown;
+        };
+        return rest;
+      })()
+    : null;
   return j(
     {
       ok: true,
       role: ctx.role,
       canEdit: EDITOR_ROLES.has(ctx.role),
       organization: orgQ.data,
-      subscription: subQ.data,
+      subscription: subscriptionRow,
       currentPlan,
       plans: plansQ.data ?? [],
       invoices: invQ.data ?? [],

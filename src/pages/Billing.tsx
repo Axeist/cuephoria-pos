@@ -535,13 +535,12 @@ export default function Billing() {
         signal.removeEventListener("abort", onMainAbort);
       }
     },
-    // Defensive: refetch every mount because the global queryClient has
-    // refetchOnMount=false and any stale failure from an earlier session
-    // would otherwise keep the page in error state with no retry.
-    refetchOnMount: "always",
+    refetchOnMount: true,
     retry: 1,
-    retryDelay: 1500,
-    staleTime: 15_000,
+    retryDelay: 800,
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+    placeholderData: (prev) => prev,
   });
 
   React.useEffect(() => {
@@ -766,10 +765,17 @@ export default function Billing() {
 
   // Render guards ---------------------------------------------------------
 
-  if (billingQ.isLoading) {
+  const showInitialSkeleton = !billingQ.data && billingQ.isFetching;
+  const orgDisplayName =
+    billingQ.data?.organization.name ??
+    orgCtx?.organization?.name ??
+    orgCtx?.organization?.slug ??
+    "Workspace";
+
+  if (showInitialSkeleton) {
     return (
       <BillingSkeleton
-        path={location.pathname}
+        orgName={orgDisplayName}
         prepend={
           subscriptionGateBanner ? (
             <SubscriptionGateRecapBanner
@@ -1799,15 +1805,17 @@ function SubscriptionGateRecapBanner({
   );
 }
 
-function BillingSkeleton({ path, prepend }: { path?: string; prepend?: React.ReactNode }) {
+function BillingSkeleton({ orgName, prepend }: { orgName?: string; prepend?: React.ReactNode }) {
   return (
     <div className="min-h-screen app-ambient text-white">
       <div className="max-w-6xl mx-auto p-6 space-y-6">
         {prepend}
-        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] font-semibold text-white/40">
+        <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.18em] font-semibold text-white/40">
           <Loader2 className="h-3 w-3 animate-spin" />
-          Loading subscription…{" "}
-          {path ? <span className="font-mono normal-case text-white/30">({path})</span> : null}
+          Loading plans for{" "}
+          <span className="normal-case text-white/70">{orgName ?? "your workspace"}</span>
+          <span className="text-white/25">·</span>
+          <RazorpayWordmark className="h-3.5 opacity-70" />
         </div>
         <Skeleton className="h-44 w-full rounded-3xl bg-white/[0.04]" />
         <div className="grid lg:grid-cols-5 gap-6">

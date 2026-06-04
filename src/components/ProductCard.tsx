@@ -62,14 +62,17 @@ const ProductCard: React.FC<ProductCardProps> = ({
       }
     }
     
-    addToCart({
-      id: product.id,
-      type: 'product',
-      name: product.name,
-      price: product.price,
-      quantity: 1,
-      category: product.category
-    });
+    addToCart(
+      {
+        id: product.id,
+        type: 'product',
+        name: product.name,
+        price: product.price,
+        quantity: 1,
+        category: product.category,
+      },
+      product.category !== 'membership' ? product.stock : undefined
+    );
     
     if (product.category === 'membership' && product.studentPrice) {
       setIsStudentDiscount(true);

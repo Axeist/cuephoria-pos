@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { CartItem } from '@/types/pos.types';
 import { useToast } from '@/hooks/use-toast';
+import { clampQuantityToStock } from '@/utils/cartStock.utils';
 
 export const useCart = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -98,24 +99,45 @@ export const useCart = () => {
     }
   };
   
-  const updateCartItem = (id: string, quantity: number) => {
+  const updateCartItem = (id: string, quantity: number, stockLimit?: number) => {
     try {
       if (quantity <= 0) {
         removeFromCart(id);
         return;
       }
-      
-      const updatedCart = cart.map(i => 
-        i.id === id
-          ? { ...i, quantity, total: quantity * i.price }
-          : i
+
+      const cartItem = cart.find((i) => i.id === id);
+      const limit =
+        cartItem?.type === 'product' &&
+        cartItem.category !== 'membership' &&
+        typeof stockLimit === 'number'
+          ? stockLimit
+          : null;
+
+      const { quantity: nextQty, blocked, capped } = clampQuantityToStock(quantity, limit);
+
+      if (blocked) {
+        toast({
+          title: 'Insufficient Stock',
+          description: `No more units of ${cartItem?.name ?? 'this item'} available`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (capped && cartItem) {
+        toast({
+          title: 'Stock Limited',
+          description: `Only ${nextQty} unit(s) of ${cartItem.name} available`,
+          variant: 'destructive',
+        });
+      }
+
+      const updatedCart = cart.map((i) =>
+        i.id === id ? { ...i, quantity: nextQty, total: nextQty * i.price } : i
       );
-      
+
       setCart(updatedCart);
-      toast({
-        title: "Item Updated",
-        description: "Updated quantity in cart",
-      });
     } catch (error) {
       console.error("Error updating cart item:", error);
       toast({

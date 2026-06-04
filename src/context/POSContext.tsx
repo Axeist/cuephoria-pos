@@ -19,6 +19,7 @@ import { useBills } from '@/hooks/useBills';
 import { useToast } from '@/hooks/use-toast';
 import { supabase, handleSupabaseError } from '@/integrations/supabase/client';
 import { useLocation } from '@/context/LocationContext';
+import { clampCartItemsToStock, getProductStockLimit } from '@/utils/cartStock.utils';
 
 const POSContext = createContext<POSContextType>({
   products: [],
@@ -170,6 +171,46 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     resetPaymentInfo
   } = useCart();
 
+  const addToCartWithStock = useCallback(
+    (item: Omit<CartItem, 'total'>) => {
+      const product = products.find((p) => p.id === item.id);
+      const stockLimit = getProductStockLimit(product);
+      addToCart(item, stockLimit ?? undefined);
+    },
+    [products, addToCart]
+  );
+
+  const updateCartItemWithStock = useCallback(
+    (id: string, quantity: number) => {
+      const cartItem = cart.find((i) => i.id === id);
+      const product = products.find((p) => p.id === id);
+      const stockLimit = getProductStockLimit(product);
+      if (cartItem?.type === 'product' && stockLimit !== null) {
+        updateCartItem(id, quantity, stockLimit);
+      } else {
+        updateCartItem(id, quantity);
+      }
+    },
+    [cart, products, updateCartItem]
+  );
+
+  // Fix carts that exceed on-hand stock (e.g. after increasing qty before this guard existed).
+  useEffect(() => {
+    if (!products.length || !cart.length) return;
+    const needsClamp = cart.some((item) => {
+      if (item.type !== 'product' || item.category === 'membership') return false;
+      const limit = getProductStockLimit(products.find((p) => p.id === item.id));
+      return limit !== null && item.quantity > limit;
+    });
+    if (!needsClamp) return;
+    setCart(clampCartItemsToStock(cart, products));
+    toast({
+      title: 'Cart adjusted',
+      description: 'Some quantities were reduced to match available stock.',
+      variant: 'destructive',
+    });
+  }, [cart, products, setCart, toast]);
+
   const {
     itemsBySession,
     getStationQuickShopItems,
@@ -218,7 +259,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void loadSavedCartForCustomer(selectedCustomer.id).then((savedCartData) => {
       if (cancelled || !savedCartData?.items.length) return;
 
-      setCart(savedCartData.items);
+      setCart(clampCartItemsToStock(savedCartData.items, products));
       setDiscountAmount(Number(savedCartData.discount ?? 0));
       setDiscountType(savedCartData.discount_type ?? 'percentage');
       setLoyaltyPointsUsedAmount(Number(savedCartData.loyalty_points_used ?? 0));
@@ -233,7 +274,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       cancelled = true;
     };
-  }, [selectedCustomer?.id, activeLocationId, loadSavedCartForCustomer, setCart, setDiscountAmount, setDiscountType, setLoyaltyPointsUsedAmount, toast]);
+  }, [selectedCustomer?.id, activeLocationId, loadSavedCartForCustomer, products, setCart, setDiscountAmount, setDiscountType, setLoyaltyPointsUsedAmount, toast]);
 
   const handleClearCart = useCallback(
     async (options?: { silent?: boolean; skipSavedCartDelete?: boolean }) => {
@@ -658,7 +699,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
 
           selectCustomer(customer.id);
-          setCart(mergedCart);
+          setCart(clampCartItemsToStock(mergedCart, products));
 
           console.log("Merged cart for checkout:", mergedCart);
         }
@@ -712,7 +753,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
 
           selectCustomer(customer.id);
-          setCart(mergedCart);
+          setCart(clampCartItemsToStock(mergedCart, products));
         }
       }
     } catch (error) {
@@ -1024,9 +1065,9 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     selectCustomer,
     checkMembershipValidity,
     deductMembershipHours,
-    addToCart,
+    addToCart: addToCartWithStock,
     removeFromCart,
-    updateCartItem,
+    updateCartItem: updateCartItemWithStock,
     clearCart: handleClearCart,
     savedCarts,
     savedCartsLoading,
@@ -1063,7 +1104,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     startSession, endSession, endSessionGroup, pauseSession, resumeSession, extendSession, moveSession, deleteStation, updateStation, refreshStations,
     addCustomer, updateCustomer, updateCustomerMembershipWrapper,
     deleteCustomer, selectCustomer, checkMembershipValidity, deductMembershipHours,
-    addToCart, removeFromCart, updateCartItem, handleClearCart,
+    addToCartWithStock, removeFromCart, updateCartItemWithStock, handleClearCart,
     savedCarts, savedCartsLoading, refreshSavedCarts, removeSavedCart, removeAllSavedCarts, moveCartToSaved,
     getStationQuickShopItems, addToStationQuickShop,
     updateStationQuickShopQuantity, removeFromStationQuickShop,

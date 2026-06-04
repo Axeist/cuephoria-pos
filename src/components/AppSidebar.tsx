@@ -1,6 +1,7 @@
 // src/components/AppSidebar.tsx
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Home,
   ShoppingCart,
@@ -63,8 +64,24 @@ const AppSidebar: React.FC = () => {
     override.display_name || branding?.brand?.name || 'Cuephoria';
   const brandLogo = override.logo_url;
 
+  const queryClient = useQueryClient();
   const isAdmin = user?.isAdmin || false;
   const isSuperAdmin = user?.isSuperAdmin || false;
+
+  const prefetchBilling = useCallback(() => {
+    void queryClient.prefetchQuery({
+      queryKey: ['tenant-billing'],
+      queryFn: async () => {
+        const res = await fetch('/api/tenant/billing', { credentials: 'same-origin' });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || json?.ok === false) {
+          throw new Error(json?.error || `Billing prefetch failed (${res.status})`);
+        }
+        return json;
+      },
+      staleTime: 60_000,
+    });
+  }, [queryClient]);
   const roleLabel = isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff';
   const showName = (user?.displayName?.trim() || user?.username || '').trim();
   const footerSubtitle = [user?.designation?.trim(), roleLabel].filter(Boolean).join(' · ');
@@ -188,6 +205,8 @@ const AppSidebar: React.FC = () => {
           <Link
             to={item.path}
             onClick={onNavigate}
+            onMouseEnter={item.path === '/subscription' ? prefetchBilling : undefined}
+            onFocus={item.path === '/subscription' ? prefetchBilling : undefined}
             title={collapsed ? item.label : undefined}
             data-tour-path={item.path}
             data-tour-label={item.label}

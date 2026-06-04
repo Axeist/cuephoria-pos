@@ -237,7 +237,7 @@ export interface POSContextType {
 
   getStationQuickShopItems: (sessionId: string) => CartItem[];
   addToStationQuickShop: (sessionId: string, product: Product, quantity?: number) => void;
-  updateStationQuickShopQuantity: (sessionId: string, productId: string, quantity: number) => void;
+  updateStationQuickShopQuantity: (sessionId: string, productId: string, quantity: number, product?: Product) => void;
   removeFromStationQuickShop: (sessionId: string, productId: string) => void;
   
   setDiscount: (amount: number, type: 'percentage' | 'fixed') => void;

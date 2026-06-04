@@ -26,6 +26,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useViewMode } from '@/context/ViewModeContext';
 import { hapticImpact } from '@/utils/capacitor';
 import { isSessionEndNavigation } from '@/utils/viewTransition';
+import { getProductStockLimit } from '@/utils/cartStock.utils';
+import type { CartItem } from '@/types/pos.types';
 import { useAuth } from '@/context/AuthContext';
 import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
@@ -165,8 +167,19 @@ const POS = () => {
         customer.phone.includes(customerSearchQuery)
       );
 
+  const canIncreaseCartQuantity = (item: CartItem) => {
+    const product = products.find((p) => p.id === item.id);
+    const limit = getProductStockLimit(product);
+    if (limit === null) return true;
+    return item.quantity < limit;
+  };
+
   const handleUpdateQuantity = (id: string, newQuantity: number) => {
     if (newQuantity < 1) return;
+    const cartItem = cart.find((i) => i.id === id);
+    if (cartItem && newQuantity > cartItem.quantity && !canIncreaseCartQuantity(cartItem)) {
+      return;
+    }
     updateCartItem(id, newQuantity);
   };
 
@@ -477,6 +490,7 @@ const POS = () => {
                           variant="outline"
                           size="sm"
                           className="h-7 w-7 p-0 text-xs"
+                          disabled={!canIncreaseCartQuantity(item)}
                           onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
                         >
                           +
@@ -499,6 +513,7 @@ const POS = () => {
                             variant="outline"
                             size="sm"
                             className="h-6 w-6 p-0 text-[10px]"
+                            disabled={!canIncreaseCartQuantity(item)}
                             onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
                           >
                             +

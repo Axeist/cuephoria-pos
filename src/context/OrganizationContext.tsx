@@ -21,7 +21,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { type WorkspaceMembershipBrief, parseWorkspaceMembershipsPayload } from "@/lib/tenantPortalLabels";
 
@@ -90,7 +89,6 @@ const OrganizationContext = createContext<OrganizationContextValue | undefined>(
 
 export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const location = useLocation();
   const [organization, setOrganization] = useState<ActiveOrganization | null>(null);
   const [subscription, setSubscription] = useState<ActiveSubscription | null>(null);
   const [workspaceMemberships, setWorkspaceMemberships] = useState<WorkspaceMembershipBrief[]>([]);
@@ -204,12 +202,22 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, [user]);
 
-  // Initial load plus re-fetch whenever the route changes — the operator may
-  // suspend/reactivate while this SPA stays mounted; stale snapshots cause
-  // redirect loops and false billing locks until a manual full reload.
+  // Initial load when the signed-in user changes. Avoid re-fetching on every
+  // route change — that duplicated /api/admin/me before pages like /subscription
+  // could load their own data. Call `refresh()` after billing mutations; refetch
+  // on window focus so operator suspend/reactivate still propagates.
   useEffect(() => {
     void load();
-  }, [load, location.pathname]);
+  }, [load]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      if (!user) return;
+      void load();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [load, user]);
 
   const value = useMemo<OrganizationContextValue>(
     () => ({
