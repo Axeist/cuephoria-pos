@@ -102,7 +102,7 @@ const GeneralSettings = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.isAdmin || false;
-  const { settings, loading, saving, saveSettings } = useAppSettings();
+  const { settings, loading, saving, saveSettings, saveSecuritySettings } = useAppSettings();
   const { activeLocation } = useLocation();
   const isLiteBranch = activeLocation?.slug === 'lite';
   const [isSaving, setIsSaving] = useState(false);
@@ -812,7 +812,29 @@ const GeneralSettings = () => {
                             </FormDescription>
                           </div>
                           <FormControl>
-                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            <Switch
+                              checked={field.value}
+                              disabled={saving}
+                              onCheckedChange={(checked) => {
+                                field.onChange(checked);
+                                const sec = form.getValues("securitySettings");
+                                void saveSecuritySettings(
+                                  { ...sec, pinProtectionEnabled: checked },
+                                  { silent: true },
+                                ).then((ok) => {
+                                  if (ok) {
+                                    toast({
+                                      title: checked
+                                        ? "PIN protection enabled"
+                                        : "PIN protection disabled",
+                                      description: checked
+                                        ? "Staff will be prompted for the admin PIN on restricted actions."
+                                        : "Restricted actions no longer require a PIN.",
+                                    });
+                                  }
+                                });
+                              }}
+                            />
                           </FormControl>
                         </FormItem>
                       )}
