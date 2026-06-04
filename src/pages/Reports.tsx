@@ -7,15 +7,17 @@ import { DateRange } from 'react-day-picker';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Gift, Wallet, CreditCard, X, Save, CircleDollarSign, MapPin, Globe } from 'lucide-react';
+import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Gift, Wallet, CreditCard, X, Save, CircleDollarSign, MapPin, Globe, Lock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useAuth } from '@/context/AuthContext';
+import { usePinVerification } from '@/hooks/usePinVerification';
+import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -47,9 +49,6 @@ import { buildReportSummaryMetrics } from '@/utils/reportSummaryMetrics';
 type SortField = 'date' | 'total' | 'customer' | 'subtotal' | 'discount';
 type SortDirection = 'asc' | 'desc' | null;
 
-/** PIN required to delete a session from Reports (staff safeguard). */
-const SESSION_DELETE_PIN = "2101";
-
 function SessionDeleteDialog({
   sessionId,
   onDelete,
@@ -57,80 +56,38 @@ function SessionDeleteDialog({
   sessionId: string;
   onDelete: (id: string) => void | Promise<void>;
 }) {
-  const [open, setOpen] = useState(false);
-  const [pin, setPin] = useState("");
-  const { toast } = useToast();
-  const pinOk = pin === SESSION_DELETE_PIN;
+  const { user } = useAuth();
+  const isAdmin = user?.isAdmin || false;
+  const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
 
-  const handleConfirm = async () => {
-    if (!pinOk) {
-      toast({
-        title: "Incorrect PIN",
-        description: "Enter the correct PIN to delete a session.",
-        variant: "destructive",
-      });
-      return;
-    }
-    await onDelete(sessionId);
-    setOpen(false);
-    setPin("");
+  const handleDelete = () => {
+    requestPinVerification(() => void onDelete(sessionId));
   };
 
   return (
-    <AlertDialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) setPin("");
-      }}
-    >
-      <AlertDialogTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/30"
-        >
-          <Trash2 className="h-4 w-4" />
-          <span className="sr-only">Delete session</span>
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent className="bg-gray-900 border-gray-800 text-white">
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete Session</AlertDialogTitle>
-          <AlertDialogDescription className="text-gray-400">
-            This cannot be undone. Enter the staff PIN to confirm deletion.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <div className="space-y-2 py-1">
-          <Label htmlFor={`session-delete-pin-${sessionId}`} className="text-gray-200">
-            PIN
-          </Label>
-          <Input
-            id={`session-delete-pin-${sessionId}`}
-            type="password"
-            inputMode="numeric"
-            autoComplete="off"
-            placeholder="Enter PIN"
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            className="bg-gray-800 border-gray-700 text-white"
-          />
-        </div>
-        <AlertDialogFooter>
-          <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-red-900 hover:bg-red-800 focus:ring-red-800 disabled:opacity-50"
-            disabled={!pinOk}
-            onClick={(e) => {
-              e.preventDefault();
-              void handleConfirm();
-            }}
-          >
-            Delete
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/30 relative"
+        onClick={handleDelete}
+        title={!isAdmin ? 'PIN verification required for staff' : 'Delete session'}
+      >
+        <Trash2 className="h-4 w-4" />
+        {!isAdmin && (
+          <Lock className="h-3 w-3 absolute -top-0.5 -right-0.5 text-amber-500" />
+        )}
+        <span className="sr-only">Delete session</span>
+      </Button>
+
+      <PinVerificationDialog
+        open={showPinDialog}
+        onOpenChange={handlePinCancel}
+        onSuccess={handlePinSuccess}
+        title="Verify PIN to Delete"
+        description="Enter your workspace PIN to confirm this delete operation."
+      />
+    </>
   );
 }
 

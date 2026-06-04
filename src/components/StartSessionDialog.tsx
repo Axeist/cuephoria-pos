@@ -11,12 +11,14 @@ import { usePOS, Customer } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { hapticImpact } from '@/utils/capacitor';
+import { useAuth } from '@/context/AuthContext';
+import { usePinVerification } from '@/hooks/usePinVerification';
+import PinVerificationDialog from '@/components/PinVerificationDialog';
 
 import { getRateForPlayerCount, getRateSuffix as pricingRateSuffix, isPerPlayerPricing } from '@/utils/stationPricing';
 import { getDefaultPlannedDuration, getDurationPresets } from '@/utils/sessionDuration.utils';
 import type { Station } from '@/types/pos.types';
 
-const LATE_NIGHT_OVERRIDE_PIN = '2101';
 const isLateNight = () => new Date().getHours() < 6;
 
 interface StartSessionDialogProps {
@@ -63,6 +65,9 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
 }) => {
   const { customers } = usePOS();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.isAdmin || false;
+  const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
   
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -71,8 +76,6 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   const [finalRate, setFinalRate] = useState(baseRate);
   const [perPersonRate, setPerPersonRate] = useState(baseRate);
   const [lateNightPinUnlocked, setLateNightPinUnlocked] = useState(false);
-  const [lateNightPinInput, setLateNightPinInput] = useState('');
-  const [lateNightPinError, setLateNightPinError] = useState(false);
   const durationPresets = getDurationPresets(slotDuration);
   const [plannedDuration, setPlannedDuration] = useState(() =>
     getDefaultPlannedDuration(slotDuration)
@@ -93,17 +96,10 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     }
   }, [open, slotDuration, initialCustomerId, customers]);
 
-  const lateNightLocked = isLateNight() && !lateNightPinUnlocked;
+  const lateNightLocked = isLateNight() && !lateNightPinUnlocked && !isAdmin;
 
-  const handleLateNightPin = () => {
-    if (lateNightPinInput === LATE_NIGHT_OVERRIDE_PIN) {
-      setLateNightPinUnlocked(true);
-      setLateNightPinError(false);
-      setLateNightPinInput('');
-    } else {
-      setLateNightPinError(true);
-      setTimeout(() => setLateNightPinError(false), 2000);
-    }
+  const handleLateNightUnlock = () => {
+    requestPinVerification(() => setLateNightPinUnlocked(true));
   };
   
   // Helper to get rate label based on station type and category
@@ -440,25 +436,12 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                   <div className="flex items-start gap-2">
                     <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
                     <p className="text-sm text-amber-900 dark:text-amber-100">
-                      <strong>After midnight:</strong> Coupons are locked. Enter the manager PIN to unlock.
+                      <strong>After midnight:</strong> Coupons are locked. Verify with your workspace PIN to unlock.
                     </p>
                   </div>
-                  <div className="flex gap-2">
-                    <Input
-                      type="password"
-                      inputMode="numeric"
-                      maxLength={4}
-                      value={lateNightPinInput}
-                      onChange={e => { setLateNightPinInput(e.target.value.replace(/\D/g, '').slice(0, 4)); setLateNightPinError(false); }}
-                      onKeyDown={e => e.key === 'Enter' && handleLateNightPin()}
-                      placeholder="4-digit PIN"
-                      className={`flex-1 font-mono tracking-widest ${lateNightPinError ? 'border-red-500 ring-red-500/20' : ''}`}
-                    />
-                    <Button onClick={handleLateNightPin} size="sm" className="bg-amber-600 hover:bg-amber-700 text-white">
-                      <ShieldCheck className="h-4 w-4 mr-1" /> Unlock
-                    </Button>
-                  </div>
-                  {lateNightPinError && <p className="text-xs text-red-500 font-medium">Incorrect PIN</p>}
+                  <Button onClick={handleLateNightUnlock} size="sm" className="bg-amber-600 hover:bg-amber-700 text-white">
+                    <ShieldCheck className="h-4 w-4 mr-1" /> Unlock coupons
+                  </Button>
                 </div>
               )}
 
@@ -597,6 +580,14 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
           setSelectedCustomer(customer);
           setCustomerSearchQuery(customer.name);
         }}
+      />
+
+      <PinVerificationDialog
+        open={showPinDialog}
+        onOpenChange={handlePinCancel}
+        onSuccess={handlePinSuccess}
+        title="Unlock coupons"
+        description="Enter your workspace PIN to apply coupons after midnight."
       />
     </ResponsiveDialog>
   );

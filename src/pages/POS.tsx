@@ -26,6 +26,9 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useViewMode } from '@/context/ViewModeContext';
 import { hapticImpact } from '@/utils/capacitor';
 import { isSessionEndNavigation } from '@/utils/viewTransition';
+import { useAuth } from '@/context/AuthContext';
+import { usePinVerification } from '@/hooks/usePinVerification';
+import PinVerificationDialog from '@/components/PinVerificationDialog';
 
 const POS = () => {
   const location = useLocation();
@@ -92,23 +95,17 @@ const POS = () => {
   const [customBillTime, setCustomBillTime] = useState('');
   const [useCustomDateTime, setUseCustomDateTime] = useState(false);
 
+  const { user } = useAuth();
+  const isAdmin = user?.isAdmin || false;
+  const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
+
   // Late-night (post midnight) discount lock
-  const LATE_NIGHT_PIN = '2101';
   const isLateNight = () => new Date().getHours() < 6;
   const [discountPinUnlocked, setDiscountPinUnlocked] = useState(false);
-  const [discountPinInput, setDiscountPinInput] = useState('');
-  const [discountPinError, setDiscountPinError] = useState(false);
-  const discountLocked = isLateNight() && !discountPinUnlocked;
+  const discountLocked = isLateNight() && !discountPinUnlocked && !isAdmin;
 
-  const handleDiscountPinSubmit = () => {
-    if (discountPinInput === LATE_NIGHT_PIN) {
-      setDiscountPinUnlocked(true);
-      setDiscountPinError(false);
-      setDiscountPinInput('');
-    } else {
-      setDiscountPinError(true);
-      setTimeout(() => setDiscountPinError(false), 2000);
-    }
+  const handleDiscountUnlock = () => {
+    requestPinVerification(() => setDiscountPinUnlocked(true));
   };
 
   // Initialize custom date/time when dialogs open
@@ -965,25 +962,12 @@ const POS = () => {
                   <div className="flex items-start gap-2">
                     <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
                     <p className="text-sm text-amber-900 dark:text-amber-100">
-                      <strong>After midnight:</strong> Discounts are locked. Enter manager PIN to unlock.
+                      <strong>After midnight:</strong> Discounts are locked. Verify with your workspace PIN to unlock.
                     </p>
                   </div>
-                  <div className="flex gap-2">
-                    <Input
-                      type="password"
-                      inputMode="numeric"
-                      maxLength={4}
-                      value={discountPinInput}
-                      onChange={e => { setDiscountPinInput(e.target.value.replace(/\D/g, '').slice(0, 4)); setDiscountPinError(false); }}
-                      onKeyDown={e => e.key === 'Enter' && handleDiscountPinSubmit()}
-                      placeholder="4-digit PIN"
-                      className={`flex-1 font-mono tracking-widest ${discountPinError ? 'border-red-500 ring-red-500/20' : ''}`}
-                    />
-                    <Button onClick={handleDiscountPinSubmit} size="sm" className="bg-amber-600 hover:bg-amber-700 text-white">
-                      <ShieldCheck className="h-4 w-4 mr-1" /> Unlock
-                    </Button>
-                  </div>
-                  {discountPinError && <p className="text-xs text-red-500 font-medium">Incorrect PIN</p>}
+                  <Button onClick={handleDiscountUnlock} size="sm" className="bg-amber-600 hover:bg-amber-700 text-white">
+                    <ShieldCheck className="h-4 w-4 mr-1" /> Unlock discounts
+                  </Button>
                 </div>
               ) : (
                 <>
@@ -1296,6 +1280,14 @@ const POS = () => {
           </button>
         ) : null}
       </StickyMobileActionBar>
+
+      <PinVerificationDialog
+        open={showPinDialog}
+        onOpenChange={handlePinCancel}
+        onSuccess={handlePinSuccess}
+        title="Unlock discounts"
+        description="Enter your workspace PIN to apply discounts after midnight."
+      />
     </div>
   );
 };

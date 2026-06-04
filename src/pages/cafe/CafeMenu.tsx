@@ -14,8 +14,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import type { CafeMenuItem } from '@/types/cafe.types';
-import { CAFE_STOCK_ADMIN_PIN } from '@/constants/cafeInventory';
 import { uploadMenuItemImage } from '@/utils/cafeImageUpload';
+import PinVerificationDialog from '@/components/PinVerificationDialog';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from '@/components/ui/dialog';
@@ -60,7 +60,8 @@ const CafeMenu: React.FC = () => {
   const [invDialog, setInvDialog] = useState<'add' | 'reduce' | null>(null);
   const [invItem, setInvItem] = useState<CafeMenuItem | null>(null);
   const [invQty, setInvQty] = useState('1');
-  const [invPin, setInvPin] = useState('');
+  const [showStockPinDialog, setShowStockPinDialog] = useState(false);
+  const [pendingStockReduce, setPendingStockReduce] = useState<{ itemId: string; qty: number } | null>(null);
 
   // Table dialog
   const [tableDialog, setTableDialog] = useState(false);
@@ -313,6 +314,20 @@ const CafeMenu: React.FC = () => {
     }
   };
 
+  const closeInvDialog = () => {
+    setInvDialog(null);
+    setInvItem(null);
+    setInvQty('1');
+    setPendingStockReduce(null);
+  };
+
+  const runStockReduce = async (itemId: string, qty: number) => {
+    const ok = await adjustStock(itemId, qty, 'reduce');
+    if (ok) toast.success('Stock reduced');
+    else toast.error('Could not update stock');
+    closeInvDialog();
+  };
+
   const handleConfirmStockAdjust = async () => {
     if (!invItem || !invDialog) return;
     const q = parseInt(invQty, 10);
@@ -321,22 +336,24 @@ const CafeMenu: React.FC = () => {
       return;
     }
     if (invDialog === 'reduce') {
-      if (invPin !== CAFE_STOCK_ADMIN_PIN) {
-        toast.error('Invalid admin PIN');
-        return;
+      if (isCafeAdmin) {
+        await runStockReduce(invItem.id, q);
+      } else {
+        setPendingStockReduce({ itemId: invItem.id, qty: q });
+        setShowStockPinDialog(true);
       }
-      const ok = await adjustStock(invItem.id, q, 'reduce');
-      if (ok) toast.success('Stock reduced');
-      else toast.error('Could not update stock');
-    } else {
-      const ok = await adjustStock(invItem.id, q, 'add');
-      if (ok) toast.success('Stock added');
-      else toast.error('Could not update stock');
+      return;
     }
-    setInvDialog(null);
-    setInvItem(null);
-    setInvQty('1');
-    setInvPin('');
+    const ok = await adjustStock(invItem.id, q, 'add');
+    if (ok) toast.success('Stock added');
+    else toast.error('Could not update stock');
+    closeInvDialog();
+  };
+
+  const handleStockPinSuccess = async () => {
+    if (!pendingStockReduce) return;
+    await runStockReduce(pendingStockReduce.itemId, pendingStockReduce.qty);
+    setShowStockPinDialog(false);
   };
 
   const handleSaveTable = async () => {
@@ -679,7 +696,7 @@ const CafeMenu: React.FC = () => {
       </Dialog>
 
       <Dialog open={invDialog !== null} onOpenChange={(open) => {
-        if (!open) { setInvDialog(null); setInvItem(null); setInvQty('1'); setInvPin(''); }
+        if (!open) closeInvDialog();
       }}>
         <DialogContent className="cafe-glass-card !rounded-2xl border-white/[0.08] max-w-sm">
           <DialogHeader>
@@ -688,19 +705,10 @@ const CafeMenu: React.FC = () => {
           {invItem && (
             <p className="text-sm text-gray-400 font-quicksand truncate" title={invItem.name}>{invItem.name}</p>
           )}
-          {invDialog === 'reduce' && (
-            <div className="space-y-1.5">
-              <Label className="text-gray-400 text-xs font-quicksand">Admin PIN</Label>
-              <Input
-                type="password"
-                inputMode="numeric"
-                autoComplete="off"
-                value={invPin}
-                onChange={e => setInvPin(e.target.value)}
-                placeholder="Enter PIN"
-                className="bg-white/[0.03] border-white/[0.06] text-white rounded-lg"
-              />
-            </div>
+          {invDialog === 'reduce' && !isCafeAdmin && (
+            <p className="text-xs text-amber-400/90 font-quicksand">
+              Reducing stock requires workspace PIN verification.
+            </p>
           )}
           <div className="space-y-1.5">
             <Label className="text-gray-400 text-xs font-quicksand">Quantity</Label>
@@ -713,7 +721,7 @@ const CafeMenu: React.FC = () => {
             />
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => { setInvDialog(null); setInvItem(null); setInvPin(''); }} className="border-white/[0.08] text-zinc-400 rounded-lg">Cancel</Button>
+            <Button variant="outline" onClick={closeInvDialog} className="border-white/[0.08] text-zinc-400 rounded-lg">Cancel</Button>
             <Button onClick={handleConfirmStockAdjust} style={{ background: 'linear-gradient(135deg, #f97316, #6E59A5)' }} className="text-white border-0">Confirm</Button>
           </DialogFooter>
         </DialogContent>
@@ -873,6 +881,14 @@ const CafeMenu: React.FC = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <PinVerificationDialog
+        open={showStockPinDialog}
+        onOpenChange={setShowStockPinDialog}
+        onSuccess={() => void handleStockPinSuccess()}
+        title="Verify PIN to reduce stock"
+        description="Enter your workspace PIN to confirm this stock reduction."
+      />
     </CafePageShell>
   );
 };

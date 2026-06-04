@@ -20,6 +20,9 @@ import { usePOS, Customer } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { hapticImpact } from '@/utils/capacitor';
+import { useAuth } from '@/context/AuthContext';
+import { usePinVerification } from '@/hooks/usePinVerification';
+import PinVerificationDialog from '@/components/PinVerificationDialog';
 import {
   getRateForPlayerCount,
   getRateSuffix as pricingRateSuffix,
@@ -34,7 +37,6 @@ import {
 import { getStationTheme } from '@/utils/stationTheme';
 import type { Station } from '@/types/pos.types';
 
-const LATE_NIGHT_OVERRIDE_PIN = '2101';
 const isLateNight = () => new Date().getHours() < 6;
 
 export interface MultiSessionStartItem {
@@ -65,6 +67,9 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
 }) => {
   const { customers } = usePOS();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.isAdmin || false;
+  const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
 
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -73,8 +78,6 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
   const [plannedDuration, setPlannedDuration] = useState(60);
   const [submitting, setSubmitting] = useState(false);
   const [lateNightPinUnlocked, setLateNightPinUnlocked] = useState(false);
-  const [lateNightPinInput, setLateNightPinInput] = useState('');
-  const [lateNightPinError, setLateNightPinError] = useState(false);
 
   const slotDuration = stations[0]?.slotDuration;
   const durationPresets = getDurationPresets(slotDuration);
@@ -92,17 +95,10 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
     setCustomerSearchQuery('');
   }, [open, stations, slotDuration]);
 
-  const lateNightLocked = isLateNight() && !lateNightPinUnlocked;
+  const lateNightLocked = isLateNight() && !lateNightPinUnlocked && !isAdmin;
 
-  const handleLateNightPin = () => {
-    if (lateNightPinInput === LATE_NIGHT_OVERRIDE_PIN) {
-      setLateNightPinUnlocked(true);
-      setLateNightPinError(false);
-      setLateNightPinInput('');
-    } else {
-      setLateNightPinError(true);
-      setTimeout(() => setLateNightPinError(false), 2000);
-    }
+  const handleLateNightUnlock = () => {
+    requestPinVerification(() => setLateNightPinUnlocked(true));
   };
 
   const couponCode = selectedCoupon !== 'none' ? selectedCoupon : undefined;
@@ -376,25 +372,11 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
               {lateNightLocked && (
                 <div className="bg-amber-50 dark:bg-amber-950/25 border border-amber-200 dark:border-amber-800 rounded-md p-3 space-y-2">
                   <p className="text-sm text-amber-900 dark:text-amber-100">
-                    After midnight: enter manager PIN to unlock coupons.
+                    After midnight: verify with your workspace PIN to unlock coupons.
                   </p>
-                  <div className="flex gap-2">
-                    <Input
-                      type="password"
-                      inputMode="numeric"
-                      maxLength={4}
-                      value={lateNightPinInput}
-                      onChange={(e) => {
-                        setLateNightPinInput(e.target.value.replace(/\D/g, '').slice(0, 4));
-                        setLateNightPinError(false);
-                      }}
-                      onKeyDown={(e) => e.key === 'Enter' && handleLateNightPin()}
-                      className={`flex-1 font-mono ${lateNightPinError ? 'border-red-500' : ''}`}
-                    />
-                    <Button onClick={handleLateNightPin} size="sm" className="bg-amber-600 hover:bg-amber-700 text-white">
-                      <ShieldCheck className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Button onClick={handleLateNightUnlock} size="sm" className="bg-amber-600 hover:bg-amber-700 text-white">
+                    <ShieldCheck className="h-4 w-4 mr-1" /> Unlock coupons
+                  </Button>
                 </div>
               )}
               <Select value={selectedCoupon} onValueChange={setSelectedCoupon} disabled={lateNightLocked}>
@@ -451,6 +433,14 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
           </Button>
         </DialogFooter>
       </ResponsiveDialogContent>
+
+      <PinVerificationDialog
+        open={showPinDialog}
+        onOpenChange={handlePinCancel}
+        onSuccess={handlePinSuccess}
+        title="Unlock coupons"
+        description="Enter your workspace PIN to apply coupons after midnight."
+      />
     </ResponsiveDialog>
   );
 };
