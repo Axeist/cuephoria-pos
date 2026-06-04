@@ -1,8 +1,9 @@
 import React from 'react';
 import { Station } from '@/context/POSContext';
 import { Badge } from '@/components/ui/badge';
-import { Tag, Zap } from 'lucide-react';
+import { Tag, Zap, Users } from 'lucide-react';
 import { getStationTheme, stationPricingBadge, type StationPhase } from '@/utils/stationTheme';
+import SessionRateBadge from '@/components/station/SessionRateBadge';
 
 interface StationInfoProps {
   station: Station;
@@ -20,7 +21,7 @@ const StationInfo: React.FC<StationInfoProps> = ({
   const theme = getStationTheme(station);
   const Icon = theme.icon;
   const isPaused = station.currentSession?.isPaused;
-  const sessionPlayers = station.currentSession?.playerCount;
+  const sessionPlayers = station.currentSession?.playerCount ?? 1;
   const hasCoupon = station.currentSession?.couponCode;
   const isStarting = phase === 'starting';
 
@@ -89,11 +90,17 @@ const StationInfo: React.FC<StationInfoProps> = ({
           <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-0.5 font-semibold text-white">
             {customerName}
           </span>
-          {sessionPlayers != null && sessionPlayers > 1 && (
-            <span className="rounded-md border border-white/8 bg-white/5 px-2 py-0.5 text-muted-foreground">
-              {sessionPlayers} players
-            </span>
-          )}
+          <span
+            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-semibold tabular-nums ${theme.border} bg-white/5 ${theme.accent}`}
+          >
+            <Users className="h-3 w-3" />
+            {sessionPlayers} {sessionPlayers === 1 ? 'player' : 'players'}
+          </span>
+          <SessionRateBadge
+            station={station}
+            session={station.currentSession}
+            theme={theme}
+          />
           {hasCoupon && (
             <span className="inline-flex items-center gap-1 rounded-md bg-orange-500/20 px-2 py-0.5 text-orange-300 ring-1 ring-orange-500/30">
               <Tag className="h-3 w-3" />

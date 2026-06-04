@@ -168,7 +168,14 @@ export interface POSContextType {
   deleteCategory: (category: string) => void;
   
   // UPDATED: Added hourlyRate and couponCode parameters
-  startSession: (stationId: string, customerId: string, hourlyRate?: number, couponCode?: string) => Promise<void>;
+  startSession: (
+    stationId: string,
+    customerId: string,
+    hourlyRate?: number,
+    couponCode?: string,
+    playerCount?: number,
+    perPersonRate?: number
+  ) => Promise<void>;
   endSession: (stationId: string) => Promise<void>;
   pauseSession: (stationId: string) => Promise<void>;
   resumeSession: (stationId: string) => Promise<void>;

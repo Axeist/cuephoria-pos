@@ -219,8 +219,10 @@ const Stations = () => {
         onComplete={() => {}}
       />
 
-      {/* Full-width command cards — one per row, uses horizontal space */}
-      <div className="space-y-4">
+      {/* Station cards — horizontal grid (side by side) */}
+      <div
+        className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3"
+      >
         {filteredStations.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-white/10 py-16 text-center text-muted-foreground">
             No stations in this category

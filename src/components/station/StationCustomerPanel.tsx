@@ -17,6 +17,7 @@ import { isMembershipActive, getMembershipBadgeText } from '@/utils/membership.u
 import { formatPlayTimeMinutes } from '@/utils/formatPlayTime';
 import { stationTypeLabel } from '@/utils/stationTypeUtils';
 import { stationPricingBadge } from '@/utils/stationTheme';
+import SessionRateBadge from '@/components/station/SessionRateBadge';
 import type { CustomerRecentSession } from '@/hooks/stations/useStationCustomerIntel';
 import type { StationTheme } from '@/utils/stationTheme';
 
@@ -73,6 +74,8 @@ const StationCustomerPanel: React.FC<StationCustomerPanelProps> = ({
     .join('')
     .toUpperCase();
 
+  const sessionPlayers = station.currentSession?.playerCount ?? 1;
+
   return (
     <div className="flex h-full min-h-[120px] flex-col rounded-xl border border-white/10 bg-black/40 p-4 backdrop-blur-sm">
       <div className="mb-3 flex items-start gap-3">
@@ -84,6 +87,21 @@ const StationCustomerPanel: React.FC<StationCustomerPanelProps> = ({
         <div className="min-w-0 flex-1">
           <p className="truncate font-heading text-lg font-bold text-white">{customer.name}</p>
           <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+            <Badge
+              variant="outline"
+              className={`h-5 gap-0.5 px-1.5 text-[10px] font-semibold tabular-nums ${theme.border} bg-white/5 ${theme.accent}`}
+            >
+              <Users className="h-3 w-3" />
+              {sessionPlayers} {sessionPlayers === 1 ? 'player' : 'players'}
+            </Badge>
+            {station.currentSession && (
+              <SessionRateBadge
+                station={station}
+                session={station.currentSession}
+                theme={theme}
+                className="h-5 py-0"
+              />
+            )}
             {customer.phone && (
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                 <Phone className="h-3 w-3" />

@@ -1,4 +1,4 @@
-import type { Station } from '@/types/pos.types';
+import type { Session, Station } from '@/types/pos.types';
 
 export type OccupancyRates = Record<string, number>;
 
@@ -172,6 +172,27 @@ export function getRateSuffix(station: Pick<Station, 'type' | 'slotDuration' | '
   if (station.type === 'vr' || station.slotDuration === 15) return '/15mins';
   if (station.slotDuration === 30) return '/30mins';
   return '/hr';
+}
+
+/** Active session rate for station card badges (uses locked-in session pricing). */
+export function formatLiveSessionRate(
+  station: Pick<Station, 'type' | 'slotDuration' | 'category' | 'pricingMode' | 'occupancyRates'>,
+  session: Pick<Session, 'hourlyRate' | 'perPersonRate' | 'playerCount'>
+): { totalRate: number; suffix: string; detail?: string } {
+  const totalRate = session.hourlyRate ?? 0;
+  const suffix = getRateSuffix(station);
+  const players = session.playerCount ?? 1;
+  const perPerson = session.perPersonRate;
+
+  if (isPerPlayerPricing(station) && players > 1 && perPerson != null && perPerson > 0) {
+    return {
+      totalRate,
+      suffix,
+      detail: `₹${Math.round(perPerson)}/person`,
+    };
+  }
+
+  return { totalRate, suffix };
 }
 
 export function formatOccupancyPriceLabel(

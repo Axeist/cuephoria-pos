@@ -584,12 +584,21 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   
   // ✅ UPDATED: Added coupon parameters
   const startSession = async (
-    stationId: string, 
+    stationId: string,
     customerId: string,
     finalRate?: number,
-    couponCode?: string
+    couponCode?: string,
+    playerCount?: number,
+    perPersonRate?: number
   ): Promise<void> => {
-    await startSessionBase(stationId, customerId, finalRate, couponCode);
+    await startSessionBase(
+      stationId,
+      customerId,
+      finalRate,
+      couponCode,
+      playerCount,
+      perPersonRate
+    );
   };
   
   const endSession = async (stationId: string): Promise<void> => {
