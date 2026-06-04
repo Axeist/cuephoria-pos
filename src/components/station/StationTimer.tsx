@@ -125,18 +125,18 @@ const StationTimer: React.FC<StationTimerProps> = ({
     .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
   const sizeClass = prominent
-    ? 'gap-2 px-4 py-5 min-h-[168px] w-full flex-1'
+    ? 'gap-1.5 px-3 py-3 min-h-[130px] w-full max-w-full min-w-0 flex-1'
     : compact
       ? 'gap-0.5 px-2 py-2 min-w-0'
       : 'gap-1 px-4 py-4 min-w-[140px]';
 
   const timeSizeClass = prominent
-    ? 'text-4xl sm:text-5xl'
+    ? 'text-2xl sm:text-3xl leading-none'
     : compact
-      ? 'text-xl'
-      : 'text-3xl';
+      ? 'text-xl leading-none'
+      : 'text-3xl leading-none';
 
-  const costSizeClass = prominent ? 'text-xl' : compact ? 'text-sm' : 'text-lg';
+  const costSizeClass = prominent ? 'text-base' : compact ? 'text-sm' : 'text-lg';
 
   return (
     <div
@@ -144,7 +144,7 @@ const StationTimer: React.FC<StationTimerProps> = ({
         isPaused
           ? 'bg-amber-950/60 border-amber-500/35'
           : 'bg-black/55 border-white/10 shadow-inner'
-      } ${tick && !isPaused ? 'scale-[1.01]' : ''}`}
+      } ${tick && !isPaused && !prominent ? 'scale-[1.01]' : ''}`}
     >
       {!isPaused && (
         <div
@@ -161,9 +161,9 @@ const StationTimer: React.FC<StationTimerProps> = ({
         </span>
       </div>
       <span
-        className={`relative font-mono font-bold tabular-nums tracking-wider transition-transform duration-150 ${timeSizeClass} ${
+        className={`relative max-w-full truncate px-1 font-mono font-bold tabular-nums tracking-wide transition-transform duration-150 ${timeSizeClass} ${
           isPaused ? 'text-amber-100' : 'text-white'
-        } ${tick ? 'scale-105' : ''}`}
+        } ${tick && !prominent ? 'scale-105' : ''}`}
       >
         {timeStr}
       </span>

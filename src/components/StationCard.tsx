@@ -220,23 +220,6 @@ const StationCard: React.FC<StationCardProps> = ({
         </div>
 
         <div className="relative z-10 space-y-3 p-3 sm:p-4">
-          {canSelect && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleSelect?.(station.id);
-              }}
-              className={`absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-lg border transition-all ${
-                selected
-                  ? 'border-cuephoria-purple bg-cuephoria-purple/30 text-white'
-                  : 'border-white/20 bg-black/40 text-muted-foreground hover:border-cuephoria-purple/50'
-              }`}
-              aria-label={selected ? 'Deselect station' : 'Select station'}
-            >
-              {selected ? <CheckSquare className="h-5 w-5" /> : <SquareIcon className="h-5 w-5" />}
-            </button>
-          )}
           {/* Header: identity + compact controls */}
           <div className="space-y-2">
             <StationInfo
@@ -245,15 +228,39 @@ const StationCard: React.FC<StationCardProps> = ({
               phase={phase}
             />
             <div className="flex items-center justify-between gap-2 rounded-lg border border-white/8 bg-black/25 px-2.5 py-1.5">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
-                <span className="truncate text-[11px] text-muted-foreground">On booking page</span>
-                <Switch
-                  className="ml-1 scale-90 data-[state=checked]:bg-green-600"
-                  checked={!!isPublicLive}
-                  disabled={isTogglingPublic}
-                  onCheckedChange={handleTogglePublicBooking}
-                />
+              <div className="flex items-center gap-2 min-w-0">
+                {canSelect && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleSelect?.(station.id);
+                    }}
+                    className={`flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2 text-[11px] font-semibold transition-all ${
+                      selected
+                        ? 'border-cuephoria-purple bg-cuephoria-purple/25 text-white'
+                        : 'border-white/15 bg-black/30 text-muted-foreground hover:border-cuephoria-purple/40'
+                    }`}
+                    aria-label={selected ? 'Deselect station' : 'Select station'}
+                  >
+                    {selected ? (
+                      <CheckSquare className="h-3.5 w-3.5" />
+                    ) : (
+                      <SquareIcon className="h-3.5 w-3.5" />
+                    )}
+                    {selected ? 'Selected' : 'Select'}
+                  </button>
+                )}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  <span className="truncate text-[11px] text-muted-foreground">On booking page</span>
+                  <Switch
+                    className="ml-1 scale-90 data-[state=checked]:bg-green-600"
+                    checked={!!isPublicLive}
+                    disabled={isTogglingPublic}
+                    onCheckedChange={handleTogglePublicBooking}
+                  />
+                </div>
               </div>
               <div className="flex shrink-0 gap-0.5 opacity-80 group-hover:opacity-100">
                 <Button
@@ -308,9 +315,10 @@ const StationCard: React.FC<StationCardProps> = ({
               recentSessions={recentSessions}
               intelLoading={intelLoading}
               theme={theme}
+              expanded={!!showSessionBlock}
             />
 
-            <div className="flex min-h-[168px] flex-col gap-2">
+            <div className="flex min-h-[130px] min-w-0 flex-col gap-2 overflow-hidden">
               {showSessionBlock ? (
                 <div key={sessionId} className="flex flex-1 flex-col animate-station-content-in">
                   <StationTimer station={station} theme={theme} prominent />

@@ -24,6 +24,8 @@ interface StationCustomerPanelProps {
   recentSessions?: CustomerRecentSession[];
   intelLoading?: boolean;
   theme: StationTheme;
+  /** Stretch to fill card body height on live sessions */
+  expanded?: boolean;
 }
 
 const formatShortDate = (date: Date) =>
@@ -35,10 +37,15 @@ const StationCustomerPanel: React.FC<StationCustomerPanelProps> = ({
   recentSessions = [],
   intelLoading,
   theme,
+  expanded = false,
 }) => {
   if (!station.isOccupied || !customer) {
     return (
-      <div className="rounded-lg border border-white/8 bg-black/30 px-3 py-2.5">
+      <div
+        className={`rounded-lg border border-white/8 bg-black/30 px-3 py-2.5 ${
+          expanded ? 'flex min-h-[130px] flex-col justify-center' : ''
+        }`}
+      >
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span className="font-semibold uppercase tracking-wide">Max {station.maxPlayers ?? 1}p</span>
           <span>·</span>
@@ -59,88 +66,129 @@ const StationCustomerPanel: React.FC<StationCustomerPanelProps> = ({
     .map((w) => w[0])
     .join('')
     .toUpperCase();
-  const recent = recentSessions.slice(0, 2);
+  const recent = recentSessions.slice(0, expanded ? 3 : 2);
+
+  const statBoxClass = expanded
+    ? 'flex flex-1 flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.06] px-2 py-3 min-h-[72px]'
+    : 'rounded border border-white/8 bg-white/5 px-1.5 py-1 text-center';
+
+  const statLabelClass = expanded
+    ? 'mt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground'
+    : 'mt-0.5 text-[9px] uppercase text-muted-foreground';
+
+  const statValueClass = expanded ? 'text-base font-bold tabular-nums' : 'text-xs font-bold tabular-nums';
 
   return (
-    <div className="rounded-lg border border-white/10 bg-black/35 px-3 py-2.5">
-      <div className="flex items-start gap-2">
+    <div
+      className={`rounded-lg border border-white/10 bg-black/35 ${
+        expanded
+          ? 'flex h-full min-h-[130px] flex-col px-3 py-3'
+          : 'px-3 py-2.5'
+      }`}
+    >
+      <div className="flex items-start gap-2.5 shrink-0">
         <div
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold ring-1 ring-white/10 ${theme.iconBg}`}
+          className={`flex shrink-0 items-center justify-center rounded-lg font-bold ring-1 ring-white/10 ${theme.iconBg} ${
+            expanded ? 'h-10 w-10 text-sm' : 'h-8 w-8 text-xs'
+          }`}
         >
           {initials || '?'}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <p className="text-sm font-semibold leading-snug break-words text-white">{customer.name}</p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p
+              className={`font-semibold leading-snug break-words text-white ${
+                expanded ? 'text-base' : 'text-sm'
+              }`}
+            >
+              {customer.name}
+            </p>
             <Badge
               variant="outline"
-              className={`h-5 gap-0.5 px-1.5 text-[10px] ${
+              className={`gap-0.5 ${
+                expanded ? 'h-6 px-2 text-[11px]' : 'h-5 px-1.5 text-[10px]'
+              } ${
                 isMember
                   ? 'border-green-500/40 bg-green-500/15 text-green-300'
                   : 'border-white/10 text-muted-foreground'
               }`}
             >
-              {isMember ? <UserCheck className="h-2.5 w-2.5" /> : <User className="h-2.5 w-2.5" />}
+              {isMember ? <UserCheck className="h-3 w-3" /> : <User className="h-3 w-3" />}
               {membershipText}
             </Badge>
           </div>
           {customer.phone && (
-            <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Phone className="h-3 w-3 shrink-0" />
+            <p
+              className={`mt-0.5 flex items-center gap-1.5 text-muted-foreground ${
+                expanded ? 'text-xs' : 'text-[11px]'
+              }`}
+            >
+              <Phone className="h-3.5 w-3.5 shrink-0" />
               {customer.phone}
             </p>
           )}
         </div>
       </div>
 
-      <div className="mt-2 grid grid-cols-3 gap-1.5">
-        <div className="rounded border border-white/8 bg-white/5 px-1.5 py-1 text-center">
-          <Clock className="mx-auto h-3 w-3 text-blue-400" />
-          <p className="mt-0.5 text-[9px] uppercase text-muted-foreground">Play</p>
-          <p className="text-xs font-bold tabular-nums text-blue-300">
-            {formatPlayTimeMinutes(customer.totalPlayTime)}
-          </p>
-        </div>
-        <div className="rounded border border-white/8 bg-white/5 px-1.5 py-1 text-center">
-          <CreditCard className="mx-auto h-3 w-3 text-emerald-400" />
-          <p className="mt-0.5 text-[9px] uppercase text-muted-foreground">Spent</p>
-          <p className="text-xs font-bold text-emerald-300">
-            <CurrencyDisplay amount={customer.totalSpent} />
-          </p>
-        </div>
-        <div className="rounded border border-white/8 bg-white/5 px-1.5 py-1 text-center">
-          <Star className="mx-auto h-3 w-3 text-amber-400" />
-          <p className="mt-0.5 text-[9px] uppercase text-muted-foreground">Pts</p>
-          <p className="text-xs font-bold tabular-nums text-amber-300">{customer.loyaltyPoints}</p>
-        </div>
-      </div>
-
-      {(intelLoading || recent.length > 0) && (
-        <div className="mt-2 border-t border-white/5 pt-2">
-          <div className="mb-1 flex items-center gap-1 text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
-            <History className="h-2.5 w-2.5" />
-            Recent
+      <div className={`${expanded ? 'mt-3 flex flex-1 flex-col justify-end gap-3' : 'mt-2'}`}>
+        <div className={`grid grid-cols-3 ${expanded ? 'gap-2' : 'gap-1.5'}`}>
+          <div className={statBoxClass}>
+            <Clock className={`text-blue-400 ${expanded ? 'h-5 w-5' : 'mx-auto h-3 w-3'}`} />
+            <p className={statLabelClass}>Play time</p>
+            <p className={`${statValueClass} text-blue-300`}>
+              {formatPlayTimeMinutes(customer.totalPlayTime)}
+            </p>
           </div>
-          {intelLoading ? (
-            <p className="text-[11px] text-muted-foreground animate-pulse">Loading…</p>
-          ) : (
-            <ul className="space-y-1">
-              {recent.map((s) => (
-                <li key={s.id} className="flex items-start gap-1 text-[11px]">
-                  <Gamepad2 className={`mt-0.5 h-2.5 w-2.5 shrink-0 ${theme.accent}`} />
-                  <span className="min-w-0 break-words text-foreground/85">
-                    {s.stationName}
-                    <span className="text-muted-foreground">
-                      {' '}
-                      · {formatShortDate(s.endedAt)} · {formatPlayTimeMinutes(s.durationMinutes)}
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className={statBoxClass}>
+            <CreditCard className={`text-emerald-400 ${expanded ? 'h-5 w-5' : 'mx-auto h-3 w-3'}`} />
+            <p className={statLabelClass}>Lifetime</p>
+            <p className={`${statValueClass} text-emerald-300`}>
+              <CurrencyDisplay amount={customer.totalSpent} />
+            </p>
+          </div>
+          <div className={statBoxClass}>
+            <Star className={`text-amber-400 ${expanded ? 'h-5 w-5' : 'mx-auto h-3 w-3'}`} />
+            <p className={statLabelClass}>Points</p>
+            <p className={`${statValueClass} text-amber-300`}>{customer.loyaltyPoints}</p>
+          </div>
         </div>
-      )}
+
+        {(intelLoading || recent.length > 0) && (
+          <div className={`${expanded ? '' : 'border-t border-white/5 pt-2'}`}>
+            <div
+              className={`mb-1.5 flex items-center gap-1.5 font-semibold uppercase tracking-widest text-muted-foreground ${
+                expanded ? 'text-[10px]' : 'text-[9px]'
+              }`}
+            >
+              <History className="h-3 w-3" />
+              Recent games
+            </div>
+            {intelLoading ? (
+              <p className="text-xs text-muted-foreground animate-pulse">Loading history…</p>
+            ) : (
+              <ul className={`space-y-1.5 ${expanded ? '' : 'space-y-1'}`}>
+                {recent.map((s) => (
+                  <li
+                    key={s.id}
+                    className={`flex items-start gap-1.5 rounded-md bg-white/[0.03] ${
+                      expanded ? 'px-2 py-1.5 text-xs' : 'text-[11px]'
+                    }`}
+                  >
+                    <Gamepad2 className={`mt-0.5 shrink-0 ${theme.accent} ${expanded ? 'h-3.5 w-3.5' : 'h-2.5 w-2.5'}`} />
+                    <span className="min-w-0 break-words text-foreground/90">
+                      {s.stationName}
+                      <span className="text-muted-foreground">
+                        {' '}
+                        · {formatShortDate(s.endedAt)} · {formatPlayTimeMinutes(s.durationMinutes)}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

@@ -223,7 +223,30 @@ const Stations = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 lg:shrink-0">
+          <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+            {selectionMode && selectedStations.length > 0 && (
+              <>
+                <span className="hidden text-xs text-muted-foreground sm:inline">
+                  {selectedStations.length} selected
+                </span>
+                <Button
+                  size="sm"
+                  className="bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:opacity-90"
+                  onClick={() => setOpenMultiStartDialog(true)}
+                >
+                  Start together ({selectedStations.length})
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="px-2"
+                  onClick={() => setSelectedStationIds(new Set())}
+                  title="Clear selection"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </>
+            )}
             <Button
               size="sm"
               variant={selectionMode ? 'default' : 'outline'}
@@ -298,7 +321,7 @@ const Stations = () => {
 
         {selectionMode && (
           <p className="mt-3 border-t border-white/8 pt-3 text-center text-xs text-cuephoria-lightpurple">
-            Tap open stations to select · set players per station · one customer for all
+            Tap open stations to select · use <strong className="font-semibold">Start together</strong> in the header when ready
           </p>
         )}
       </div>
@@ -350,28 +373,6 @@ const Stations = () => {
         )}
       </div>
 
-      {selectionMode && selectedStations.length > 0 && (
-        <div className="fixed bottom-4 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 items-center gap-3 rounded-xl border border-cuephoria-purple/40 bg-[#120818]/95 px-4 py-3 shadow-[0_8px_32px_rgba(139,92,246,0.35)] backdrop-blur-md">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-white">
-              {selectedStations.length} station{selectedStations.length === 1 ? '' : 's'} selected
-            </p>
-            <p className="truncate text-xs text-muted-foreground">
-              {selectedStations.map((s) => s.name).join(' · ')}
-            </p>
-          </div>
-          <Button size="sm" variant="ghost" className="shrink-0" onClick={() => setSelectedStationIds(new Set())}>
-            <X className="h-4 w-4" />
-          </Button>
-          <Button
-            size="sm"
-            className="shrink-0 bg-cuephoria-purple hover:bg-cuephoria-purple/80"
-            onClick={() => setOpenMultiStartDialog(true)}
-          >
-            Start together
-          </Button>
-        </div>
-      )}
     </div>
   );
 };
