@@ -265,8 +265,8 @@ const StationCard: React.FC<StationCardProps> = ({
             </div>
           </div>
 
-          {/* Body: intel + session side by side */}
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+          {/* Body: intel + prominent timer */}
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(180px,220px)] sm:items-stretch">
             <StationCustomerPanel
               station={station}
               customer={customer}
@@ -275,10 +275,10 @@ const StationCard: React.FC<StationCardProps> = ({
               theme={theme}
             />
 
-            <div className="flex min-w-[148px] flex-col gap-2 sm:w-[148px]">
+            <div className="flex min-h-[168px] flex-col gap-2">
               {showSessionBlock ? (
-                <div key={sessionId} className="space-y-1.5 animate-station-content-in">
-                  <StationTimer station={station} theme={theme} compact />
+                <div key={sessionId} className="flex flex-1 flex-col animate-station-content-in">
+                  <StationTimer station={station} theme={theme} prominent />
                   {quickShopCount > 0 && (
                     <button
                       type="button"
@@ -286,44 +286,66 @@ const StationCard: React.FC<StationCardProps> = ({
                         setQuickShopTab('order');
                         setQuickShopOpen(true);
                       }}
-                      className="flex w-full items-center justify-between gap-1.5 rounded-md border border-emerald-500/35 bg-emerald-950/40 px-2 py-1.5 text-left transition-all hover:bg-emerald-950/60"
+                      className="mt-2 flex w-full items-center justify-between gap-2 rounded-md border border-emerald-500/35 bg-emerald-950/40 px-3 py-2 text-left transition-all hover:bg-emerald-950/60"
                     >
-                      <div className="flex min-w-0 items-center gap-1">
-                        <ShoppingBag className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-                        <span className="truncate text-[11px] text-emerald-200">{quickShopCount} items</span>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <ShoppingBag className="h-4 w-4 shrink-0 text-emerald-400" />
+                        <span className="truncate text-xs text-emerald-200">{quickShopCount} items</span>
                       </div>
-                      <CurrencyDisplay amount={quickShopTotal} className="shrink-0 text-xs font-bold text-emerald-300" />
+                      <CurrencyDisplay amount={quickShopTotal} className="shrink-0 text-sm font-bold text-emerald-300" />
                     </button>
                   )}
                 </div>
               ) : phase === 'starting' ? (
-                <div className="flex items-center justify-center gap-1.5 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-4 animate-pulse-soft">
+                <div className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-8 animate-pulse-soft">
                   <span className="h-2 w-2 rounded-full bg-orange-400 animate-ping" />
-                  <span className="text-xs font-medium text-orange-200">Starting…</span>
+                  <span className="text-sm font-medium text-orange-200">Starting…</span>
                 </div>
               ) : phase === 'ending' ? (
-                <div className="flex items-center justify-center rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-4 animate-station-content-out">
-                  <span className="text-xs font-medium text-red-200">Ending…</span>
+                <div className="flex flex-1 items-center justify-center rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-8 animate-station-content-out">
+                  <span className="text-sm font-medium text-red-200">Ending…</span>
                 </div>
-              ) : null}
-
-              <StationActions
-                station={station}
-                customers={customers}
-                theme={theme}
-                phase={phase}
-                onStartSession={wrappedStartSession}
-                onEndSession={wrappedEndSession}
-                onPauseSession={pauseSession}
-                onResumeSession={resumeSession}
-                onExtendSession={extendSession}
-                onQuickShop={() => {
-                  setQuickShopTab('products');
-                  setQuickShopOpen(true);
-                }}
-              />
+              ) : (
+                <div className="flex flex-1 flex-col justify-end">
+                  <StationActions
+                    station={station}
+                    customers={customers}
+                    theme={theme}
+                    phase={phase}
+                    onStartSession={wrappedStartSession}
+                    onEndSession={wrappedEndSession}
+                    onPauseSession={pauseSession}
+                    onResumeSession={resumeSession}
+                    onExtendSession={extendSession}
+                    onQuickShop={() => {
+                      setQuickShopTab('products');
+                      setQuickShopOpen(true);
+                    }}
+                    footerLayout
+                  />
+                </div>
+              )}
             </div>
           </div>
+
+          {showSessionBlock && (
+            <StationActions
+              station={station}
+              customers={customers}
+              theme={theme}
+              phase={phase}
+              onStartSession={wrappedStartSession}
+              onEndSession={wrappedEndSession}
+              onPauseSession={pauseSession}
+              onResumeSession={resumeSession}
+              onExtendSession={extendSession}
+              onQuickShop={() => {
+                setQuickShopTab('products');
+                setQuickShopOpen(true);
+              }}
+              footerLayout
+            />
+          )}
         </div>
       </article>
 

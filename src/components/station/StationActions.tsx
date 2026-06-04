@@ -30,6 +30,8 @@ interface StationActionsProps {
   onResumeSession: (stationId: string) => Promise<void>;
   onExtendSession?: (stationId: string, extraMinutes: number) => Promise<void>;
   onQuickShop?: () => void;
+  /** Full-width footer layout with larger tap targets */
+  footerLayout?: boolean;
 }
 
 const StationActions: React.FC<StationActionsProps> = ({
@@ -43,6 +45,7 @@ const StationActions: React.FC<StationActionsProps> = ({
   onResumeSession,
   onExtendSession,
   onQuickShop,
+  footerLayout = false,
 }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -104,8 +107,13 @@ const StationActions: React.FC<StationActionsProps> = ({
     }
   };
 
-  const btnBase =
-    'h-8 flex-1 text-xs font-semibold px-2 transition-all duration-200 active:scale-95';
+  const btnBase = footerLayout
+    ? 'h-11 text-sm font-semibold px-3 transition-all duration-200 active:scale-95'
+    : 'h-8 flex-1 text-xs font-semibold px-2 transition-all duration-200 active:scale-95';
+
+  const extendBtnClass = footerLayout
+    ? 'h-10 flex-1 border-cuephoria-purple/40 bg-cuephoria-purple/10 text-sm font-semibold text-cuephoria-lightpurple hover:bg-cuephoria-purple/20'
+    : 'h-7 flex-1 border-cuephoria-purple/40 bg-cuephoria-purple/10 px-1 text-[10px] font-semibold text-cuephoria-lightpurple hover:bg-cuephoria-purple/20';
 
   const extendPresets = getDurationPresets(station.slotDuration).slice(0, 3);
 
@@ -125,67 +133,77 @@ const StationActions: React.FC<StationActionsProps> = ({
     if (phase === 'starting') return null;
 
     return (
-      <div className="flex w-full flex-col gap-1.5 animate-station-content-in">
+      <div
+        className={`animate-station-content-in ${
+          footerLayout ? 'w-full space-y-2 border-t border-white/8 pt-3' : 'flex w-full flex-col gap-1.5'
+        }`}
+      >
         {station.currentSession?.plannedDurationMinutes && onExtendSession && (
-          <div className="flex gap-1">
+          <div className={`flex gap-2 ${footerLayout ? '' : 'gap-1'}`}>
             {extendPresets.map((mins) => (
               <Button
                 key={mins}
-                size="sm"
+                size={footerLayout ? 'default' : 'sm'}
                 variant="outline"
-                className="h-7 flex-1 border-cuephoria-purple/40 bg-cuephoria-purple/10 px-1 text-[10px] font-semibold text-cuephoria-lightpurple hover:bg-cuephoria-purple/20"
+                className={extendBtnClass}
                 onClick={() => void handleExtend(mins)}
                 disabled={isLoading || isTransitioning}
               >
-                <Plus className="mr-0.5 h-3 w-3" />
+                <Plus className={`mr-1 ${footerLayout ? 'h-4 w-4' : 'h-3 w-3'}`} />
                 {mins}m
               </Button>
             ))}
           </div>
         )}
-        <div className="flex w-full flex-row flex-wrap gap-1 sm:flex-col sm:gap-1.5">
+        <div
+          className={
+            footerLayout
+              ? 'grid grid-cols-3 gap-2'
+              : 'flex w-full flex-row flex-wrap gap-1 sm:flex-col sm:gap-1.5'
+          }
+        >
         {isPaused ? (
           <Button
-            size="sm"
+            size={footerLayout ? 'default' : 'sm'}
             className={`${btnBase} bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-[0_0_12px_rgba(245,158,11,0.3)]`}
             onClick={() => void onResumeSession(station.id)}
             disabled={isLoading || isTransitioning}
           >
-            <Play className="h-3 w-3 mr-1 fill-current" />
+            <Play className={`mr-1.5 fill-current ${footerLayout ? 'h-4 w-4' : 'h-3 w-3'}`} />
             Resume
           </Button>
         ) : (
           <Button
-            size="sm"
+            size={footerLayout ? 'default' : 'sm'}
             variant="secondary"
             className={`${btnBase} bg-amber-950/60 text-amber-100 border border-amber-500/30 hover:bg-amber-950/80`}
             onClick={() => void onPauseSession(station.id)}
             disabled={isLoading || isTransitioning}
           >
-            <Pause className="h-3 w-3 mr-1" />
+            <Pause className={`mr-1.5 ${footerLayout ? 'h-4 w-4' : 'h-3 w-3'}`} />
             Pause
           </Button>
         )}
         <Button
-          size="sm"
+          size={footerLayout ? 'default' : 'sm'}
           className={`${btnBase} bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-white`}
           onClick={() => onQuickShop?.()}
           disabled={isLoading || isTransitioning}
         >
-          <ShoppingBag className="h-3 w-3 mr-1" />
+          <ShoppingBag className={`mr-1.5 ${footerLayout ? 'h-4 w-4' : 'h-3 w-3'}`} />
           Shop
         </Button>
         <Button
-          size="sm"
+          size={footerLayout ? 'default' : 'sm'}
           variant="destructive"
           className={`${btnBase} bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 shadow-[0_0_10px_rgba(239,68,68,0.25)]`}
           onClick={handleEndSession}
           disabled={isLoading || isTransitioning}
         >
           {isLoading && phase === 'ending' ? (
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+            <Loader2 className={`mr-1.5 animate-spin ${footerLayout ? 'h-4 w-4' : 'h-3 w-3'}`} />
           ) : (
-            <Square className="h-3 w-3 mr-1 fill-current" />
+            <Square className={`mr-1.5 fill-current ${footerLayout ? 'h-4 w-4' : 'h-3 w-3'}`} />
           )}
           End
         </Button>
@@ -199,8 +217,8 @@ const StationActions: React.FC<StationActionsProps> = ({
   return (
     <>
       <Button
-        size="sm"
-        className={`w-full h-9 text-sm font-bold text-white transition-all duration-300 active:scale-[0.98] hover:brightness-110 ${theme.startBtn}`}
+        size="default"
+        className={`w-full h-11 text-sm font-bold text-white transition-all duration-300 active:scale-[0.98] hover:brightness-110 ${theme.startBtn}`}
         disabled={isLoading || customers.length === 0 || isTransitioning}
         onClick={() => setIsStartDialogOpen(true)}
       >

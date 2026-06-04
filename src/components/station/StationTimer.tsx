@@ -19,6 +19,7 @@ interface StationTimerProps {
   station: Station;
   theme: StationTheme;
   compact?: boolean;
+  prominent?: boolean;
 }
 
 function toTimeMs(value: Date | string | undefined): number | null {
@@ -27,7 +28,12 @@ function toTimeMs(value: Date | string | undefined): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-const StationTimer: React.FC<StationTimerProps> = ({ station, theme, compact = false }) => {
+const StationTimer: React.FC<StationTimerProps> = ({
+  station,
+  theme,
+  compact = false,
+  prominent = false,
+}) => {
   const [hours, setHours] = useState(0);
   const [minutes, setMinutes] = useState(0);
   const [seconds, setSeconds] = useState(0);
@@ -118,11 +124,23 @@ const StationTimer: React.FC<StationTimerProps> = ({ station, theme, compact = f
     .toString()
     .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
+  const sizeClass = prominent
+    ? 'gap-2 px-4 py-5 min-h-[168px] w-full flex-1'
+    : compact
+      ? 'gap-0.5 px-2 py-2 min-w-0'
+      : 'gap-1 px-4 py-4 min-w-[140px]';
+
+  const timeSizeClass = prominent
+    ? 'text-4xl sm:text-5xl'
+    : compact
+      ? 'text-xl'
+      : 'text-3xl';
+
+  const costSizeClass = prominent ? 'text-xl' : compact ? 'text-sm' : 'text-lg';
+
   return (
     <div
-      className={`relative overflow-hidden flex flex-col items-center justify-center rounded-lg border backdrop-blur-sm transition-all duration-150 ${
-        compact ? 'gap-0.5 px-2 py-2 min-w-0' : 'gap-1 px-4 py-4 min-w-[140px]'
-      } ${
+      className={`relative overflow-hidden flex flex-col items-center justify-center rounded-lg border backdrop-blur-sm transition-all duration-150 ${sizeClass} ${
         isPaused
           ? 'bg-amber-950/60 border-amber-500/35'
           : 'bg-black/55 border-white/10 shadow-inner'
@@ -136,28 +154,30 @@ const StationTimer: React.FC<StationTimerProps> = ({ station, theme, compact = f
           }}
         />
       )}
-      <div className="relative flex items-center gap-1">
-        <Timer className={`h-3 w-3 shrink-0 ${isPaused ? 'text-amber-400' : theme.accent}`} />
-        <span className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
+      <div className="relative flex items-center gap-1.5">
+        <Timer className={`shrink-0 ${prominent ? 'h-4 w-4' : 'h-3 w-3'} ${isPaused ? 'text-amber-400' : theme.accent}`} />
+        <span className={`font-semibold uppercase tracking-widest text-muted-foreground ${prominent ? 'text-xs' : 'text-[9px]'}`}>
           {isPaused ? 'Paused' : 'Elapsed'}
         </span>
       </div>
       <span
-        className={`relative font-mono font-bold tabular-nums tracking-wider transition-transform duration-150 ${
-          compact ? 'text-xl' : 'text-3xl'
-        } ${isPaused ? 'text-amber-100' : 'text-white'} ${tick ? 'scale-105' : ''}`}
+        className={`relative font-mono font-bold tabular-nums tracking-wider transition-transform duration-150 ${timeSizeClass} ${
+          isPaused ? 'text-amber-100' : 'text-white'
+        } ${tick ? 'scale-105' : ''}`}
       >
         {timeStr}
       </span>
       <CurrencyDisplay
         amount={cost}
-        className={`relative font-bold ${
-          compact ? 'text-sm' : 'text-lg'
-        } ${isPaused ? 'text-amber-300' : 'text-cuephoria-orange drop-shadow-[0_0_8px_rgba(249,115,22,0.4)]'}`}
+        className={`relative font-bold ${costSizeClass} ${
+          isPaused ? 'text-amber-300' : 'text-cuephoria-orange drop-shadow-[0_0_8px_rgba(249,115,22,0.4)]'
+        }`}
       />
       {remainingLabel && (
         <span
-          className={`relative text-[10px] font-semibold tabular-nums ${
+          className={`relative font-semibold tabular-nums ${
+            prominent ? 'text-sm' : 'text-[10px]'
+          } ${
             remainingLabel.startsWith('+')
               ? 'text-red-400'
               : 'text-emerald-300/90'
