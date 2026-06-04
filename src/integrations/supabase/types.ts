@@ -1596,6 +1596,14 @@ export type Database = {
           category: string | null
           event_enabled: boolean | null
           slot_duration: number | null
+          max_players: number
+          occupancy_rates: Json
+          team_name: string | null
+          team_color: string | null
+          max_capacity: number | null
+          single_rate: number | null
+          location_id: string | null
+          organization_id: string | null
         }
         Insert: {
           consolidated_name?: string | null
@@ -1610,6 +1618,14 @@ export type Database = {
           category?: string | null
           event_enabled?: boolean | null
           slot_duration?: number | null
+          max_players?: number
+          occupancy_rates?: Json
+          team_name?: string | null
+          team_color?: string | null
+          max_capacity?: number | null
+          single_rate?: number | null
+          location_id?: string | null
+          organization_id?: string | null
         }
         Update: {
           consolidated_name?: string | null
@@ -1624,6 +1640,14 @@ export type Database = {
           category?: string | null
           event_enabled?: boolean | null
           slot_duration?: number | null
+          max_players?: number
+          occupancy_rates?: Json
+          team_name?: string | null
+          team_color?: string | null
+          max_capacity?: number | null
+          single_rate?: number | null
+          location_id?: string | null
+          organization_id?: string | null
         }
         Relationships: [
           {

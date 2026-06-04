@@ -22,7 +22,9 @@ export const useStartSession = ({
     stationId: string, 
     customerId: string,
     finalRate?: number,
-    couponCode?: string
+    couponCode?: string,
+    playerCount?: number,
+    perPersonRate?: number
   ): Promise<Session | undefined> => {
     try {
       console.log("🚀 Starting session for station:", stationId, "for customer:", customerId);
@@ -62,15 +64,24 @@ export const useStartSession = ({
       const sessionId = generateId();
       console.log("🆔 Generated session ID:", sessionId);
       
+      const pricingPlayerCount = playerCount ?? 1;
       const sessionRate = finalRate !== undefined ? finalRate : station.hourlyRate;
-      const originalRate = station.hourlyRate;
-      const discountAmount = originalRate - sessionRate;
+      const undiscountedTotal =
+        perPersonRate != null
+          ? perPersonRate * pricingPlayerCount
+          : station.hourlyRate;
+      const originalRate = undiscountedTotal;
+      const discountAmount = Math.max(0, originalRate - sessionRate);
+      const resolvedPerPerson =
+        perPersonRate ?? (pricingPlayerCount > 0 ? sessionRate / pricingPlayerCount : sessionRate);
       
       console.log("💰 Rate calculation:", {
         originalRate,
         sessionRate,
         discountAmount,
-        couponCode
+        couponCode,
+        pricingPlayerCount,
+        resolvedPerPerson,
       });
       
       const newSession: Session = {
@@ -82,6 +93,8 @@ export const useStartSession = ({
         originalRate: originalRate,
         couponCode: couponCode,
         discountAmount: discountAmount,
+        playerCount: pricingPlayerCount,
+        perPersonRate: resolvedPerPerson,
       };
       
       console.log("📦 Created new session object:", JSON.stringify(newSession, null, 2));
@@ -114,6 +127,8 @@ export const useStartSession = ({
             original_rate: originalRate,
             coupon_code: couponCode,
             discount_amount: discountAmount,
+            player_count: pricingPlayerCount,
+            per_person_rate: resolvedPerPerson,
           } as any)
           .select()
           .single();

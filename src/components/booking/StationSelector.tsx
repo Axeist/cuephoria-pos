@@ -1,35 +1,45 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Monitor, GamepadIcon, Headset, Users, EyeOff } from 'lucide-react';
-import { getTeamBadge } from '@/utils/ps5Teams';
 import { cn } from '@/lib/utils';
+import {
+  formatOccupancyPriceLabel,
+  getRateForPlayerCount,
+  hasOccupancyRates,
+} from '@/utils/stationPricing';
 
-interface Station {
+export interface BookingStation {
   id: string;
   name: string;
   type: 'ps5' | '8ball' | 'vr';
   hourly_rate: number;
+  max_players?: number;
+  occupancy_rates?: Record<string, number>;
+  slot_duration?: number | null;
+  category?: string | null;
   team_name?: string | null;
-  team_color?: string | null;
-  max_capacity?: number | null;
   single_rate?: number | null;
+  max_capacity?: number | null;
 }
 
 interface StationSelectorProps {
-  stations: Station[];
+  stations: BookingStation[];
   selectedStations: string[];
+  stationPlayerCounts: Record<string, number>;
   onStationToggle: (stationId: string) => void;
+  onPlayerCountChange: (stationId: string, count: number) => void;
   loading?: boolean;
-  hideTeammates?: boolean; // New prop to control team filtering
 }
 
 export const StationSelector: React.FC<StationSelectorProps> = ({
   stations,
   selectedStations,
+  stationPlayerCounts,
   onStationToggle,
+  onPlayerCountChange,
   loading = false,
-  hideTeammates = true,
 }) => {
   const getStationIcon = (type: string) => {
     switch (type) {
@@ -53,62 +63,25 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
     }
   };
 
-  const getStationTypeBadgeColor = (type: string) => {
-    switch (type) {
-      case 'ps5':
-        return 'bg-cuephoria-purple/15 text-cuephoria-purple border-cuephoria-purple/20';
-      case 'vr':
-        return 'bg-blue-400/15 text-blue-300 border-blue-400/20';
-      default:
-        return 'bg-emerald-400/15 text-emerald-300 border-emerald-400/20';
-    }
+  const toPricingStation = (station: BookingStation) => ({
+    hourlyRate: station.hourly_rate,
+    maxPlayers: station.max_players ?? station.max_capacity ?? 1,
+    occupancyRates: station.occupancy_rates ?? {},
+    type: station.type,
+    slotDuration: station.slot_duration,
+    category: station.category,
+    teamName: station.team_name,
+    singleRate: station.single_rate,
+    maxCapacity: station.max_capacity,
+  });
+
+  const getPriceDisplay = (station: BookingStation) => {
+    const count = stationPlayerCounts[station.id] ?? 1;
+    return formatOccupancyPriceLabel(
+      { ...toPricingStation(station), type: station.type, slotDuration: station.slot_duration, category: station.category },
+      count
+    );
   };
-
-  const getPriceDisplay = (station: Station) => {
-    // Helper to get rate suffix
-    const getRateSuffix = () => {
-      if (station.category === 'nit_event') {
-        if (station.slot_duration === 15) {
-          return '/15mins';
-        } else if (station.slot_duration === 30) {
-          return '/30mins';
-        }
-      }
-      if (station.type === 'vr') {
-        return '/15mins';
-      }
-      return '/hour';
-    };
-
-    // Check if this is a PS5 with dynamic pricing
-    if (station.type === 'ps5') {
-      const selectedPS5Count = selectedStations.filter(id => {
-        const s = stations.find(st => st.id === id);
-        return s?.type === 'ps5';
-      }).length;
-      
-      // If exactly ONE PS5 controller is selected (or will be after clicking this one)
-      const isCurrentlySelected = selectedStations.includes(station.id);
-      const willBeSingle = (selectedPS5Count === 0 && !isCurrentlySelected) || 
-                           (selectedPS5Count === 1 && isCurrentlySelected);
-      
-      // Single controller: ₹200/hour (single_rate)
-      // Multiple controllers: ₹150/hour each (hourly_rate)
-      if (willBeSingle && station.single_rate) {
-        return `₹${station.single_rate}${getRateSuffix()}`;
-      } else {
-        // Multiple controllers selected - show regular rate
-        return `₹${station.hourly_rate}${getRateSuffix()}`;
-      }
-    }
-    
-    return `₹${station.hourly_rate}${getRateSuffix()}`;
-  };
-
-  // Don't hide teammates just because one is selected
-  // Only hide based on actual booking conflicts (handled in getAvailableStationsForSlot)
-  // This allows users to see all available stations even if they select one from a team
-  const visibleStations = stations;
 
   if (loading) {
     return (
@@ -120,7 +93,7 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
     );
   }
 
-  if (visibleStations.length === 0) {
+  if (stations.length === 0) {
     return (
       <div className="text-center py-8 text-gray-400">
         <EyeOff className="h-8 w-8 mx-auto mb-2 opacity-50" />
@@ -131,19 +104,19 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {visibleStations.map((station) => {
+      {stations.map((station) => {
         const Icon = getStationIcon(station.type);
         const isSelected = selectedStations.includes(station.id);
-        const teamBadge = getTeamBadge(station);
-        
+        const maxPlayers = station.max_players ?? station.max_capacity ?? 1;
+        const playerCount = stationPlayerCounts[station.id] ?? 1;
+        const multiPlayer = maxPlayers > 1 || hasOccupancyRates(toPricingStation(station));
+
         return (
           <Card
             key={station.id}
             className={cn(
-              "cursor-pointer transition-all duration-200 hover:shadow-md border-white/10 bg-white/5 backdrop-blur-sm",
-              isSelected 
-                ? 'ring-2 ring-cuephoria-purple bg-cuephoria-purple/10' 
-                : 'hover:bg-white/10'
+              'cursor-pointer transition-all duration-200 hover:shadow-md border-white/10 bg-white/5 backdrop-blur-sm',
+              isSelected ? 'ring-2 ring-cuephoria-purple bg-cuephoria-purple/10' : 'hover:bg-white/10'
             )}
             onClick={() => onStationToggle(station.id)}
           >
@@ -159,36 +132,45 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
                   </Badge>
                 )}
               </div>
-              {/* Team Badge */}
-              {teamBadge && (
-                <div className="mt-2">
-                  <Badge 
-                    variant="outline" 
-                    className={cn(
-                      "text-xs border flex items-center gap-1 w-fit",
-                      teamBadge.color,
-                      teamBadge.bgColor,
-                      teamBadge.borderColor
-                    )}
-                  >
-                    <Users className="h-3 w-3" />
-                    {teamBadge.label}
-                  </Badge>
-                </div>
+              {maxPlayers > 1 && (
+                <Badge variant="outline" className="mt-2 text-xs w-fit border-white/20 text-gray-300">
+                  <Users className="h-3 w-3 mr-1" />
+                  Up to {maxPlayers} players
+                </Badge>
               )}
             </CardHeader>
-            <CardContent className="pt-0">
-              <div className="space-y-2">
-                <Badge 
-                  variant="secondary" 
-                  className={`text-xs border ${getStationTypeBadgeColor(station.type)}`}
-                >
-                  {getStationTypeLabel(station.type)}
-                </Badge>
-                <div className="text-sm font-medium text-cuephoria-lightpurple">
-                  {getPriceDisplay(station)}
+            <CardContent className="pt-0 space-y-3" onClick={(e) => e.stopPropagation()}>
+              <Badge variant="secondary" className="text-xs border bg-white/10 text-gray-200 border-white/10">
+                {getStationTypeLabel(station.type)}
+              </Badge>
+              <div className="text-sm font-medium text-cuephoria-lightpurple">{getPriceDisplay(station)}</div>
+
+              {isSelected && multiPlayer && (
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-xs text-gray-400">Players</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 p-0 border-white/20"
+                    disabled={playerCount <= 1}
+                    onClick={() => onPlayerCountChange(station.id, playerCount - 1)}
+                  >
+                    −
+                  </Button>
+                  <span className="text-sm font-semibold text-white w-6 text-center">{playerCount}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 p-0 border-white/20"
+                    disabled={playerCount >= maxPlayers}
+                    onClick={() => onPlayerCountChange(station.id, playerCount + 1)}
+                  >
+                    +
+                  </Button>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         );
@@ -196,3 +178,5 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
     </div>
   );
 };
+
+export { getRateForPlayerCount };

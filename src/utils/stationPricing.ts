@@ -1,0 +1,160 @@
+import type { Station } from '@/types/pos.types';
+
+export type OccupancyRates = Record<string, number>;
+
+export type StationPricingInput = Pick<
+  Station,
+  | 'hourlyRate'
+  | 'maxPlayers'
+  | 'occupancyRates'
+  | 'type'
+  | 'teamName'
+  | 'singleRate'
+  | 'maxCapacity'
+>;
+
+export function clampPlayerCount(station: StationPricingInput, playerCount: number): number {
+  const max = Math.max(1, station.maxPlayers ?? station.maxCapacity ?? 1);
+  return Math.min(max, Math.max(1, Math.floor(playerCount) || 1));
+}
+
+export function hasOccupancyRates(station: StationPricingInput): boolean {
+  return Object.keys(station.occupancyRates ?? {}).length > 0;
+}
+
+/** Legacy per-controller row (team_name or controller naming, no occupancy grid). */
+export function isLegacyControllerStation(station: StationPricingInput): boolean {
+  if (hasOccupancyRates(station)) return false;
+  if ((station.maxPlayers ?? 1) > 1 && !station.teamName) return false;
+  return Boolean(
+    station.teamName ||
+      (station.maxPlayers ?? 1) <= 1 &&
+        (station.singleRate != null || station.maxCapacity != null)
+  );
+}
+
+export function buildDefaultOccupancyRates(
+  maxPlayers: number,
+  soloPerPerson: number,
+  groupPerPerson: number
+): OccupancyRates {
+  const rates: OccupancyRates = {};
+  const max = Math.max(1, Math.min(8, maxPlayers));
+  for (let i = 1; i <= max; i++) {
+    if (i === 1) {
+      rates['1'] = soloPerPerson;
+    } else if (i === max) {
+      rates[String(i)] = groupPerPerson;
+    } else {
+      const t = (i - 1) / (max - 1);
+      rates[String(i)] = Math.round(soloPerPerson + (groupPerPerson - soloPerPerson) * t);
+    }
+  }
+  return rates;
+}
+
+export function totalRateAtMaxOccupancy(
+  maxPlayers: number,
+  occupancyRates: OccupancyRates,
+  fallbackHourlyRate: number
+): number {
+  const max = Math.max(1, maxPlayers);
+  const key = String(max);
+  const perPerson = occupancyRates[key] ?? occupancyRates['1'];
+  if (perPerson != null && perPerson > 0) {
+    return perPerson * max;
+  }
+  return fallbackHourlyRate;
+}
+
+export function getRateForPlayerCount(
+  station: StationPricingInput,
+  rawPlayerCount: number
+): { perPersonRate: number; totalRate: number; playerCount: number } {
+  const playerCount = clampPlayerCount(station, rawPlayerCount);
+  const rates = station.occupancyRates ?? {};
+  const key = String(playerCount);
+
+  if (rates[key] != null && rates[key] > 0) {
+    const perPersonRate = rates[key];
+    return { perPersonRate, totalRate: perPersonRate * playerCount, playerCount };
+  }
+
+  if (rates['1'] != null && rates['1'] > 0 && playerCount === 1) {
+    const perPersonRate = rates['1'];
+    return { perPersonRate, totalRate: perPersonRate, playerCount };
+  }
+
+  // Legacy: single controller total rate
+  if (playerCount === 1 && station.singleRate != null && station.singleRate > 0) {
+    return {
+      perPersonRate: station.singleRate,
+      totalRate: station.singleRate,
+      playerCount,
+    };
+  }
+
+  // Legacy: multi-controller — hourly_rate is per controller/person
+  if (isLegacyControllerStation(station) || !hasOccupancyRates(station)) {
+    const perPerson = station.hourlyRate;
+    return { perPersonRate: perPerson, totalRate: perPerson * playerCount, playerCount };
+  }
+
+  // Fallback: flat hourly rate as total for any count
+  const perPerson = station.hourlyRate / Math.max(1, playerCount);
+  return { perPersonRate: perPerson, totalRate: station.hourlyRate, playerCount };
+}
+
+/** Legacy public booking: sum rates when multiple PS5 controller stations selected. */
+export function getLegacyBookingRateForSelection(
+  stations: Array<
+    StationPricingInput & { id?: string; type?: string }
+  >,
+  selectedIds: string[],
+  playerCountsByStation: Record<string, number> = {}
+): number {
+  let total = 0;
+  const ps5Selected = stations.filter(
+    (s) => s.type === 'ps5' && s.id && selectedIds.includes(s.id)
+  );
+  const nonPs5 = stations.filter(
+    (s) => s.type !== 'ps5' && s.id && selectedIds.includes(s.id)
+  );
+
+  if (ps5Selected.length === 1) {
+    const s = ps5Selected[0];
+    const count = playerCountsByStation[s.id!] ?? 1;
+    if (hasOccupancyRates(s)) {
+      total += getRateForPlayerCount(s, count).totalRate;
+    } else {
+      total += s.singleRate ?? s.hourlyRate;
+    }
+  } else if (ps5Selected.length > 1) {
+    total += ps5Selected.reduce((sum, s) => sum + s.hourlyRate, 0);
+  }
+
+  for (const s of nonPs5) {
+    const count = playerCountsByStation[s.id!] ?? 1;
+    total += getRateForPlayerCount(s, count).totalRate;
+  }
+
+  return total;
+}
+
+export function getRateSuffix(station: Pick<Station, 'type' | 'slotDuration' | 'category'>): string {
+  if (station.type === 'vr' || station.slotDuration === 15) return '/15mins';
+  if (station.slotDuration === 30) return '/30mins';
+  return '/hr';
+}
+
+export function formatOccupancyPriceLabel(
+  station: StationPricingInput & Pick<Station, 'type' | 'slotDuration' | 'category'>,
+  playerCount: number
+): string {
+  const { perPersonRate, totalRate } = getRateForPlayerCount(station, playerCount);
+  const suffix = getRateSuffix(station);
+  if (playerCount <= 1) {
+    return `₹${totalRate}${suffix}`;
+  }
+  return `₹${totalRate}${suffix} (${playerCount} × ₹${perPersonRate}/person)`;
+}

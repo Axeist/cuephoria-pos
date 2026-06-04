@@ -2,13 +2,12 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { usePOS } from '@/context/POSContext';
 import StationCard from '@/components/StationCard';
 import { Card, CardContent } from '@/components/ui/card';
-import { Gamepad2, Plus, Table2, Headset, Calendar, ToggleLeft, ToggleRight, MapPin } from 'lucide-react';
+import { Gamepad2, Plus, Table2, Headset, MapPin, ArrowRightLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AddStationDialog from '@/components/AddStationDialog';
+import ReplaceLegacyStationsDialog from '@/components/station/ReplaceLegacyStationsDialog';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
 import { useLocation } from '@/context/LocationContext';
 import { Badge } from '@/components/ui/badge';
 import { type Station } from '@/types/pos.types';
@@ -60,18 +59,15 @@ const groupByType = (list: Station[]): Array<{ type: string; stations: Station[]
 };
 
 const Stations = () => {
-  const { stations, setStations } = usePOS();
-  const { toast } = useToast();
-  const { activeLocation, activeLocationId } = useLocation();
+  const { stations } = usePOS();
+  const { activeLocation } = useLocation();
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [openPinDialog, setOpenPinDialog] = useState(false);
+  const [openReplaceDialog, setOpenReplaceDialog] = useState(false);
   const isMobile = useIsMobile();
 
-  const regularStations = stations.filter((station) => !station.category || station.category !== 'nit_event');
-  const eventStations = stations.filter((station) => station.category === 'nit_event');
-  const regularTypeGroups = useMemo(() => groupByType(regularStations), [regularStations]);
-  const eventTypeGroups = useMemo(() => groupByType(eventStations), [eventStations]);
-  const enabledEventStations = eventStations.filter((s) => s.eventEnabled).length;
+  const visibleStations = stations.filter((s) => s.category !== 'nit_event');
+  const typeGroups = useMemo(() => groupByType(visibleStations), [visibleStations]);
 
   useEffect(() => {
     prefetchPOS();
@@ -79,41 +75,6 @@ const Stations = () => {
 
   const handleAddStationClick = () => setOpenPinDialog(true);
   const handlePinSuccess = () => setOpenAddDialog(true);
-
-  const handleToggleAllEventStations = async (enable: boolean) => {
-    if (!activeLocationId) {
-      toast({
-        title: 'Select a branch',
-        description: 'Choose Main or Lite in the header before changing event stations.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('stations')
-        .update({ event_enabled: enable })
-        .eq('category', 'nit_event')
-        .eq('location_id', activeLocationId);
-
-      if (error) throw error;
-
-      setStations(stations.map((s) => (s.category === 'nit_event' ? { ...s, eventEnabled: enable } : s)));
-
-      toast({
-        title: enable ? 'All Event Stations Enabled' : 'All Event Stations Disabled',
-        description: `All event stations ${enable ? 'will now appear' : 'will no longer appear'} on public booking page.`,
-      });
-    } catch (error) {
-      console.error('Error toggling all event stations:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update event status',
-        variant: 'destructive',
-      });
-    }
-  };
 
   const branchSlug = activeLocation?.slug ?? '';
   const branchBannerClass =
@@ -128,6 +89,15 @@ const Stations = () => {
           Gaming Stations
         </h2>
         <div className="flex w-full space-x-2 sm:w-auto">
+          <Button
+            size={isMobile ? 'sm' : 'default'}
+            variant="outline"
+            className="h-10 flex-1 sm:flex-none text-xs sm:text-sm"
+            onClick={() => setOpenReplaceDialog(true)}
+          >
+            <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5 sm:mr-2 sm:h-4 sm:w-4" />
+            Replace Legacy
+          </Button>
           <Button
             size={isMobile ? 'sm' : 'default'}
             className="h-10 flex-1 rounded-lg bg-cuephoria-purple text-xs hover:bg-cuephoria-purple/80 sm:h-11 sm:flex-none sm:text-sm"
@@ -187,9 +157,14 @@ const Stations = () => {
       />
 
       <AddStationDialog open={openAddDialog} onOpenChange={setOpenAddDialog} />
+      <ReplaceLegacyStationsDialog
+        open={openReplaceDialog}
+        onOpenChange={setOpenReplaceDialog}
+        onComplete={() => {}}
+      />
 
       <div className="animate-slide-up grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 md:gap-4 lg:grid-cols-3">
-        {regularTypeGroups.map((group) => {
+        {typeGroups.map((group) => {
           const Icon = iconForType(group.type);
           return (
             <Card
@@ -213,7 +188,7 @@ const Stations = () => {
       </div>
 
       <div className="space-y-5 sm:space-y-6">
-        {regularTypeGroups.map((group, groupIndex) => {
+        {typeGroups.map((group, groupIndex) => {
           const Icon = iconForType(group.type);
           return (
             <div key={`regular-${group.type}`} className="animate-slide-up" style={{ animationDelay: `${groupIndex * 120}ms` }}>
@@ -234,64 +209,6 @@ const Stations = () => {
             </div>
           );
         })}
-
-        {eventStations.length > 0 && (
-          <div className="animate-slide-up mt-6 border-t border-yellow-500/30 pt-6">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="flex items-center">
-                <Calendar className="mr-2 h-5 w-5 text-yellow-400 sm:h-6 sm:w-6" />
-                <h3 className="font-heading text-base font-semibold text-yellow-400 sm:text-xl">Event Stations</h3>
-                <span className="ml-2 rounded-full bg-yellow-800/30 px-2 py-1 text-[10px] text-yellow-400 sm:text-xs">
-                  {enabledEventStations} enabled
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleToggleAllEventStations(true)}
-                  className="h-8 border-yellow-500/30 bg-yellow-500/20 text-xs text-yellow-400 hover:bg-yellow-500/30"
-                >
-                  <ToggleRight className="mr-1 h-3.5 w-3.5" />
-                  Enable All
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleToggleAllEventStations(false)}
-                  className="h-8 border-gray-500/30 bg-gray-500/20 text-xs text-gray-400 hover:bg-gray-500/30"
-                >
-                  <ToggleLeft className="mr-1 h-3.5 w-3.5" />
-                  Disable All
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              {eventTypeGroups.map((group) => {
-                const Icon = iconForType(group.type);
-                return (
-                  <div key={`event-${group.type}`}>
-                    <div className="mb-3 flex items-center">
-                      <Icon className="mr-2 h-4 w-4 text-yellow-400 sm:h-5 sm:w-5" />
-                      <h4 className="text-sm font-semibold sm:text-lg">{typeLabel(group.type)}</h4>
-                      <span className="ml-2 rounded-full bg-yellow-800/30 px-2 py-1 text-[10px] text-yellow-400 sm:text-xs">
-                        {group.activeCount} active
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
-                      {group.stations.map((station, index) => (
-                        <div key={station.id} className="animate-scale-in" style={{ animationDelay: `${index * 90}ms` }}>
-                          <StationCard station={station} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

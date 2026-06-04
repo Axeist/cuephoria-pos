@@ -96,6 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       orderId,
       payment_mode = "venue",
       location_id: locationIdRaw,
+      stationPlayerCounts = {},
     } = payload;
 
     const location_id =
@@ -307,8 +308,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
         final_price: finalPrice || 0,
         coupon_code: couponCodes || null,
-        payment_mode: payment_mode || null, // 'venue', 'razorpay', etc.
-        payment_txn_id: orderId || null, // Payment transaction/order ID
+        payment_mode: payment_mode || null,
+        payment_txn_id: orderId || null,
+        player_count: Number(stationPlayerCounts?.[stationId]) || 1,
       }))
     );
 

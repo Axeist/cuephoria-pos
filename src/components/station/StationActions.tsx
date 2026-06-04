@@ -6,12 +6,20 @@ import { useToast } from '@/hooks/use-toast';
 import { usePOS } from '@/context/POSContext';
 import { Pause, Play, Square, ShoppingBag } from 'lucide-react';
 import StartSessionDialog from '@/components/StartSessionDialog';
+import { getRateForPlayerCount } from '@/utils/stationPricing';
 import { prefetchPOS } from '@/utils/viewTransition';
 
 interface StationActionsProps {
   station: Station;
   customers: Customer[];
-  onStartSession: (stationId: string, customerId: string, hourlyRate?: number, couponCode?: string) => Promise<void>;
+  onStartSession: (
+    stationId: string,
+    customerId: string,
+    hourlyRate?: number,
+    couponCode?: string,
+    playerCount?: number,
+    perPersonRate?: number
+  ) => Promise<void>;
   onEndSession: (stationId: string) => Promise<void>;
   onPauseSession: (stationId: string) => Promise<void>;
   onResumeSession: (stationId: string) => Promise<void>;
@@ -47,13 +55,20 @@ const StationActions: React.FC<StationActionsProps> = ({
     customerId: string,
     customerName: string,
     finalRate: number,
-    couponCode?: string
+    couponCode?: string,
+    playerCount?: number,
+    perPersonRate?: number
   ) => {
     try {
       setIsLoading(true);
-      console.log(`Starting session - Station ID: ${station.id}, Customer ID: ${customerId}, Rate: ${finalRate}, Coupon: ${couponCode || 'none'}`);
-      
-      await onStartSession(station.id, customerId, finalRate, couponCode);
+      await onStartSession(
+        station.id,
+        customerId,
+        finalRate,
+        couponCode,
+        playerCount,
+        perPersonRate
+      );
       
       setIsStartDialogOpen(false);
       
@@ -217,6 +232,8 @@ const StationActions: React.FC<StationActionsProps> = ({
     );
   }
 
+  const defaultPricing = getRateForPlayerCount(station, 1);
+
   return (
     <>
       <Button 
@@ -243,7 +260,10 @@ const StationActions: React.FC<StationActionsProps> = ({
         onOpenChange={setIsStartDialogOpen}
         stationId={station.id}
         stationName={station.name}
-        baseRate={station.hourlyRate}
+        baseRate={defaultPricing.totalRate}
+        hourlyRate={station.hourlyRate}
+        maxPlayers={station.maxPlayers ?? 1}
+        occupancyRates={station.occupancyRates ?? {}}
         stationCategory={station.category}
         slotDuration={station.slotDuration}
         stationType={station.type}

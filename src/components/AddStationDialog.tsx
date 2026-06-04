@@ -1,32 +1,36 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
+import { DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { usePOS } from '@/context/POSContext';
 import { useLocation } from '@/context/LocationContext';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from "@/integrations/supabase/client";
-import { generateId } from '@/utils/pos.utils';
+import { supabase } from '@/integrations/supabase/client';
+import {
+  OccupancyRatesEditor,
+  defaultMaxPlayersForType,
+  defaultSlotDuration,
+} from '@/components/station/OccupancyRatesEditor';
+import {
+  buildDefaultOccupancyRates,
+  totalRateAtMaxOccupancy,
+  type OccupancyRates,
+} from '@/utils/stationPricing';
+import type { Station } from '@/types/pos.types';
+import { Switch } from '@/components/ui/switch';
 
-// Create a schema for station validation - Updated to include 'vr' and event category
 const stationSchema = z.object({
   name: z.string().min(2, { message: 'Station name must be at least 2 characters.' }),
-  category: z.enum(['regular', 'nit_event'], { 
-    required_error: 'Please select a category.' 
-  }),
-  type: z.enum(['ps5', '8ball', 'vr'], { 
-    required_error: 'Please select a station type.' 
-  }),
-  hourlyRate: z.coerce.number()
-    .min(10, { message: 'Rate must be at least ₹10.' })
-    .max(5000, { message: 'Rate cannot exceed ₹5000.' })
+  type: z.enum(['ps5', '8ball', 'vr'], { required_error: 'Please select a station type.' }),
+  category: z.string().optional(),
+  maxPlayers: z.coerce.number().min(1).max(8),
+  publicBooking: z.boolean(),
 });
 
 type StationFormValues = z.infer<typeof stationSchema>;
@@ -38,111 +42,118 @@ interface AddStationDialogProps {
 
 const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange }) => {
   const { toast } = useToast();
-  const { stations, setStations } = usePOS();
+  const { stations, setStations, categories } = usePOS();
   const { activeLocationId } = useLocation();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Initialize the form
+  const [occupancyRates, setOccupancyRates] = useState<OccupancyRates>({});
+
   const form = useForm<StationFormValues>({
     resolver: zodResolver(stationSchema),
     defaultValues: {
       name: '',
-      category: 'regular',
       type: 'ps5',
-      hourlyRate: 100,
+      category: '',
+      maxPlayers: 4,
+      publicBooking: true,
     },
   });
 
-  // Watch the type and category fields to conditionally change the label and pricing
   const selectedType = form.watch('type');
-  const selectedCategory = form.watch('category');
+  const maxPlayers = form.watch('maxPlayers');
+
+  useEffect(() => {
+    if (open) {
+      const mp = defaultMaxPlayersForType(selectedType);
+      form.setValue('maxPlayers', mp);
+      setOccupancyRates(buildDefaultOccupancyRates(mp, 200, 100));
+    }
+  }, [selectedType, open]);
+
+  useEffect(() => {
+    setOccupancyRates((prev) => {
+      const next = { ...prev };
+      for (let i = 1; i <= maxPlayers; i++) {
+        if (next[String(i)] == null) {
+          next[String(i)] = i === 1 ? 200 : 100;
+        }
+      }
+      Object.keys(next).forEach((k) => {
+        if (Number(k) > maxPlayers) delete next[k];
+      });
+      return next;
+    });
+  }, [maxPlayers]);
 
   const onSubmit = async (values: StationFormValues) => {
     setIsSubmitting(true);
-    
     try {
       if (!activeLocationId) {
         toast({
-          title: "Error",
-          description: "Select a branch before adding a station.",
-          variant: "destructive",
+          title: 'Error',
+          description: 'Select a branch before adding a station.',
+          variant: 'destructive',
         });
-        setIsSubmitting(false);
         return;
       }
 
-      // Generate a proper UUID for the new station
       const stationId = crypto.randomUUID();
+      const slotDuration = defaultSlotDuration(values.type);
+      const category = values.category?.trim() || null;
+      const hourlyRate = totalRateAtMaxOccupancy(
+        values.maxPlayers,
+        occupancyRates,
+        100 * values.maxPlayers
+      );
 
-      // Public booking visibility:
-      // - Regular stations: visible by default
-      // - Event stations: hidden by default (can be enabled from Stations page)
-      const publicEnabled = values.category !== 'nit_event';
-      
-      // Calculate slot duration based on category and type
-      // Event stations: 30 mins for 8ball/ps5, 15 mins for VR
-      // Regular stations: 60 mins default (VR already handled separately in booking)
-      const slotDuration = values.category === 'nit_event' 
-        ? (values.type === 'vr' ? 15 : 30)
-        : (values.type === 'vr' ? 15 : 60);
-      
-      // Create a new station object
-      const newStation = {
+      const newStation: Station = {
         id: stationId,
         name: values.name,
         type: values.type,
-        hourlyRate: values.hourlyRate,
+        hourlyRate,
         isOccupied: false,
         currentSession: null,
-        category: values.category === 'nit_event' ? 'nit_event' : null,
-        eventEnabled: publicEnabled,
-        slotDuration: slotDuration
+        category,
+        eventEnabled: values.publicBooking,
+        slotDuration,
+        maxPlayers: values.maxPlayers,
+        occupancyRates,
       };
-      
-      // First add to Supabase
-      const { error } = await supabase
-        .from('stations')
-        .insert({
-          id: stationId,
-          name: values.name,
-          type: values.type,
-          hourly_rate: values.hourlyRate,
-          is_occupied: false,
-          category: values.category === 'nit_event' ? 'nit_event' : null,
-          event_enabled: publicEnabled,
-          slot_duration: slotDuration,
-          location_id: activeLocationId,
-        });
-      
+
+      const { error } = await supabase.from('stations').insert({
+        id: stationId,
+        name: values.name,
+        type: values.type,
+        hourly_rate: hourlyRate,
+        is_occupied: false,
+        category,
+        event_enabled: values.publicBooking,
+        slot_duration: slotDuration,
+        max_players: values.maxPlayers,
+        occupancy_rates: occupancyRates,
+        location_id: activeLocationId,
+      });
+
       if (error) {
-        console.error('Error adding station to Supabase:', error);
+        console.error('Error adding station:', error);
         toast({
-          title: "Error",
-          description: "Could not add the station to the database",
-          variant: "destructive"
+          title: 'Error',
+          description: 'Could not add the station to the database',
+          variant: 'destructive',
         });
-        setIsSubmitting(false);
         return;
       }
-      
-      // Then update local state
+
       setStations([...stations, newStation]);
-      
-      // Show success toast
-      toast({
-        title: "Station Added",
-        description: `${values.name} has been added successfully.`,
-      });
-      
-      // Reset form and close dialog
+      toast({ title: 'Station Added', description: `${values.name} has been added.` });
       form.reset();
+      setOccupancyRates(buildDefaultOccupancyRates(4, 200, 100));
       onOpenChange(false);
     } catch (error) {
       console.error('Error in adding station:', error);
       toast({
-        title: "Error",
-        description: "Something went wrong while adding the station",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Something went wrong while adding the station',
+        variant: 'destructive',
       });
     } finally {
       setIsSubmitting(false);
@@ -151,11 +162,11 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange} mobileVariant="sheet-bottom">
-      <ResponsiveDialogContent className="sm:max-w-[425px]" mobileClassName="px-4 pt-3">
+      <ResponsiveDialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto" mobileClassName="px-4 pt-3">
         <DialogHeader>
           <DialogTitle className="text-xl font-heading gradient-text">Add New Station</DialogTitle>
         </DialogHeader>
-        
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -165,47 +176,23 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
                 <FormItem>
                   <FormLabel>Station Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter station name" {...field} />
+                    <Input placeholder="e.g. PS5 Console 1" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            
-            <FormField
-              control={form.control}
-              name="category"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Category</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="regular">Regular Station</SelectItem>
-                      <SelectItem value="nit_event">IIM EVENT</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
+
             <FormField
               control={form.control}
               name="type"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>
-                    {selectedCategory === 'nit_event' ? 'Event Subcategory' : 'Station Type'}
-                  </FormLabel>
+                  <FormLabel>Station Type</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select station type" />
+                        <SelectValue placeholder="Select type" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -218,47 +205,78 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
-              name="hourlyRate"
+              name="category"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>
-                    {selectedCategory === 'nit_event' 
-                      ? (selectedType === 'vr' ? '15 Min Rate (₹)' : '30 Min Rate (₹)')
-                      : (selectedType === 'vr' ? '15 Min Rate (₹)' : 'Hourly Rate (₹)')
-                    }
-                  </FormLabel>
-                  <FormControl>
-                    <Input type="number" min="10" step="10" {...field} />
-                  </FormControl>
+                  <FormLabel>Category (optional)</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || 'none'}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {categories
+                        .filter((c) => c !== 'uncategorized')
+                        .map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
-                  {selectedCategory === 'nit_event' && (
-                    <p className="text-xs text-muted-foreground">
-                      Event stations use {selectedType === 'vr' ? '15' : '30'} minute slots. 
-                      Enable on Stations page to show on public booking.
-                    </p>
-                  )}
-                  {selectedCategory !== 'nit_event' && (
-                    <p className="text-xs text-muted-foreground">
-                      Regular stations are visible on public booking by default. You can disable them anytime from the Stations page.
-                    </p>
-                  )}
                 </FormItem>
               )}
             />
-            
+
+            <FormField
+              control={form.control}
+              name="maxPlayers"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Max Players</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={1} max={8} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <OccupancyRatesEditor
+              maxPlayers={maxPlayers}
+              rates={occupancyRates}
+              onChange={setOccupancyRates}
+              stationType={selectedType}
+              slotDuration={defaultSlotDuration(selectedType)}
+            />
+
+            <FormField
+              control={form.control}
+              name="publicBooking"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <FormLabel>Visible on public booking</FormLabel>
+                    <p className="text-xs text-muted-foreground">Show this station on the booking page</p>
+                  </div>
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
             <DialogFooter className="pt-4">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => onOpenChange(false)}
-                disabled={isSubmitting}
-              >
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
                 Cancel
               </Button>
-              <Button 
+              <Button
                 type="submit"
                 className="bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:opacity-90"
                 disabled={isSubmitting}

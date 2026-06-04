@@ -54,6 +54,7 @@ const POSContext = createContext<POSContextType>({
   resumeSession: async () => {},
   deleteStation: async () => false,
   updateStation: async () => false,
+  refreshStations: async () => {},
   addCustomer: () => ({}),
   updateCustomer: () => ({}),
   updateCustomerMembership: () => null,
@@ -133,7 +134,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     pauseSession: pauseSessionBase,
     resumeSession: resumeSessionBase,
     deleteStation,
-    updateStation
+    updateStation,
+    refreshStations,
   } = useStations([], updateCustomer);
   
   const { 
@@ -932,6 +934,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     resumeSession,
     deleteStation,
     updateStation,
+    refreshStations,
     addCustomer,
     updateCustomer,
     updateCustomerMembership: updateCustomerMembershipWrapper,
@@ -975,7 +978,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     categories, setIsStudentDiscount, setBills, setCustomers, setStations,
     addProduct, updateProduct, deleteProduct,
     addCategory, updateCategory, deleteCategory,
-    startSession, endSession, pauseSession, resumeSession, deleteStation, updateStation,
+    startSession, endSession, pauseSession, resumeSession, deleteStation, updateStation, refreshStations,
     addCustomer, updateCustomer, updateCustomerMembershipWrapper,
     deleteCustomer, selectCustomer, checkMembershipValidity, deductMembershipHours,
     addToCart, removeFromCart, updateCartItem, handleClearCart,

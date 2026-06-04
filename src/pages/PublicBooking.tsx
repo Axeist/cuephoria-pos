@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { hapticImpact } from "@/utils/capacitor";
 import { supabase } from "@/integrations/supabase/client";
 import { StationSelector } from "@/components/booking/StationSelector";
+import { getRateForPlayerCount, getLegacyBookingRateForSelection } from "@/utils/stationPricing";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import CouponPromotionalPopup from "@/components/CouponPromotionalPopup";
 import BookingConfirmationDialog from "@/components/BookingConfirmationDialog";
@@ -69,6 +70,8 @@ interface Station {
   team_color?: string | null;
   max_capacity?: number | null;
   single_rate?: number | null;
+  max_players?: number;
+  occupancy_rates?: Record<string, number>;
   category?: string | null;
   event_enabled?: boolean | null;
   slot_duration?: number | null;
@@ -296,6 +299,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   const [stations, setStations] = useState<Station[]>([]);
   const [stationType, setStationType] = useState<"all" | StationType | "nit_event">("all");
   const [selectedStations, setSelectedStations] = useState<string[]>([]);
+  const [stationPlayerCounts, setStationPlayerCounts] = useState<Record<string, number>>({});
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
@@ -375,7 +379,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   const [loggedInCustomer, setLoggedInCustomer] = useState<any>(null);
   
   // IIM EVENT booking state
-  const [isNitEventBooking, setIsNitEventBooking] = useState<boolean | null>(null); // null = not selected yet, true = EVENT, false = regular
+  const [isNitEventBooking, setIsNitEventBooking] = useState<boolean>(false);
   const [nitEventMode, setNitEventMode] = useState<"vr" | "ps5" | "8ball" | null>(null); // For EVENT only
 
   // Dynamic settings from database
@@ -545,8 +549,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   // NEW FLOW: Fetch slots when date changes OR when customer info is complete OR when event type changes
   // No longer requires station selection first
   useEffect(() => {
-    const nitReady = isNitEventBooking === false || (isNitEventBooking === true && nitEventMode !== null);
-    if (isCustomerInfoComplete && selectedDate && isNitEventBooking !== null && nitReady) {
+    const nitReady = true;
+    if (isCustomerInfoComplete && selectedDate && nitReady) {
       fetchAvailableSlots();
     } else {
       setAvailableSlots([]);
@@ -617,16 +621,17 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     try {
       const { data, error } = await (supabase as any)
         .from("stations")
-        .select("id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate, category, event_enabled, slot_duration")
+        .select("id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate, category, event_enabled, slot_duration, max_players, occupancy_rates")
         .eq("location_id", publicLocationId)
-        // Only show stations enabled for public booking.
-        // For legacy regular stations where event_enabled is NULL, we still show them.
         .or("event_enabled.eq.true,and(category.is.null,event_enabled.is.null)")
+        .neq("category", "nit_event")
         .order("name");
       if (error) throw error;
       setStations(((data || []) as any[]).map((station) => ({
         ...station,
         type: station.type as StationType,
+        max_players: station.max_players ?? station.max_capacity ?? 1,
+        occupancy_rates: station.occupancy_rates ?? {},
       })));
     } catch (e) {
       console.error(e);
@@ -1140,10 +1145,23 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     }
     
     // Update selected stations without clearing slot selection
-    setSelectedStations((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+    setSelectedStations((prev) => {
+      if (prev.includes(id)) {
+        setStationPlayerCounts((counts) => {
+          const next = { ...counts };
+          delete next[id];
+          return next;
+        });
+        return prev.filter((x) => x !== id);
+      }
+      setStationPlayerCounts((counts) => ({ ...counts, [id]: counts[id] ?? 1 }));
+      return [...prev, id];
+    });
     // DON'T reset slots - keep the selected time
+  };
+
+  const handlePlayerCountChange = (stationId: string, count: number) => {
+    setStationPlayerCounts((prev) => ({ ...prev, [stationId]: count }));
   };
 
   async function filterStationsForSlot(slot: TimeSlot) {
@@ -1599,30 +1617,51 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
   const calculateOriginalPrice = () => {
     if (selectedStations.length === 0) return 0;
-    // Check if we have any slots selected (either single or multiple)
     if (!selectedSlot && selectedSlots.length === 0) return 0;
-    
+
     const selectedStationObjects = stations.filter((s) => selectedStations.includes(s.id));
-    
-    // Separate PS5 and non-PS5 stations
-    const ps5Stations = selectedStationObjects.filter(s => s.type === 'ps5');
-    const nonPS5Stations = selectedStationObjects.filter(s => s.type !== 'ps5');
-    
-    // Calculate PS5 pricing with dynamic rates
-    let ps5Total = 0;
-    if (ps5Stations.length === 1) {
-      // Single controller: use single_rate if available
-      const station = ps5Stations[0];
-      ps5Total = station.single_rate || station.hourly_rate;
-    } else if (ps5Stations.length > 1) {
-      // Multiple controllers: use regular hourly_rate for all
-      ps5Total = ps5Stations.reduce((sum, s) => sum + s.hourly_rate, 0);
+
+    const allHaveOccupancy = selectedStationObjects.every(
+      (s) => Object.keys(s.occupancy_rates ?? {}).length > 0 || (s.max_players ?? 1) > 1
+    );
+
+    if (allHaveOccupancy) {
+      return selectedStationObjects.reduce((sum, s) => {
+        const count = stationPlayerCounts[s.id] ?? 1;
+        return (
+          sum +
+          getRateForPlayerCount(
+            {
+              hourlyRate: s.hourly_rate,
+              maxPlayers: s.max_players ?? s.max_capacity ?? 1,
+              occupancyRates: s.occupancy_rates ?? {},
+              type: s.type,
+              slotDuration: s.slot_duration,
+              category: s.category,
+              teamName: s.team_name,
+              singleRate: s.single_rate,
+              maxCapacity: s.max_capacity,
+            },
+            count
+          ).totalRate
+        );
+      }, 0);
     }
-    
-    // Calculate non-PS5 pricing (VR, 8-Ball)
-    const nonPS5Total = nonPS5Stations.reduce((sum, s) => sum + s.hourly_rate, 0);
-    
-    return ps5Total + nonPS5Total;
+
+    return getLegacyBookingRateForSelection(
+      selectedStationObjects.map((s) => ({
+        id: s.id,
+        type: s.type,
+        hourlyRate: s.hourly_rate,
+        maxPlayers: s.max_players ?? 1,
+        occupancyRates: s.occupancy_rates ?? {},
+        teamName: s.team_name,
+        singleRate: s.single_rate,
+        maxCapacity: s.max_capacity,
+      })),
+      selectedStations,
+      stationPlayerCounts
+    );
   };
 
   const calculateDiscount = () => {
@@ -1798,6 +1837,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           payment_mode: "venue",
           sessionId,
           location_id: publicLocationId,
+          stationPlayerCounts,
         }),
       });
 
@@ -1946,6 +1986,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       // Store all slots for booking creation after payment
       const pendingBooking = {
         selectedStations,
+        stationPlayerCounts,
         selectedDateISO: format(selectedDate, "yyyy-MM-dd"),
         slots: slotsToBook.map(slot => ({
           start_time: slot.start_time,
@@ -2995,21 +3036,14 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                         {/* Filter by booking type (EVENT vs Regular), then by type/category, then by availability */}
                         <StationSelector
                           stations={(
-                            isNitEventBooking === true
-                              ? stationType === "all"
-                                ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled) // ✅ All EVENT stations (NO restrictions - includes 8-Ball!)
-                                : stations.filter((s) => s.category === 'nit_event' && s.event_enabled && s.type === stationType) // ✅ EVENT stations by type (includes 8-Ball!)
-                              : stationType === "all"
-                              ? stations.filter(s => (!s.category || s.category !== 'nit_event')) // All regular stations
-                              : stationType === "nit_event"
-                              ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled) // ✅ EVENT stations only (includes 8-Ball!)
-                              : stations.filter((s) => s.type === stationType && (!s.category || s.category !== 'nit_event')) // Regular stations by type
-                          ).filter(s => 
-                            // Show only stations that are available for the selected time
-                            availableStationIds.includes(s.id)
-                          )}
+                            stationType === "all"
+                              ? stations.filter((s) => s.category !== 'nit_event')
+                              : stations.filter((s) => s.type === stationType && s.category !== 'nit_event')
+                          ).filter((s) => availableStationIds.includes(s.id))}
                           selectedStations={selectedStations}
+                          stationPlayerCounts={stationPlayerCounts}
                           onStationToggle={handleStationToggle}
+                          onPlayerCountChange={handlePlayerCountChange}
                         />
                       </>
                     )}

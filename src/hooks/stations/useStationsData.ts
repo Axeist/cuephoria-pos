@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Station, Session } from '@/types/pos.types';
+import type { Station } from '@/types/pos.types';
+import { STATION_SELECT_FIELDS, transformStationRow } from '@/utils/stationTransform';
+import type { OccupancyRates } from '@/utils/stationPricing';
+import { totalRateAtMaxOccupancy } from '@/utils/stationPricing';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -34,7 +37,7 @@ export const useStationsData = () => {
     }
     
     try {
-      const selectFields = 'id,name,type,hourly_rate,is_occupied,currentsession,created_at,category,event_enabled,slot_duration';
+      const selectFields = STATION_SELECT_FIELDS;
       
       let page = 0;
       const pageSize = 1000;
@@ -74,51 +77,9 @@ export const useStationsData = () => {
       }
       
       if (allStationsData.length > 0) {
-        const transformedStations: Station[] = allStationsData.map(item => {
-          let currentSession: Session | null = null;
-          
-          if (item.currentsession) {
-            try {
-              const sessionData = typeof item.currentsession === 'string' 
-                ? JSON.parse(item.currentsession) 
-                : item.currentsession;
-              
-              if (sessionData && sessionData.id) {
-                currentSession = {
-                  id: sessionData.id,
-                  stationId: sessionData.stationId || sessionData.station_id || item.id,
-                  customerId: sessionData.customerId || sessionData.customer_id,
-                  startTime: new Date(sessionData.startTime || sessionData.start_time),
-                  endTime: sessionData.endTime ? new Date(sessionData.endTime) : undefined,
-                  duration: sessionData.duration,
-                  hourlyRate: sessionData.hourlyRate,
-                  originalRate: sessionData.originalRate,
-                  couponCode: sessionData.couponCode,
-                  discountAmount: sessionData.discountAmount,
-                  isPaused: sessionData.isPaused ?? sessionData.is_paused ?? false,
-                  pausedAt: sessionData.pausedAt || sessionData.paused_at
-                    ? new Date(sessionData.pausedAt || sessionData.paused_at)
-                    : undefined,
-                  totalPausedMs: sessionData.totalPausedMs ?? sessionData.total_paused_time ?? 0,
-                };
-              }
-            } catch (error) {
-              console.error('❌ Error parsing currentSession:', error, item.currentsession);
-            }
-          }
-          
-          return {
-            id: item.id,
-            name: item.name,
-            type: item.type as 'ps5' | '8ball' | 'vr',
-            hourlyRate: item.hourly_rate,
-            isOccupied: item.is_occupied,
-            currentSession: currentSession,
-            category: item.category || null,
-            eventEnabled: item.event_enabled ?? (item.category ? false : true),
-            slotDuration: item.slot_duration || null
-          };
-        });
+        const transformedStations: Station[] = allStationsData.map((item) =>
+          transformStationRow(item as Record<string, unknown>)
+        );
         
         setStations(transformedStations);
         saveToCache(stationsCacheKey, transformedStations);
@@ -169,7 +130,18 @@ export const useStationsData = () => {
     await refreshStationsFromDB(silent);
   }, [stationsCacheKey, refreshStationsFromDB]);
   
-  const updateStation = async (stationId: string, name: string, hourlyRate: number) => {
+  const updateStation = async (
+    stationId: string,
+    updates: {
+      name: string;
+      hourlyRate: number;
+      maxPlayers?: number;
+      occupancyRates?: OccupancyRates;
+      slotDuration?: number | null;
+      eventEnabled?: boolean;
+      category?: string | null;
+    }
+  ) => {
     try {
       const station = stations.find(s => s.id === stationId);
       if (!station) {
@@ -181,10 +153,21 @@ export const useStationsData = () => {
         });
         return false;
       }
-      
+
+      const maxPlayers = updates.maxPlayers ?? station.maxPlayers;
+      const occupancyRates = updates.occupancyRates ?? station.occupancyRates;
+      const hourlyRate =
+        updates.hourlyRate ??
+        totalRateAtMaxOccupancy(maxPlayers, occupancyRates, station.hourlyRate);
+
       const updateData = {
-        name,
-        hourly_rate: hourlyRate
+        name: updates.name,
+        hourly_rate: hourlyRate,
+        max_players: maxPlayers,
+        occupancy_rates: occupancyRates,
+        slot_duration: updates.slotDuration ?? station.slotDuration,
+        event_enabled: updates.eventEnabled ?? station.eventEnabled,
+        category: updates.category !== undefined ? updates.category : station.category,
       };
       
       const { error } = await supabase
@@ -204,7 +187,16 @@ export const useStationsData = () => {
       
       setStations(prev => prev.map(s => 
         s.id === stationId 
-          ? { ...s, name, hourlyRate } 
+          ? {
+              ...s,
+              name: updates.name,
+              hourlyRate,
+              maxPlayers,
+              occupancyRates,
+              slotDuration: updateData.slot_duration ?? s.slotDuration,
+              eventEnabled: updateData.event_enabled ?? s.eventEnabled,
+              category: updateData.category ?? s.category,
+            }
           : s
       ));
       

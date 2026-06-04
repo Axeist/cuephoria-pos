@@ -395,7 +395,16 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         station={station}
-        onSave={updateStation}
+        onSave={(id, updates) =>
+          updateStation(id, {
+            name: updates.name,
+            hourlyRate: updates.hourlyRate,
+            maxPlayers: updates.maxPlayers,
+            occupancyRates: updates.occupancyRates,
+            eventEnabled: updates.eventEnabled,
+            category: updates.category,
+          })
+        }
       />
     </>
   );

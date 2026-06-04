@@ -38,13 +38,20 @@ export interface Customer {
 export interface Station {
   id: string;
   name: string;
-  type: 'ps5' | '8ball' | 'vr'; // UPDATED: Added 'vr'
+  type: 'ps5' | '8ball' | 'vr';
   hourlyRate: number;
   isOccupied: boolean;
   currentSession: Session | null;
-  category?: string | null; // For event categories like 'nit_event'
-  eventEnabled?: boolean | null; // Whether event station is enabled for public booking
-  slotDuration?: number | null; // Slot duration in minutes (30 for events, 15 for VR events, 60 default)
+  category?: string | null;
+  eventEnabled?: boolean | null;
+  slotDuration?: number | null;
+  maxPlayers: number;
+  occupancyRates: Record<string, number>;
+  /** @deprecated Legacy controller grouping */
+  teamName?: string | null;
+  teamColor?: string | null;
+  maxCapacity?: number | null;
+  singleRate?: number | null;
 }
 
 export interface Session {
@@ -54,10 +61,12 @@ export interface Session {
   startTime: Date;
   endTime?: Date;
   duration?: number;
-  hourlyRate?: number;          // ADDED: To store the rate used for this session
-  couponCode?: string;          // ADDED: Coupon applied to session
-  originalRate?: number;        // ADDED: Original rate before discount
-  discountAmount?: number;      // ADDED: Amount discounted
+  hourlyRate?: number;
+  couponCode?: string;
+  originalRate?: number;
+  discountAmount?: number;
+  playerCount?: number;
+  perPersonRate?: number;
   isPaused?: boolean;
   pausedAt?: Date;
   totalPausedMs?: number;
@@ -163,7 +172,19 @@ export interface POSContextType {
   pauseSession: (stationId: string) => Promise<void>;
   resumeSession: (stationId: string) => Promise<void>;
   deleteStation: (stationId: string) => Promise<boolean>;
-  updateStation: (stationId: string, name: string, hourlyRate: number) => Promise<boolean>;
+  updateStation: (
+    stationId: string,
+    updates: {
+      name: string;
+      hourlyRate: number;
+      maxPlayers?: number;
+      occupancyRates?: Record<string, number>;
+      slotDuration?: number | null;
+      eventEnabled?: boolean;
+      category?: string | null;
+    }
+  ) => Promise<boolean>;
+  refreshStations: (silent?: boolean) => Promise<void>;
   
   addCustomer: (customer: Omit<Customer, 'id' | 'createdAt'>) => void;
   updateCustomer: (customer: Customer) => void;

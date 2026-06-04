@@ -11,6 +11,9 @@ import { useToast } from '@/hooks/use-toast';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { hapticImpact } from '@/utils/capacitor';
 
+import { getRateForPlayerCount, getRateSuffix as pricingRateSuffix } from '@/utils/stationPricing';
+import type { Station } from '@/types/pos.types';
+
 const LATE_NIGHT_OVERRIDE_PIN = '2101';
 const isLateNight = () => new Date().getHours() < 6;
 
@@ -23,7 +26,17 @@ interface StartSessionDialogProps {
   stationCategory?: string | null;
   slotDuration?: number | null;
   stationType?: 'ps5' | '8ball' | 'vr';
-  onConfirm: (customerId: string, customerName: string, finalRate: number, couponCode?: string) => void;
+  maxPlayers?: number;
+  occupancyRates?: Record<string, number>;
+  hourlyRate?: number;
+  onConfirm: (
+    customerId: string,
+    customerName: string,
+    finalRate: number,
+    couponCode?: string,
+    playerCount?: number,
+    perPersonRate?: number
+  ) => void;
 }
 
 const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
@@ -35,6 +48,9 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   stationCategory,
   slotDuration,
   stationType,
+  maxPlayers = 1,
+  occupancyRates = {},
+  hourlyRate = baseRate,
   onConfirm,
 }) => {
   const { customers } = usePOS();
@@ -43,7 +59,9 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedCoupon, setSelectedCoupon] = useState<string>('none');
+  const [playerCount, setPlayerCount] = useState(1);
   const [finalRate, setFinalRate] = useState(baseRate);
+  const [perPersonRate, setPerPersonRate] = useState(baseRate);
   const [lateNightPinUnlocked, setLateNightPinUnlocked] = useState(false);
   const [lateNightPinInput, setLateNightPinInput] = useState('');
   const [lateNightPinError, setLateNightPinError] = useState(false);
@@ -76,20 +94,27 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     return 'Hourly Rate';
   };
   
-  // Helper to get rate suffix
-  const getRateSuffix = (): string => {
-    if (stationCategory === 'nit_event') {
-      if (slotDuration === 15) {
-        return '/15mins';
-      } else if (slotDuration === 30) {
-        return '/30mins';
-      }
-    }
-    if (stationType === 'vr') {
-      return '/15mins';
-    }
-    return '/hour';
+  const pricingStation: Pick<
+    Station,
+    'hourlyRate' | 'maxPlayers' | 'occupancyRates' | 'type' | 'slotDuration' | 'category'
+  > = {
+    hourlyRate,
+    maxPlayers,
+    occupancyRates,
+    type: stationType ?? 'ps5',
+    slotDuration,
+    category: stationCategory,
   };
+
+  const undiscountedRate = getRateForPlayerCount(pricingStation, playerCount).totalRate;
+  const undiscountedPerPerson = getRateForPlayerCount(pricingStation, playerCount).perPersonRate;
+
+  const getRateSuffix = (): string =>
+    pricingRateSuffix({
+      type: stationType ?? 'ps5',
+      slotDuration,
+      category: stationCategory,
+    });
 
   const filteredCustomers = customerSearchQuery.trim() === ''
     ? customers.slice(0, 10)
@@ -109,11 +134,12 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   // Calculate final rate based on coupon
   useEffect(() => {
     if (!selectedCoupon || selectedCoupon === 'none') {
-      setFinalRate(baseRate);
+      setFinalRate(undiscountedRate);
+      setPerPersonRate(undiscountedPerPerson);
       return;
     }
 
-    let newRate = baseRate;
+    let newRate = undiscountedRate;
 
     switch (selectedCoupon) {
       case 'HH99':
@@ -130,23 +156,23 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
         break;
       
       case 'CUEPHORIA20':
-        newRate = baseRate * 0.80;
+        newRate = undiscountedRate * 0.80;
         break;
       
       case 'CUEPHORIA35':
-        newRate = baseRate * 0.65;
+        newRate = undiscountedRate * 0.65;
         break;
       
       case 'NIT35':
-        newRate = baseRate * 0.65;
+        newRate = undiscountedRate * 0.65;
         break;
       
       case 'AAVEG50':
-        newRate = baseRate * 0.50;
+        newRate = undiscountedRate * 0.50;
         break;
       
       case 'GAMEINSIDER50':
-        newRate = baseRate * 0.50;
+        newRate = undiscountedRate * 0.50;
         break;
       
       case 'AXEIST':
@@ -154,11 +180,12 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
         break;
       
       default:
-        newRate = baseRate;
+        newRate = undiscountedRate;
     }
 
     setFinalRate(Math.round(newRate));
-  }, [selectedCoupon, baseRate]);
+    setPerPersonRate(playerCount > 0 ? Math.round(newRate / playerCount) : newRate);
+  }, [selectedCoupon, undiscountedRate, undiscountedPerPerson, playerCount, toast]);
 
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
@@ -178,7 +205,9 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
       selectedCustomer.id,
       selectedCustomer.name,
       finalRate,
-      selectedCoupon !== 'none' ? selectedCoupon : undefined
+      selectedCoupon !== 'none' ? selectedCoupon : undefined,
+      playerCount,
+      perPersonRate
     );
 
     // Native: heavy haptic so the user feels the session start.
@@ -187,6 +216,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     // Reset state
     setSelectedCustomer(null);
     setSelectedCoupon('none');
+    setPlayerCount(1);
     setCustomerSearchQuery('');
     onOpenChange(false);
   };
@@ -194,6 +224,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   const handleCancel = () => {
     setSelectedCustomer(null);
     setSelectedCoupon('none');
+    setPlayerCount(1);
     setCustomerSearchQuery('');
     onOpenChange(false);
   };
@@ -212,6 +243,36 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {maxPlayers > 1 && (
+            <div className="space-y-2 rounded-lg border p-3 bg-muted/20">
+              <Label className="text-base font-medium">Number of players</Label>
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={playerCount <= 1}
+                  onClick={() => setPlayerCount((c) => Math.max(1, c - 1))}
+                >
+                  −
+                </Button>
+                <span className="text-lg font-semibold w-8 text-center">{playerCount}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={playerCount >= maxPlayers}
+                  onClick={() => setPlayerCount((c) => Math.min(maxPlayers, c + 1))}
+                >
+                  +
+                </Button>
+                <span className="text-sm text-muted-foreground ml-auto">
+                  ₹{undiscountedPerPerson}/person · ₹{undiscountedRate}{getRateSuffix()} total
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Customer Selection */}
           <div className="space-y-3">
             <Label className="text-base font-medium flex items-center gap-2">
@@ -397,17 +458,17 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Base {getRateLabel()}</span>
                   <div className="flex items-baseline gap-1">
-                    <CurrencyDisplay amount={baseRate} className="text-sm" />
+                    <CurrencyDisplay amount={undiscountedRate} className="text-sm" />
                     <span className="text-xs text-muted-foreground">{getRateSuffix()}</span>
                   </div>
                 </div>
                 
-                {selectedCoupon !== 'none' && finalRate !== baseRate && (
+                {selectedCoupon !== 'none' && finalRate !== undiscountedRate && (
                   <>
                     <div className="flex justify-between items-center text-cuephoria-orange">
                       <span className="text-sm">Discount ({selectedCoupon})</span>
                       <div className="flex items-baseline gap-1">
-                        <span className="text-sm font-semibold">- ₹{baseRate - finalRate}</span>
+                        <span className="text-sm font-semibold">- ₹{undiscountedRate - finalRate}</span>
                         <span className="text-xs text-muted-foreground">{getRateSuffix()}</span>
                       </div>
                     </div>

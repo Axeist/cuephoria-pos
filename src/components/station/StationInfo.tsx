@@ -54,6 +54,7 @@ const StationInfo: React.FC<StationInfoProps> = ({ station, customerName, custom
   const isMember = customerData ? isMembershipActive(customerData) : false;
   const membershipText = customerData && customerData.isMember ? getMembershipBadgeText(customerData) : 'Non-Member';
   const isPaused = station.currentSession?.isPaused;
+  const sessionPlayers = station.currentSession?.playerCount;
   
   return (
     <>
@@ -98,6 +99,12 @@ const StationInfo: React.FC<StationInfoProps> = ({ station, customerName, custom
           <span>{getRateLabel(station)}</span>
           <CurrencyDisplay amount={station.hourlyRate} />
         </div>
+        {(station.maxPlayers ?? 1) > 1 && (
+          <div className="flex justify-between text-sm text-muted-foreground">
+            <span>Max players</span>
+            <span>{station.maxPlayers}</span>
+          </div>
+        )}
         
         {station.isOccupied && station.currentSession && (
           <>
@@ -105,6 +112,12 @@ const StationInfo: React.FC<StationInfoProps> = ({ station, customerName, custom
               <span>Customer:</span>
               <span className="font-semibold">{customerName}</span>
             </div>
+            {sessionPlayers != null && sessionPlayers > 0 && (
+              <div className="flex justify-between text-sm">
+                <span>Players</span>
+                <span className="font-semibold">{sessionPlayers}</span>
+              </div>
+            )}
             
             {/* Membership indicator */}
             <div className="flex justify-between items-center text-sm">
