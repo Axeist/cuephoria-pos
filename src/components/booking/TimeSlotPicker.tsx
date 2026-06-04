@@ -8,7 +8,6 @@ interface TimeSlot {
   start_time: string;
   end_time: string;
   is_available: boolean;
-  passes_left?: number;
 }
 
 interface TimeSlotPickerProps {
@@ -17,7 +16,6 @@ interface TimeSlotPickerProps {
   selectedSlots?: TimeSlot[];
   onSlotSelect: (slot: TimeSlot) => void;
   loading?: boolean;
-  showVrPasses?: boolean;
 }
 
 const formatTime = (timeString: string) => {
@@ -38,7 +36,6 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
   selectedSlots = [],
   onSlotSelect,
   loading = false,
-  showVrPasses = false,
 }) => {
   if (loading) {
     return (
@@ -51,7 +48,6 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
           <div
             key={i}
             className="h-14 rounded-lg bg-white/[0.06] border border-white/5"
-            style={{ animationDelay: `${i * 40}ms` }}
           />
         ))}
       </div>
@@ -71,16 +67,13 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
     <div className="space-y-4 animate-in fade-in duration-300">
       <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-primary rounded-sm" />
+          <div className="w-3 h-3 rounded-sm bg-cuephoria-purple/80" />
           <span>Available</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-muted border rounded-sm" />
+          <div className="w-3 h-3 rounded-sm bg-white/10 border border-white/15" />
           <span>Booked</span>
         </div>
-        {showVrPasses && (
-          <span className="text-xs text-cuephoria-blue/90">VR: passes left shown on slot</span>
-        )}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
@@ -107,28 +100,25 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
               className={cn(
                 "h-14 flex flex-col items-center justify-center text-xs relative",
                 "transition-all duration-200 ease-out",
-                !slot.is_available && "opacity-45 cursor-not-allowed",
-                isInMultipleSelection && "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                "border-white/15",
+                slot.is_available &&
+                  !isSelected &&
+                  !isInMultipleSelection &&
+                  "hover:border-cuephoria-purple/40 hover:bg-cuephoria-purple/10",
+                (isSelected || isInMultipleSelection) &&
+                  "bg-gradient-to-br from-cuephoria-purple to-cuephoria-lightpurple border-transparent text-white",
+                !slot.is_available && "opacity-45 cursor-not-allowed"
               )}
               aria-pressed={isSelected || isInMultipleSelection}
             >
               <div className="font-medium leading-tight">{formatTime(slot.start_time)}</div>
               <div className="text-[10px] opacity-70 leading-tight">{formatTime(slot.end_time)}</div>
 
-              {showVrPasses &&
-                slot.is_available &&
-                slot.passes_left != null &&
-                slot.passes_left > 0 && (
-                  <span className="text-[9px] text-cuephoria-blue mt-0.5 tabular-nums">
-                    {slot.passes_left} pass{slot.passes_left !== 1 ? "es" : ""}
-                  </span>
-                )}
-
               {isInMultipleSelection && (
-                <div className="absolute -top-1 -right-1 transition-transform duration-200">
+                <div className="absolute -top-1 -right-1">
                   <Badge
                     variant="default"
-                    className="text-xs px-1 py-0 text-[10px] leading-3 bg-primary"
+                    className="text-xs px-1 py-0 text-[10px] leading-3 bg-cuephoria-purple"
                   >
                     ✓
                   </Badge>

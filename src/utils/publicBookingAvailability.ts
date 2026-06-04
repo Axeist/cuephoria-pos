@@ -12,8 +12,6 @@ export type PublicTimeSlot = {
   end_time: string;
   is_available: boolean;
   status?: 'available' | 'booked' | 'elapsed';
-  /** VR only: passes still bookable in this hour */
-  passes_left?: number;
 };
 
 export type DayOccupancyRow = {
@@ -128,7 +126,6 @@ export function buildPublicBookingSlots(params: BuildSlotsParams): PublicTimeSlo
     const nonVrStations = pool.filter((s) => s.type !== 'vr');
 
     let anyAvailable = false;
-    let maxPassesLeft = 0;
 
     for (const station of nonVrStations) {
       const overlaps = countOverlappingBookings(station.id, start_time, end_time, occupancy);
@@ -140,33 +137,42 @@ export function buildPublicBookingSlots(params: BuildSlotsParams): PublicTimeSlo
 
     for (const station of vrStations) {
       const overlaps = countOverlappingBookings(station.id, start_time, end_time, occupancy);
-      const left = Math.max(0, VR_HOURLY_PASSES - overlaps);
-      maxPassesLeft = Math.max(maxPassesLeft, left);
-      if (left > 0) anyAvailable = true;
+      if (overlaps < VR_HOURLY_PASSES) anyAvailable = true;
     }
 
-    if (vrStations.length > 0 && nonVrStations.length === 0) {
-      slots.push({
-        start_time,
-        end_time,
-        is_available: anyAvailable,
-        status: anyAvailable ? 'available' : 'booked',
-        passes_left: maxPassesLeft,
-      });
-    } else {
-      slots.push({
-        start_time,
-        end_time,
-        is_available: anyAvailable,
-        status: anyAvailable ? 'available' : 'booked',
-        ...(vrStations.length > 0 && nonVrStations.length > 0 && anyAvailable
-          ? { passes_left: maxPassesLeft }
-          : {}),
-      });
-    }
+    slots.push({
+      start_time,
+      end_time,
+      is_available: anyAvailable,
+      status: anyAvailable ? 'available' : 'booked',
+    });
   }
 
   return slots;
+}
+
+/** VR passes remaining for one station in a given hour slot. */
+export function vrPassesLeftForSlot(
+  stationId: string,
+  slot: { start_time: string; end_time: string },
+  bookings: DayOccupancyRow[],
+  sessionBlocks: DayOccupancyRow[]
+): number {
+  const occupancy = [...bookings, ...sessionBlocks];
+  const overlaps = countOverlappingBookings(
+    stationId,
+    slot.start_time,
+    slot.end_time,
+    occupancy
+  );
+  return Math.max(0, VR_HOURLY_PASSES - overlaps);
+}
+
+function minutesToTimeString(totalMinutes: number): string {
+  const wrapped = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60);
+  const h = Math.floor(wrapped / 60);
+  const m = wrapped % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:00`;
 }
 
 export function stationsAvailableForSlot(
@@ -269,7 +275,7 @@ export async function fetchDayOccupancy(
       .in('station_id', stationIds),
     supabase
       .from('sessions')
-      .select('station_id, start_time')
+      .select('station_id, start_time, planned_duration_minutes')
       .eq('location_id', locationId)
       .in('station_id', stationIds)
       .is('end_time', null)
@@ -278,7 +284,20 @@ export async function fetchDayOccupancy(
   ]);
 
   if (bookingsRes.error) throw bookingsRes.error;
-  if (sessionsRes.error) throw sessionsRes.error;
+
+  let sessionRows = sessionsRes.data;
+  if (sessionsRes.error) {
+    const fallback = await supabase
+      .from('sessions')
+      .select('station_id, start_time')
+      .eq('location_id', locationId)
+      .in('station_id', stationIds)
+      .is('end_time', null)
+      .gte('start_time', dayStart)
+      .lte('start_time', dayEnd);
+    if (fallback.error) throw fallback.error;
+    sessionRows = fallback.data;
+  }
 
   const bookings = ((bookingsRes.data || []) as DayOccupancyRow[]).map((r) => ({
     station_id: r.station_id,
@@ -287,15 +306,23 @@ export async function fetchDayOccupancy(
   }));
 
   const sessionBlocks: DayOccupancyRow[] = [];
-  for (const s of (sessionsRes.data || []) as { station_id: string; start_time: string }[]) {
+  for (const s of (sessionRows || []) as {
+    station_id: string;
+    start_time: string;
+    planned_duration_minutes?: number | null;
+  }[]) {
     const start = s.start_time?.includes('T')
       ? s.start_time.split('T')[1]?.slice(0, 8) || s.start_time
       : s.start_time;
-    // Active walk-in session blocks from start through end of venue hours
+    const durationMin =
+      s.planned_duration_minutes != null && s.planned_duration_minutes > 0
+        ? s.planned_duration_minutes
+        : 60;
+    const endMin = parseTimeToMinutes(start) + durationMin;
     sessionBlocks.push({
       station_id: s.station_id,
       start_time: start,
-      end_time: `${PUBLIC_BOOKING_CLOSE_HOUR.toString().padStart(2, '0')}:59:59`,
+      end_time: minutesToTimeString(endMin),
     });
   }
 

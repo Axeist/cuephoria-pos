@@ -11,6 +11,10 @@ import { toast } from "sonner";
 import { hapticImpact } from "@/utils/capacitor";
 import { supabase } from "@/integrations/supabase/client";
 import { StationSelector } from "@/components/booking/StationSelector";
+import {
+  BookingStationTypeChips,
+  bookingStationTypeLabel,
+} from "@/components/booking/BookingStationTypeChips";
 import { getRateForPlayerCount } from "@/utils/stationPricing";
 import { isStationPublicBookable } from "@/utils/stationTransform";
 import {
@@ -19,6 +23,7 @@ import {
   fetchDayOccupancy,
   getPublicSlotDurationMinutes,
   stationsAvailableForSlot,
+  vrPassesLeftForSlot,
   VR_HOURLY_PASSES,
 } from "@/utils/publicBookingAvailability";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
@@ -209,6 +214,9 @@ const getSlotDurationMinutesFromTime = (startTime: string, endTime: string): num
   if (mins <= 0) mins += 24 * 60;
   return mins;
 };
+
+const BOOKING_STEP_CARD =
+  "rounded-2xl border border-white/10 bg-gradient-to-br from-[#0f0a1a]/90 via-[#120818]/70 to-[#0a0612]/90 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.2)]";
 
 const regularStations = (stations: Station[]) =>
   stations.filter((s) => !s.category || s.category !== 'nit_event');
@@ -424,6 +432,25 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     hasSearched && customerNumber.trim() !== "" && customerInfo.name.trim() !== "",
     [hasSearched, customerNumber, customerInfo]
   );
+
+  const vrPassesLeftByStationId = useMemo(() => {
+    const slotsToCheck =
+      selectedSlots.length > 0 ? selectedSlots : selectedSlot ? [selectedSlot] : [];
+    if (slotsToCheck.length === 0 || !dayOccupancyRef.current) return {};
+    const slot = slotsToCheck[0];
+    const occ = dayOccupancyRef.current;
+    const map: Record<string, number> = {};
+    for (const s of stations) {
+      if (s.type !== "vr") continue;
+      map[s.id] = vrPassesLeftForSlot(
+        s.id,
+        slot,
+        occ.bookings,
+        occ.sessionBlocks
+      );
+    }
+    return map;
+  }, [selectedSlot, selectedSlots, stations, selectedDate]);
 
   // Fetch booking settings from database (per branch)
   useEffect(() => {
@@ -2211,7 +2238,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
+            <Card className={BOOKING_STEP_CARD}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white">
                   <div className="w-8 h-8 rounded-lg bg-cuephoria-purple/20 ring-1 ring-white/10 flex items-center justify-center">
@@ -2317,7 +2344,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
             <Card
               className={cn(
-                "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl transition-[opacity,transform] duration-300 ease-out",
+                BOOKING_STEP_CARD,
+                "transition-[opacity,transform] duration-300 ease-out",
                 isCustomerInfoComplete ? "opacity-100 translate-y-0" : "opacity-95"
               )}
             >
@@ -2351,26 +2379,13 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                         Station type
                       </Label>
                       <p className="text-xs text-muted-foreground mb-3">
-                        All types use 1-hour slots. VR has up to {VR_HOURLY_PASSES} passes per hour.
+                        Choose what you want to book — filters times and stations below. 1-hour slots;
+                        VR pass count appears on each VR station in Step 3.
                       </p>
-                      <div className="flex flex-wrap gap-2">
-                        {(['all', 'ps5', '8ball', 'vr'] as const).map((type) => (
-                          <Button
-                            key={type}
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleStationTypeChange(type)}
-                            className={cn(
-                              'h-9 rounded-full border-white/15 text-[12px]',
-                              stationType === type
-                                ? 'bg-cuephoria-purple/20 text-white border-cuephoria-purple/40'
-                                : 'bg-transparent text-gray-300'
-                            )}
-                          >
-                            {type === 'all' ? 'All' : type === 'ps5' ? 'PS5' : type === '8ball' ? '8-Ball' : 'VR'}
-                          </Button>
-                        ))}
-                      </div>
+                      <BookingStationTypeChips
+                        value={stationType}
+                        onChange={handleStationTypeChange}
+                      />
                     </div>
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>
@@ -2420,7 +2435,6 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                             selectedSlots={selectedSlots}
                             onSlotSelect={handleSlotSelect}
                             loading={slotsLoading}
-                            showVrPasses={stationType === "vr" || stationType === "all"}
                           />
                         )}
                       </div>
@@ -2431,20 +2445,29 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
               </CardContent>
             </Card>
 
-            <Card className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl">
+            <Card className={cn("relative overflow-hidden", BOOKING_STEP_CARD)}>
               <CardHeader className="relative pb-4">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg ring-1 ring-white/10 bg-gradient-to-br from-cuephoria-blue/25 to-transparent">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 ring-white/10 bg-gradient-to-br from-cuephoria-blue/25 to-transparent">
                       {(!isCustomerInfoComplete || !selectedSlot) ? (
                         <Lock className="h-4 w-4 text-gray-500" />
                       ) : (
                         <MapPin className="h-4 w-4 text-cuephoria-blue" />
                       )}
                     </div>
-                    <CardTitle className="m-0 p-0 text-white">
-                      Step 3: Select Available Stations
-                    </CardTitle>
+                    <div className="min-w-0">
+                      <CardTitle className="m-0 p-0 text-white">
+                        Step 3: Select Available Stations
+                      </CardTitle>
+                      {isCustomerInfoComplete && selectedSlot && (
+                        <p className="text-xs text-muted-foreground mt-1 truncate">
+                          {stationType === "all"
+                            ? "All types for your selected time"
+                            : `${bookingStationTypeLabel(stationType)} only — change filter in Step 2`}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   {isCustomerInfoComplete && selectedSlot && selectedStations.length > 0 && (
                     <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-300">
@@ -2456,66 +2479,6 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                 <div className="mt-3 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
               </CardHeader>
               <CardContent className="relative pt-3">
-                <div
-                  className={cn(
-                    "grid grid-cols-4 gap-2 sm:gap-3 mb-4",
-                    (!isCustomerInfoComplete || !selectedSlot) && "pointer-events-none"
-                  )}
-                >
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleStationTypeChange("all")}
-                    className={cn(
-                      "h-9 rounded-full border-white/15 text-[12px]",
-                      stationType === "all"
-                        ? "bg-white/12 text-gray-100"
-                        : "bg-transparent text-gray-300"
-                    )}
-                  >
-                    All
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleStationTypeChange("ps5")}
-                    className={cn(
-                      "h-9 rounded-full border-white/15 text-[12px]",
-                      stationType === "ps5"
-                        ? "bg-cuephoria-purple/15 text-cuephoria-purple"
-                        : "bg-transparent text-cuephoria-purple"
-                    )}
-                  >
-                    PS5
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleStationTypeChange("8ball")}
-                    className={cn(
-                      "h-9 rounded-full border-white/15 text-[12px]",
-                      stationType === "8ball"
-                        ? "bg-emerald-400/15 text-emerald-300"
-                        : "bg-transparent text-emerald-300"
-                    )}
-                  >
-                    8-Ball
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleStationTypeChange("vr")}
-                    className={cn(
-                      "h-9 rounded-full border-white/15 text-[12px]",
-                      stationType === "vr"
-                        ? "bg-blue-400/15 text-blue-300"
-                        : "bg-transparent text-blue-300"
-                    )}
-                  >
-                    VR
-                  </Button>
-                </div>
-
                 {(!isCustomerInfoComplete || !selectedSlot) ? (
                   <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
                     <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
@@ -2524,7 +2487,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                     </p>
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-white/10 p-3 sm:p-4 bg-white/6 transition-opacity duration-300 ease-out">
+                  <div className="rounded-xl border border-white/10 p-3 sm:p-4 bg-black/20 transition-opacity duration-300 ease-out">
                     {checkingStationAvailability ? (
                       <div className="text-center py-8 text-gray-400">
                         <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin motion-reduce:animate-none" />
@@ -2545,6 +2508,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                           )}
                           selectedStations={selectedStations}
                           stationPlayerCounts={stationPlayerCounts}
+                          vrPassesLeft={vrPassesLeftByStationId}
                           onStationToggle={handleStationToggle}
                           onPlayerCountChange={handlePlayerCountChange}
                         />
@@ -2559,7 +2523,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           <div className="lg:col-span-1">
             <Card
               id="public-booking-summary"
-              className="lg:sticky lg:top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl scroll-mt-20"
+              className={cn("lg:sticky lg:top-4 scroll-mt-20", BOOKING_STEP_CARD)}
             >
               <CardHeader>
                 <CardTitle className="text-white">Booking Summary</CardTitle>

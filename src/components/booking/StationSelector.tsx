@@ -31,6 +31,8 @@ interface StationSelectorProps {
   stationPlayerCounts: Record<string, number>;
   onStationToggle: (stationId: string) => void;
   onPlayerCountChange: (stationId: string, count: number) => void;
+  /** Per VR station: passes left in the selected hour */
+  vrPassesLeft?: Record<string, number>;
   loading?: boolean;
 }
 
@@ -40,6 +42,7 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
   stationPlayerCounts,
   onStationToggle,
   onPlayerCountChange,
+  vrPassesLeft = {},
   loading = false,
 }) => {
   const getStationIcon = (type: string) => {
@@ -117,8 +120,11 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
           <Card
             key={station.id}
             className={cn(
-              'cursor-pointer transition-all duration-200 hover:shadow-md border-white/10 bg-white/5 backdrop-blur-sm',
-              isSelected ? 'ring-2 ring-cuephoria-purple bg-cuephoria-purple/10' : 'hover:bg-white/10'
+              'cursor-pointer transition-all duration-200 border-white/10 backdrop-blur-sm',
+              'bg-gradient-to-br from-[#0f0a1a]/90 via-[#120818]/70 to-[#0a0612]/90',
+              isSelected
+                ? 'ring-2 ring-cuephoria-purple/60 shadow-[0_0_20px_rgba(139,92,246,0.15)]'
+                : 'hover:border-cuephoria-purple/30 hover:shadow-[0_4px_20px_rgba(139,92,246,0.08)]'
             )}
             onClick={() => onStationToggle(station.id)}
           >
@@ -145,6 +151,14 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
               <Badge variant="secondary" className="text-xs border bg-white/10 text-gray-200 border-white/10">
                 {getStationTypeLabel(station.type)}
               </Badge>
+              {station.type === 'vr' && vrPassesLeft[station.id] != null && (
+                <Badge
+                  variant="outline"
+                  className="text-xs w-fit border-cuephoria-blue/40 bg-cuephoria-blue/10 text-cuephoria-blue"
+                >
+                  {vrPassesLeft[station.id]} of 4 passes left this hour
+                </Badge>
+              )}
               <div className="text-sm font-medium text-cuephoria-lightpurple">{getPriceDisplay(station)}</div>
 
               {isSelected && multiPlayer && (
