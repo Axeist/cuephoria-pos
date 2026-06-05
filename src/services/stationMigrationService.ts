@@ -4,7 +4,18 @@ export interface MigrateStationResult {
   migrated_stations: number;
   sessions_updated: number;
   bookings_updated: number;
+  slot_blocks_updated?: number;
   new_station_id: string;
+}
+
+function migrationErrorMessage(error: { message?: string; details?: string; hint?: string; code?: string }): string {
+  if (error.code === '42883' || error.message?.includes('Could not find the function')) {
+    return 'Migration function is not installed yet. Run supabase db push (migration 20260625120000 or 20260805120000).';
+  }
+  if (error.code === '42501') {
+    return 'Permission denied running migration. Apply migration 20260805120000_fix_migrate_station_data.sql.';
+  }
+  return error.message || error.details || error.hint || 'Could not migrate stations';
 }
 
 export async function migrateStationData(
@@ -20,7 +31,7 @@ export async function migrateStationData(
 
   if (error) {
     console.error('migrateStationData:', error);
-    throw error;
+    throw new Error(migrationErrorMessage(error));
   }
 
   return data as MigrateStationResult;
