@@ -27,6 +27,11 @@ import {
   VR_PASS_DURATION_MINUTES,
   canMixPublicBookingStations,
 } from "@/utils/publicBookingAvailability";
+import {
+  fetchRazorpayKeyId,
+  loadRazorpayScript,
+  primeRazorpayCheckout,
+} from "@/utils/razorpayCheckout";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import CouponPromotionalPopup from "@/components/CouponPromotionalPopup";
 import BookingConfirmationDialog from "@/components/BookingConfirmationDialog";
@@ -218,6 +223,15 @@ const getSlotDurationMinutesFromTime = (startTime: string, endTime: string): num
 
 const BOOKING_STEP_CARD =
   "rounded-2xl border border-white/10 bg-gradient-to-br from-[#0f0a1a] via-[#120818] to-[#0a0612] backdrop-blur-xl shadow-[0_8px_40px_rgba(139,92,246,0.08)]";
+
+type PreparedRazorpayCheckout = {
+  orderId: string;
+  amount: number;
+  currency: string;
+  keyId: string;
+  txnId: string;
+  slotsCount: number;
+};
 
 const regularStations = (stations: Station[]) =>
   stations.filter((s) => !s.category || s.category !== 'nit_event');
@@ -453,6 +467,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   const [todayLoading, setTodayLoading] = useState(false);
   const [showOnlinePaymentPromo, setShowOnlinePaymentPromo] = useState(false);
   const [showPaymentWarning, setShowPaymentWarning] = useState(false);
+  const [paymentWarningSeconds, setPaymentWarningSeconds] = useState(3);
+  const [paymentPrepReady, setPaymentPrepReady] = useState(false);
+  const paymentPrepRef = useRef<Promise<PreparedRazorpayCheckout | null> | null>(null);
   const [showInstagramFollowDialog, setShowInstagramFollowDialog] = useState(false);
   const [instagramLinkClicked, setInstagramLinkClicked] = useState(false);
   const [showFollowConfirmation, setShowFollowConfirmation] = useState(false);
@@ -1559,263 +1576,219 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     }
   }
 
-  // Load Razorpay script and key ID when payment method is set to razorpay
+  // Warm Razorpay script + key as soon as online pay is available (and when selected).
+  useEffect(() => {
+    if (!onlinePaymentEnabled) return;
+    primeRazorpayCheckout(isLiteBranch);
+    fetchRazorpayKeyId(isLiteBranch)
+      .then((keyId) => setRazorpayKeyId(keyId))
+      .catch(() => {});
+  }, [onlinePaymentEnabled, isLiteBranch]);
+
   useEffect(() => {
     if (paymentMethod === "razorpay" && onlinePaymentEnabled) {
-      // Load Razorpay script if not already loaded
-      if (!(window as any).Razorpay) {
-        const script = document.createElement("script");
-        script.src = "https://checkout.razorpay.com/v1/checkout.js";
-        script.async = true;
-        script.onload = () => {
-          console.log("✅ Razorpay script loaded");
-        };
-        script.onerror = () => {
-          console.error("❌ Failed to load Razorpay script");
-          toast.error("Failed to load payment gateway. Please refresh the page.");
-        };
-        document.body.appendChild(script);
-      }
-      
-      // Pre-fetch Razorpay key ID for faster payment initiation
-      if (!razorpayKeyId) {
-        const profileQs = isLiteBranch ? "?profile=lite" : "";
-        fetch(`/api/razorpay/get-key-id${profileQs}`)
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.ok && data.keyId) {
-              setRazorpayKeyId(data.keyId);
-              console.log("✅ Razorpay key ID pre-loaded");
-            }
-          })
-          .catch((err) => {
-            console.error("Failed to pre-load Razorpay key ID:", err);
-            // Don't show error to user yet, will retry during payment
-          });
-      }
+      primeRazorpayCheckout(isLiteBranch);
     }
-  }, [paymentMethod, razorpayKeyId, branchSlug, onlinePaymentEnabled]);
+  }, [paymentMethod, onlinePaymentEnabled, isLiteBranch]);
 
-  const initiateRazorpay = async () => {
+  const prepareRazorpayPayment = async (): Promise<PreparedRazorpayCheckout | null> => {
     if (!onlinePaymentEnabled) {
       toast.error("Online payment is unavailable right now. Please pay at the venue or call us to book.");
-      return;
+      return null;
     }
-    // Use selectedSlots if available, otherwise fall back to single selectedSlot
-    const slotsToBook = selectedSlots.length > 0 ? selectedSlots : (selectedSlot ? [selectedSlot] : []);
-    
+
+    const slotsToBook =
+      selectedSlots.length > 0 ? selectedSlots : selectedSlot ? [selectedSlot] : [];
+
     if (slotsToBook.length === 0) {
       toast.error("Please select at least one time slot");
-      return;
+      return null;
     }
-    
+
     const totalPrice = finalPrice * slotsToBook.length;
-    
+
     if (totalPrice <= 0) {
       toast.error("Amount must be greater than 0 for online payment.");
-      return;
+      return null;
     }
     if (!customerInfo.phone) {
       toast.error("Customer phone is required for payment.");
-      return;
+      return null;
     }
 
-    if (!(window as any).Razorpay) {
-      toast.error("Payment gateway is loading. Please wait a moment and try again.");
-      return;
-    }
-
-    // Calculate 2.5% transaction fee for Razorpay
-    const transactionFee = Math.round((totalPrice * 0.025) * 100) / 100; // Round to 2 decimal places
+    const transactionFee = Math.round(totalPrice * 0.025 * 100) / 100;
     const totalWithFee = totalPrice + transactionFee;
-
     const txnId = genTxnId();
-    setLoading(true);
+    const bookingDuration = getBookingDuration(selectedStations, stations);
 
-    try {
-      const bookingDuration = getBookingDuration(selectedStations, stations);
-      // Store all slots for booking creation after payment
-      const pendingBooking = {
-        selectedStations,
-        stationPlayerCounts,
-        selectedDateISO: format(selectedDate, "yyyy-MM-dd"),
-        slots: slotsToBook.map(slot => ({
-          start_time: slot.start_time,
-          end_time: slot.end_time,
-        })),
-        duration: bookingDuration,
-        customer: customerInfo,
-        locationId: publicLocationId,
-        pricing: {
-          original: originalPrice * slotsToBook.length,
-          discount: discount * slotsToBook.length,
-          final: totalPrice,
-          transactionFee: transactionFee,
-          totalWithFee: totalWithFee,
-          coupons: Object.values(appliedCoupons).join(","),
+    const pendingBooking = {
+      selectedStations,
+      stationPlayerCounts,
+      selectedDateISO: format(selectedDate, "yyyy-MM-dd"),
+      slots: slotsToBook.map((slot) => ({
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+      })),
+      duration: bookingDuration,
+      customer: customerInfo,
+      locationId: publicLocationId,
+      pricing: {
+        original: originalPrice * slotsToBook.length,
+        discount: discount * slotsToBook.length,
+        final: totalPrice,
+        transactionFee,
+        totalWithFee,
+        coupons: Object.values(appliedCoupons).join(","),
+      },
+    };
+    localStorage.setItem("pendingBooking", JSON.stringify(pendingBooking));
+
+    const bookingDataCompact = JSON.stringify({
+      s: selectedStations,
+      d: format(selectedDate, "yyyy-MM-dd"),
+      t: slotsToBook.map((s) => ({ s: s.start_time, e: s.end_time })),
+      du: bookingDuration,
+      c: {
+        n: customerInfo.name,
+        p: customerInfo.phone,
+        e: customerInfo.email || "",
+        i: customerInfo.id || "",
+      },
+      p: {
+        o: originalPrice * slotsToBook.length,
+        d: discount * slotsToBook.length,
+        f: totalPrice,
+        tf: transactionFee,
+        twf: totalWithFee,
+      },
+      cp: Object.values(appliedCoupons).join(","),
+    });
+
+    const notes: Record<string, string> = {
+      customer_name: customerInfo.name,
+      customer_phone: customerInfo.phone,
+      customer_email: customerInfo.email || "",
+      booking_date: format(selectedDate, "yyyy-MM-dd"),
+      stations: selectedStations.join(","),
+    };
+
+    if (bookingDataCompact.length <= 256) {
+      notes.booking_data = bookingDataCompact;
+    } else {
+      notes.booking_data_1 = bookingDataCompact.substring(0, 256);
+      if (bookingDataCompact.length > 256) {
+        notes.booking_data_2 = bookingDataCompact.substring(256, 512);
+      }
+    }
+
+    await loadRazorpayScript();
+
+    const keyPromise = razorpayKeyId
+      ? Promise.resolve(razorpayKeyId)
+      : fetchRazorpayKeyId(isLiteBranch);
+
+    const orderPromise = fetch("/api/razorpay/create-order", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        provider: "razorpay",
+        currency: "INR",
+        amount: totalWithFee,
+        receipt: txnId,
+        notes,
+        location_id: publicLocationId || undefined,
+        customer: {
+          name: customerInfo.name,
+          phone: customerInfo.phone,
+          email: customerInfo.email || "",
         },
-      };
-      localStorage.setItem("pendingBooking", JSON.stringify(pendingBooking));
+        booking_payload: pendingBooking,
+        kind: "booking",
+        ...(isLiteBranch ? { profile: "lite" } : {}),
+      }),
+    });
 
-      // Serialize booking data for order notes (compact format to fit 256 char limit per field)
-      // Use minimal keys to save space
-      const bookingDataCompact = JSON.stringify({
-        s: selectedStations, // stations
-        d: format(selectedDate, "yyyy-MM-dd"), // date
-        t: slotsToBook.map(s => ({ s: s.start_time, e: s.end_time })), // time slots
-        du: bookingDuration, // duration
-        c: { n: customerInfo.name, p: customerInfo.phone, e: customerInfo.email || "", i: customerInfo.id || "" }, // customer
-        p: { o: originalPrice * slotsToBook.length, d: discount * slotsToBook.length, f: totalPrice, tf: transactionFee, twf: totalWithFee }, // pricing
-        cp: Object.values(appliedCoupons).join(","), // coupons
-      });
+    const [orderRes, keyId] = await Promise.all([orderPromise, keyPromise]);
+    const orderData = await orderRes.json().catch(() => null);
 
-      // Split booking_data across multiple note fields if needed (each field max 256 chars)
-      const bookingDataStr = bookingDataCompact;
-      const notes: Record<string, string> = {
+    if (!orderRes.ok || !orderData?.ok || !orderData?.orderId) {
+      const error = orderData?.error || "Failed to create payment order";
+      if (orderData?.conflict || orderRes.status === 409) {
+        toast.error(error);
+      } else {
+        toast.error(`Payment setup failed: ${error}`);
+      }
+      return null;
+    }
+
+    if (keyId && !razorpayKeyId) {
+      setRazorpayKeyId(keyId);
+    }
+
+    return {
+      orderId: orderData.orderId,
+      amount: orderData.amount,
+      currency: orderData.currency || "INR",
+      keyId: keyId || razorpayKeyId,
+      txnId,
+      slotsCount: slotsToBook.length,
+    };
+  };
+
+  const openRazorpayCheckout = (prepared: PreparedRazorpayCheckout) => {
+    if (!(window as Window & { Razorpay?: new (opts: unknown) => { open: () => void; on: (e: string, cb: (r: unknown) => void) => void } }).Razorpay) {
+      toast.error("Payment gateway is still loading. Please try again.");
+      setLoading(false);
+      return;
+    }
+
+    const options = {
+      key: prepared.keyId,
+      amount: prepared.amount,
+      currency: prepared.currency,
+      name: tenantDisplayName,
+      description: `Booking for ${prepared.slotsCount} slot(s)`,
+      order_id: prepared.orderId,
+      handler: function (response: {
+        razorpay_payment_id: string;
+        razorpay_order_id: string;
+        razorpay_signature: string;
+      }) {
+        const liteQs = isLiteBranch ? "&profile=lite" : "";
+        window.location.href = `/public/payment/success?payment_id=${encodeURIComponent(response.razorpay_payment_id)}&order_id=${encodeURIComponent(response.razorpay_order_id)}&signature=${encodeURIComponent(response.razorpay_signature)}${liteQs}`;
+      },
+      prefill: {
+        name: customerInfo.name,
+        email: customerInfo.email || "",
+        contact: customerInfo.phone,
+      },
+      notes: {
+        transaction_id: prepared.txnId,
         customer_name: customerInfo.name,
         customer_phone: customerInfo.phone,
-        customer_email: customerInfo.email || "",
-        booking_date: format(selectedDate, "yyyy-MM-dd"),
-        stations: selectedStations.join(","),
-      };
-
-      // Store booking_data, split if necessary
-      if (bookingDataStr.length <= 256) {
-        notes.booking_data = bookingDataStr;
-      } else {
-        // Split into multiple fields
-        notes.booking_data_1 = bookingDataStr.substring(0, 256);
-        if (bookingDataStr.length > 256) {
-          notes.booking_data_2 = bookingDataStr.substring(256, 512);
-        }
-      }
-
-      // Create order on server with total including transaction fee.
-      // We send the FULL booking_payload alongside notes so the server can
-      // persist a payment_orders intent row — this is what lets the
-      // webhook / pg_cron reconciler materialize the booking even if the
-      // customer never returns from their UPI app. Notes are kept for
-      // backward compatibility with in-flight orders during the deploy.
-      const orderRes = await fetch("/api/razorpay/create-order", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          provider: "razorpay",
-          currency: "INR",
-          amount: totalWithFee,
-          receipt: txnId,
-          notes: notes,
-          location_id: publicLocationId || undefined,
-          customer: {
-            name: customerInfo.name,
-            phone: customerInfo.phone,
-            email: customerInfo.email || "",
-          },
-          booking_payload: pendingBooking,
-          kind: "booking",
-          ...(isLiteBranch ? { profile: "lite" } : {}),
-        }),
-      });
-
-      const profileQs = isLiteBranch ? "?profile=lite" : "";
-      // Fetch key ID in parallel with order creation if not already cached
-      const keyPromise = razorpayKeyId 
-        ? Promise.resolve({ keyId: razorpayKeyId })
-        : fetch(`/api/razorpay/get-key-id${profileQs}`)
-            .then((res) => res.json())
-            .catch(() => ({ keyId: "" }));
-
-      const [orderData, keyData] = await Promise.all([
-        orderRes.json().catch(() => null),
-        keyPromise
-      ]);
-
-      if (!orderRes.ok || !orderData?.ok || !orderData?.orderId) {
-        const error = orderData?.error || "Failed to create payment order";
-        console.error("❌ Order creation failed:", error);
-        if (orderData?.conflict || orderRes.status === 409) {
-          toast.error(error);
-        } else {
-          toast.error(`Payment setup failed: ${error}`);
-        }
-        setLoading(false);
-        return;
-      }
-
-      console.log("✅ Razorpay order created:", orderData.orderId);
-
-      // Use cached key ID or fetch result
-      const finalKeyId = keyData.keyId || razorpayKeyId;
-      
-      // Cache the key ID for future use
-      if (keyData.keyId && !razorpayKeyId) {
-        setRazorpayKeyId(keyData.keyId);
-      }
-
-      if (!finalKeyId) {
-        toast.error("Payment gateway configuration error. Please contact support.");
-        setLoading(false);
-        return;
-      }
-
-      const origin = window.location.origin;
-      const callbackProfileQs = isLiteBranch ? "?profile=lite" : "";
-      const callbackUrl = `${origin}/api/razorpay/callback${callbackProfileQs}`;
-
-      // Razorpay checkout options
-      const options = {
-        key: finalKeyId,
-        amount: orderData.amount, // Amount in paise
-        currency: orderData.currency || "INR",
-        name: tenantDisplayName,
-        description: `Booking for ${slotsToBook.length} slot(s)`,
-        order_id: orderData.orderId,
-        handler: function (response: any) {
-          console.log("✅ Razorpay payment success:", response);
-          // Redirect to success page with payment details
-          const liteQs = isLiteBranch ? "&profile=lite" : "";
-          window.location.href = `/public/payment/success?payment_id=${encodeURIComponent(response.razorpay_payment_id)}&order_id=${encodeURIComponent(response.razorpay_order_id)}&signature=${encodeURIComponent(response.razorpay_signature)}${liteQs}`;
+      },
+      theme: {
+        color: tenantPrimaryHex,
+      },
+      modal: {
+        ondismiss: function () {
+          setLoading(false);
+          toast.info("Payment was cancelled");
         },
-        prefill: {
-          name: customerInfo.name,
-          email: customerInfo.email || "",
-          contact: customerInfo.phone,
-        },
-        notes: {
-          transaction_id: txnId,
-          customer_name: customerInfo.name,
-          customer_phone: customerInfo.phone,
-        },
-        theme: {
-          color: tenantPrimaryHex,
-        },
-        modal: {
-          ondismiss: function() {
-            console.log("Payment cancelled by user");
-            setLoading(false);
-            toast.info("Payment was cancelled");
-          },
-        },
-      };
+      },
+    };
 
-      const rzp = new (window as any).Razorpay(options);
-      
-      rzp.on("payment.failed", function (response: any) {
-        console.error("❌ Razorpay payment failed:", response);
-        const error = response.error?.description || response.error?.reason || "Payment failed";
-        toast.error(`Payment failed: ${error}`);
-        setLoading(false);
-        // Redirect to failure page
-        const liteQs = isLiteBranch ? "&profile=lite" : "";
-        window.location.href = `/public/payment/failed?order_id=${encodeURIComponent(orderData.orderId)}&error=${encodeURIComponent(error)}${liteQs}`;
-      });
+    const rzp = new (window as Window & { Razorpay: new (opts: unknown) => { open: () => void; on: (e: string, cb: (r: unknown) => void) => void } }).Razorpay(options);
 
-      rzp.open();
-    } catch (e: any) {
-      console.error("💥 Razorpay payment error:", e);
-      toast.error(`Unable to start payment: ${e?.message || e}`);
+    rzp.on("payment.failed", function (response: { error?: { description?: string; reason?: string } }) {
+      const error = response.error?.description || response.error?.reason || "Payment failed";
+      toast.error(`Payment failed: ${error}`);
       setLoading(false);
-    }
+      const liteQs = isLiteBranch ? "&profile=lite" : "";
+      window.location.href = `/public/payment/failed?order_id=${encodeURIComponent(prepared.orderId)}&error=${encodeURIComponent(error)}${liteQs}`;
+    });
+
+    rzp.open();
   };
 
   // Helper function to determine service type for promo
@@ -1910,16 +1883,56 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     await createVenueBooking();
   };
 
-  // Auto-close payment warning modal and proceed with payment after 3 seconds
+  // Show warning 3s while preloading order + Razorpay in the background, then open instantly.
   useEffect(() => {
-    if (showPaymentWarning) {
-      const timer = setTimeout(async () => {
-        setShowPaymentWarning(false);
-        await initiateRazorpay();
-      }, 3000); // 3 seconds
-
-      return () => clearTimeout(timer);
+    if (!showPaymentWarning) {
+      paymentPrepRef.current = null;
+      setPaymentPrepReady(false);
+      setPaymentWarningSeconds(3);
+      return;
     }
+
+    let cancelled = false;
+    setPaymentWarningSeconds(3);
+    setPaymentPrepReady(false);
+    setLoading(true);
+
+    const prep = prepareRazorpayPayment();
+    paymentPrepRef.current = prep;
+    prep
+      .then((result) => {
+        if (!cancelled && result) setPaymentPrepReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setPaymentPrepReady(false);
+      });
+
+    const countdown = window.setInterval(() => {
+      setPaymentWarningSeconds((s) => (s > 0 ? s - 1 : 0));
+    }, 1000);
+
+    const openTimer = window.setTimeout(async () => {
+      if (cancelled) return;
+      setShowPaymentWarning(false);
+      try {
+        const prepared = await prep;
+        if (!prepared) {
+          setLoading(false);
+          return;
+        }
+        openRazorpayCheckout(prepared);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        toast.error(`Unable to start payment: ${msg}`);
+        setLoading(false);
+      }
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(countdown);
+      window.clearTimeout(openTimer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPaymentWarning]);
 
@@ -3530,11 +3543,31 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
               </div>
             </div>
 
-            <div className="flex items-center justify-center gap-2 pt-2">
-              <Loader2 className="h-4 w-4 text-cuephoria-lightpurple animate-spin" />
-              <span className="text-xs text-gray-400">
-                Opening payment gateway...
+            <div className="flex flex-col items-center justify-center gap-2 pt-2">
+              <Loader2
+                className={`h-4 w-4 text-cuephoria-lightpurple ${
+                  paymentPrepReady ? "hidden" : "animate-spin"
+                }`}
+              />
+              {paymentPrepReady ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+              ) : null}
+              <span className="text-xs text-gray-400 text-center">
+                {paymentWarningSeconds > 0 ? (
+                  <>
+                    Opening payment gateway in{" "}
+                    <span className="font-semibold text-white tabular-nums">
+                      {paymentWarningSeconds}s
+                    </span>
+                    …
+                  </>
+                ) : (
+                  "Opening payment gateway…"
+                )}
               </span>
+              {paymentPrepReady && paymentWarningSeconds > 0 && (
+                <span className="text-[10px] text-emerald-400/90">Payment ready</span>
+              )}
             </div>
           </div>
         </DialogContent>
