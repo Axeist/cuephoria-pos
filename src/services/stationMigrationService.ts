@@ -5,6 +5,7 @@ export interface MigrateStationResult {
   sessions_updated: number;
   bookings_updated: number;
   slot_blocks_updated?: number;
+  slot_blocks_dropped?: number;
   new_station_id: string;
 }
 
