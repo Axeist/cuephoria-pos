@@ -1,8 +1,5 @@
--- Manual one-time backfill (same logic as migration 20260804130000).
--- Run in Supabase SQL editor if you need to re-link after fixing emails.
--- Safe to re-run: only updates staff_profiles where admin_user_id IS NULL.
-
--- Linking staff_profiles → admin_users by email/username…
+-- Broader one-time backfill: also match display_name and email local-part (e.g. Dharun ↔ dharun@…).
+-- Safe to re-run: only touches staff_profiles where admin_user_id IS NULL.
 
 WITH candidates AS (
   SELECT
@@ -68,22 +65,3 @@ SET
 FROM picked p
 WHERE sp.user_id = p.staff_user_id
   AND sp.admin_user_id IS NULL;
-
-UPDATE public.staff_profiles sp
-SET
-  full_name = COALESCE(NULLIF(btrim(sp.full_name), ''), au.display_name, au.username),
-  designation = COALESCE(NULLIF(btrim(sp.designation), ''), au.designation, sp.designation),
-  email = COALESCE(NULLIF(btrim(sp.email), ''), lower(btrim(au.email))),
-  updated_at = now()
-FROM public.admin_users au
-WHERE sp.admin_user_id = au.id
-  AND (
-    sp.full_name IS NULL OR btrim(sp.full_name) = ''
-    OR sp.designation IS NULL OR btrim(sp.designation) = ''
-    OR sp.email IS NULL OR btrim(sp.email) = ''
-  );
-
--- Review unlinked rows after running:
-SELECT user_id, username, email, admin_user_id, portal_pin
-FROM public.staff_profiles
-ORDER BY admin_user_id NULLS FIRST, username;

@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase, handleSupabaseError } from '@/integrations/supabase/client';
 import { useLocation } from '@/context/LocationContext';
 import { clampCartItemsToStock, getProductStockLimit } from '@/utils/cartStock.utils';
+import { mergeSessionCartItems } from '@/utils/sessionCartMerge';
 
 const POSContext = createContext<POSContextType>({
   products: [],
@@ -659,6 +660,58 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const moveSession = async (fromStationId: string, toStationId: string): Promise<void> => {
     await moveSessionBase(fromStationId, toStationId);
   };
+
+  /** Sticky POS cart: group/partial session ends append to the customer's existing bill draft. */
+  const applySessionCheckoutCart = useCallback(
+    async (customer: Customer, incomingItems: CartItem[]): Promise<void> => {
+      const saved =
+        activeLocationId != null
+          ? await loadSavedCartForCustomer(customer.id)
+          : null;
+
+      const priorItems = saved?.items ?? [];
+      const inMemoryItems = selectedCustomer?.id === customer.id ? cart : [];
+      const mergedCart = mergeSessionCartItems(priorItems, inMemoryItems, incomingItems);
+
+      const discountVal = Number(saved?.discount ?? 0);
+      const discountTyp = (saved?.discount_type ?? 'percentage') as 'percentage' | 'fixed';
+      const loyaltyUsed = Number(saved?.loyalty_points_used ?? 0);
+
+      if (mergedCart.length > 0 && activeLocationId) {
+        await persistSavedCart(
+          customer.id,
+          customer.name,
+          mergedCart,
+          discountVal,
+          discountTyp,
+          loyaltyUsed,
+        );
+      }
+
+      selectCustomer(customer.id);
+
+      if (mergedCart.length > 0) {
+        setCart(clampCartItemsToStock(mergedCart, products));
+        setDiscountAmount(discountVal);
+        setDiscountType(discountTyp);
+        setLoyaltyPointsUsedAmount(loyaltyUsed);
+        console.log('Sticky session cart for checkout:', mergedCart);
+      }
+    },
+    [
+      activeLocationId,
+      cart,
+      loadSavedCartForCustomer,
+      persistSavedCart,
+      products,
+      selectCustomer,
+      selectedCustomer?.id,
+      setCart,
+      setDiscountAmount,
+      setDiscountType,
+      setLoyaltyPointsUsedAmount,
+    ],
+  );
   
   const endSession = async (stationId: string): Promise<void> => {
     try {
@@ -678,30 +731,15 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const { sessionCartItem, customer } = result;
         
         if (customer) {
-          console.log("Auto-selecting customer:", customer.name);
+          console.log('Auto-selecting customer:', customer.name);
 
-          const mergedCart: CartItem[] = [
+          const incomingItems: CartItem[] = [
             ...stationQuickShopItems,
             ...(sessionCartItem ? [sessionCartItem] : []),
           ];
 
           clearStationQuickShopSession(sessionId);
-
-          if (mergedCart.length > 0 && activeLocationId) {
-            await persistSavedCart(
-              customer.id,
-              customer.name,
-              mergedCart,
-              0,
-              'percentage',
-              0
-            );
-          }
-
-          selectCustomer(customer.id);
-          setCart(clampCartItemsToStock(mergedCart, products));
-
-          console.log("Merged cart for checkout:", mergedCart);
+          await applySessionCheckoutCart(customer, incomingItems);
         }
       }
     } catch (error) {
@@ -735,25 +773,13 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const quickShopItems = quickShopSnapshots.flatMap((q) => q.items);
 
         if (customer) {
-          const mergedCart: CartItem[] = [...quickShopItems, ...sessionCartItems];
+          const incomingItems: CartItem[] = [...quickShopItems, ...sessionCartItems];
 
           for (const q of quickShopSnapshots) {
             clearStationQuickShopSession(q.sessionId);
           }
 
-          if (mergedCart.length > 0 && activeLocationId) {
-            await persistSavedCart(
-              customer.id,
-              customer.name,
-              mergedCart,
-              0,
-              'percentage',
-              0
-            );
-          }
-
-          selectCustomer(customer.id);
-          setCart(clampCartItemsToStock(mergedCart, products));
+          await applySessionCheckoutCart(customer, incomingItems);
         }
       }
     } catch (error) {
