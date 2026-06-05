@@ -9,7 +9,7 @@ import {
   isPerPlayerPricing,
 } from '@/utils/stationPricing';
 import { getStationTheme } from '@/utils/stationTheme';
-import { getPublicSlotDurationMinutes, VR_HOURLY_PASSES } from '@/utils/publicBookingAvailability';
+import { getPublicSlotDurationMinutes, VR_HOURLY_PASSES, VR_PASS_DURATION_MINUTES } from '@/utils/publicBookingAvailability';
 import type { Station } from '@/types/pos.types';
 
 export interface BookingStation {
@@ -61,6 +61,11 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
 
   const getPriceDisplay = (station: BookingStation) => {
     const count = stationPlayerCounts[station.id] ?? 1;
+    if (station.type === 'vr') {
+      const total = station.hourly_rate * count;
+      if (count <= 1) return `₹${total}/15mins`;
+      return `₹${total} (${count} passes × ₹${station.hourly_rate}/15mins)`;
+    }
     return formatOccupancyPriceLabel(
       {
         ...toPricingStation(station),
@@ -103,6 +108,13 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
         const multiPlayer = isPerPlayerPricing(toPricingStation(station)) && maxPlayers > 1;
         const durationMin = getPublicSlotDurationMinutes(station);
         const passesLeft = vrPassesLeft[station.id];
+        const maxVrPasses =
+          station.type === 'vr'
+            ? Math.max(1, Math.min(VR_HOURLY_PASSES, passesLeft ?? VR_HOURLY_PASSES))
+            : 1;
+        const vrPassCount = stationPlayerCounts[station.id] ?? 1;
+        const showVrPassStepper =
+          station.type === 'vr' && isSelected && maxVrPasses > 1;
 
         return (
           <button
@@ -160,8 +172,18 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
               <div className="space-y-1.5 text-xs text-left">
                 <div className="flex items-center gap-2 text-gray-400">
                   <Clock className="h-3.5 w-3.5 shrink-0" />
-                  <span>{durationMin} min session</span>
+                  <span>
+                    {station.type === 'vr'
+                      ? `${VR_PASS_DURATION_MINUTES} min per pass`
+                      : `${durationMin} min session`}
+                  </span>
                 </div>
+                {station.type === 'vr' && maxVrPasses > 1 && (
+                  <p className="text-[11px] text-gray-500 leading-snug pl-5">
+                    You can book up to {maxVrPasses} passes this hour — each pass is{' '}
+                    {VR_PASS_DURATION_MINUTES} minutes of play time.
+                  </p>
+                )}
                 {maxPlayers > 1 && (
                   <div className="flex items-center gap-2 text-gray-400">
                     <Users className="h-3.5 w-3.5 shrink-0" />
@@ -180,7 +202,7 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
                   {getPriceDisplay(station)}
                 </p>
 
-                {isSelected && multiPlayer && (
+                {isSelected && multiPlayer && station.type !== 'vr' && (
                   <div
                     className="flex items-center justify-between gap-2 mt-3"
                     onClick={(e) => e.stopPropagation()}
@@ -207,6 +229,44 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
                         className="h-8 w-8 p-0 border-white/20 rounded-lg"
                         disabled={playerCount >= maxPlayers}
                         onClick={() => onPlayerCountChange(station.id, playerCount + 1)}
+                      >
+                        +
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {showVrPassStepper && (
+                  <div
+                    className="flex items-center justify-between gap-2 mt-3"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="text-left">
+                      <span className="text-xs font-medium text-gray-400">VR passes</span>
+                      <p className="text-[10px] text-gray-500 mt-0.5">
+                        {VR_PASS_DURATION_MINUTES} min each
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0 border-white/20 rounded-lg"
+                        disabled={vrPassCount <= 1}
+                        onClick={() => onPlayerCountChange(station.id, vrPassCount - 1)}
+                      >
+                        −
+                      </Button>
+                      <span className="text-sm font-bold text-white w-6 text-center tabular-nums">
+                        {vrPassCount}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0 border-white/20 rounded-lg"
+                        disabled={vrPassCount >= maxVrPasses}
+                        onClick={() => onPlayerCountChange(station.id, vrPassCount + 1)}
                       >
                         +
                       </Button>

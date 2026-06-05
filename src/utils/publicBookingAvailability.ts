@@ -6,6 +6,8 @@ export const PUBLIC_BOOKING_OPEN_HOUR = 11;
 export const PUBLIC_BOOKING_CLOSE_HOUR = 23;
 /** VR: up to 4 bookings per 1-hour block (not 15-min slots). */
 export const VR_HOURLY_PASSES = 4;
+/** Each VR pass is a 15-minute play session within the booked hour. */
+export const VR_PASS_DURATION_MINUTES = 15;
 
 export type PublicTimeSlot = {
   start_time: string;

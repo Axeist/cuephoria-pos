@@ -24,6 +24,7 @@ import {
   stationsAvailableForSlot,
   vrPassesLeftForSlot,
   VR_HOURLY_PASSES,
+  VR_PASS_DURATION_MINUTES,
 } from "@/utils/publicBookingAvailability";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import CouponPromotionalPopup from "@/components/CouponPromotionalPopup";
@@ -604,6 +605,27 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     );
   };
 
+  const clearStep3Selection = () => {
+    setSelectedStations([]);
+    setStationPlayerCounts({});
+  };
+
+  // Changing the date invalidates the selected hour — clear time & stations.
+  useEffect(() => {
+    clearStep3Selection();
+    setSelectedSlot(null);
+    setSelectedSlots([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate]);
+
+  // No time selected — stations in Step 3 are not valid.
+  useEffect(() => {
+    if (!selectedSlot && selectedSlots.length === 0) {
+      clearStep3Selection();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSlot, selectedSlots.length]);
+
   useEffect(() => {
     if (appliedCoupons["8ball"] === "HH99" && !isHappyHour(selectedDate, selectedSlot)) {
       setAppliedCoupons((prev) => {
@@ -926,52 +948,20 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   };
 
   const handlePlayerCountChange = (stationId: string, count: number) => {
+    const station = stations.find((s) => s.id === stationId);
+    if (station?.type === 'vr') {
+      const passesLeft = vrPassesLeftByStationId[stationId] ?? VR_HOURLY_PASSES;
+      const maxPasses = Math.max(1, Math.min(VR_HOURLY_PASSES, passesLeft));
+      setStationPlayerCounts((prev) => ({
+        ...prev,
+        [stationId]: Math.min(maxPasses, Math.max(1, count)),
+      }));
+      return;
+    }
     setStationPlayerCounts((prev) => ({ ...prev, [stationId]: count }));
   };
 
-  async function filterStationsForSlot(slot: TimeSlot) {
-    if (selectedStations.length === 0) return selectedStations;
-    const dateStr = format(selectedDate, "yyyy-MM-dd");
-    
-    const hasVR = selectedStations.some(id => 
-      stations.find(s => s.id === id && s.type === 'vr')
-    );
-    // Use slot duration from selected stations
-    const firstSelectedStation = stations.find(s => selectedStations.includes(s.id));
-    const slotDuration = firstSelectedStation ? getSlotDuration(firstSelectedStation) : 60;
-    
-    const checks = await Promise.all(
-      selectedStations.map(async (stationId) => {
-        const { data, error } = await supabase.rpc("get_available_slots", {
-          p_date: dateStr,
-          p_station_id: stationId,
-          p_slot_duration: slotDuration,
-        });
-        if (error) return { stationId, available: false };
-        const match = (data || []).find(
-          (s: any) =>
-            s.start_time === slot.start_time &&
-            s.end_time === slot.end_time &&
-            s.is_available
-        );
-        return { stationId, available: Boolean(match) };
-      })
-    );
-    const availableIds = checks.filter((c) => c.available).map((c) => c.stationId);
-    const removed = checks.filter((c) => !c.available).map((c) => c.stationId);
-    if (removed.length) {
-      const names = stations
-        .filter((s) => removed.includes(s.id))
-        .map((s) => s.name)
-        .join(", ");
-      toast.message("Some stations aren't free at this time", {
-        description: `Removed: ${names}.`,
-      });
-    }
-    return availableIds;
-  }
-
-  async function handleSlotSelect(slot: TimeSlot) {
+  function handleSlotSelect(slot: TimeSlot) {
     if (slot.status === 'elapsed') {
       toast.error("Cannot select a time slot that has already passed.");
       return;
@@ -998,6 +988,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         }
         return updated;
       });
+      clearStep3Selection();
       return;
     }
     
@@ -1010,15 +1001,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         return;
       }
     }
-    
-    if (selectedStations.length > 0) {
-      const filtered = await filterStationsForSlot(slot);
-      if (filtered.length === 0) {
-        toast.error("That time isn't available for the selected stations.");
-        return;
-      }
-      if (filtered.length !== selectedStations.length) setSelectedStations(filtered);
-    }
+
+    // Time changed — station availability is hour-specific; reset Step 3.
+    clearStep3Selection();
     
     // Add to multiple selection
     setSelectedSlots(prev => [...prev, slot]);
@@ -1321,6 +1306,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
     return selectedStationObjects.reduce((sum, s) => {
       const count = stationPlayerCounts[s.id] ?? 1;
+      if (s.type === 'vr') {
+        return sum + s.hourly_rate * count;
+      }
       return sum + getRateForPlayerCount(toPricingInput(s), count).totalRate;
     }, 0);
   };
@@ -2546,7 +2534,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                     <div className="text-left space-y-1.5">
                       <Label className="text-sm font-semibold text-white">Station type</Label>
                       <p className="text-[11px] text-muted-foreground leading-snug">
-                        VR cards show passes left for this hour
+                        VR: up to {VR_HOURLY_PASSES} passes per hour ({VR_PASS_DURATION_MINUTES} min
+                        each) · cards show passes left
                       </p>
                       <BookingStationTypeChips
                         variant="colored"
@@ -2620,7 +2609,12 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                             <Badge className="rounded-full px-2.5 py-1 bg-white/5 border-white/10 text-gray-200">
                               {s.name}
                               <span className="ml-1.5 text-gray-400 font-normal">
-                                · {(stationPlayerCounts[id] ?? 1)}P
+                                ·{' '}
+                                {s.type === 'vr'
+                                  ? `${stationPlayerCounts[id] ?? 1} pass${
+                                      (stationPlayerCounts[id] ?? 1) !== 1 ? 'es' : ''
+                                    } (${(stationPlayerCounts[id] ?? 1) * VR_PASS_DURATION_MINUTES} min)`
+                                  : `${stationPlayerCounts[id] ?? 1}P`}
                               </span>
                             </Badge>
                           </div>
