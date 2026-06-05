@@ -25,6 +25,7 @@ import {
   vrPassesLeftForSlot,
   VR_HOURLY_PASSES,
   VR_PASS_DURATION_MINUTES,
+  canMixPublicBookingStations,
 } from "@/utils/publicBookingAvailability";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import CouponPromotionalPopup from "@/components/CouponPromotionalPopup";
@@ -236,13 +237,13 @@ const normalizeStationType = (raw: string | null | undefined): StationType => {
 };
 
 const getBookingDuration = (stationIds: string[], stations: Station[]) => {
-  // Find the first selected station to determine duration
-  const firstStation = stations.find(s => stationIds.includes(s.id));
-  if (firstStation) {
-    return getSlotDuration(firstStation);
+  const selected = stations.filter((s) => stationIds.includes(s.id));
+  if (selected.length === 0) return 60;
+  // Mixed cart always books against 1-hour public slots.
+  if (selected.some((s) => s.type === 'vr') && selected.some((s) => s.type !== 'vr')) {
+    return 60;
   }
-  // Default fallback
-  return 60;
+  return getSlotDuration(selected[0]);
 };
 
 /* =========================
@@ -915,20 +916,19 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     if (!station) return;
     
     if (!selectedStations.includes(id)) {
-      // Check slot duration conflicts - stations with different slot durations cannot be mixed
-      const selectedSlotDuration = selectedStations.length > 0 
-        ? getSlotDuration(stations.find(s => selectedStations.includes(s.id)) || station)
-        : null;
-      const newStationSlotDuration = getSlotDuration(station);
-      
-      if (selectedSlotDuration !== null && selectedSlotDuration !== newStationSlotDuration) {
-        toast.error(`Cannot mix stations with different slot durations (${selectedSlotDuration} min vs ${newStationSlotDuration} min)`);
+      const alreadySelected = selectedStations
+        .map((sid) => stations.find((s) => s.id === sid))
+        .filter((s): s is Station => Boolean(s));
+
+      if (!canMixPublicBookingStations(alreadySelected, station)) {
+        const nonVr = alreadySelected.filter((s) => s.type !== 'vr');
+        const refDur = nonVr.length > 0 ? getSlotDuration(nonVr[0]) : getSlotDuration(station);
+        const newDur = getSlotDuration(station);
+        toast.error(
+          `Cannot mix stations with different session lengths (${refDur} min vs ${newDur} min)`,
+        );
         return;
       }
-      
-      // REMOVED: Team conflict check - allow selecting multiple controllers from same team
-      // Team-based filtering will be handled by booking availability checks in getAvailableStationsForSlot
-      // This allows users to select multiple controllers if there are no existing bookings
     }
     
     // Update selected stations without clearing slot selection
@@ -2535,7 +2535,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                       <Label className="text-sm font-semibold text-white">Station type</Label>
                       <p className="text-[11px] text-muted-foreground leading-snug">
                         VR: up to {VR_HOURLY_PASSES} passes per hour ({VR_PASS_DURATION_MINUTES} min
-                        each) · cards show passes left
+                        each) — can combine with PS5 or pool in the same hour
                       </p>
                       <BookingStationTypeChips
                         variant="colored"

@@ -39,6 +39,34 @@ export function getPublicSlotDurationMinutes(station: PublicBookingStationRef): 
   return 60;
 }
 
+/**
+ * Public booking allows VR (15-min passes within the hour) alongside PS5/pool
+ * (full-hour sessions) in the same time slot. Non-VR stations must still match
+ * each other's slot duration (e.g. 30-min event vs 60-min regular).
+ */
+export function canMixPublicBookingStations(
+  selected: PublicBookingStationRef[],
+  candidate: PublicBookingStationRef,
+): boolean {
+  if (selected.length === 0) return true;
+
+  const vrInvolved =
+    candidate.type === 'vr' || selected.some((s) => s.type === 'vr');
+
+  if (vrInvolved) {
+    const nonVr =
+      candidate.type === 'vr'
+        ? selected.filter((s) => s.type !== 'vr')
+        : [...selected.filter((s) => s.type !== 'vr'), candidate];
+    if (nonVr.length <= 1) return true;
+    const durations = new Set(nonVr.map((s) => getPublicSlotDurationMinutes(s)));
+    return durations.size === 1;
+  }
+
+  const refDuration = getPublicSlotDurationMinutes(selected[0]);
+  return getPublicSlotDurationMinutes(candidate) === refDuration;
+}
+
 function parseTimeToMinutes(t: string): number {
   const parts = t.split(':').map(Number);
   return (parts[0] || 0) * 60 + (parts[1] || 0);
