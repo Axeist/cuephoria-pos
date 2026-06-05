@@ -2,9 +2,10 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { usePOS } from '@/context/POSContext';
 import StationCard from '@/components/StationCard';
 import MultiStartSessionDialog from '@/components/station/MultiStartSessionDialog';
-import { Plus, MapPin, Radio, CircleDot, Zap, Layers, Users, X } from 'lucide-react';
+import { Plus, MapPin, ArrowRightLeft, Radio, CircleDot, Zap, Layers, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AddStationDialog from '@/components/AddStationDialog';
+import ReplaceLegacyStationsDialog from '@/components/station/ReplaceLegacyStationsDialog';
 import { StationTypesDialog } from '@/components/station/StationTypeManager';
 import { useStationTypes } from '@/hooks/useStationTypes';
 import { useStationCustomerIntel } from '@/hooks/stations/useStationCustomerIntel';
@@ -38,11 +39,12 @@ const byNameNumber = (a: Station, b: Station) => {
 };
 
 const Stations = () => {
-  const { stations, startSession } = usePOS();
+  const { stations, startSession, refreshStations } = usePOS();
   const { toast } = useToast();
   const { activeLocation } = useLocation();
   const { stationTypes } = useStationTypes();
   const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [openReplaceDialog, setOpenReplaceDialog] = useState(false);
   const {
     showPinDialog,
     requestPinVerification,
@@ -266,6 +268,10 @@ const Stations = () => {
               <Users className="mr-1.5 h-3.5 w-3.5" />
               {selectionMode ? 'Cancel select' : 'Group start'}
             </Button>
+            <Button size="sm" variant="outline" onClick={() => setOpenReplaceDialog(true)}>
+              <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
+              Legacy
+            </Button>
             <Button size="sm" variant="outline" onClick={() => setOpenTypesDialog(true)}>
               <Layers className="mr-1.5 h-3.5 w-3.5" />
               Types
@@ -341,6 +347,11 @@ const Stations = () => {
         description="Enter the admin PIN to add a new game station"
       />
       <AddStationDialog open={openAddDialog} onOpenChange={setOpenAddDialog} />
+      <ReplaceLegacyStationsDialog
+        open={openReplaceDialog}
+        onOpenChange={setOpenReplaceDialog}
+        onComplete={() => void refreshStations()}
+      />
       <StationTypesDialog open={openTypesDialog} onOpenChange={setOpenTypesDialog} />
 
       <MultiStartSessionDialog
