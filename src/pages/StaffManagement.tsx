@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, UserPlus, Calendar, FileText, DollarSign, Activity, User } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Users, UserPlus, Calendar, FileText, DollarSign, Activity, User, Settings } from 'lucide-react';
 import StaffOverview from '@/components/staff/StaffOverview';
 import StaffDirectory from '@/components/staff/StaffDirectory';
 import AttendanceManagement from '@/components/staff/AttendanceManagement';
@@ -13,11 +14,8 @@ import AttendanceCalendarView from '@/components/staff/AttendanceCalendarView';
 import AdminRegularizationDialog from '@/components/staff/AdminRegularizationDialog';
 import StaffRequestsManagement from '@/components/staff/StaffRequestsManagement';
 import CreateStaffDialog from '@/components/staff/CreateStaffDialog';
-import { useLocation } from '@/context/LocationContext';
-
 const StaffManagement = () => {
   const { toast } = useToast();
-  const { activeLocationId, activeLocation } = useLocation();
   const [staffProfiles, setStaffProfiles] = useState<any[]>([]);
   const [activeShifts, setActiveShifts] = useState<any[]>([]);
   const [pendingLeaves, setPendingLeaves] = useState<any[]>([]);
@@ -29,29 +27,15 @@ const StaffManagement = () => {
 
   useEffect(() => {
     fetchStaffData();
-  }, [activeLocationId]);
+  }, []);
 
   const fetchStaffData = async () => {
     setIsLoading(true);
     try {
-      let profilesQuery = supabase
+      const { data: profiles, error: profilesError } = await supabase
         .from('staff_profiles')
         .select('*')
         .order('created_at', { ascending: false });
-
-      if (activeLocationId) profilesQuery = profilesQuery.eq('location_id', activeLocationId);
-
-      let { data: profiles, error: profilesError } = await profilesQuery;
-
-      // If location_id column doesn't exist yet (migration pending), retry without filter
-      if (profilesError && (profilesError.code === '42703' || profilesError.message?.includes('location_id'))) {
-        const retry = await supabase
-          .from('staff_profiles')
-          .select('*')
-          .order('created_at', { ascending: false });
-        profiles = retry.data;
-        profilesError = retry.error;
-      }
 
       if (profilesError) throw profilesError;
       setStaffProfiles(profiles || []);
@@ -126,22 +110,20 @@ const StaffManagement = () => {
 
   return (
     <div className="flex-1 space-y-6 p-6 text-white">
-      {/* Branch context banner */}
-      {activeLocation && (
-        <div className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border ${
-          activeLocation.slug === 'lite'
-            ? 'bg-cyan-500/8 border-cyan-400/25 text-cyan-200'
-            : 'bg-purple-500/8 border-purple-400/25 text-purple-200'
-        }`}>
-          <span className={`flex h-2 w-2 rounded-full flex-shrink-0 ${
-            activeLocation.slug === 'lite' ? 'bg-cyan-400' : 'bg-purple-400'
-          }`} />
-          <span className="text-sm font-medium">
-            Viewing staff data for <strong>{activeLocation.name}</strong>
-          </span>
-          <span className="ml-auto text-xs opacity-50 font-mono">[{activeLocation.short_code}]</span>
-        </div>
-      )}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-2.5 rounded-xl border bg-purple-500/8 border-purple-400/25 text-purple-200">
+        <Users className="h-4 w-4 flex-shrink-0 text-purple-300" />
+        <span className="text-sm">
+          Staff are shared across all branches. Add new team members in{' '}
+          <strong>Settings → Team</strong> (login + portal PIN created together).
+        </span>
+        <Link
+          to="/settings?tab=team"
+          className="sm:ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-purple-100 hover:text-white underline-offset-2 hover:underline"
+        >
+          <Settings className="h-3.5 w-3.5" />
+          Open Settings
+        </Link>
+      </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -162,7 +144,8 @@ const StaffManagement = () => {
           </Button>
           <Button
             onClick={() => setShowCreateDialog(true)}
-            className="btn-gradient border-0"
+            variant="outline"
+            className="border-cuephoria-purple/30"
           >
             <UserPlus className="mr-2 h-4 w-4" />
             Add Staff Member
@@ -369,8 +352,6 @@ const StaffManagement = () => {
       <CreateStaffDialog
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
-        onSuccess={fetchStaffData}
-        locationId={activeLocationId || undefined}
       />
 
       <AdminRegularizationDialog

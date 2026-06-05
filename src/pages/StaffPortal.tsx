@@ -11,7 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import StaffSelectionDialog from '@/components/staff/StaffSelectionDialog';
+import StaffPortalPinGate from '@/components/staff/StaffPortalPinGate';
+import { useAuth } from '@/context/AuthContext';
+import {
+  clearStaffPortalUnlock,
+  getStaffPortalUnlock,
+  setStaffPortalUnlocked,
+} from '@/utils/staffPortalSession';
 import LeaveRequestDialog from '@/components/staff/LeaveRequestDialog';
 import RegularizationRequestDialog from '@/components/staff/RegularizationRequestDialog';
 import OvertimeRequestDialog from '@/components/staff/OvertimeRequestDialog';
@@ -30,11 +36,29 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+function mapPortalProfileToStaff(profile: Record<string, unknown>) {
+  return {
+    user_id: profile.userId,
+    username: profile.username,
+    full_name: profile.fullName,
+    designation: profile.designation,
+    email: profile.email,
+    location_id: profile.locationId,
+    hourly_rate: profile.hourlyRate,
+    monthly_salary: profile.monthlySalary,
+    shift_start_time: profile.shiftStartTime,
+    shift_end_time: profile.shiftEndTime,
+    is_active: profile.isActive,
+  };
+}
+
 const StaffPortal = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
-  const [showStaffSelection, setShowStaffSelection] = useState(true);
+  const [portalGate, setPortalGate] = useState<'loading' | 'no_profile' | 'pin' | 'ready'>('loading');
+  const [portalDisplayName, setPortalDisplayName] = useState<string | null>(null);
   const [showLeaveRequest, setShowLeaveRequest] = useState(false);
   const [showRegularizationRequest, setShowRegularizationRequest] = useState(false);
   const [showOTRequest, setShowOTRequest] = useState(false);
@@ -59,6 +83,56 @@ const StaffPortal = () => {
     dateFrom: '',
     dateTo: ''
   });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const bootPortal = async () => {
+      if (!user?.id) {
+        setPortalGate('pin');
+        return;
+      }
+
+      const unlockedStaffId = getStaffPortalUnlock(user.id);
+      if (unlockedStaffId) {
+        try {
+          const res = await fetch('/api/admin/staff-portal', { method: 'GET', credentials: 'same-origin' });
+          const json = await res.json();
+          if (!cancelled && json?.ok && json.hasProfile && json.profile?.userId === unlockedStaffId) {
+            setSelectedStaff(mapPortalProfileToStaff(json.profile));
+            setPortalGate('ready');
+            return;
+          }
+        } catch {
+          /* fall through to PIN */
+        }
+        clearStaffPortalUnlock();
+      }
+
+      try {
+        const res = await fetch('/api/admin/staff-portal', { method: 'GET', credentials: 'same-origin' });
+        const json = await res.json();
+        if (cancelled) return;
+
+        if (!json?.ok) {
+          setPortalGate('no_profile');
+          return;
+        }
+        if (!json.hasProfile) {
+          setPortalGate('no_profile');
+          return;
+        }
+
+        setPortalDisplayName(json.profile?.fullName ?? user.displayName ?? user.username);
+        setPortalGate('pin');
+      } catch {
+        if (!cancelled) setPortalGate('no_profile');
+      }
+    };
+
+    bootPortal();
+    return () => { cancelled = true; };
+  }, [user?.id, user?.displayName, user?.username]);
 
   // Check if anyone is logged in, remind every minute
   useEffect(() => {
@@ -542,15 +616,47 @@ const StaffPortal = () => {
     navigate('/dashboard');
   };
 
-  if (!selectedStaff) {
+  const handlePinVerified = (profile: Record<string, unknown>) => {
+    if (user?.id && profile.userId) {
+      setStaffPortalUnlocked(user.id, String(profile.userId));
+    }
+    setSelectedStaff(mapPortalProfileToStaff(profile));
+    setPortalGate('ready');
+  };
+
+  if (portalGate === 'loading') {
     return (
-      <StaffSelectionDialog
-        open={showStaffSelection}
-        onSelectStaff={(staff) => {
-          setSelectedStaff(staff);
-          setShowStaffSelection(false);
-        }}
-        onClose={handleCloseDialog}
+      <div className="flex flex-1 items-center justify-center p-6 text-muted-foreground">
+        Loading staff portal…
+      </div>
+    );
+  }
+
+  if (portalGate === 'no_profile') {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6">
+        <Card className="max-w-md bg-cuephoria-dark border-cuephoria-purple/20">
+          <CardHeader>
+            <CardTitle className="text-white">Portal not set up</CardTitle>
+            <CardDescription>
+              Your login is not linked to a staff profile yet. Ask your manager to add you in
+              Settings → User Management, or to link your HR profile.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={handleCloseDialog}>Back to dashboard</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (portalGate === 'pin' || !selectedStaff) {
+    return (
+      <StaffPortalPinGate
+        displayName={portalDisplayName}
+        onVerified={handlePinVerified}
+        onCancel={handleCloseDialog}
       />
     );
   }
@@ -578,13 +684,14 @@ const StaffPortal = () => {
         </div>
         <Button
           onClick={() => {
+            clearStaffPortalUnlock();
             setSelectedStaff(null);
-            setShowStaffSelection(true);
+            setPortalGate('pin');
           }}
           variant="outline"
           className="border-cuephoria-purple/20"
         >
-          Switch Staff
+          Lock Portal
         </Button>
       </div>
 

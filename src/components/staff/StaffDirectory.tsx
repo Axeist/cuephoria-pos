@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Mail, Phone, Calendar, Edit, Trash2, UserX, UserCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Mail, Phone, Calendar, Edit, Trash2, UserX, UserCheck, KeyRound, Link2, Link2Off } from 'lucide-react';
 import EditStaffDialog from './EditStaffDialog';
 import {
   AlertDialog,
@@ -102,7 +103,13 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
       <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
         <CardHeader>
           <CardTitle className="text-white">Staff Directory</CardTitle>
-          <CardDescription>Complete list of all staff members</CardDescription>
+          <CardDescription>
+            HR profiles for your team. Logins and portal PINs are managed in{' '}
+            <Link to="/settings?tab=team" className="text-cuephoria-lightpurple hover:underline">
+              Settings → Team
+            </Link>
+            .
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {staffProfiles.length === 0 ? (
@@ -131,12 +138,25 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
                           <p className="text-sm text-muted-foreground">{staff.designation}</p>
                         </div>
                       </div>
-                      <Badge
-                        variant={staff.is_active ? 'default' : 'secondary'}
-                        className={staff.is_active ? 'bg-green-500' : 'bg-gray-500'}
-                      >
-                        {staff.is_active ? 'Active' : 'Inactive'}
-                      </Badge>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge
+                          variant={staff.is_active ? 'default' : 'secondary'}
+                          className={staff.is_active ? 'bg-green-500' : 'bg-gray-500'}
+                        >
+                          {staff.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                        {staff.admin_user_id ? (
+                          <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-200 text-[10px]">
+                            <Link2 className="h-2.5 w-2.5 mr-1" />
+                            Login linked
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-200 text-[10px]">
+                            <Link2Off className="h-2.5 w-2.5 mr-1" />
+                            No login
+                          </Badge>
+                        )}
+                      </div>
                     </div>
 
                     <div className="space-y-2 text-sm mb-4">
@@ -166,6 +186,13 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
                         </div>
                       )}
                     </div>
+
+                    {staff.admin_user_id && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5 mb-3">
+                        <KeyRound className="h-3.5 w-3.5" />
+                        Portal PIN is in Settings → Team for this employee.
+                      </p>
+                    )}
 
                     <div className="space-y-2 pt-3 border-t border-cuephoria-purple/10">
                       <div className="flex justify-between text-sm">

@@ -31,6 +31,8 @@ interface StaffUser {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   locations: LocationInfo[];
+  portalPin?: string | null;
+  staffProfileUserId?: string | null;
 }
 
 const SLUG_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
@@ -77,8 +79,16 @@ const StaffManagement: React.FC = () => {
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  const { user, addStaffMember, updateStaffMember, deleteStaffMember, verifyStaffEmailManually, resendStaffVerificationEmail } =
-    useAuth();
+  const {
+    user,
+    addStaffMember,
+    updateStaffMember,
+    deleteStaffMember,
+    verifyStaffEmailManually,
+    resendStaffVerificationEmail,
+    regenerateStaffPortalPin,
+  } = useAuth();
+  const [newPortalPin, setNewPortalPin] = useState<string | null>(null);
   const { toast } = useToast();
 
   const loadStaffMembers = async () => {
@@ -119,11 +129,14 @@ const StaffManagement: React.FC = () => {
     }
     setIsLoading(true);
     try {
-      const success = await addStaffMember(newUsername, newPassword, userRole === 'admin', newIsSuperAdmin, selectedLocationIds, {
+      const result = await addStaffMember(newUsername, newPassword, userRole === 'admin', newIsSuperAdmin, selectedLocationIds, {
         displayName: newDisplayName.trim(),
         designation: newDesignation.trim(),
       });
-      if (success) {
+      if (result.success) {
+        if (result.portalPin && userRole === 'staff') {
+          setNewPortalPin(result.portalPin);
+        }
         resetAddForm();
         setIsAddingStaff(false);
         loadStaffMembers();
@@ -165,6 +178,20 @@ const StaffManagement: React.FC = () => {
         setEditingStaff(null);
         loadStaffMembers();
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegeneratePortalPin = async (staff: StaffUser) => {
+    if (staff.isAdmin || staff.isSuperAdmin) return;
+    if (!confirm(`Generate a new portal PIN for ${staff.displayName || staff.username}? The old PIN will stop working.`)) {
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const result = await regenerateStaffPortalPin(staff.id);
+      if (result.success) loadStaffMembers();
     } finally {
       setIsLoading(false);
     }
@@ -276,7 +303,9 @@ const StaffManagement: React.FC = () => {
           <Users className="h-5 w-5 text-cuephoria-lightpurple" />
           User Management
         </CardTitle>
-        <CardDescription>Manage admin and staff accounts with branch access control</CardDescription>
+        <CardDescription>
+          One login for everyone. Staff use a portal PIN (generated here) after signing in to open My Portal.
+        </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-4">
@@ -292,8 +321,8 @@ const StaffManagement: React.FC = () => {
             <DialogHeader>
               <DialogTitle className="text-xl">Add New User</DialogTitle>
               <DialogDescription>
-                Create login email and a temporary password. We email them a verification link — after they open it,
-                they can sign in with Google using the same email.
+                Create login email and a temporary password. Staff accounts also get a portal PIN for My Portal.
+                We email a verification link — after they open it, they can sign in with Google using the same email.
               </DialogDescription>
             </DialogHeader>
 
@@ -415,6 +444,32 @@ const StaffManagement: React.FC = () => {
               <Button variant="outline" onClick={() => setIsAddingStaff(false)}>Cancel</Button>
               <Button onClick={handleAddStaff} disabled={isLoading} className="bg-cuephoria-lightpurple hover:bg-cuephoria-purple">
                 {isLoading ? 'Adding...' : `Add ${userRole === 'admin' ? 'Admin' : 'Staff'}`}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Portal PIN shown once after staff creation */}
+        <Dialog open={!!newPortalPin} onOpenChange={(open) => { if (!open) setNewPortalPin(null); }}>
+          <DialogContent className="bg-cuephoria-dark border border-cuephoria-lightpurple/30 max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-xl flex items-center gap-2">
+                <KeyRound className="h-5 w-5 text-cuephoria-lightpurple" />
+                Staff portal PIN
+              </DialogTitle>
+              <DialogDescription>
+                Share this PIN with the employee. They enter it after login when opening My Portal.
+                You can view or reset it anytime in the table below.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 text-center">
+              <p className="text-4xl font-mono font-bold tracking-[0.25em] text-cuephoria-lightpurple">
+                {newPortalPin}
+              </p>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setNewPortalPin(null)} className="w-full bg-cuephoria-lightpurple">
+                Done
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -551,6 +606,7 @@ const StaffManagement: React.FC = () => {
                   <TableHead>Designation</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Portal PIN</TableHead>
                   <TableHead>Branch Access</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -591,6 +647,28 @@ const StaffManagement: React.FC = () => {
                           </Badge>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {!staff.isAdmin && !staff.isSuperAdmin ? (
+                        staff.portalPin ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="font-mono text-sm text-cuephoria-lightpurple tracking-wider">
+                              {staff.portalPin}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRegeneratePortalPin(staff)}
+                              className="text-[10px] text-white/40 hover:text-white/70 text-left"
+                            >
+                              Regenerate
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-amber-400/80">Not linked</span>
+                        )
+                      ) : (
+                        <span className="text-xs text-white/30">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {staff.isSuperAdmin ? (

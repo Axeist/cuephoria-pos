@@ -125,7 +125,8 @@ interface AuthContextType {
     isSuperAdmin?: boolean,
     locationIds?: string[],
     profile?: { displayName?: string; designation?: string },
-  ) => Promise<boolean>;
+  ) => Promise<{ success: boolean; portalPin?: string | null }>;
+  regenerateStaffPortalPin: (id: string) => Promise<{ success: boolean; portalPin?: string | null }>;
   getStaffMembers: () => Promise<(AdminUser & { locations: { id: string; name: string; slug: string; short_code: string }[]; email?: string | null; emailVerifiedAt?: string | null })[]>;
   updateStaffMember: (
     id: string,
@@ -367,11 +368,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isSuperAdmin: boolean = false,
     locationIds: string[] = [],
     profile?: { displayName?: string; designation?: string },
-  ): Promise<boolean> => {
+  ): Promise<{ success: boolean; portalPin?: string | null }> => {
     try {
       if (!user?.isAdmin) {
         toast.error("Only admins can add users");
-        return false;
+        return { success: false };
       }
 
       const res = await fetch('/api/admin/users', {
@@ -392,28 +393,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const json = await res.json();
       if (!json?.ok) {
         toast.error(json?.error || 'Error creating user');
-        return false;
+        return { success: false };
       }
+
+      const portalPin = typeof json.portalPin === 'string' ? json.portalPin : null;
+      const roleLabel = isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff';
 
       if (json.verificationEmailSent === true) {
         toast.success(
-          `${isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff'} added. A verification email was sent — they should open the link, then they can use Google sign-in with that email.`,
+          `${roleLabel} added. A verification email was sent — they should open the link, then they can use Google sign-in with that email.`,
         );
       } else if (json.verificationEmailSkipped === true) {
         toast.success(
-          `${isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff'} user added (outgoing mail is not configured — verify email manually or fix Resend).`,
+          `${roleLabel} user added (outgoing mail is not configured — verify email manually or fix Resend).`,
         );
       } else if (json.verificationEmailError) {
         toast.success(
-          `${isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff'} user added, but the verification email could not be sent: ${json.verificationEmailError}`,
+          `${roleLabel} user added, but the verification email could not be sent: ${json.verificationEmailError}`,
         );
       } else {
-        toast.success(`${isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff'} user added successfully`);
+        toast.success(`${roleLabel} user added successfully`);
       }
-      return true;
+
+      if (portalPin && !isAdmin && !isSuperAdmin) {
+        toast.info(`Staff portal PIN: ${portalPin} — share this with the employee. You can view it again in User Management.`, {
+          duration: 12000,
+        });
+      }
+
+      return { success: true, portalPin };
     } catch (error) {
       toast.error('Error adding user');
-      return false;
+      return { success: false };
+    }
+  };
+
+  const regenerateStaffPortalPin = async (id: string): Promise<{ success: boolean; portalPin?: string | null }> => {
+    try {
+      if (!user?.isAdmin) {
+        toast.error('Only admins can regenerate portal PINs');
+        return { success: false };
+      }
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, regeneratePortalPin: true }),
+      });
+      const json = await res.json();
+      if (!json?.ok) {
+        toast.error(json?.error || 'Could not regenerate PIN');
+        return { success: false };
+      }
+      toast.success(`New portal PIN: ${json.portalPin}`);
+      return { success: true, portalPin: json.portalPin ?? null };
+    } catch {
+      toast.error('Could not regenerate PIN');
+      return { success: false };
     }
   };
 
@@ -442,6 +478,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAdmin: u.isAdmin === true,
         isSuperAdmin: u.isSuperAdmin === true,
         locations: Array.isArray(u.locations) ? u.locations : [],
+        portalPin: u.portalPin ?? null,
+        staffProfileUserId: u.staffProfileUserId ?? null,
       }));
     } catch (error) {
       toast.error('Error fetching users');
@@ -625,7 +663,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logout, 
       isLoading, 
       changePassword,
-      addStaffMember, 
+      addStaffMember,
+      regenerateStaffPortalPin, 
       getStaffMembers,
       updateStaffMember,
       verifyStaffEmailManually,

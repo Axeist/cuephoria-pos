@@ -10,6 +10,11 @@ import { appBaseUrl, sendEmail } from "../../email";
 import { issueEmailToken } from "../../emailTokens";
 import { hashPassword } from "../../passwordUtils";
 import { resolveOrgContext } from "../../orgContext";
+import {
+  createStaffProfileForLoginUser,
+  regenerateStaffPortalPin,
+  syncStaffProfileFromAdminUser,
+} from "../../staffProfileSync";
 import { supabaseServiceClient, SupabaseConfigError } from "../../supabaseServer";
 
 export const config = { runtime: "edge" };
@@ -180,6 +185,27 @@ export default async function handler(req: Request) {
 
       const userIds = (users ?? []).map((u) => u.id);
 
+      const staffPinByAdminId: Record<
+        string,
+        { portalPin: string | null; staffProfileUserId: string | null }
+      > = {};
+      if (userIds.length > 0) {
+        const { data: staffRows, error: staffErr } = await supabase
+          .from("staff_profiles")
+          .select("admin_user_id, portal_pin, user_id")
+          .in("admin_user_id", userIds);
+        if (!staffErr) {
+          for (const row of staffRows ?? []) {
+            if (row.admin_user_id) {
+              staffPinByAdminId[row.admin_user_id] = {
+                portalPin: row.portal_pin ?? null,
+                staffProfileUserId: row.user_id ?? null,
+              };
+            }
+          }
+        }
+      }
+
       // Fetch location assignments for workspace members in one query
       const { data: links } = await supabase
         .from("admin_user_locations")
@@ -204,17 +230,22 @@ export default async function handler(req: Request) {
         if (loc) userLocations[link.admin_user_id]!.push(loc);
       }
 
-      const result = (users ?? []).map((u) => ({
-        id: u.id,
-        username: u.username,
-        email: u.email ?? null,
-        emailVerifiedAt: u.email_verified_at ?? null,
-        displayName: u.display_name ?? null,
-        designation: u.designation ?? null,
-        isAdmin: u.is_admin,
-        isSuperAdmin: u.is_super_admin,
-        locations: userLocations[u.id] ?? [],
-      }));
+      const result = (users ?? []).map((u) => {
+        const staffLink = staffPinByAdminId[u.id];
+        return {
+          id: u.id,
+          username: u.username,
+          email: u.email ?? null,
+          emailVerifiedAt: u.email_verified_at ?? null,
+          displayName: u.display_name ?? null,
+          designation: u.designation ?? null,
+          isAdmin: u.is_admin,
+          isSuperAdmin: u.is_super_admin,
+          locations: userLocations[u.id] ?? [],
+          portalPin: !u.is_admin && !u.is_super_admin ? staffLink?.portalPin ?? null : null,
+          staffProfileUserId: staffLink?.staffProfileUserId ?? null,
+        };
+      });
 
       return j({ ok: true, users: result, allLocations: allLocs ?? [] }, 200);
     }
@@ -359,6 +390,26 @@ export default async function handler(req: Request) {
         }
       }
 
+      let portalPin: string | null = null;
+      let staffProfileUserId: string | null = null;
+
+      if (!isAdmin && !isSuperAdmin && locs.length > 0) {
+        const profileResult = await createStaffProfileForLoginUser(supabase, {
+          adminUserId: newUser.id,
+          email: emailNorm,
+          loginUsername: username,
+          displayName: staffDisplayName || username,
+          designation: staffDesignation || "Staff",
+          locationId: locs[0],
+        });
+        if ("error" in profileResult) {
+          console.warn("[admin/users] staff profile create failed:", profileResult.error);
+        } else {
+          portalPin = profileResult.portalPin;
+          staffProfileUserId = profileResult.profile.user_id;
+        }
+      }
+
       const mailResult = await sendAdminVerificationEmail({
         adminUserId: newUser.id,
         email: emailNorm,
@@ -373,6 +424,8 @@ export default async function handler(req: Request) {
           verificationEmailSent: mailResult.ok,
           verificationEmailSkipped: !!mailResult.skipped,
           verificationEmailError: mailResult.error ?? null,
+          portalPin,
+          staffProfileUserId,
         },
         200,
       );
@@ -381,6 +434,27 @@ export default async function handler(req: Request) {
     // ─── PATCH (update) ──────────────────────────────────────────────────────
     if (req.method === "PATCH") {
       const body = await req.json().catch(() => ({}));
+
+      /** Regenerate staff portal PIN (owners/admins only; staff accounts). */
+      if (body.regeneratePortalPin === true) {
+        const targetId = String(body.id || "").trim();
+        if (!targetId) return j({ ok: false, error: "Missing id." }, 400);
+
+        const { data: target, error: tErr } = await supabase
+          .from("admin_users")
+          .select("id, is_admin, is_super_admin")
+          .eq("id", targetId)
+          .maybeSingle();
+        if (tErr) return j({ ok: false, error: tErr.message }, 500);
+        if (!target) return j({ ok: false, error: "User not found." }, 404);
+        if (target.is_admin || target.is_super_admin) {
+          return j({ ok: false, error: "Portal PINs apply to staff accounts only." }, 400);
+        }
+
+        const pinResult = await regenerateStaffPortalPin(supabase, targetId);
+        if ("error" in pinResult) return j({ ok: false, error: pinResult.error }, 400);
+        return j({ ok: true, portalPin: pinResult.portalPin }, 200);
+      }
 
       /** Owner/admin attests inbox without sending a link (same workspace only). */
       if (body.verifyEmailManually === true) {
@@ -591,6 +665,12 @@ export default async function handler(req: Request) {
       if (Object.keys(update).length > 0) {
         const { error: updateErr } = await supabase.from("admin_users").update(update).eq("id", id);
         if (updateErr) return j({ ok: false, error: updateErr.message }, 500);
+
+        await syncStaffProfileFromAdminUser(supabase, id, {
+          displayName: typeof body?.displayName === "string" ? body.displayName : undefined,
+          designation: typeof body?.designation === "string" ? body.designation : undefined,
+          email: emailChangedForVerification ?? (typeof update.email === "string" ? update.email : undefined),
+        });
       }
 
       // Update location assignments if provided
