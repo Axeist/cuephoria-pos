@@ -1,6 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { Calendar, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { StaffNotification } from '@/types/staffNotification.types';
 import { getStaffNotificationPresentation } from '@/components/notifications/staffNotificationPresentation';
@@ -24,70 +24,84 @@ export const StaffNotificationPopup: React.FC<StaffNotificationPopupProps> = ({
   return (
     <div
       className={cn(
-        'animate-notification-pop relative isolate min-w-[min(100vw-2rem,22rem)] overflow-hidden rounded-2xl border border-l-[3px] backdrop-blur-2xl',
-        'bg-[linear-gradient(165deg,color-mix(in_oklab,var(--brand-primary-hex)_18%,rgba(255,255,255,0.05))_0%,rgba(6,4,14,0.94)_55%,rgba(4,3,10,0.98)_100%)]',
-        presentation.accentClass
+        'animate-notification-pop relative isolate w-full overflow-hidden rounded-2xl',
+        'border border-white/10 bg-[rgba(8,6,18,0.96)] backdrop-blur-2xl',
+        'shadow-[0_20px_50px_-20px_rgba(0,0,0,0.85),0_0_0_1px_rgba(255,255,255,0.04)_inset]'
       )}
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full blur-2xl opacity-30"
-        style={{
-          background: 'radial-gradient(circle, var(--brand-primary-hex) 0%, transparent 70%)',
-        }}
+        className={cn(
+          'h-[2px] w-full bg-gradient-to-r',
+          presentation.stripClass
+        )}
       />
 
-      <div className="relative p-4 pr-10">
-        <button
-          type="button"
-          onClick={() => toast.dismiss(toastId)}
-          className="absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/50 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-          aria-label="Dismiss notification"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-
-        <div className="flex items-start gap-3">
+      <div className="relative px-4 pb-4 pt-3.5">
+        <div className="mb-3 flex items-start gap-3">
           <div
             className={cn(
-              'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-1',
+              'mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1',
               presentation.iconWrapClass
             )}
           >
-            <presentation.Icon className="h-5 w-5" />
+            <presentation.Icon className="h-[18px] w-[18px]" strokeWidth={2.25} />
           </div>
 
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
-                  {presentation.badgeLabel}
-                </span>
-                <span className="h-1 w-1 rounded-full bg-white/20" />
-                <span className="text-[10px] tabular-nums text-white/40">
-                  {format(timestamp, 'HH:mm:ss')}
-                </span>
-              </div>
-              <p className="font-heading text-[15px] font-semibold leading-snug text-white">
-                {presentation.title}
-              </p>
-              <p className="text-[13px] font-medium text-cuephoria-lightpurple/90">
-                {presentation.subtitle}
-              </p>
+          <div className="min-w-0 flex-1 pt-0.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
+                {presentation.badgeLabel}
+              </span>
+              <span className="h-1 w-1 shrink-0 rounded-full bg-white/20" />
+              <span className="text-[10px] tabular-nums text-white/40">
+                {format(timestamp, 'h:mm a')}
+              </span>
             </div>
 
-            {presentation.detail ? (
-              <p className="text-[12px] leading-relaxed text-white/70">{presentation.detail}</p>
-            ) : null}
+            <p className="mt-1 font-heading text-[16px] font-semibold leading-tight tracking-tight text-white">
+              {presentation.title}
+            </p>
 
-            {presentation.meta ? (
-              <div className="flex items-center gap-1.5 text-[11px] text-white/50">
-                <Calendar className="h-3 w-3 shrink-0" />
-                <span className="truncate">{presentation.meta}</span>
-              </div>
+            {presentation.subtitle ? (
+              <p className="mt-0.5 truncate text-[13px] font-medium text-cuephoria-lightpurple/90">
+                {presentation.subtitle}
+              </p>
             ) : null}
           </div>
+
+          <button
+            type="button"
+            onClick={() => toast.dismiss(toastId)}
+            className="ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white"
+            aria-label="Dismiss notification"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
+
+        {presentation.detailRows.length > 0 ? (
+          <div className="space-y-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+            {presentation.detailRows.map((row) => (
+              <div
+                key={`${row.label}-${row.value}`}
+                className="grid grid-cols-[72px_1fr] items-baseline gap-x-3 gap-y-0.5"
+              >
+                <span className="text-[11px] font-medium uppercase tracking-wide text-white/35">
+                  {row.label}
+                </span>
+                <span
+                  className={cn(
+                    'text-[12px] leading-snug text-white/80',
+                    row.emphasize && 'font-semibold text-emerald-300'
+                  )}
+                >
+                  {row.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );

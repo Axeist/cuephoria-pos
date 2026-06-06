@@ -11,8 +11,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
       closeButton
       expand={false}
       visibleToasts={4}
-      gap={10}
-      offset={{ top: 72, right: 16 }}
+      gap={12}
+      offset={{ top: 76, right: 20 }}
       style={{ zIndex: 9999 }}
       toastOptions={{
         duration: 3800,

@@ -1,8 +1,7 @@
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import {
   AlertTriangle,
   Bell,
-  Calendar,
   CheckCircle2,
   Clock,
   DollarSign,
@@ -15,16 +14,30 @@ import { sessionAlertTitle } from '@/utils/sessionStaffNotifications';
 
 export type StaffNotificationTone = 'booking' | 'booking-paid' | 'session-warning' | 'session-danger' | 'session-info';
 
+export interface StaffNotificationDetailRow {
+  label: string;
+  value: string;
+  emphasize?: boolean;
+}
+
 export interface StaffNotificationPresentation {
   tone: StaffNotificationTone;
   title: string;
   subtitle: string;
-  detail?: string;
-  meta?: string;
+  detailRows: StaffNotificationDetailRow[];
   Icon: LucideIcon;
-  accentClass: string;
+  stripClass: string;
   iconWrapClass: string;
   badgeLabel: string;
+}
+
+function formatBookingTime(time: string): string {
+  try {
+    const parsed = parse(time.slice(0, 8), 'HH:mm:ss', new Date());
+    return format(parsed, 'h:mm a');
+  } catch {
+    return time;
+  }
 }
 
 export function getStaffNotificationPresentation(
@@ -45,28 +58,30 @@ export function getStaffNotificationPresentation(
           ? AlertTriangle
           : Clock;
 
-    const accentClass =
+    const stripClass =
       tone === 'session-danger'
-        ? 'from-red-500/80 via-rose-500/50 to-transparent border-red-400/35 shadow-[0_0_40px_-8px_rgba(239,68,68,0.45)]'
+        ? 'from-red-400 via-rose-500/80 to-transparent'
         : tone === 'session-warning'
-          ? 'from-amber-500/80 via-orange-500/45 to-transparent border-amber-400/35 shadow-[0_0_40px_-8px_rgba(245,158,11,0.4)]'
-          : 'from-cuephoria-lightpurple/80 via-cuephoria-purple/45 to-transparent border-cuephoria-lightpurple/35 shadow-[0_0_40px_-8px_rgba(155,135,245,0.45)]';
+          ? 'from-amber-400 via-orange-500/70 to-transparent'
+          : 'from-cuephoria-lightpurple via-cuephoria-purple/80 to-transparent';
 
     const iconWrapClass =
       tone === 'session-danger'
-        ? 'bg-red-500/15 text-red-300 ring-red-400/25'
+        ? 'bg-red-500/15 text-red-300 ring-red-400/20'
         : tone === 'session-warning'
-          ? 'bg-amber-500/15 text-amber-300 ring-amber-400/25'
-          : 'bg-cuephoria-purple/20 text-cuephoria-lightpurple ring-cuephoria-lightpurple/25';
+          ? 'bg-amber-500/15 text-amber-300 ring-amber-400/20'
+          : 'bg-cuephoria-purple/20 text-cuephoria-lightpurple ring-cuephoria-lightpurple/20';
 
     return {
       tone,
       title: sessionAlertTitle(notification.alertType),
       subtitle: notification.customerName,
-      detail: notification.message,
-      meta: notification.stationName,
+      detailRows: [
+        { label: 'Station', value: notification.stationName },
+        { label: 'Details', value: notification.message },
+      ],
       Icon,
-      accentClass,
+      stripClass,
       iconWrapClass,
       badgeLabel: 'Session',
     };
@@ -77,26 +92,42 @@ export function getStaffNotificationPresentation(
     const customerName = booking.customer?.name ?? 'Customer';
     const stationName = booking.station?.name ?? 'Station';
     const bookingDate = booking.booking_date
-      ? format(new Date(booking.booking_date), 'MMM dd')
+      ? format(new Date(booking.booking_date), 'EEE, MMM d')
       : '—';
-    const accentClass = isPaid
-      ? 'from-emerald-500/80 via-green-500/45 to-transparent border-emerald-400/35 shadow-[0_0_40px_-8px_rgba(16,185,129,0.4)]'
-      : 'from-cuephoria-lightpurple/80 via-sky-500/40 to-transparent border-cuephoria-lightpurple/35 shadow-[0_0_40px_-8px_rgba(155,135,245,0.45)]';
+    const bookingTime = booking.start_time
+      ? formatBookingTime(booking.start_time)
+      : '—';
+
+    const stripClass = isPaid
+      ? 'from-emerald-400 via-green-500/70 to-transparent'
+      : 'from-cuephoria-lightpurple via-cuephoria-purple/80 to-transparent';
 
     const iconWrapClass = isPaid
-      ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/25'
-      : 'bg-cuephoria-purple/20 text-cuephoria-lightpurple ring-cuephoria-lightpurple/25';
+      ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/20'
+      : 'bg-cuephoria-purple/20 text-cuephoria-lightpurple ring-cuephoria-lightpurple/20';
+
+    const detailRows: StaffNotificationDetailRow[] = [
+      { label: 'Station', value: stationName },
+      { label: 'When', value: `${bookingDate} · ${bookingTime}` },
+    ];
+
+    if (booking.final_price) {
+      detailRows.push({
+        label: isPaid ? 'Paid' : 'Amount',
+        value: `₹${booking.final_price}`,
+        emphasize: true,
+      });
+    }
 
     return {
       tone: isPaid ? 'booking-paid' : 'booking',
       title: isPaid ? 'New paid booking' : 'New booking',
       subtitle: customerName,
-      detail: `${stationName} · ${bookingDate} · ${booking.start_time ?? '—'}`,
-      meta: booking.final_price ? `₹${booking.final_price}` : undefined,
+      detailRows,
       Icon: isPaid ? DollarSign : CheckCircle2,
-      accentClass,
+      stripClass,
       iconWrapClass,
-      badgeLabel: 'Booking',
+      badgeLabel: isPaid ? 'Paid booking' : 'Booking',
     };
   }
 
@@ -104,10 +135,10 @@ export function getStaffNotificationPresentation(
     tone: 'booking',
     title: 'Notification',
     subtitle: '',
+    detailRows: [],
     Icon: Bell,
-    accentClass:
-      'from-cuephoria-lightpurple/80 via-cuephoria-purple/45 to-transparent border-cuephoria-lightpurple/35',
-    iconWrapClass: 'bg-cuephoria-purple/20 text-cuephoria-lightpurple ring-cuephoria-lightpurple/25',
+    stripClass: 'from-cuephoria-lightpurple via-cuephoria-purple/80 to-transparent',
+    iconWrapClass: 'bg-cuephoria-purple/20 text-cuephoria-lightpurple ring-cuephoria-lightpurple/20',
     badgeLabel: 'Alert',
   };
 }

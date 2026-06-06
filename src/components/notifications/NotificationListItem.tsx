@@ -27,11 +27,11 @@ export function NotificationListItem({
   return (
     <div
       className={cn(
-        'group relative overflow-hidden py-3 pr-3.5 transition-all duration-200',
+        'group relative overflow-hidden py-3 pr-3 transition-all duration-200',
         'glass-card-interactive cursor-pointer border-0 border-b border-white/[0.06] last:border-b-0',
         !isRead
-          ? 'border-l-2 border-l-cuephoria-lightpurple/70 bg-gradient-to-r from-white/[0.06] via-white/[0.02] to-transparent pl-3.5'
-          : 'bg-transparent pl-3.5 hover:bg-white/[0.03]'
+          ? 'border-l-2 border-l-cuephoria-lightpurple/70 bg-gradient-to-r from-white/[0.05] to-transparent pl-3.5'
+          : 'pl-3.5 hover:bg-white/[0.03]'
       )}
       style={{ animationDelay: `${index * 45}ms` }}
       onClick={() => !isRead && onMarkRead(id)}
@@ -46,33 +46,56 @@ export function NotificationListItem({
           <presentation.Icon className="h-4 w-4" />
         </div>
 
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[13px] font-semibold text-white/95">{presentation.title}</span>
-            <Badge
-              variant="outline"
-              className="h-4 border-white/15 bg-white/[0.04] px-1.5 text-[10px] text-white/60"
-            >
-              {presentation.badgeLabel}
-            </Badge>
-            {!isRead ? (
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cuephoria-lightpurple opacity-60" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-cuephoria-lightpurple" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-white/40">
+                {presentation.badgeLabel}
               </span>
+              <Badge
+                variant="outline"
+                className="h-4 border-white/10 bg-white/[0.03] px-1.5 text-[10px] text-white/55"
+              >
+                {format(displayTime, 'h:mm a')}
+              </Badge>
+              {!isRead ? (
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cuephoria-lightpurple opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-cuephoria-lightpurple" />
+                </span>
+              ) : null}
+            </div>
+
+            <p className="text-[13px] font-semibold leading-snug text-white/95">
+              {presentation.title}
+            </p>
+            {presentation.subtitle ? (
+              <p className="truncate text-[12px] font-medium text-cuephoria-lightpurple/85">
+                {presentation.subtitle}
+              </p>
             ) : null}
           </div>
 
-          <p className="text-[12px] font-medium text-cuephoria-lightpurple/85">{presentation.subtitle}</p>
-
-          {presentation.detail ? (
-            <p className="text-[11px] leading-relaxed text-white/60">{presentation.detail}</p>
+          {presentation.detailRows.length > 0 ? (
+            <div className="space-y-1 rounded-lg border border-white/[0.05] bg-white/[0.02] px-2.5 py-2">
+              {presentation.detailRows.slice(0, 2).map((row) => (
+                <div
+                  key={`${row.label}-${row.value}`}
+                  className="grid grid-cols-[64px_1fr] gap-2 text-[11px]"
+                >
+                  <span className="text-white/35">{row.label}</span>
+                  <span
+                    className={cn(
+                      'truncate text-white/65',
+                      row.emphasize && 'font-medium text-emerald-300/90'
+                    )}
+                  >
+                    {row.value}
+                  </span>
+                </div>
+              ))}
+            </div>
           ) : null}
-
-          <div className="flex flex-wrap items-center gap-2 pt-0.5 text-[10px] text-white/40">
-            {presentation.meta ? <span>{presentation.meta}</span> : null}
-            <span className="tabular-nums">{format(displayTime, 'MMM dd · HH:mm:ss')}</span>
-          </div>
         </div>
 
         <Button
