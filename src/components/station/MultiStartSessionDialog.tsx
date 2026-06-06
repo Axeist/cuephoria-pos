@@ -29,6 +29,11 @@ import {
   isPerPlayerPricing,
 } from '@/utils/stationPricing';
 import { getDefaultPlannedDuration, getDurationPresets } from '@/utils/sessionDuration.utils';
+import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
+import type { StationBookingRow } from '@/types/prepaidBooking.types';
+import { useLocation } from '@/context/LocationContext';
+import { PrepaidBookingNotice } from '@/components/station/PrepaidBookingNotice';
+import { fetchTodayBookingsForStationCustomer } from '@/utils/prepaidBooking.utils';
 import {
   applyCouponToRate,
   COUPON_OPTIONS,
@@ -45,6 +50,7 @@ export interface MultiSessionStartItem {
   playerCount?: number;
   perPersonRate?: number;
   plannedDurationMinutes?: number;
+  prepaidBooking?: PrepaidBookingLink;
 }
 
 interface MultiStartSessionDialogProps {
@@ -66,6 +72,7 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
   onConfirm,
 }) => {
   const { customers } = usePOS();
+  const { activeLocationId } = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.isAdmin || false;
@@ -78,6 +85,9 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
   const [plannedDuration, setPlannedDuration] = useState(60);
   const [submitting, setSubmitting] = useState(false);
   const [lateNightPinUnlocked, setLateNightPinUnlocked] = useState(false);
+  const [stationBookings, setStationBookings] = useState<Record<string, StationBookingRow[]>>({});
+  const [prepaidByStation, setPrepaidByStation] = useState<Record<string, PrepaidBookingLink | null>>({});
+  const [bookingsLoading, setBookingsLoading] = useState(false);
 
   const slotDuration = stations[0]?.slotDuration;
   const durationPresets = getDurationPresets(slotDuration);
@@ -93,7 +103,54 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
     setSelectedCustomer(null);
     setSelectedCoupon('none');
     setCustomerSearchQuery('');
+    setStationBookings({});
+    setPrepaidByStation({});
   }, [open, stations, slotDuration]);
+
+  useEffect(() => {
+    if (!open || !selectedCustomer?.id || !activeLocationId) {
+      setStationBookings({});
+      setPrepaidByStation({});
+      return;
+    }
+
+    let cancelled = false;
+    setBookingsLoading(true);
+    setPrepaidByStation({});
+
+    void Promise.all(
+      stations.map(async (station) => {
+        const rows = await fetchTodayBookingsForStationCustomer(
+          station.id,
+          selectedCustomer.id,
+          activeLocationId
+        );
+        return [station.id, rows] as const;
+      })
+    )
+      .then((entries) => {
+        if (cancelled) return;
+        setStationBookings(Object.fromEntries(entries));
+      })
+      .finally(() => {
+        if (!cancelled) setBookingsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, selectedCustomer?.id, activeLocationId, stations]);
+
+  const handlePrepaidSelect = (
+    stationId: string,
+    _bookingId: string | null,
+    link: PrepaidBookingLink | null
+  ) => {
+    setPrepaidByStation((prev) => ({ ...prev, [stationId]: link }));
+    if (link) {
+      setPlannedDuration((d) => Math.max(d, link.durationMinutes));
+    }
+  };
 
   const lateNightLocked = isLateNight() && !lateNightPinUnlocked && !isAdmin;
 
@@ -173,13 +230,17 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
 
     setSubmitting(true);
     try {
-      const sessions: MultiSessionStartItem[] = stationPricing.map((row) => ({
-        stationId: row.station.id,
-        finalRate: row.finalRate,
-        playerCount: row.playerCount,
-        perPersonRate: row.perPersonRate,
-        plannedDurationMinutes: plannedDuration,
-      }));
+      const sessions: MultiSessionStartItem[] = stationPricing.map((row) => {
+        const prepaid = prepaidByStation[row.station.id] ?? undefined;
+        return {
+          stationId: row.station.id,
+          finalRate: prepaid ? row.station.hourlyRate : row.finalRate,
+          playerCount: row.playerCount,
+          perPersonRate: row.perPersonRate,
+          plannedDurationMinutes: prepaid?.durationMinutes ?? plannedDuration,
+          prepaidBooking: prepaid ?? undefined,
+        };
+      });
 
       await onConfirm(selectedCustomer.id, selectedCustomer.name, couponCode, sessions);
       void hapticImpact('heavy').catch(() => {});
@@ -361,8 +422,35 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
             )}
           </div>
 
-          {/* Coupon */}
           {selectedCustomer && (
+            <div className="space-y-2">
+              <Label className="text-base font-medium">Today&apos;s pre-paid bookings</Label>
+              {bookingsLoading ? (
+                <p className="text-xs text-muted-foreground">Checking bookings for each station…</p>
+              ) : (
+                stationPricing.map((row) => (
+                  <div key={`prepaid-${row.station.id}`}>
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">{row.station.name}</p>
+                    <PrepaidBookingNotice
+                      compact
+                      bookings={stationBookings[row.station.id] ?? []}
+                      selectedBookingId={
+                        prepaidByStation[row.station.id]
+                          ? prepaidByStation[row.station.id]!.bookingId
+                          : null
+                      }
+                      onSelectBooking={(bookingId, link) =>
+                        handlePrepaidSelect(row.station.id, bookingId, link)
+                      }
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Coupon */}
+          {selectedCustomer && stationPricing.some((row) => !prepaidByStation[row.station.id]) && (
             <div className="space-y-3">
               <Label className="text-base font-medium flex items-center gap-2">
                 <Tag className="h-4 w-4" />

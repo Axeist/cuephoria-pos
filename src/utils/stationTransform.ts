@@ -1,5 +1,6 @@
 import type { Session, Station } from '@/types/pos.types';
 import type { OccupancyRates } from '@/utils/stationPricing';
+import { parsePrepaidBookingLink } from '@/utils/prepaidBooking.utils';
 
 /** Matches Station Command “On booking page” / `eventEnabled` in transformStationRow. */
 export function isStationPublicBookable(row: {
@@ -66,6 +67,7 @@ export function parseCurrentSession(
         (sessionData.sessionGroupId ?? sessionData.session_group_id) != null
           ? String(sessionData.sessionGroupId ?? sessionData.session_group_id)
           : undefined,
+      prepaidBooking: parsePrepaidBookingLink(sessionData.prepaidBooking ?? sessionData.prepaid_booking),
     };
   } catch {
     return null;

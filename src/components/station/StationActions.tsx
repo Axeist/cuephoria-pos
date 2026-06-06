@@ -9,6 +9,7 @@ import StartSessionDialog from '@/components/StartSessionDialog';
 import AddCustomerDialog from '@/components/customers/AddCustomerDialog';
 import MoveSessionDialog from '@/components/station/MoveSessionDialog';
 import type { Customer, SessionEndCheckoutMode } from '@/types/pos.types';
+import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
 import { getRateForPlayerCount } from '@/utils/stationPricing';
 import { getDurationPresets, stationsMatchForMove } from '@/utils/sessionDuration.utils';
 import type { StationTheme, StationPhase } from '@/utils/stationTheme';
@@ -26,10 +27,11 @@ interface StationActionsProps {
     couponCode?: string,
     playerCount?: number,
     perPersonRate?: number,
-    plannedDurationMinutes?: number
+    plannedDurationMinutes?: number,
+    prepaidBooking?: PrepaidBookingLink
   ) => Promise<void>;
   onEndSession: (stationId: string) => Promise<SessionEndCheckoutMode | void>;
-  onEndSessionGroup?: (stationId: string) => Promise<void>;
+  onEndSessionGroup?: (stationId: string) => Promise<SessionEndCheckoutMode | void>;
   groupSize?: number;
   onPauseSession: (stationId: string) => Promise<void>;
   onResumeSession: (stationId: string) => Promise<void>;
@@ -89,7 +91,8 @@ const StationActions: React.FC<StationActionsProps> = ({
     couponCode?: string,
     playerCount?: number,
     perPersonRate?: number,
-    plannedDurationMinutes?: number
+    plannedDurationMinutes?: number,
+    prepaidBooking?: PrepaidBookingLink
   ) => {
     try {
       setIsLoading(true);
@@ -101,12 +104,15 @@ const StationActions: React.FC<StationActionsProps> = ({
         couponCode,
         playerCount,
         perPersonRate,
-        plannedDurationMinutes
+        plannedDurationMinutes,
+        prepaidBooking
       );
       window.setTimeout(() => {
         toast({
           title: 'Session Started',
-          description: `${customerName} · ${station.name} · ${plannedDurationMinutes ?? 60} min`,
+          description: prepaidBooking
+            ? `${customerName} · ${station.name} · pre-paid ${prepaidBooking.durationMinutes} min`
+            : `${customerName} · ${station.name} · ${plannedDurationMinutes ?? 60} min`,
         });
       }, 120);
     } catch {
@@ -139,10 +145,12 @@ const StationActions: React.FC<StationActionsProps> = ({
     const customerId = station.currentSession.customerId;
     try {
       setIsLoading(true);
-      if (customerId) selectCustomer(customerId);
-      await onEndSessionGroup(station.id);
-      await sleep(SESSION_TRANSITION.posHandoffMs);
-      navigateToPOS(navigate, { stationName: station.name });
+      const mode = await onEndSessionGroup(station.id);
+      if (mode === 'pos') {
+        if (customerId) selectCustomer(customerId);
+        await sleep(SESSION_TRANSITION.posHandoffMs);
+        navigateToPOS(navigate, { stationName: station.name });
+      }
     } catch {
       toast({ title: 'Error', description: 'Failed to end group sessions.', variant: 'destructive' });
     } finally {

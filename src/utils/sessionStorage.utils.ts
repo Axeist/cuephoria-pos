@@ -29,5 +29,6 @@ export function serializeSessionForDb(session: Session): Record<string, unknown>
     totalPausedMs: session.totalPausedMs ?? 0,
     plannedDurationMinutes: session.plannedDurationMinutes,
     sessionGroupId: session.sessionGroupId,
+    prepaidBooking: session.prepaidBooking,
   };
 }

@@ -1,9 +1,10 @@
 import React from 'react';
 import { Station } from '@/context/POSContext';
 import { Badge } from '@/components/ui/badge';
-import { Tag, Zap, Users } from 'lucide-react';
+import { Tag, Zap, Users, CreditCard } from 'lucide-react';
 import { getStationTheme, stationPricingBadge, type StationPhase } from '@/utils/stationTheme';
 import SessionRateBadge from '@/components/station/SessionRateBadge';
+import { isPrepaidSession, formatBookingSlotLabel } from '@/utils/prepaidBooking.utils';
 
 interface StationInfoProps {
   station: Station;
@@ -22,20 +23,26 @@ const StationInfo: React.FC<StationInfoProps> = ({
   const sessionPlayers = station.currentSession?.playerCount ?? 1;
   const hasCoupon = station.currentSession?.couponCode;
   const isStarting = phase === 'starting';
+  const prepaid = station.currentSession?.prepaidBooking;
+  const isPrepaid = isPrepaidSession(station.currentSession);
 
   const statusBadge = isPaused
     ? 'bg-amber-500/30 text-amber-100 border-amber-400/50'
-    : station.isOccupied || phase === 'live' || isStarting
-      ? theme.badgeOccupied
-      : theme.badgeAvailable;
+    : isPrepaid
+      ? 'bg-teal-500/25 text-teal-100 border-teal-400/45'
+      : station.isOccupied || phase === 'live' || isStarting
+        ? theme.badgeOccupied
+        : theme.badgeAvailable;
 
   const statusLabel = isPaused
     ? 'Paused'
-    : isStarting
-      ? 'Booting'
-      : station.isOccupied
-        ? 'Live'
-        : 'Open';
+    : isPrepaid
+      ? 'Pre-paid'
+      : isStarting
+        ? 'Booting'
+        : station.isOccupied
+          ? 'Live'
+          : 'Open';
 
   return (
     <div className="min-w-0">
@@ -94,6 +101,12 @@ const StationInfo: React.FC<StationInfoProps> = ({
             <span className="inline-flex items-center gap-0.5 rounded bg-orange-500/20 px-1.5 py-0.5 text-[10px] text-orange-300 ring-1 ring-orange-500/30">
               <Tag className="h-2.5 w-2.5" />
               {hasCoupon}
+            </span>
+          )}
+          {prepaid && (
+            <span className="inline-flex items-center gap-0.5 rounded bg-teal-500/20 px-1.5 py-0.5 text-[10px] text-teal-200 ring-1 ring-teal-500/35">
+              <CreditCard className="h-2.5 w-2.5" />
+              ₹{prepaid.paidAmount} · {formatBookingSlotLabel(prepaid.slotStartTime, prepaid.slotEndTime)}
             </span>
           )}
         </div>

@@ -16,6 +16,12 @@ import {
   calculatePresetSessionCheckoutCost,
   usesPresetSessionBilling,
 } from '@/utils/sessionBilling.utils';
+import {
+  buildPrepaidOvertimeCartItem,
+  calculatePrepaidOvertimeCost,
+  getPrepaidOvertimeMs,
+  markPrepaidBookingCompleted,
+} from '@/utils/prepaidBooking.utils';
 
 /**
  * Hook to provide session end functionality
@@ -155,39 +161,79 @@ export const useEndSession = ({
         console.log("Found customer for session:", customer.name);
       }
       
-      // Generate cart item for the session
+      // Generate cart item for the session (skip full session charge when pre-paid online)
       const cartItemId = generateId();
       console.log("Generated cart item ID:", cartItemId);
       
       const stationRate = session.hourlyRate || station.hourlyRate;
       const isMember = customer?.isMember || false;
-      const usesPresetBilling =
-        usesPresetSessionBilling(session.plannedDurationMinutes) &&
-        station.category !== 'nit_event' &&
-        station.type !== 'vr';
+      const prepaid = session.prepaidBooking;
 
-      let sessionCost: number;
+      let sessionCartItem: CartItem | undefined;
+      let sessionCost = 0;
       let billedMinutes = durationMinutes;
 
-      if (usesPresetBilling) {
-        const checkout = calculatePresetSessionCheckoutCost(stationRate, billableMs, isMember);
-        sessionCost = checkout.cost;
-        billedMinutes = checkout.billedMinutes;
+      if (prepaid) {
+        await markPrepaidBookingCompleted(prepaid.bookingId);
+        const overtimeMs = getPrepaidOvertimeMs(session, billableMs);
+        if (overtimeMs > 0) {
+          const overtime = calculatePrepaidOvertimeCost(stationRate, overtimeMs, isMember);
+          sessionCost = overtime.cost;
+          billedMinutes = overtime.overtimeMinutes;
+          sessionCartItem = buildPrepaidOvertimeCartItem(
+            station,
+            customer?.name || 'Unknown Customer',
+            overtime.overtimeMinutes,
+            overtime.cost,
+            prepaid
+          );
+          sessionCartItem.id = cartItemId;
+        }
+        console.log('Pre-paid session end:', { overtimeMs, sessionCost, billedMinutes });
       } else {
-        sessionCost = calculateSessionCost(station, stationRate, billableMs, isMember);
+        const usesPresetBilling =
+          usesPresetSessionBilling(session.plannedDurationMinutes) &&
+          station.category !== 'nit_event' &&
+          station.type !== 'vr';
+
+        if (usesPresetBilling) {
+          const checkout = calculatePresetSessionCheckoutCost(stationRate, billableMs, isMember);
+          sessionCost = checkout.cost;
+          billedMinutes = checkout.billedMinutes;
+        } else {
+          sessionCost = calculateSessionCost(station, stationRate, billableMs, isMember);
+        }
+
+        if (isMember) {
+          console.log(`Applied 50% member discount to session cost: ${sessionCost}`);
+        }
+
+        const couponInfo = session.couponCode ? ` - ${session.couponCode}` : '';
+        const memberInfo = isMember ? ' - Member 50% OFF' : '';
+        const durationInfo =
+          usesPresetBilling && billedMinutes !== durationMinutes
+            ? ` · ${billedMinutes} min billed`
+            : usesPresetBilling
+              ? ` · ${billedMinutes} min`
+              : '';
+
+        sessionCartItem = {
+          id: cartItemId,
+          name: `${station.name} (${customer?.name || 'Unknown Customer'})${durationInfo}${couponInfo}${memberInfo}`,
+          price: sessionCost,
+          quantity: 1,
+          total: sessionCost,
+          type: 'session',
+        };
       }
-      
-      if (isMember) {
-        console.log(`Applied 50% member discount to session cost: ${sessionCost}`);
-      }
-      
+
       console.log("Session cost calculation:", { 
         stationRate, 
         durationMinutes,
         billedMinutes,
         billableMs,
         plannedDurationMinutes: session.plannedDurationMinutes,
-        usesPresetBilling,
+        prepaidBookingId: prepaid?.bookingId,
         stationCategory: station.category,
         slotDuration: station.slotDuration,
         stationType: station.type,
@@ -195,27 +241,9 @@ export const useEndSession = ({
         sessionCost 
       });
       
-      // ✅ UPDATED: Show coupon info if it was applied
-      const couponInfo = session.couponCode ? ` - ${session.couponCode}` : '';
-      const memberInfo = isMember ? ' - Member 50% OFF' : '';
-      const durationInfo =
-        usesPresetBilling && billedMinutes !== durationMinutes
-          ? ` · ${billedMinutes} min billed`
-          : usesPresetBilling
-            ? ` · ${billedMinutes} min`
-            : '';
-      
-      // Create cart item for the session with discount info in the name if applicable
-      const sessionCartItem: CartItem = {
-        id: cartItemId,
-        name: `${station.name} (${customer?.name || 'Unknown Customer'})${durationInfo}${couponInfo}${memberInfo}`,
-        price: sessionCost,
-        quantity: 1,
-        total: sessionCost,
-        type: 'session',
-      };
-      
-      console.log("Created cart item for ended session:", sessionCartItem);
+      if (sessionCartItem) {
+        console.log("Created cart item for ended session:", sessionCartItem);
+      }
       
       // Update customer's total play time
       if (customer) {
@@ -229,7 +257,9 @@ export const useEndSession = ({
       if (!options?.silent) {
         toast({
           title: 'Success',
-          description: 'Session ended successfully',
+          description: prepaid && !sessionCartItem
+            ? 'Pre-paid session ended — no extra charges'
+            : 'Session ended successfully',
         });
       }
       
@@ -276,20 +306,30 @@ export const useEndSession = ({
 
       const sessionCartItems: CartItem[] = [];
       let customer: Customer | undefined;
+      let anyPrepaidNoCharge = false;
 
       for (const sid of groupStationIds) {
         const result = await endSession(sid, customersList, { silent: true });
         if (result?.sessionCartItem) {
           sessionCartItems.push(result.sessionCartItem);
+        } else if (result?.updatedSession?.prepaidBooking) {
+          anyPrepaidNoCharge = true;
         }
         if (result?.customer) {
           customer = result.customer;
         }
       }
 
+      const description =
+        sessionCartItems.length > 0
+          ? `${sessionCartItems.length} station${sessionCartItems.length === 1 ? '' : 's'} collated — opening POS checkout`
+          : anyPrepaidNoCharge
+            ? 'Pre-paid group sessions ended — no POS checkout needed'
+            : 'Group sessions ended';
+
       toast({
         title: 'Group ended',
-        description: `${sessionCartItems.length} station${sessionCartItems.length === 1 ? '' : 's'} collated — opening POS checkout`,
+        description,
       });
 
       return { sessionCartItems, customer };

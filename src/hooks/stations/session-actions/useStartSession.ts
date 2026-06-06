@@ -7,6 +7,8 @@ import { generateId } from '@/utils/pos.utils';
 import { useLocation } from '@/context/LocationContext';
 import { serializeSessionForDb } from '@/utils/sessionStorage.utils';
 import { getDefaultPlannedDuration } from '@/utils/sessionDuration.utils';
+import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
+import { markPrepaidBookingInProgress } from '@/utils/prepaidBooking.utils';
 import { CACHE_KEYS, cacheKeyWithLocation, invalidateCache } from '@/utils/dataCache';
 
 /**
@@ -29,6 +31,7 @@ export const useStartSession = ({
     playerCount?: number,
     perPersonRate?: number,
     plannedDurationMinutes?: number,
+    prepaidBooking?: PrepaidBookingLink,
     sessionGroupId?: string
   ): Promise<Session | undefined> => {
     try {
@@ -79,8 +82,11 @@ export const useStartSession = ({
       const discountAmount = Math.max(0, originalRate - sessionRate);
       const resolvedPerPerson =
         perPersonRate ?? (pricingPlayerCount > 0 ? sessionRate / pricingPlayerCount : sessionRate);
-      const resolvedPlanned =
-        plannedDurationMinutes ?? getDefaultPlannedDuration(station.slotDuration);
+      const resolvedPlanned = prepaidBooking
+        ? prepaidBooking.durationMinutes
+        : plannedDurationMinutes ?? getDefaultPlannedDuration(station.slotDuration);
+
+      const billingRate = prepaidBooking ? station.hourlyRate : sessionRate;
       
       console.log("💰 Rate calculation:", {
         originalRate,
@@ -96,15 +102,20 @@ export const useStartSession = ({
         stationId,
         customerId,
         startTime,
-        hourlyRate: sessionRate,
-        originalRate: originalRate,
-        couponCode: couponCode,
-        discountAmount: discountAmount,
+        hourlyRate: billingRate,
+        originalRate: prepaidBooking ? station.hourlyRate : originalRate,
+        couponCode: prepaidBooking ? undefined : couponCode,
+        discountAmount: prepaidBooking ? 0 : discountAmount,
         playerCount: pricingPlayerCount,
         perPersonRate: resolvedPerPerson,
         plannedDurationMinutes: resolvedPlanned,
+        prepaidBooking,
         sessionGroupId,
       };
+
+      if (prepaidBooking) {
+        await markPrepaidBookingInProgress(prepaidBooking.bookingId);
+      }
       
       console.log("📦 Created new session object:", JSON.stringify(newSession, null, 2));
       
@@ -132,10 +143,10 @@ export const useStartSession = ({
             customer_id: customerId,
             location_id: activeLocationId,
             start_time: startTime.toISOString(),
-            hourly_rate: sessionRate,
-            original_rate: originalRate,
-            coupon_code: couponCode,
-            discount_amount: discountAmount,
+            hourly_rate: billingRate,
+            original_rate: prepaidBooking ? station.hourlyRate : originalRate,
+            coupon_code: prepaidBooking ? null : couponCode,
+            discount_amount: prepaidBooking ? 0 : discountAmount,
             player_count: pricingPlayerCount,
             per_person_rate: resolvedPerPerson,
             planned_duration_minutes: resolvedPlanned,
@@ -253,13 +264,17 @@ export const useStartSession = ({
         alert('Exception during database update: ' + (error instanceof Error ? error.message : 'Unknown error'));
       }
       
-      const couponText = couponCode 
-        ? ` with ${couponCode} (₹${discountAmount} saved)` 
+      const couponText =
+        !prepaidBooking && couponCode
+          ? ` with ${couponCode} (₹${discountAmount} saved)`
+          : '';
+      const prepaidText = prepaidBooking
+        ? ` · pre-paid online (₹${prepaidBooking.paidAmount})`
         : '';
-      
+
       toast({
         title: 'Success',
-        description: `Session started · ${resolvedPlanned} min${couponText}`,
+        description: `Session started · ${resolvedPlanned} min${prepaidText}${couponText}`,
       });
       
       console.log("🎉 Session start complete!");

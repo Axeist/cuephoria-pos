@@ -1,4 +1,6 @@
-// Types for the POS system
+import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
+
+export type { PrepaidBookingLink };
 export interface Product {
   id: string;
   name: string;
@@ -77,6 +79,8 @@ export interface Session {
   plannedDurationMinutes?: number;
   /** Shared id when started via group start (multiple stations, one customer). */
   sessionGroupId?: string;
+  /** Linked online booking — session time pre-paid; bill overtime / shop only. */
+  prepaidBooking?: PrepaidBookingLink;
 }
 
 export interface CartItem {
@@ -192,12 +196,13 @@ export interface POSContextType {
     playerCount?: number,
     perPersonRate?: number,
     plannedDurationMinutes?: number,
+    prepaidBooking?: PrepaidBookingLink,
     sessionGroupId?: string
   ) => Promise<void>;
   extendSession: (stationId: string, extraMinutes: number) => Promise<void>;
   moveSession: (fromStationId: string, toStationId: string) => Promise<void>;
   endSession: (stationId: string) => Promise<SessionEndCheckoutMode | void>;
-  endSessionGroup: (stationId: string) => Promise<void>;
+  endSessionGroup: (stationId: string) => Promise<SessionEndCheckoutMode | void>;
   pauseSession: (stationId: string) => Promise<void>;
   resumeSession: (stationId: string) => Promise<void>;
   deleteStation: (stationId: string) => Promise<boolean>;

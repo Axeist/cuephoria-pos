@@ -147,10 +147,11 @@ const Stations = () => {
           item.stationId,
           customerId,
           item.finalRate,
-          couponCode,
+          item.prepaidBooking ? undefined : couponCode,
           item.playerCount,
           item.perPersonRate,
           item.plannedDurationMinutes,
+          item.prepaidBooking,
           sessionGroupId
         );
         started += 1;

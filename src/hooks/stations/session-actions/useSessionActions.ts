@@ -6,6 +6,7 @@ import { useExtendSession } from './useExtendSession';
 import { useMoveSession } from './useMoveSession';
 import { SessionActionsProps } from './types';
 import { Customer } from '@/types/pos.types';
+import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
 import { useToast } from '@/hooks/use-toast';
 import type { SessionResult, SessionGroupResult } from '@/types/pos.types';
 
@@ -28,6 +29,7 @@ export const useSessionActions = (props: SessionActionsProps) => {
     playerCount?: number,
     perPersonRate?: number,
     plannedDurationMinutes?: number,
+    prepaidBooking?: PrepaidBookingLink,
     sessionGroupId?: string
   ): Promise<void> => {
     try {
@@ -40,6 +42,7 @@ export const useSessionActions = (props: SessionActionsProps) => {
         playerCount,
         perPersonRate,
         plannedDurationMinutes,
+        prepaidBooking,
         sessionGroupId
       );
     } catch (error) {

@@ -26,6 +26,8 @@ import {
 import { hapticImpact } from '@/utils/capacitor';
 import { runWithMinDuration, SESSION_TRANSITION } from '@/utils/viewTransition';
 import type { SessionEndCheckoutMode } from '@/types/pos.types';
+import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
+import { isPrepaidSession } from '@/utils/prepaidBooking.utils';
 import type { CustomerRecentSession } from '@/hooks/stations/useStationCustomerIntel';
 import {
   AlertDialog,
@@ -139,7 +141,8 @@ const StationCard: React.FC<StationCardProps> = ({
       couponCode?: string,
       playerCount?: number,
       perPersonRate?: number,
-      plannedDurationMinutes?: number
+      plannedDurationMinutes?: number,
+      prepaidBooking?: PrepaidBookingLink
     ) => {
       setPhase('starting');
       void hapticImpact('medium');
@@ -152,7 +155,8 @@ const StationCard: React.FC<StationCardProps> = ({
             couponCode,
             playerCount,
             perPersonRate,
-            plannedDurationMinutes
+            plannedDurationMinutes,
+            prepaidBooking
           ),
           SESSION_TRANSITION.startMinMs
         );
@@ -192,14 +196,17 @@ const StationCard: React.FC<StationCardProps> = ({
         ).length
       : 0;
   const isPartialGroupEndHint = sessionGroupId != null && groupSize >= 2;
+  const isPrepaid = isPrepaidSession(session);
+  const prepaidEndNoPosHint = isPrepaid && quickShopCount === 0;
 
   const wrappedEndSessionGroup = useCallback(
-    async (stationId: string) => {
+    async (stationId: string): Promise<SessionEndCheckoutMode | void> => {
       setPhase('ending');
       void hapticImpact('heavy');
       try {
-        await runWithMinDuration(endSessionGroup(stationId), SESSION_TRANSITION.endMinMs);
+        const mode = await runWithMinDuration(endSessionGroup(stationId), SESSION_TRANSITION.endMinMs);
         setPhase('idle');
+        return mode;
       } catch (error) {
         setPhase('idle');
         throw error;
@@ -219,6 +226,7 @@ const StationCard: React.FC<StationCardProps> = ({
           ${theme.border} ${theme.bg} ${theme.glow}
           ${cardPhaseClass(phase, station.isOccupied)}
           ${cardRingClass(phase, station.isOccupied, theme.liveRing)}
+          ${isPrepaid && showSessionBlock ? 'ring-2 ring-teal-400/45 border-teal-500/40' : ''}
           ${urgencyRing}
           ${canSelect && selected ? 'ring-2 ring-cuephoria-purple/70 border-cuephoria-purple/50' : ''}
           ${canSelect ? 'cursor-pointer' : ''}
@@ -254,12 +262,20 @@ const StationCard: React.FC<StationCardProps> = ({
             >
               <span
                 className={`text-sm font-semibold ${
-                  isPartialGroupEndHint ? 'text-violet-100' : 'text-emerald-100'
+                  prepaidEndNoPosHint
+                    ? 'text-teal-100'
+                    : isPartialGroupEndHint
+                      ? 'text-violet-100'
+                      : 'text-emerald-100'
                 }`}
               >
-                {isPartialGroupEndHint ? 'Saving station bill…' : 'Sending to checkout'}
+                {prepaidEndNoPosHint
+                  ? 'Completing pre-paid session…'
+                  : isPartialGroupEndHint
+                    ? 'Saving station bill…'
+                    : 'Sending to checkout'}
               </span>
-              {!isPartialGroupEndHint ? (
+              {!isPartialGroupEndHint && !prepaidEndNoPosHint ? (
                 <ArrowRight className="h-4 w-4 text-emerald-400 animate-checkout-nudge" />
               ) : null}
             </div>

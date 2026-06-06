@@ -18,6 +18,11 @@ import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { getRateForPlayerCount, getRateSuffix as pricingRateSuffix, isPerPlayerPricing } from '@/utils/stationPricing';
 import { getDefaultPlannedDuration, getDurationPresets } from '@/utils/sessionDuration.utils';
 import type { Station } from '@/types/pos.types';
+import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
+import { useLocation } from '@/context/LocationContext';
+import { PrepaidBookingNotice } from '@/components/station/PrepaidBookingNotice';
+import { fetchTodayBookingsForStationCustomer } from '@/utils/prepaidBooking.utils';
+import type { StationBookingRow } from '@/types/prepaidBooking.types';
 
 const isLateNight = () => new Date().getHours() < 6;
 
@@ -41,7 +46,8 @@ interface StartSessionDialogProps {
     couponCode?: string,
     playerCount?: number,
     perPersonRate?: number,
-    plannedDurationMinutes?: number
+    plannedDurationMinutes?: number,
+    prepaidBooking?: PrepaidBookingLink
   ) => void;
   /** Pre-select after inline add-customer from station card */
   initialCustomerId?: string | null;
@@ -64,6 +70,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   initialCustomerId = null,
 }) => {
   const { customers } = usePOS();
+  const { activeLocationId } = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.isAdmin || false;
@@ -82,10 +89,17 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   );
 
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
+  const [todayBookings, setTodayBookings] = useState<StationBookingRow[]>([]);
+  const [selectedPrepaidId, setSelectedPrepaidId] = useState<string | null>(null);
+  const [prepaidLink, setPrepaidLink] = useState<PrepaidBookingLink | null>(null);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setPlannedDuration(getDefaultPlannedDuration(slotDuration));
+    setSelectedPrepaidId(null);
+    setPrepaidLink(null);
+    setTodayBookings([]);
     if (initialCustomerId) {
       const match = customers.find((c) => c.id === initialCustomerId);
       setSelectedCustomer(match ?? null);
@@ -95,6 +109,38 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
       setCustomerSearchQuery('');
     }
   }, [open, slotDuration, initialCustomerId, customers]);
+
+  useEffect(() => {
+    if (!open || !selectedCustomer?.id || !activeLocationId) {
+      setTodayBookings([]);
+      setSelectedPrepaidId(null);
+      setPrepaidLink(null);
+      return;
+    }
+
+    let cancelled = false;
+    setBookingsLoading(true);
+    void fetchTodayBookingsForStationCustomer(stationId, selectedCustomer.id, activeLocationId)
+      .then((rows) => {
+        if (!cancelled) setTodayBookings(rows);
+      })
+      .finally(() => {
+        if (!cancelled) setBookingsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, selectedCustomer?.id, stationId, activeLocationId]);
+
+  const handlePrepaidSelect = (bookingId: string | null, link: PrepaidBookingLink | null) => {
+    setSelectedPrepaidId(bookingId);
+    setPrepaidLink(link);
+    if (link) {
+      setPlannedDuration(link.durationMinutes);
+      setSelectedCoupon('none');
+    }
+  };
 
   const lateNightLocked = isLateNight() && !lateNightPinUnlocked && !isAdmin;
 
@@ -230,11 +276,12 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     onConfirm(
       selectedCustomer.id,
       selectedCustomer.name,
-      finalRate,
-      selectedCoupon !== 'none' ? selectedCoupon : undefined,
+      prepaidLink ? hourlyRate || finalRate : finalRate,
+      prepaidLink ? undefined : selectedCoupon !== 'none' ? selectedCoupon : undefined,
       playerCount,
       perPersonRate,
-      plannedDuration
+      plannedDuration,
+      prepaidLink ?? undefined
     );
 
     // Native: heavy haptic so the user feels the session start.
@@ -246,6 +293,9 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     setPlayerCount(1);
     setPlannedDuration(getDefaultPlannedDuration(slotDuration));
     setCustomerSearchQuery('');
+    setSelectedPrepaidId(null);
+    setPrepaidLink(null);
+    setTodayBookings([]);
     onOpenChange(false);
   };
 
@@ -255,6 +305,9 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     setPlayerCount(1);
     setPlannedDuration(getDefaultPlannedDuration(slotDuration));
     setCustomerSearchQuery('');
+    setSelectedPrepaidId(null);
+    setPrepaidLink(null);
+    setTodayBookings([]);
     onOpenChange(false);
   };
 
@@ -422,8 +475,22 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
             )}
           </div>
 
-          {/* Coupon Selection */}
           {selectedCustomer && (
+            <>
+              {bookingsLoading ? (
+                <p className="text-xs text-muted-foreground">Checking today&apos;s bookings…</p>
+              ) : (
+                <PrepaidBookingNotice
+                  bookings={todayBookings}
+                  selectedBookingId={selectedPrepaidId}
+                  onSelectBooking={handlePrepaidSelect}
+                />
+              )}
+            </>
+          )}
+
+          {/* Coupon Selection */}
+          {selectedCustomer && !prepaidLink && (
             <div className="space-y-3">
               <Label className="text-base font-medium flex items-center gap-2">
                 <Tag className="h-4 w-4" />
@@ -520,6 +587,18 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
           {selectedCustomer && (
             <div className="border rounded-lg p-4 bg-gradient-to-r from-cuephoria-purple/10 to-transparent">
               <div className="space-y-2">
+                {prepaidLink ? (
+                  <>
+                    <div className="flex justify-between items-center text-sm text-teal-200">
+                      <span>Pre-paid online</span>
+                      <span className="font-semibold">₹{prepaidLink.paidAmount} · {prepaidLink.durationMinutes} min</span>
+                    </div>
+                    <p className="text-xs text-teal-200/70">
+                      Session time covered. POS only for shop items or overtime beyond {prepaidLink.durationMinutes} min.
+                    </p>
+                  </>
+                ) : (
+                  <>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Base {getRateLabel()}</span>
                   <div className="flex items-baseline gap-1">
@@ -553,6 +632,8 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                   <p className="text-xs text-green-600 dark:text-green-400 text-center mt-2">
                     🎉 This session is completely FREE!
                   </p>
+                )}
+                  </>
                 )}
               </div>
             </div>
