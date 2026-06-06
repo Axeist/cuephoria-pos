@@ -1,21 +1,27 @@
 import { toast } from 'sonner';
 import { StaffNotificationPopup } from '@/components/notifications/StaffNotificationPopup';
 import type { StaffNotification } from '@/types/staffNotification.types';
-import { isSessionStaffNotification, isBookingStaffNotification } from '@/types/staffNotification.types';
+import { isSessionStaffNotification, isBookingStaffNotification, isPlatformStaffNotification } from '@/types/staffNotification.types';
 
 const POPUP_DURATION_MS = 9000;
+const PLATFORM_POPUP_DURATION_MS = 14_000;
 
 function staffNotificationToastId(notification: StaffNotification): string {
   if (isBookingStaffNotification(notification)) {
     return `staff-booking-${notification.booking.id}`;
   }
+  if (isPlatformStaffNotification(notification) && notification.broadcastId) {
+    return `staff-platform-${notification.broadcastId}`;
+  }
   return notification.id;
 }
 
 export function showStaffNotificationPopup(notification: StaffNotification): void {
-  const duration = isSessionStaffNotification(notification)
-    ? POPUP_DURATION_MS
-    : 7500;
+  const duration = isPlatformStaffNotification(notification)
+    ? PLATFORM_POPUP_DURATION_MS
+    : isSessionStaffNotification(notification)
+      ? POPUP_DURATION_MS
+      : 7500;
 
   toast.custom(
     (toastId) => (

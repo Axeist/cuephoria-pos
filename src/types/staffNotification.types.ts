@@ -51,9 +51,32 @@ export interface SessionStaffNotification {
   isRead?: boolean;
 }
 
-export type StaffNotification = BookingStaffNotification | SessionStaffNotification;
+export type PlatformNotificationSeverity = 'info' | 'warning' | 'critical' | 'success';
+
+export interface PlatformStaffNotification {
+  kind: 'platform';
+  id: string;
+  title: string;
+  message: string;
+  severity: PlatformNotificationSeverity;
+  broadcastId?: string;
+  fromLabel: string;
+  adminName?: string;
+  adminEmail?: string;
+  targetType?: 'all' | 'organization';
+  organizationName?: string | null;
+  locationId: string | null;
+  timestamp: Date;
+  isRead?: boolean;
+}
+
+export type StaffNotification =
+  | BookingStaffNotification
+  | SessionStaffNotification
+  | PlatformStaffNotification;
 
 export {
   isBookingStaffNotification,
   isSessionStaffNotification,
+  isPlatformStaffNotification,
 } from '@/utils/staffNotificationSanitize';

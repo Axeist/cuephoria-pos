@@ -16,6 +16,7 @@ import {
   type StaffNotification,
   isBookingStaffNotification,
   isSessionStaffNotification,
+  isPlatformStaffNotification,
 } from '@/types/staffNotification.types';
 import {
   clearStaffNotificationsForLocation,
@@ -39,6 +40,12 @@ function notificationMatchesActiveBranch(
   const mainId = locations.find((l) => l.slug === 'main')?.id;
 
   if (isSessionStaffNotification(n)) {
+    const lid = n.locationId ?? null;
+    if (!lid) return mainId != null && activeLocationId === mainId;
+    return lid === activeLocationId;
+  }
+
+  if (isPlatformStaffNotification(n)) {
     const lid = n.locationId ?? null;
     if (!lid) return mainId != null && activeLocationId === mainId;
     return lid === activeLocationId;

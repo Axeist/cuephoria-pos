@@ -7,7 +7,7 @@ export interface StaffNotificationRow {
   id: string;
   organization_id: string;
   location_id: string;
-  kind: 'booking' | 'session';
+  kind: 'booking' | 'session' | 'platform';
   alert_type: string;
   dedupe_key: string;
   payload: Record<string, unknown>;
@@ -56,6 +56,39 @@ function payloadToStaffNotification(row: StaffNotificationRow): StaffNotificatio
       console.warn('Failed to parse booking staff notification row', row.id, payload);
     }
     return model;
+  }
+
+  if (row.kind === 'platform') {
+    const severity =
+      typeof payload.severity === 'string' ? payload.severity : row.alert_type;
+    return {
+      kind: 'platform',
+      id: row.id,
+      title: typeof payload.title === 'string' ? payload.title : 'Platform notice',
+      message: typeof payload.message === 'string' ? payload.message : '',
+      severity:
+        severity === 'warning' ||
+        severity === 'critical' ||
+        severity === 'success' ||
+        severity === 'info'
+          ? severity
+          : 'info',
+      broadcastId:
+        typeof payload.broadcastId === 'string' ? payload.broadcastId : undefined,
+      fromLabel:
+        typeof payload.from === 'string' ? payload.from : 'Cuetronix Platform',
+      adminName: typeof payload.adminName === 'string' ? payload.adminName : undefined,
+      adminEmail: typeof payload.adminEmail === 'string' ? payload.adminEmail : undefined,
+      targetType:
+        payload.targetType === 'organization' || payload.targetType === 'all'
+          ? payload.targetType
+          : undefined,
+      organizationName:
+        typeof payload.organizationName === 'string' ? payload.organizationName : null,
+      locationId: row.location_id,
+      timestamp,
+      isRead: row.is_read,
+    };
   }
 
   if (row.kind === 'session') {

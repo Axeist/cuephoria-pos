@@ -30,7 +30,9 @@ export function NotificationListItem({
         'group relative overflow-hidden py-3 pr-3 transition-all duration-200',
         'glass-card-interactive cursor-pointer border-0 border-b border-white/[0.06] last:border-b-0',
         !isRead
-          ? 'border-l-2 border-l-cuephoria-lightpurple/70 bg-gradient-to-r from-white/[0.05] to-transparent pl-3.5'
+          ? presentation.isPlatform
+            ? 'border-l-2 border-l-cyan-400/80 bg-gradient-to-r from-indigo-500/[0.12] via-violet-500/[0.06] to-transparent pl-3.5'
+            : 'border-l-2 border-l-cuephoria-lightpurple/70 bg-gradient-to-r from-white/[0.05] to-transparent pl-3.5'
           : 'pl-3.5 hover:bg-white/[0.03]'
       )}
       style={{ animationDelay: `${index * 45}ms` }}
@@ -49,7 +51,14 @@ export function NotificationListItem({
         <div className="min-w-0 flex-1 space-y-2">
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-white/40">
+              <span
+                className={cn(
+                  'text-[10px] font-semibold uppercase tracking-wide',
+                  presentation.isPlatform
+                    ? 'bg-gradient-to-r from-cyan-200 via-violet-200 to-fuchsia-200 bg-clip-text text-transparent'
+                    : 'text-white/40'
+                )}
+              >
                 {presentation.badgeLabel}
               </span>
               <Badge
@@ -70,7 +79,14 @@ export function NotificationListItem({
               {presentation.title}
             </p>
             {presentation.subtitle ? (
-              <p className="truncate text-[12px] font-medium text-cuephoria-lightpurple/85">
+              <p
+                className={cn(
+                  'truncate text-[12px] font-medium',
+                  presentation.isPlatform
+                    ? 'bg-gradient-to-r from-cyan-300/90 to-violet-300/90 bg-clip-text text-transparent'
+                    : 'text-cuephoria-lightpurple/85'
+                )}
+              >
                 {presentation.subtitle}
               </p>
             ) : null}

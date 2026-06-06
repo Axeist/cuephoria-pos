@@ -6,7 +6,7 @@
 
 import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LogOut, LayoutDashboard, Building2, Activity, Sparkles, Shield, Menu } from "lucide-react";
+import { LogOut, LayoutDashboard, Building2, Activity, Sparkles, Shield, Menu, Megaphone } from "lucide-react";
 import { PRODUCT_BRAND } from "@/branding/brand";
 import { usePlatformAuth } from "@/context/PlatformAuthContext";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ const navItems = [
   { to: "/platform/organizations", label: "Organizations", icon: Building2, end: false },
   { to: "/platform/admins", label: "Admins", icon: Shield, end: false },
   { to: "/platform/plans", label: "Billing plans", icon: Sparkles, end: false },
+  { to: "/platform/broadcasts", label: "Broadcasts", icon: Megaphone, end: false },
   { to: "/platform/audit", label: "Audit log", icon: Activity, end: false },
 ];
 

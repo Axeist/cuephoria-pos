@@ -1,5 +1,5 @@
 import type { StaffNotification } from '@/types/staffNotification.types';
-import { isBookingStaffNotification, isSessionStaffNotification } from '@/types/staffNotification.types';
+import { isBookingStaffNotification, isSessionStaffNotification, isPlatformStaffNotification } from '@/types/staffNotification.types';
 
 function playTone(frequency: number, durationMs = 320, volume = 0.28): void {
   try {
@@ -24,6 +24,13 @@ function playTone(frequency: number, durationMs = 320, volume = 0.28): void {
 }
 
 export function playStaffNotificationSound(notification: StaffNotification): void {
+  if (isPlatformStaffNotification(notification)) {
+    playTone(880, 220, 0.32);
+    window.setTimeout(() => playTone(1040, 260, 0.28), 160);
+    window.setTimeout(() => playTone(760, 200, 0.22), 340);
+    return;
+  }
+
   if (isBookingStaffNotification(notification)) {
     playTone(notification.isPaid ? 1000 : 640, 300, 0.3);
     return;

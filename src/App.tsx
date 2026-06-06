@@ -21,6 +21,7 @@ const PlatformAudit = lazy(() => import("@/pages/platform/PlatformAudit"));
 const PlatformAdmins = lazy(() => import("@/pages/platform/PlatformAdmins"));
 const PlatformOrgDetail = lazy(() => import("@/pages/platform/PlatformOrgDetail"));
 const PlatformPlans = lazy(() => import("@/pages/platform/PlatformPlans"));
+const PlatformBroadcasts = lazy(() => import("@/pages/platform/PlatformBroadcasts"));
 import { flags } from "@/config/featureFlags";
 import { AppHeader } from "@/components/AppHeader";
 import { POSProvider } from "@/context/POSContext";
@@ -480,6 +481,16 @@ const App = () => {
                               <PlatformProtectedRoute>
                                 <LazyPage>
                                   <PlatformAdmins />
+                                </LazyPage>
+                              </PlatformProtectedRoute>
+                            }
+                          />
+                          <Route
+                            path="broadcasts"
+                            element={
+                              <PlatformProtectedRoute>
+                                <LazyPage>
+                                  <PlatformBroadcasts />
                                 </LazyPage>
                               </PlatformProtectedRoute>
                             }

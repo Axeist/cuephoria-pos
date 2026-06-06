@@ -1,5 +1,6 @@
 import type {
   BookingStaffNotification,
+  PlatformStaffNotification,
   SessionStaffNotification,
   StaffNotification,
 } from '@/types/staffNotification.types';
@@ -34,6 +35,18 @@ export function isBookingStaffNotification(
   );
 }
 
+export function isPlatformStaffNotification(
+  notification: StaffNotification
+): notification is PlatformStaffNotification {
+  return (
+    notification?.kind === 'platform' &&
+    typeof notification.title === 'string' &&
+    typeof notification.message === 'string'
+  );
+}
+
+const PLATFORM_SEVERITIES = new Set(['info', 'warning', 'critical', 'success']);
+
 export function sanitizeStaffNotification(raw: unknown): StaffNotification | null {
   if (!isRecord(raw) || typeof raw.id !== 'string') return null;
 
@@ -42,6 +55,32 @@ export function sanitizeStaffNotification(raw: unknown): StaffNotification | nul
       ? raw.timestamp
       : new Date(String(raw.timestamp ?? Date.now()));
   if (Number.isNaN(timestamp.getTime())) return null;
+
+  if (raw.kind === 'platform') {
+    const severity = typeof raw.severity === 'string' ? raw.severity : 'info';
+    return {
+      kind: 'platform',
+      id: raw.id,
+      title: typeof raw.title === 'string' ? raw.title : 'Platform notice',
+      message: typeof raw.message === 'string' ? raw.message : '',
+      severity: PLATFORM_SEVERITIES.has(severity)
+        ? (severity as PlatformStaffNotification['severity'])
+        : 'info',
+      broadcastId: typeof raw.broadcastId === 'string' ? raw.broadcastId : undefined,
+      fromLabel: typeof raw.fromLabel === 'string' ? raw.fromLabel : 'Cuetronix Platform',
+      adminName: typeof raw.adminName === 'string' ? raw.adminName : undefined,
+      adminEmail: typeof raw.adminEmail === 'string' ? raw.adminEmail : undefined,
+      targetType:
+        raw.targetType === 'organization' || raw.targetType === 'all'
+          ? raw.targetType
+          : undefined,
+      organizationName:
+        typeof raw.organizationName === 'string' ? raw.organizationName : null,
+      locationId: typeof raw.locationId === 'string' ? raw.locationId : null,
+      timestamp,
+      isRead: Boolean(raw.isRead),
+    };
+  }
 
   if (raw.kind === 'session') {
     if (typeof raw.alertType !== 'string' || typeof raw.message !== 'string') return null;

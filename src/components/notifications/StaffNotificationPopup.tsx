@@ -50,7 +50,14 @@ export const StaffNotificationPopup: React.FC<StaffNotificationPopupProps> = ({
 
           <div className="min-w-0 flex-1 pt-0.5">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
+              <span
+                className={cn(
+                  'text-[10px] font-semibold uppercase tracking-[0.14em]',
+                  presentation.isPlatform
+                    ? 'bg-gradient-to-r from-cyan-200 via-violet-200 to-fuchsia-200 bg-clip-text text-transparent'
+                    : 'text-white/45'
+                )}
+              >
                 {presentation.badgeLabel}
               </span>
               <span className="h-1 w-1 shrink-0 rounded-full bg-white/20" />
@@ -64,7 +71,14 @@ export const StaffNotificationPopup: React.FC<StaffNotificationPopupProps> = ({
             </p>
 
             {presentation.subtitle ? (
-              <p className="mt-0.5 truncate text-[13px] font-medium text-cuephoria-lightpurple/90">
+              <p
+                className={cn(
+                  'mt-0.5 truncate text-[13px] font-medium',
+                  presentation.isPlatform
+                    ? 'bg-gradient-to-r from-cyan-300 to-violet-300 bg-clip-text text-transparent'
+                    : 'text-cuephoria-lightpurple/90'
+                )}
+              >
                 {presentation.subtitle}
               </p>
             ) : null}
