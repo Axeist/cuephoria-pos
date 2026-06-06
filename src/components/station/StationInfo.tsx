@@ -53,8 +53,16 @@ const StationInfo: React.FC<StationInfoProps> = ({
           <Icon className={`h-4 w-4 ${theme.accent}`} />
           {(station.isOccupied || isStarting) && (
             <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-50" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-orange-500" />
+              <span
+                className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-50 ${
+                  isPrepaid ? 'bg-teal-400' : 'bg-orange-400'
+                }`}
+              />
+              <span
+                className={`relative inline-flex h-2.5 w-2.5 rounded-full ${
+                  isPrepaid ? 'bg-teal-500' : 'bg-orange-500'
+                }`}
+              />
             </span>
           )}
         </div>
@@ -72,9 +80,10 @@ const StationInfo: React.FC<StationInfoProps> = ({
               variant="outline"
               className={`shrink-0 gap-0.5 px-1.5 py-0 text-[9px] uppercase tracking-wider ${statusBadge}`}
             >
-              {(station.isOccupied || isStarting) && !isPaused && (
+              {(station.isOccupied || isStarting) && !isPaused && !isPrepaid && (
                 <Zap className="h-2.5 w-2.5 fill-current" />
               )}
+              {isPrepaid && !isPaused && <CreditCard className="h-2.5 w-2.5" />}
               {statusLabel}
             </Badge>
           </div>
@@ -104,9 +113,9 @@ const StationInfo: React.FC<StationInfoProps> = ({
             </span>
           )}
           {prepaid && (
-            <span className="inline-flex items-center gap-0.5 rounded bg-teal-500/20 px-1.5 py-0.5 text-[10px] text-teal-200 ring-1 ring-teal-500/35">
-              <CreditCard className="h-2.5 w-2.5" />
-              ₹{prepaid.paidAmount} · {formatBookingSlotLabel(prepaid.slotStartTime, prepaid.slotEndTime)}
+            <span className="inline-flex items-center gap-1 rounded-md border border-teal-400/50 bg-teal-500/25 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-50 ring-1 ring-teal-400/35 shadow-[0_0_12px_rgba(45,212,191,0.25)]">
+              <CreditCard className="h-3 w-3 shrink-0" />
+              Online pre-paid · ₹{prepaid.paidAmount} · {formatBookingSlotLabel(prepaid.slotStartTime, prepaid.slotEndTime)}
             </span>
           )}
         </div>

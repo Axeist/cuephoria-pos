@@ -197,6 +197,8 @@ const StationCard: React.FC<StationCardProps> = ({
       : 0;
   const isPartialGroupEndHint = sessionGroupId != null && groupSize >= 2;
   const isPrepaid = isPrepaidSession(session);
+  const prepaidLiveRing =
+    'ring-teal-400/55 shadow-[0_0_32px_rgba(45,212,191,0.35)]';
   const prepaidEndNoPosHint = isPrepaid && quickShopCount === 0;
 
   const wrappedEndSessionGroup = useCallback(
@@ -225,8 +227,12 @@ const StationCard: React.FC<StationCardProps> = ({
           transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]
           ${theme.border} ${theme.bg} ${theme.glow}
           ${cardPhaseClass(phase, station.isOccupied)}
-          ${cardRingClass(phase, station.isOccupied, theme.liveRing)}
-          ${isPrepaid && showSessionBlock ? 'ring-2 ring-teal-400/45 border-teal-500/40' : ''}
+          ${cardRingClass(
+            phase,
+            station.isOccupied,
+            isPrepaid && showSessionBlock ? prepaidLiveRing : theme.liveRing
+          )}
+          ${isPrepaid && showSessionBlock ? 'border-teal-500/50' : ''}
           ${urgencyRing}
           ${canSelect && selected ? 'ring-2 ring-cuephoria-purple/70 border-cuephoria-purple/50' : ''}
           ${canSelect ? 'cursor-pointer' : ''}
@@ -286,10 +292,22 @@ const StationCard: React.FC<StationCardProps> = ({
           <div
             className="pointer-events-none absolute inset-0 rounded-xl animate-station-live-glow opacity-30"
             style={{
-              background: `radial-gradient(circle at 50% 0%, rgba(249,115,22,0.15), transparent 70%)`,
+              background: isPrepaid
+                ? 'radial-gradient(circle at 50% 0%, rgba(45,212,191,0.22), transparent 70%)'
+                : 'radial-gradient(circle at 50% 0%, rgba(249,115,22,0.15), transparent 70%)',
             }}
             aria-hidden
           />
+        )}
+
+        {isPrepaid && showSessionBlock && phase !== 'ending' && (
+          <div className="relative z-10 mx-3 mt-2 flex items-center justify-center gap-1.5 rounded-md border border-teal-400/40 bg-teal-950/70 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-teal-100 shadow-[0_0_16px_rgba(45,212,191,0.2)]">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-400 opacity-70" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-teal-400" />
+            </span>
+            Online pre-paid booking
+          </div>
         )}
 
         {theme.showScanLine && (

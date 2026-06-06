@@ -27,6 +27,8 @@ import { isSessionOnlyCart } from '@/utils/savedCart.utils';
 import {
   getPrepaidOvertimeMs,
   sessionNeedsPosCheckout,
+  getChargeableCartItems,
+  prepaidCheckoutHasExtraCharges,
 } from '@/utils/prepaidBooking.utils';
 import { getBillableMs, resolveSessionForBilling } from '@/utils/sessionTimer.utils';
 
@@ -804,6 +806,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       
       const sessionId = station.currentSession.id;
+      const prepaidLink = station.currentSession.prepaidBooking;
       const sessionGroupId = station.currentSession.sessionGroupId;
       const otherActiveInGroup =
         sessionGroupId != null
@@ -822,21 +825,33 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       if (result) {
         const { sessionCartItem, customer, updatedSession } = result;
-        const prepaid = updatedSession?.prepaidBooking ?? station.currentSession?.prepaidBooking;
+        const prepaid = prepaidLink ?? updatedSession?.prepaidBooking;
         const endTime = updatedSession?.endTime ?? new Date();
         const billingSession = updatedSession ?? resolveSessionForBilling(station.currentSession!, endTime);
         const billableMs = getBillableMs(billingSession, endTime);
         const overtimeMs = prepaid ? getPrepaidOvertimeMs(billingSession, billableMs) : 0;
-        const needsPos = sessionNeedsPosCheckout(stationQuickShopItems.length, overtimeMs);
 
         const incomingItems: CartItem[] = [
           ...stationQuickShopItems,
           ...(sessionCartItem ? [sessionCartItem] : []),
         ];
+        const chargeableItems = getChargeableCartItems(incomingItems);
+        const needsPos = prepaid
+          ? prepaidCheckoutHasExtraCharges(stationQuickShopItems.length, overtimeMs, incomingItems)
+          : sessionNeedsPosCheckout(stationQuickShopItems.length, overtimeMs) ||
+            chargeableItems.length > 0;
 
         clearStationQuickShopSession(sessionId);
 
-        if (!needsPos && incomingItems.length === 0) {
+        if (prepaid && !needsPos) {
+          toast({
+            title: 'Pre-paid session complete',
+            description: `${station.name} — already paid online, no extra charges`,
+          });
+          return 'draft';
+        }
+
+        if (!needsPos && chargeableItems.length === 0) {
           toast({
             title: prepaid ? 'Pre-paid session complete' : 'Session ended',
             description: prepaid
@@ -847,7 +862,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         if (!customer) {
-          if (needsPos && incomingItems.length > 0) {
+          if (needsPos && chargeableItems.length > 0) {
             toast({
               title: 'Checkout needs customer',
               description: 'Session ended but customer record was not found for POS checkout.',
@@ -858,7 +873,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         if (isPartialGroupEnd) {
-          await saveSessionCheckoutDraft(customer, incomingItems);
+          await saveSessionCheckoutDraft(customer, chargeableItems);
           toast({
             title: 'Station bill saved',
             description: `${station.name} added to ${customer.name}'s tab. ${otherActiveInGroup} station${otherActiveInGroup === 1 ? '' : 's'} still active — checkout opens when the group ends.`,
@@ -867,7 +882,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         console.log('Auto-selecting customer for checkout:', customer.name);
-        await applySessionCheckoutCart(customer, incomingItems);
+        await applySessionCheckoutCart(customer, chargeableItems);
         return 'pos';
       }
     } catch (error) {
@@ -900,21 +915,22 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const { sessionCartItems, customer } = result;
         const quickShopItems = quickShopSnapshots.flatMap((q) => q.items);
         const incomingItems: CartItem[] = [...quickShopItems, ...sessionCartItems];
+        const chargeableItems = getChargeableCartItems(incomingItems);
 
         for (const q of quickShopSnapshots) {
           clearStationQuickShopSession(q.sessionId);
         }
 
         if (customer) {
-          if (incomingItems.length === 0) {
+          if (chargeableItems.length === 0) {
             toast({
               title: 'Pre-paid group complete',
-              description: 'All stations ended — no POS checkout needed',
+              description: 'All stations ended — no extra POS checkout needed',
             });
             return 'draft';
           }
 
-          await applySessionCheckoutCart(customer, incomingItems);
+          await applySessionCheckoutCart(customer, chargeableItems);
           return 'pos';
         }
       }

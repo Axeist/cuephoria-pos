@@ -19,6 +19,8 @@ export {
   parsePrepaidBookingLink,
   pickDefaultPrepaidBooking,
   sessionNeedsPosCheckout,
+  getChargeableCartItems,
+  prepaidCheckoutHasExtraCharges,
 } from '@/utils/prepaidBooking.core';
 
 export interface PrepaidBookingCustomerRef {

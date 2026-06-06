@@ -1,13 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { Session } from '@/types/pos.types';
-import {
-  formatRemainingTime,
-  getSessionDurationState,
-  getUrgencyBarClass,
-  getUrgencyBarStyle,
-  getUrgencyHeartbeatClass,
-  getUrgencyTextColor,
-} from '@/utils/sessionDuration.utils';
+import { isPrepaidSession } from '@/utils/prepaidBooking.utils';
 
 interface SessionDurationBarProps {
   session: Session;
@@ -25,6 +18,7 @@ const SessionDurationBar: React.FC<SessionDurationBarProps> = ({ session, classN
   const state = getSessionDurationState(session);
   if (!state) return null;
 
+  const isPrepaid = isPrepaidSession(session);
   void tick;
 
   const fillPercent = state.isOverdue ? 100 : Math.max(0, Math.min(100, state.remainingRatio * 100));
@@ -39,7 +33,7 @@ const SessionDurationBar: React.FC<SessionDurationBarProps> = ({ session, classN
     <div className={`space-y-1 ${className}`}>
       <div className="flex items-center justify-between gap-2 text-[10px]">
         <span className="font-semibold uppercase tracking-wider text-muted-foreground">
-          Session time
+          {isPrepaid ? 'Pre-paid time' : 'Session time'}
         </span>
         <span
           className={`inline-flex items-center gap-1 font-bold tabular-nums ${heartbeatClass}`}

@@ -1,4 +1,4 @@
-import type { Session } from '@/types/pos.types';
+import type { CartItem, Session } from '@/types/pos.types';
 import type { PrepaidBookingLink, StationBookingRow } from '@/types/prepaidBooking.types';
 
 /** Pure helpers safe for Edge/server bundles (no Supabase client). */
@@ -108,6 +108,20 @@ export function sessionNeedsPosCheckout(
   overtimeMs: number
 ): boolean {
   return quickShopItemCount > 0 || overtimeMs > 0;
+}
+
+/** Items with a positive total — used to avoid opening POS for ₹0 after pre-paid sessions. */
+export function getChargeableCartItems(items: CartItem[]): CartItem[] {
+  return items.filter((item) => Number(item.total ?? item.price ?? 0) > 0);
+}
+
+export function prepaidCheckoutHasExtraCharges(
+  quickShopItemCount: number,
+  overtimeMs: number,
+  incomingItems: CartItem[]
+): boolean {
+  if (quickShopItemCount > 0 || overtimeMs > 0) return true;
+  return getChargeableCartItems(incomingItems).length > 0;
 }
 
 export function formatBookingSlotLabel(start: string, end: string): string {

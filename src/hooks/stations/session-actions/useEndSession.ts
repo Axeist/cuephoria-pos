@@ -180,14 +180,16 @@ export const useEndSession = ({
           const overtime = calculatePrepaidOvertimeCost(stationRate, overtimeMs, isMember);
           sessionCost = overtime.cost;
           billedMinutes = overtime.overtimeMinutes;
-          sessionCartItem = buildPrepaidOvertimeCartItem(
-            station,
-            customer?.name || 'Unknown Customer',
-            overtime.overtimeMinutes,
-            overtime.cost,
-            prepaid
-          );
-          sessionCartItem.id = cartItemId;
+          if (overtime.cost > 0) {
+            sessionCartItem = buildPrepaidOvertimeCartItem(
+              station,
+              customer?.name || 'Unknown Customer',
+              overtime.overtimeMinutes,
+              overtime.cost,
+              prepaid
+            );
+            sessionCartItem.id = cartItemId;
+          }
         }
         console.log('Pre-paid session end:', { overtimeMs, sessionCost, billedMinutes });
       } else {
