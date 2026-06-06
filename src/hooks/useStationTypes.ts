@@ -6,6 +6,7 @@ import {
   deleteStationType,
   fetchStationTypes,
   seedDefaultStationTypes,
+  updateStationType,
 } from '@/services/stationTypesService';
 
 export function useStationTypes() {
@@ -56,6 +57,28 @@ export function useStationTypes() {
     setStationTypes((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  const updateType = useCallback(
+    async (params: {
+      id: string;
+      name: string;
+      defaultMaxPlayers: number;
+      defaultSlotMinutes: number;
+    }) => {
+      const updated = await updateStationType(params.id, {
+        name: params.name,
+        defaultMaxPlayers: params.defaultMaxPlayers,
+        defaultSlotMinutes: params.defaultSlotMinutes,
+      });
+      setStationTypes((prev) =>
+        prev
+          .map((t) => (t.id === updated.id ? updated : t))
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+      );
+      return updated;
+    },
+    []
+  );
+
   const getTypeBySlug = useCallback(
     (slug: string) => stationTypes.find((t) => t.slug === slug) ?? null,
     [stationTypes]
@@ -66,6 +89,7 @@ export function useStationTypes() {
     loading,
     refresh,
     addType,
+    updateType,
     removeType,
     getTypeBySlug,
   };

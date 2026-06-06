@@ -91,6 +91,34 @@ export async function createStationType(params: {
   return mapRow(data as Record<string, unknown>);
 }
 
+export async function updateStationType(
+  id: string,
+  params: {
+    name: string;
+    defaultMaxPlayers: number;
+    defaultSlotMinutes: number;
+  }
+): Promise<StationType> {
+  const { data, error } = await supabase
+    .from('station_types')
+    .update({
+      name: params.name.trim(),
+      default_max_players: Math.max(1, params.defaultMaxPlayers),
+      default_slot_minutes: Math.max(15, params.defaultSlotMinutes),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('updateStationType:', error);
+    throw error;
+  }
+
+  return mapRow(data as Record<string, unknown>);
+}
+
 export async function deleteStationType(id: string): Promise<void> {
   const { error } = await supabase.from('station_types').delete().eq('id', id);
   if (error) throw error;

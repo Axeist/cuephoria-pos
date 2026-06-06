@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/dialog';
 import { useStationTypes } from '@/hooks/useStationTypes';
 import { useToast } from '@/hooks/use-toast';
-import { Layers, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Layers, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import type { StationType } from '@/types/stationType.types';
 import { DEFAULT_STATION_TYPES } from '@/types/stationType.types';
 import {
   AlertDialog,
@@ -34,14 +35,35 @@ interface StationTypesDialogProps {
 }
 
 export const StationTypesDialog: React.FC<StationTypesDialogProps> = ({ open, onOpenChange }) => {
-  const { stationTypes, loading, refresh, addType, removeType } = useStationTypes();
+  const { stationTypes, loading, refresh, addType, updateType, removeType } = useStationTypes();
   const { toast } = useToast();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editType, setEditType] = useState<StationType | null>(null);
   const [newName, setNewName] = useState('');
   const [newMaxPlayers, setNewMaxPlayers] = useState(4);
   const [newSlotMinutes, setNewSlotMinutes] = useState(60);
   const [saving, setSaving] = useState(false);
+
+  const resetEditForm = () => {
+    setEditType(null);
+    setNewName('');
+    setNewMaxPlayers(4);
+    setNewSlotMinutes(60);
+  };
+
+  const openEditForm = (type: StationType) => {
+    setShowAddForm(false);
+    setEditType(type);
+    setNewName(type.name);
+    setNewMaxPlayers(type.defaultMaxPlayers);
+    setNewSlotMinutes(type.defaultSlotMinutes);
+  };
+
+  const openAddForm = () => {
+    resetEditForm();
+    setShowAddForm(true);
+  };
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -81,7 +103,7 @@ export const StationTypesDialog: React.FC<StationTypesDialogProps> = ({ open, on
         title: 'Type created',
         description: `"${created.name}" is ready to use when adding stations.`,
       });
-      setNewName('');
+      resetEditForm();
       setShowAddForm(false);
     } catch {
       toast({ title: 'Error', description: 'Could not create station type.', variant: 'destructive' });
@@ -90,9 +112,41 @@ export const StationTypesDialog: React.FC<StationTypesDialogProps> = ({ open, on
     }
   };
 
+  const handleUpdateType = async () => {
+    if (!editType || !newName.trim()) return;
+    setSaving(true);
+    try {
+      const updated = await updateType({
+        id: editType.id,
+        name: newName.trim(),
+        defaultMaxPlayers: newMaxPlayers,
+        defaultSlotMinutes: newSlotMinutes,
+      });
+      toast({
+        title: 'Type updated',
+        description: `"${updated.name}" defaults saved.`,
+      });
+      resetEditForm();
+    } catch {
+      toast({ title: 'Error', description: 'Could not update station type.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) {
+            setShowAddForm(false);
+            resetEditForm();
+            setDeleteId(null);
+          }
+          onOpenChange(next);
+        }}
+      >
         <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 font-heading">
@@ -110,14 +164,17 @@ export const StationTypesDialog: React.FC<StationTypesDialogProps> = ({ open, on
               <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowAddForm((v) => !v)}>
+            <Button size="sm" variant="outline" onClick={() => (showAddForm ? (setShowAddForm(false), resetEditForm()) : openAddForm())}>
               <Plus className="mr-1.5 h-4 w-4" />
               Add custom type
             </Button>
           </div>
 
-          {showAddForm && (
+          {(showAddForm || editType) && (
             <div className="space-y-3 rounded-lg border border-cuephoria-purple/30 bg-cuephoria-purple/5 p-4">
+              <p className="text-sm font-medium text-foreground">
+                {editType ? `Edit ${editType.name}` : 'New custom type'}
+              </p>
               <div className="space-y-1">
                 <Label>Type name</Label>
                 <Input
@@ -148,12 +205,28 @@ export const StationTypesDialog: React.FC<StationTypesDialogProps> = ({ open, on
                   />
                 </div>
               </div>
+              {editType && presetSlugs.has(editType.slug) && (
+                <p className="text-xs text-muted-foreground">
+                  Built-in type slug ({editType.slug}) stays the same so existing stations keep working.
+                </p>
+              )}
               <DialogFooter className="gap-2 sm:justify-end px-0 pb-0">
-                <Button variant="outline" size="sm" onClick={() => setShowAddForm(false)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowAddForm(false);
+                    resetEditForm();
+                  }}
+                >
                   Cancel
                 </Button>
-                <Button size="sm" onClick={handleAddType} disabled={saving || !newName.trim()}>
-                  {saving ? 'Saving…' : 'Create type'}
+                <Button
+                  size="sm"
+                  onClick={editType ? handleUpdateType : handleAddType}
+                  disabled={saving || !newName.trim()}
+                >
+                  {saving ? 'Saving…' : editType ? 'Save changes' : 'Create type'}
                 </Button>
               </DialogFooter>
             </div>
@@ -171,6 +244,16 @@ export const StationTypesDialog: React.FC<StationTypesDialogProps> = ({ open, on
                 <span className="text-[10px] text-muted-foreground mr-1">
                   {type.defaultMaxPlayers}p · {type.defaultSlotMinutes}m
                 </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-cuephoria-lightpurple"
+                  onClick={() => openEditForm(type)}
+                  aria-label={`Edit ${type.name}`}
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
                 {!presetSlugs.has(type.slug) && (
                   <Button
                     type="button"
@@ -178,6 +261,7 @@ export const StationTypesDialog: React.FC<StationTypesDialogProps> = ({ open, on
                     size="icon"
                     className="h-6 w-6 text-muted-foreground hover:text-red-500"
                     onClick={() => setDeleteId(type.id)}
+                    aria-label={`Delete ${type.name}`}
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>
