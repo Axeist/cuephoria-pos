@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import type { Session } from '@/types/pos.types';
 import { isPrepaidSession } from '@/utils/prepaidBooking.utils';
+import {
+  formatRemainingTime,
+  getSessionDurationState,
+  getUrgencyBarClass,
+  getUrgencyBarStyle,
+  getUrgencyHeartbeatClass,
+  getUrgencyTextColor,
+} from '@/utils/sessionDuration.utils';
 
 interface SessionDurationBarProps {
   session: Session;
