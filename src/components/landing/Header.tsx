@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, LogIn, Menu, Scale, Sparkles, X } from "lucide-react";
 import { CUETRONIX_ASSETS } from "@/branding/assets";
@@ -27,11 +27,22 @@ const NAV: NavItem[] = [
  */
 const Header: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isHome = location.pathname === "/";
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setMobileOpen(false);
+  };
+
+  const goToSection = (id: string) => {
+    if (isHome) {
+      scrollTo(id);
+      return;
+    }
+    navigate({ pathname: "/", hash: `#${id}` });
     setMobileOpen(false);
   };
 
@@ -41,7 +52,7 @@ const Header: React.FC = () => {
       setMobileOpen(false);
       return;
     }
-    if (item.id) scrollTo(item.id);
+    if (item.id) goToSection(item.id);
   };
 
   useEffect(() => {
@@ -158,7 +169,7 @@ const Header: React.FC = () => {
                 })}
                 <div className="mx-1 h-4 w-px bg-white/10" />
                 <button
-                  onClick={() => scrollTo("book-call")}
+                  onClick={() => goToSection("book-call")}
                   className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-fuchsia-200 transition-colors hover:text-white"
                 >
                   <Sparkles size={11} className="text-fuchsia-300" />
@@ -245,7 +256,7 @@ const Header: React.FC = () => {
                     );
                   })}
                   <button
-                    onClick={() => scrollTo("book-call")}
+                    onClick={() => goToSection("book-call")}
                     className="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-fuchsia-200 transition-colors hover:bg-white/[0.05] hover:text-white"
                   >
                     <span className="inline-flex items-center gap-2">

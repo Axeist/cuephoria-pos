@@ -228,14 +228,14 @@ const HeroSection: React.FC = () => {
               transition={{ duration: 0.7, delay: 0.2 }}
               className="text-gray-300 text-lg sm:text-xl leading-relaxed mb-6 max-w-xl mx-auto lg:mx-0"
             >
-              Cuetronix is the <span className="text-white font-semibold">world&rsquo;s first &amp; #1 all-in-one gaming billing OS</span> — POS, a branded <span className="text-white font-semibold">online booking portal with native Razorpay payments</span>, and <span className="text-white font-semibold">corporate-grade staff payroll &amp; attendance</span> in one product.
-              Run snooker halls, 8-ball rooms, turfs, pickleball courts, PS5 / Xbox lounges, VR arcades and gaming centres like a corporate company.
-              Engineered by <a
+              Cuetronix is the <span className="text-white font-semibold">#1 all-in-one gaming billing OS</span> — <span className="text-white font-semibold">POS, Razorpay booking, and staff payroll</span> in one platform.
+              For snooker, pool, turfs, courts, console lounges, and VR.
+              Built by <a
                 href="https://cuephoriatech.in"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-violet-200 underline-offset-4 hover:underline"
-              >Cuephoria Tech</a> and proven live at{" "}
+              >Cuephoria Tech</a> · proven at{" "}
               <a
                 href="https://cuephoria.in"
                 target="_blank"

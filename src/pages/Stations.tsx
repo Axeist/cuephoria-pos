@@ -399,6 +399,27 @@ const Stations = () => {
               All stations
               <span className="tabular-nums opacity-70">{visibleStations.length}</span>
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (occupancyFilter === 'live') {
+                  setOccupancyFilter('all');
+                } else {
+                  setTypeFilter('all');
+                  setOccupancyFilter('live');
+                }
+              }}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all',
+                occupancyFilter === 'live'
+                  ? 'border-orange-400/60 bg-orange-500/20 text-orange-100 ring-1 ring-orange-400/30'
+                  : 'border-white/10 bg-black/30 text-muted-foreground hover:border-orange-400/35 hover:text-orange-200/90'
+              )}
+            >
+              <Zap className="h-3.5 w-3.5" />
+              Live
+              <span className="tabular-nums opacity-70">{totalActive}</span>
+            </button>
             {typeGroups.map((group) => {
               const theme = getStationTheme({ type: group.type });
               const Icon = theme.icon;

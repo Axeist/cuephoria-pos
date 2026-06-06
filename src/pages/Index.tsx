@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 
 import Header from "@/components/landing/Header";
@@ -16,11 +16,22 @@ import SiteAmbientBackground from "@/components/landing/SiteAmbientBackground";
 
 const Index: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
 
   useEffect(() => {
     if (user) navigate("/dashboard");
   }, [user, navigate]);
+
+  useEffect(() => {
+    if (!location.hash) return;
+    const id = location.hash.replace(/^#/, "");
+    if (!id) return;
+    const timer = window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [location.pathname, location.hash]);
 
   return (
     <div className="relative min-h-screen bg-[#07030f] text-white antialiased selection:bg-violet-500/40 selection:text-white">
