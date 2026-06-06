@@ -6,6 +6,10 @@
 import { j } from "../../adminApiUtils";
 import { supabaseServiceClient, SupabaseConfigError } from "../../supabaseServer";
 import { requirePlatformSession } from "../../platformApiUtils";
+import {
+  isPlatformBroadcastSchemaMissing,
+  PLATFORM_BROADCAST_MIGRATION_HINT,
+} from "../../platformBroadcastSchema";
 
 export const config = { runtime: "edge" };
 
@@ -14,6 +18,23 @@ const SEVERITIES = new Set(["info", "warning", "critical", "success"]);
 const MAX_TITLE = 120;
 const MAX_MESSAGE = 2000;
 const INSERT_CHUNK = 80;
+
+function schemaMissingResponse() {
+  return j(
+    {
+      ok: false,
+      migrationRequired: true,
+      error: PLATFORM_BROADCAST_MIGRATION_HINT,
+      broadcasts: [],
+    },
+    503,
+  );
+}
+
+function mapDbError(error: { message?: string; code?: string } | null | undefined, fallback: string) {
+  if (isPlatformBroadcastSchemaMissing(error)) return schemaMissingResponse();
+  return j({ ok: false, error: error?.message ?? fallback }, 500);
+}
 
 type BroadcastBody = {
   title?: string;
@@ -43,7 +64,7 @@ export default async function handler(req: Request) {
         .order("created_at", { ascending: false })
         .limit(limit);
 
-      if (error) return j({ ok: false, error: error.message }, 500);
+      if (error) return mapDbError(error, "Failed to load broadcasts.");
       return j({ ok: true, broadcasts: data ?? [] }, 200);
     }
 
@@ -86,7 +107,7 @@ export default async function handler(req: Request) {
         .select("id, name, status")
         .eq("id", organizationId)
         .maybeSingle();
-      if (orgErr) return j({ ok: false, error: orgErr.message }, 500);
+      if (orgErr) return mapDbError(orgErr, "Failed to load organization.");
       if (!org) return j({ ok: false, error: "Organization not found." }, 404);
       organizationName = org.name;
     }
@@ -101,7 +122,7 @@ export default async function handler(req: Request) {
     }
 
     const { data: locations, error: locErr } = await locQuery;
-    if (locErr) return j({ ok: false, error: locErr.message }, 500);
+    if (locErr) return mapDbError(locErr, "Failed to load branches.");
 
     const locs = locations ?? [];
     if (locs.length === 0) {
@@ -129,7 +150,7 @@ export default async function handler(req: Request) {
       .single();
 
     if (broadcastErr || !broadcast) {
-      return j({ ok: false, error: broadcastErr?.message ?? "Failed to create broadcast." }, 500);
+      return mapDbError(broadcastErr, "Failed to create broadcast.");
     }
 
     const payload = {
@@ -158,13 +179,14 @@ export default async function handler(req: Request) {
       const chunk = staffRows.slice(i, i + INSERT_CHUNK);
       const { error: insertErr } = await supabase.from("staff_notifications").insert(chunk);
       if (insertErr) {
+        if (isPlatformBroadcastSchemaMissing(insertErr)) return schemaMissingResponse();
         return j(
           {
             ok: false,
             error: `Delivered partially then failed: ${insertErr.message}`,
             broadcastId: broadcast.id,
           },
-          500
+          500,
         );
       }
     }
@@ -199,6 +221,8 @@ export default async function handler(req: Request) {
       return j({ ok: false, error: err.message }, 503);
     }
     console.error("platform/broadcasts error:", err);
-    return j({ ok: false, error: "Internal server error." }, 500);
+    const message = String((err as Error)?.message || err);
+    if (isPlatformBroadcastSchemaMissing({ message })) return schemaMissingResponse();
+    return j({ ok: false, error: message || "Internal server error." }, 500);
   }
 }

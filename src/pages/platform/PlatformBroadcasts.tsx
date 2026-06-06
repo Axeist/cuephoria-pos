@@ -67,6 +67,24 @@ const fetcher = async <T,>(url: string, init?: RequestInit): Promise<T> => {
   return json as T;
 };
 
+type BroadcastsResponse = {
+  ok: boolean;
+  migrationRequired?: boolean;
+  error?: string;
+  broadcasts: PlatformBroadcast[];
+};
+
+const BROADCAST_MIGRATION_PATH =
+  "supabase/migrations/20260808120000_platform_broadcast_notifications.sql";
+
+const fetchBroadcastHistory = async (): Promise<BroadcastsResponse> => {
+  const res = await fetch("/api/platform/broadcasts", { credentials: "same-origin" });
+  const json = (await res.json()) as BroadcastsResponse;
+  if (json.migrationRequired) return json;
+  if (!res.ok || !json?.ok) throw new Error(json?.error || `Request failed (${res.status})`);
+  return json;
+};
+
 const SEVERITY_OPTIONS: {
   id: Severity;
   label: string;
@@ -184,10 +202,17 @@ const PlatformBroadcasts: React.FC = () => {
 
   const historyQuery = useQuery({
     queryKey: ["platform", "broadcasts"],
-    queryFn: () =>
-      fetcher<{ ok: true; broadcasts: PlatformBroadcast[] }>("/api/platform/broadcasts"),
-    refetchInterval: 12_000,
+    queryFn: fetchBroadcastHistory,
+    refetchInterval: (query) => (query.state.data?.migrationRequired ? false : 12_000),
+    retry: false,
   });
+
+  const broadcastNeedsMigration =
+    historyQuery.data?.migrationRequired === true ||
+    (historyQuery.error instanceof Error &&
+      /platform_broadcast_notifications|platform_broadcasts|staff_notifications_kind_check/i.test(
+        historyQuery.error.message,
+      ));
 
   const sendMutation = useMutation({
     mutationFn: () =>
@@ -217,6 +242,7 @@ const PlatformBroadcasts: React.FC = () => {
     },
   });
 
+  const broadcasts = historyQuery.data?.broadcasts ?? [];
   const orgs = orgsQuery.data?.organizations ?? [];
   const selectedOrg = orgs.find((o) => o.id === organizationId);
 
@@ -271,6 +297,17 @@ const PlatformBroadcasts: React.FC = () => {
           </div>
         </div>
       </motion.div>
+
+      {broadcastNeedsMigration && (
+        <div className="rounded-2xl border border-amber-400/35 bg-amber-500/10 px-5 py-4 text-sm text-amber-100">
+          <p className="font-semibold text-amber-50">Database migration required</p>
+          <p className="mt-2 leading-relaxed text-amber-100/90">
+            {historyQuery.data?.error ||
+              "Apply the platform broadcasts migration in Supabase before sending live pushes."}
+          </p>
+          <p className="mt-2 font-mono text-[11px] text-amber-200/80">{BROADCAST_MIGRATION_PATH}</p>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <motion.section
@@ -394,7 +431,7 @@ const PlatformBroadcasts: React.FC = () => {
                 · visible 7 days · toast + bell
               </p>
               <Button
-                disabled={!canSend || sendMutation.isPending}
+                disabled={!canSend || sendMutation.isPending || broadcastNeedsMigration}
                 onClick={() => sendMutation.mutate()}
                 className="bg-gradient-to-r from-indigo-600 via-violet-600 to-cyan-600 font-bold shadow-lg shadow-indigo-600/25 hover:opacity-95"
               >
@@ -440,11 +477,17 @@ const PlatformBroadcasts: React.FC = () => {
           <div className="flex items-center justify-center py-12 text-zinc-500">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
-        ) : (historyQuery.data?.broadcasts.length ?? 0) === 0 ? (
+        ) : historyQuery.isError && !broadcastNeedsMigration ? (
+          <p className="py-12 text-center text-sm text-rose-300">
+            {historyQuery.error instanceof Error
+              ? historyQuery.error.message
+              : "Failed to load broadcast history."}
+          </p>
+        ) : broadcasts.length === 0 ? (
           <p className="py-12 text-center text-sm text-zinc-500">No broadcasts sent yet.</p>
         ) : (
           <div className="space-y-3">
-            {historyQuery.data!.broadcasts.map((b) => {
+            {broadcasts.map((b) => {
               const sev = SEVERITY_OPTIONS.find((s) => s.id === b.severity) ?? SEVERITY_OPTIONS[0];
               const Icon = sev.icon;
               return (

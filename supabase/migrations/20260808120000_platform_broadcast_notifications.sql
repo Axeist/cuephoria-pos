@@ -32,3 +32,5 @@ ALTER TABLE public.staff_notifications
   CHECK (kind IN ('booking', 'session', 'platform'));
 
 ALTER TABLE public.staff_notifications ENABLE ROW LEVEL SECURITY;
+
+GRANT ALL ON TABLE public.platform_broadcasts TO service_role;
