@@ -30,7 +30,8 @@ export const useSessionActions = (props: SessionActionsProps) => {
     perPersonRate?: number,
     plannedDurationMinutes?: number,
     prepaidBooking?: PrepaidBookingLink,
-    sessionGroupId?: string
+    sessionGroupId?: string,
+    customStartTime?: Date
   ): Promise<void> => {
     try {
       setIsLoading(true);
@@ -43,7 +44,8 @@ export const useSessionActions = (props: SessionActionsProps) => {
         perPersonRate,
         plannedDurationMinutes,
         prepaidBooking,
-        sessionGroupId
+        sessionGroupId,
+        customStartTime
       );
     } catch (error) {
       throw error;

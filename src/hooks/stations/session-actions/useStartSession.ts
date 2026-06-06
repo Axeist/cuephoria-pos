@@ -39,7 +39,8 @@ export const useStartSession = ({
     perPersonRate?: number,
     plannedDurationMinutes?: number,
     prepaidBooking?: PrepaidBookingLink,
-    sessionGroupId?: string
+    sessionGroupId?: string,
+    customStartTime?: Date
   ): Promise<Session | undefined> => {
     try {
       console.log("🚀 Starting session for station:", stationId, "for customer:", customerId);
@@ -75,7 +76,22 @@ export const useStartSession = ({
         throw new Error("Station already occupied");
       }
       
-      const startTime = new Date();
+      const startTime = (() => {
+        if (!customStartTime) return new Date();
+        const when = new Date(customStartTime);
+        if (!Number.isFinite(when.getTime())) {
+          throw new Error('Invalid start time');
+        }
+        if (when.getTime() > Date.now()) {
+          toast({
+            title: 'Invalid start time',
+            description: 'Start time must be in the past (before now).',
+            variant: 'destructive',
+          });
+          throw new Error('Start time must be in the past');
+        }
+        return when;
+      })();
       const sessionId = generateId();
       console.log("🆔 Generated session ID:", sessionId);
       

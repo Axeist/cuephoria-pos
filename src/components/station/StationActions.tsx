@@ -35,7 +35,8 @@ interface StationActionsProps {
     playerCount?: number,
     perPersonRate?: number,
     plannedDurationMinutes?: number,
-    prepaidBooking?: PrepaidBookingLink
+    prepaidBooking?: PrepaidBookingLink,
+    customStartTime?: Date
   ) => Promise<void>;
   onEndSession: (stationId: string) => Promise<SessionEndCheckoutMode | void>;
   onEndSessionGroup?: (stationId: string) => Promise<SessionEndCheckoutMode | void>;
@@ -99,7 +100,8 @@ const StationActions: React.FC<StationActionsProps> = ({
     playerCount?: number,
     perPersonRate?: number,
     plannedDurationMinutes?: number,
-    prepaidBooking?: PrepaidBookingLink
+    prepaidBooking?: PrepaidBookingLink,
+    customStartTime?: Date
   ) => {
     try {
       setIsLoading(true);
@@ -112,14 +114,17 @@ const StationActions: React.FC<StationActionsProps> = ({
         playerCount,
         perPersonRate,
         plannedDurationMinutes,
-        prepaidBooking
+        prepaidBooking,
+        customStartTime
       );
       window.setTimeout(() => {
         toast({
           title: 'Session Started',
           description: prepaidBooking
             ? `${customerName} · ${station.name} · pre-paid ${prepaidBooking.durationMinutes} min`
-            : `${customerName} · ${station.name} · ${plannedDurationMinutes ?? 60} min`,
+            : customStartTime
+              ? `${customerName} · ${station.name} · started ${customStartTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+              : `${customerName} · ${station.name} · ${plannedDurationMinutes ?? 60} min`,
         });
       }, 120);
     } catch {

@@ -142,7 +142,8 @@ const StationCard: React.FC<StationCardProps> = ({
       playerCount?: number,
       perPersonRate?: number,
       plannedDurationMinutes?: number,
-      prepaidBooking?: PrepaidBookingLink
+      prepaidBooking?: PrepaidBookingLink,
+      customStartTime?: Date
     ) => {
       setPhase('starting');
       void hapticImpact('medium');
@@ -156,7 +157,9 @@ const StationCard: React.FC<StationCardProps> = ({
             playerCount,
             perPersonRate,
             plannedDurationMinutes,
-            prepaidBooking
+            prepaidBooking,
+            undefined,
+            customStartTime
           ),
           SESSION_TRANSITION.startMinMs
         );

@@ -204,7 +204,8 @@ export interface POSContextType {
     perPersonRate?: number,
     plannedDurationMinutes?: number,
     prepaidBooking?: PrepaidBookingLink,
-    sessionGroupId?: string
+    sessionGroupId?: string,
+    customStartTime?: Date
   ) => Promise<void>;
   extendSession: (stationId: string, extraMinutes: number) => Promise<void>;
   moveSession: (fromStationId: string, toStationId: string) => Promise<void>;

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Gift, Tag, Clock, AlertCircle, User as UserIcon, Lock, ShieldCheck, UserPlus } from 'lucide-react';
+import { Search, Gift, Tag, Clock, AlertCircle, User as UserIcon, Lock, ShieldCheck, UserPlus, History } from 'lucide-react';
 import AddCustomerDialog from '@/components/customers/AddCustomerDialog';
 import { usePOS, Customer } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
@@ -29,6 +29,11 @@ import { useLocation } from '@/context/LocationContext';
 import { PrepaidBookingNotice } from '@/components/station/PrepaidBookingNotice';
 import { fetchTodayBookingsForStationCustomer, pickDefaultPrepaidBooking } from '@/utils/prepaidBooking.utils';
 import type { StationBookingRow } from '@/types/prepaidBooking.types';
+import {
+  formatElapsedSinceStart,
+  parseCustomSessionStartTime,
+  toDatetimeLocalInputValue,
+} from '@/utils/sessionStartTime.utils';
 
 const isLateNight = () => new Date().getHours() < 6;
 
@@ -56,7 +61,8 @@ interface StartSessionDialogProps {
     playerCount?: number,
     perPersonRate?: number,
     plannedDurationMinutes?: number,
-    prepaidBooking?: PrepaidBookingLink
+    prepaidBooking?: PrepaidBookingLink,
+    customStartTime?: Date
   ) => void;
   /** Pre-select after inline add-customer from station card */
   initialCustomerId?: string | null;
@@ -108,7 +114,10 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   const [selectedPrepaidId, setSelectedPrepaidId] = useState<string | null>(null);
   const [prepaidLink, setPrepaidLink] = useState<PrepaidBookingLink | null>(null);
   const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [useCustomStartTime, setUseCustomStartTime] = useState(false);
+  const [customStartTimeInput, setCustomStartTimeInput] = useState('');
   const dialogWasOpenRef = useRef(false);
+  const nowForMaxInput = toDatetimeLocalInputValue(new Date());
 
   // Reset form only when the dialog opens — not on every customers/tiers re-render.
   useEffect(() => {
@@ -126,6 +135,8 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     setSelectedCoupon('none');
     setPlayerCount(1);
     setLateNightPinUnlocked(false);
+    setUseCustomStartTime(false);
+    setCustomStartTimeInput('');
     if (initialCustomerId) {
       const match = customers.find((c) => c.id === initialCustomerId);
       setSelectedCustomer(match ?? null);
@@ -332,6 +343,20 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
       return;
     }
 
+    let customStartTime: Date | undefined;
+    if (useCustomStartTime) {
+      const parsed = parseCustomSessionStartTime(customStartTimeInput);
+      if (!parsed.ok) {
+        toast({
+          title: 'Invalid start time',
+          description: parsed.message,
+          variant: 'destructive',
+        });
+        return;
+      }
+      customStartTime = parsed.date;
+    }
+
     onConfirm(
       selectedCustomer.id,
       selectedCustomer.name,
@@ -340,7 +365,8 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
       playerCount,
       perPersonRate,
       plannedDuration,
-      prepaidLink ?? undefined
+      prepaidLink ?? undefined,
+      customStartTime
     );
 
     // Native: heavy haptic so the user feels the session start.
@@ -355,6 +381,8 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     setSelectedPrepaidId(null);
     setPrepaidLink(null);
     setTodayBookings([]);
+    setUseCustomStartTime(false);
+    setCustomStartTimeInput('');
     onOpenChange(false);
   };
 
@@ -367,8 +395,18 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     setSelectedPrepaidId(null);
     setPrepaidLink(null);
     setTodayBookings([]);
+    setUseCustomStartTime(false);
+    setCustomStartTimeInput('');
     onOpenChange(false);
   };
+
+  const customStartPreview =
+    useCustomStartTime && customStartTimeInput
+      ? (() => {
+          const parsed = parseCustomSessionStartTime(customStartTimeInput);
+          return parsed.ok ? formatElapsedSinceStart(parsed.date) : null;
+        })()
+      : null;
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange} mobileVariant="fullscreen">
@@ -463,17 +501,62 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                 <UserIcon className="h-4 w-4" />
                 Select Customer
               </Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs border-cuephoria-purple/30 text-cuephoria-lightpurple"
-                onClick={() => setAddCustomerOpen(true)}
-              >
-                <UserPlus className="h-3.5 w-3.5 mr-1" />
-                Add customer
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  variant={useCustomStartTime ? 'default' : 'outline'}
+                  size="sm"
+                  className={
+                    useCustomStartTime
+                      ? 'h-8 text-xs bg-cuephoria-purple hover:bg-cuephoria-purple/90'
+                      : 'h-8 text-xs border-cuephoria-purple/30 text-cuephoria-lightpurple'
+                  }
+                  onClick={() => {
+                    setUseCustomStartTime((on) => {
+                      const next = !on;
+                      if (next && !customStartTimeInput) {
+                        const defaultStart = new Date(Date.now() - 30 * 60 * 1000);
+                        setCustomStartTimeInput(toDatetimeLocalInputValue(defaultStart));
+                      }
+                      return next;
+                    });
+                  }}
+                >
+                  <History className="h-3.5 w-3.5 mr-1" />
+                  Custom start time
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs border-cuephoria-purple/30 text-cuephoria-lightpurple"
+                  onClick={() => setAddCustomerOpen(true)}
+                >
+                  <UserPlus className="h-3.5 w-3.5 mr-1" />
+                  Add customer
+                </Button>
+              </div>
             </div>
+
+            {useCustomStartTime && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 space-y-2">
+                <Label htmlFor="custom-start-time" className="text-sm font-medium text-amber-100">
+                  When did play actually start?
+                </Label>
+                <Input
+                  id="custom-start-time"
+                  type="datetime-local"
+                  max={nowForMaxInput}
+                  value={customStartTimeInput}
+                  onChange={(e) => setCustomStartTimeInput(e.target.value)}
+                  className="h-9 max-w-xs"
+                />
+                <p className="text-xs text-amber-200/75">
+                  Must be before the current time. Timer and billing count from this moment
+                  {customStartPreview ? ` (${customStartPreview})` : ''}.
+                </p>
+              </div>
+            )}
             
             {!selectedCustomer ? (
               <>
