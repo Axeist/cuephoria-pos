@@ -21,6 +21,7 @@ import { BookingEditDialog } from '@/components/booking/BookingEditDialog';
 import { BookingDeleteDialog } from '@/components/booking/BookingDeleteDialog';
 import { BookingDeleteAllDialog } from '@/components/booking/BookingDeleteAllDialog';
 import PaymentReconciliationTab from '@/components/booking/PaymentReconciliationTab';
+import { BookingCalendarDayView } from '@/components/booking/calendar/BookingCalendarDayView';
 import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -169,17 +170,6 @@ interface Analytics {
   coupons: CouponAnalytics;
 }
 
-// Add new interface for calendar booking
-interface CalendarBooking extends Booking {
-  startHour: number;
-  endHour: number;
-  startMinute: number;
-  endMinute: number;
-  heightPercentage: number;
-  topPercentage: number;
-}
-
-
 const getDateRangeFromPreset = (preset: string) => {
   const now = new Date();
   
@@ -249,7 +239,6 @@ export default function BookingManagement() {
   // NEW: Calendar view state
   const [calendarView, setCalendarView] = useState(false);
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [expandedCalendarBookings, setExpandedCalendarBookings] = useState<Set<string>>(new Set());
 
   // Customer insights filtering state
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
@@ -940,81 +929,6 @@ export default function BookingManagement() {
     setBookings(filtered);
   }, [filters, allBookings]);
 
-  // NEW: Function to generate calendar time slots
-  const generateTimeSlots = () => {
-    const slots = [];
-    for (let hour = 11; hour <= 23; hour++) {
-      const displayHour = hour > 12 ? hour - 12 : hour;
-      const ampm = hour < 12 ? 'AM' : 'PM';
-      const timeLabel = hour === 12 ? '12:00 PM' : `${displayHour}:00 ${ampm}`;
-      slots.push({
-        hour,
-        label: timeLabel,
-        fullLabel: `${hour.toString().padStart(2, '0')}:00:00`
-      });
-    }
-    return slots;
-  };
-
-  // NEW: Process bookings for calendar view
-  const calendarBookings = useMemo((): CalendarBooking[] => {
-    const dayBookings = allBookings.filter(b => b.booking_date === selectedCalendarDate);
-    
-    return dayBookings.map(booking => {
-      const startTime = new Date(`2000-01-01T${booking.start_time}`);
-      let endTime = new Date(`2000-01-01T${booking.end_time}`);
-      
-      // Handle midnight crossover (00:00:00 means next day)
-      if (booking.end_time === '00:00:00' || (endTime.getHours() === 0 && endTime.getMinutes() === 0)) {
-        endTime = new Date(`2000-01-02T00:00:00`);
-      }
-      
-      const startHour = startTime.getHours();
-      let endHour = endTime.getHours();
-      const startMinute = startTime.getMinutes();
-      let endMinute = endTime.getMinutes();
-      
-      // If end time is midnight (next day), set to 24:00 (end of day)
-      if (endTime.getDate() === 2) {
-        endHour = 24;
-        endMinute = 0;
-      }
-      
-      // Calculate position and height as percentage of the calendar view (11 AM to 11 PM = 12 hours)
-      // For bookings that extend past 11 PM, cap them at 11 PM
-      const startMinutesFromEleven = Math.max(0, (startHour - 11) * 60 + startMinute);
-      const endMinutesFromEleven = Math.min(12 * 60, (endHour - 11) * 60 + endMinute);
-      const totalMinutesInView = 12 * 60; // 11 AM to 11 PM = 720 minutes
-      
-      const durationMinutes = Math.max(0, endMinutesFromEleven - startMinutesFromEleven);
-      
-      const topPercentage = (startMinutesFromEleven / totalMinutesInView) * 100;
-      const heightPercentage = (durationMinutes / totalMinutesInView) * 100;
-      
-      return {
-        ...booking,
-        startHour,
-        endHour: Math.min(endHour, 23), // Cap at 23 for display
-        startMinute,
-        endMinute,
-        topPercentage: Math.max(0, Math.min(100, topPercentage)),
-        heightPercentage: Math.max(0.5, Math.min(100 - topPercentage, heightPercentage)) // Minimum 0.5% for visibility
-      };
-    }).filter(booking => {
-      // Only show bookings that start between 11 AM and 11 PM
-      return booking.startHour >= 11 && booking.startHour <= 23;
-    });
-  }, [allBookings, selectedCalendarDate]);
-
-  const toggleCalendarBookingExpansion = (bookingId: string) => {
-    setExpandedCalendarBookings(prev => {
-      const next = new Set(prev);
-      if (next.has(bookingId)) next.delete(bookingId);
-      else next.add(bookingId);
-      return next;
-    });
-  };
-
   // Helper function to get revenue contribution for a single booking, accounting for payment_txn_id grouping
   // This is used when we need to attribute revenue to specific bookings (e.g., per station, per coupon, per customer)
   // For bookings with the same payment_txn_id, we divide the total payment proportionally
@@ -1102,301 +1016,6 @@ export default function BookingManagement() {
     return totalRevenue;
   };
 
-  // NEW: Enhanced calendar day view component
-  const CalendarDayView = () => {
-    const timeSlots = generateTimeSlots();
-    const totalBookings = calendarBookings.length;
-    const completedBookings = calendarBookings.filter(b => b.status === 'completed').length;
-    const couponBookings = calendarBookings.filter(b => b.coupon_code).length;
-    const totalRevenue = calculateRevenue(calendarBookings);
-
-    return (
-      <Card className="bg-card border-border shadow-lg">
-        <CardHeader className="bg-gradient-to-r from-blue-950/30 to-indigo-950/30 border-b border-border">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-3 text-2xl text-foreground">
-              <CalendarIcon className="h-6 w-6 text-blue-400" />
-              Calendar View - {getDateLabel(selectedCalendarDate)}
-            </CardTitle>
-            <div className="flex items-center gap-3">
-              <Input
-                type="date"
-                value={selectedCalendarDate}
-                onChange={(e) => setSelectedCalendarDate(e.target.value)}
-                className="h-10 border-2 transition-colors border-border focus:border-blue-400"
-              />
-              <Button
-                variant="outline"
-                onClick={() => setCalendarView(false)}
-                className="flex items-center gap-2"
-              >
-                <Minimize2 className="h-4 w-4" />
-                List View
-              </Button>
-            </div>
-          </div>
-          
-          {/* Daily Stats — 2 cols on mobile, 4 from sm up so the figures
-              stay readable on 360px phones. */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4">
-            <div className="text-center p-3 bg-muted/30 rounded-lg border border-border">
-              <p className="text-xs sm:text-sm text-muted-foreground">Total Bookings</p>
-              <p className="text-xl sm:text-2xl font-bold text-blue-400">{totalBookings}</p>
-            </div>
-            <div className="text-center p-3 bg-muted/30 rounded-lg border border-border">
-              <p className="text-xs sm:text-sm text-muted-foreground">Completed</p>
-              <p className="text-xl sm:text-2xl font-bold text-green-400">{completedBookings}</p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground">{totalBookings ? Math.round((completedBookings/totalBookings)*100) : 0}%</p>
-            </div>
-            <div className="text-center p-3 bg-muted/30 rounded-lg border border-border">
-              <p className="text-xs sm:text-sm text-muted-foreground">With Coupons</p>
-              <p className="text-xl sm:text-2xl font-bold text-purple-400">{couponBookings}</p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground">{totalBookings ? Math.round((couponBookings/totalBookings)*100) : 0}%</p>
-            </div>
-            <div className="text-center p-3 bg-muted/30 rounded-lg border border-border">
-              <p className="text-xs sm:text-sm text-muted-foreground">Revenue</p>
-              <p className="text-xl sm:text-2xl font-bold text-green-400">₹{totalRevenue.toLocaleString()}</p>
-            </div>
-          </div>
-        </CardHeader>
-        
-        <CardContent className="p-0">
-          {totalBookings === 0 ? (
-            <div className="text-center py-20 text-muted-foreground">
-              <CalendarIcon className="h-16 w-16 mx-auto mb-4 opacity-30" />
-              <p className="text-xl font-medium">No bookings for this day</p>
-              <p>Select a different date or check your filters</p>
-            </div>
-          ) : (
-            <div className="flex overflow-x-auto">
-              {/* Time Labels - Fixed width for better alignment */}
-              <div className="w-24 flex-shrink-0 border-r border-border bg-muted/20 sticky left-0 z-10">
-                <div className="h-12 border-b border-border bg-muted/30"></div> {/* Header spacer */}
-                {timeSlots.map(slot => (
-                  <div key={slot.hour} className="h-16 border-b border-border flex items-start justify-end pr-3 pt-1.5 bg-card/50">
-                    <span className="text-sm font-semibold text-foreground">
-                      {slot.label}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              
-              {/* Calendar Grid */}
-              <div className="flex-1 relative">
-                {/* Hour Grid Lines */}
-                <div className="absolute inset-0 pointer-events-none">
-                  <div className="h-12 border-b-2 border-border bg-muted/10"></div> {/* Header spacer */}
-                  {timeSlots.map((slot, index) => (
-                    <div 
-                      key={slot.hour} 
-                      className={`h-16 border-b ${index === timeSlots.length - 1 ? 'border-b-2' : 'border-b'} border-border/50`}
-                    ></div>
-                  ))}
-                </div>
-                
-                {/* Current Time Indicator */}
-                {selectedCalendarDate === format(new Date(), 'yyyy-MM-dd') && (() => {
-                  const now = new Date();
-                  const currentHour = now.getHours();
-                  const currentMinute = now.getMinutes();
-                  
-                  if (currentHour >= 11 && currentHour <= 23) {
-                    const minutesFromEleven = (currentHour - 11) * 60 + currentMinute;
-                    // Calculate position: header (3rem) + percentage of grid area (48rem)
-                    const headerHeightRem = 3; // h-12 = 3rem
-                    const gridHeightRem = 48; // 12 * 4rem = 48rem
-                    const topPositionRem = headerHeightRem + (minutesFromEleven / (12 * 60)) * gridHeightRem;
-                    
-                    return (
-                      <div 
-                        className="absolute left-0 right-0 h-0.5 bg-red-500 z-30 shadow-sm"
-                        style={{ top: `${topPositionRem}rem` }}
-                      >
-                        <div className="absolute -left-2 -top-2 w-4 h-4 bg-red-500 rounded-full border-2 border-white"></div>
-                        <div className="absolute left-2 -top-6 bg-red-500 text-white text-xs px-2 py-1 rounded shadow-lg">
-                          {format(now, 'HH:mm')}
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-                
-                {/* Bookings Container - Fixed height matching grid */}
-                <div className="relative" style={{ paddingTop: '3rem', height: '48rem' }}>
-                  {calendarBookings.map((booking) => {
-                    const isExpanded = expandedCalendarBookings.has(booking.id);
-                    
-                    // Find all bookings that overlap with this one (including itself)
-                    const overlappingBookings = calendarBookings.filter(b => {
-                      if (b.id === booking.id) return true;
-                      // Check if bookings overlap in time
-                      const bStart = b.startHour * 60 + b.startMinute;
-                      const bEnd = b.endHour * 60 + (b.endMinute || 0);
-                      const bookingStart = booking.startHour * 60 + booking.startMinute;
-                      const bookingEnd = booking.endHour * 60 + (booking.endMinute || 0);
-                      
-                      return (bStart < bookingEnd && bEnd > bookingStart);
-                    }).sort((a, b) => {
-                      // Sort by start time, then by booking ID for consistent ordering
-                      const aStart = a.startHour * 60 + a.startMinute;
-                      const bStart = b.startHour * 60 + b.startMinute;
-                      if (aStart !== bStart) return aStart - bStart;
-                      return a.id.localeCompare(b.id);
-                    });
-                    
-                    const overlapIndex = overlappingBookings.findIndex(b => b.id === booking.id);
-                    const overlapCount = overlappingBookings.length;
-                    
-                    // Calculate width and left position for overlapping bookings
-                    const width = overlapCount > 1 ? `${95 / overlapCount}%` : '95%';
-                    const left = overlapCount > 1 ? `${(overlapIndex * (95 / overlapCount)) + 2.5}%` : '2.5%';
-                    
-                    // Calculate top position: header (3rem) + percentage of grid (48rem)
-                    const headerHeightRem = 3; // h-12 = 3rem
-                    const gridHeightRem = 48; // 12 * 4rem = 48rem
-                    const topPositionRem = headerHeightRem + (booking.topPercentage / 100) * gridHeightRem;
-                    const heightPositionRem = (booking.heightPercentage / 100) * gridHeightRem;
-                    
-                    return (
-                      <div
-                        key={booking.id}
-                        className={`absolute rounded-lg border-2 cursor-pointer transition-all duration-200 z-20 ${
-                          booking.coupon_code 
-                            ? 'bg-gradient-to-r from-purple-900/40 to-purple-800/25 border-purple-500/50' 
-                            : 'bg-gradient-to-r from-blue-900/40 to-blue-800/25 border-blue-500/50'
-                        } ${isExpanded ? 'shadow-lg z-30' : 'shadow-sm hover:shadow-md'}`}
-                        style={{
-                          top: `${topPositionRem}rem`,
-                          height: `${Math.max(heightPositionRem, 2)}rem`, // Minimum 2rem for visibility
-                          left,
-                          width
-                        }}
-                        onClick={() => toggleCalendarBookingExpansion(booking.id)}
-                      >
-                        <div className="p-2 h-full overflow-hidden">
-                          {/* Compact View */}
-                          {!isExpanded && (
-                            <div className="h-full flex flex-col justify-between">
-                              <div>
-                                <div className={`text-sm font-semibold truncate ${
-                                  booking.coupon_code ? 'text-purple-200' : 'text-blue-200'
-                                }`}>
-                                  {booking.customer.name}
-                                </div>
-                                <div className="text-xs text-muted-foreground truncate">
-                                  {booking.station?.name || 'Unknown'}
-                                </div>
-                                <div className="text-xs font-medium flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
-                                </div>
-                              </div>
-                              <div className="flex items-center justify-between gap-2">
-                                <BookingStatusBadge status={booking.status} />
-                                <div className="flex items-center gap-1">
-                                  {booking.payment_mode && booking.payment_mode !== 'venue' && (
-                                    <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
-                                      💳 {booking.payment_mode === 'razorpay' ? 'Razorpay' : booking.payment_mode}
-                                    </Badge>
-                                  )}
-                                  {(!booking.payment_mode || booking.payment_mode === 'venue') && (
-                                    <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
-                                      💰 Venue
-                                    </Badge>
-                                  )}
-                                  {booking.coupon_code && (
-                                    <Gift className="h-3 w-3 text-purple-600" />
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Expanded View */}
-                          {isExpanded && (
-                            <div className="space-y-3 text-sm overflow-y-auto max-h-full">
-                              <div className="flex items-center justify-between">
-                                <div className={`font-bold text-lg ${
-                                  booking.coupon_code ? 'text-purple-200' : 'text-blue-200'
-                                }`}>
-                                  {booking.customer.name}
-                                </div>
-                                <div className="flex gap-1">
-                                  <Button size="sm" variant="outline" onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditBooking(booking);
-                                  }}>
-                                    <Edit2 className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              </div>
-                              
-                              <div className="grid grid-cols-2 gap-2 text-xs">
-                                <div>
-                                  <span className="text-muted-foreground">Phone:</span>
-                                  <div className="font-medium">{booking.customer.phone}</div>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground">Station:</span>
-                                  <div className="font-medium">{booking.station?.name || 'Unknown'}</div>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground">Duration:</span>
-                                  <div className="font-medium">{booking.duration} min</div>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground">Price:</span>
-                                  <div className="font-medium">₹{booking.final_price}</div>
-                                </div>
-                              </div>
-                              
-                              <div className="flex items-center justify-between">
-                                <BookingStatusBadge status={booking.status} />
-                                {booking.payment_mode && booking.payment_mode !== 'venue' && (
-                                  <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
-                                    💳 {booking.payment_mode === 'razorpay' ? 'Razorpay' : booking.payment_mode}
-                                  </Badge>
-                                )}
-                                {(!booking.payment_mode || booking.payment_mode === 'venue') && (
-                                  <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
-                                    💰 Venue
-                                  </Badge>
-                                )}
-                                {booking.coupon_code && (
-                                  <Badge variant="secondary" className="text-xs flex items-center gap-1">
-                                    <Gift className="h-2 w-2" />
-                                    {booking.coupon_code}
-                                  </Badge>
-                                )}
-                              </div>
-                              
-                              {booking.payment_txn_id && (
-                                <div className="p-2 bg-blue-500/10 rounded text-xs border border-blue-500/20">
-                                  <span className="text-blue-600 font-medium">Transaction ID: </span>
-                                  <span className="text-blue-400 font-mono text-[10px]">{booking.payment_txn_id}</span>
-                                </div>
-                              )}
-                              {booking.notes && (
-                                <div className="p-2 bg-muted/50 rounded text-xs">
-                                  <span className="text-muted-foreground">Notes: </span>
-                                  {booking.notes}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
-  };
 
   const customerInsights = useMemo((): CustomerInsight[] => {
     const customerMap = new Map<string, CustomerInsight>();
@@ -2506,7 +2125,19 @@ export default function BookingManagement() {
       </Card>
 
       {/* Calendar View Toggle */}
-      {calendarView && <CalendarDayView />}
+      {calendarView && (
+        <BookingCalendarDayView
+          bookings={allBookings}
+          selectedDate={selectedCalendarDate}
+          onDateChange={setSelectedCalendarDate}
+          onClose={() => setCalendarView(false)}
+          getDateLabel={getDateLabel}
+          getStationTypeLabel={getStationTypeLabel}
+          calculateRevenue={calculateRevenue}
+          onEdit={handleEditBooking}
+          onDelete={handleDeleteBooking}
+        />
+      )}
 
       {/* Show existing content only when not in calendar view */}
       {!calendarView && (
