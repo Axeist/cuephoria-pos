@@ -16,22 +16,22 @@ export const StaffNotificationPopup: React.FC<StaffNotificationPopupProps> = ({
   toastId,
 }) => {
   const presentation = getStaffNotificationPresentation(notification);
+  const timestamp =
+    notification.timestamp instanceof Date
+      ? notification.timestamp
+      : new Date(notification.timestamp);
 
   return (
     <div
       className={cn(
-        'animate-notification-pop animate-notification-glow relative w-[min(100vw-2rem,22rem)] overflow-hidden rounded-2xl border backdrop-blur-2xl',
+        'animate-notification-pop relative isolate min-w-[min(100vw-2rem,22rem)] overflow-hidden rounded-2xl border border-l-[3px] backdrop-blur-2xl',
         'bg-[linear-gradient(165deg,color-mix(in_oklab,var(--brand-primary-hex)_18%,rgba(255,255,255,0.05))_0%,rgba(6,4,14,0.94)_55%,rgba(4,3,10,0.98)_100%)]',
         presentation.accentClass
       )}
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-white/70 via-white/30 to-transparent opacity-80"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full blur-2xl opacity-40"
+        className="pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full blur-2xl opacity-30"
         style={{
           background: 'radial-gradient(circle, var(--brand-primary-hex) 0%, transparent 70%)',
         }}
@@ -65,7 +65,7 @@ export const StaffNotificationPopup: React.FC<StaffNotificationPopupProps> = ({
                 </span>
                 <span className="h-1 w-1 rounded-full bg-white/20" />
                 <span className="text-[10px] tabular-nums text-white/40">
-                  {format(notification.timestamp, 'HH:mm:ss')}
+                  {format(timestamp, 'HH:mm:ss')}
                 </span>
               </div>
               <p className="font-heading text-[15px] font-semibold leading-snug text-white">

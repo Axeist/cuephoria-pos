@@ -12,7 +12,9 @@ export function showStaffNotificationPopup(notification: StaffNotification): voi
 
   toast.custom(
     (toastId) => (
-      <StaffNotificationPopup notification={notification} toastId={toastId} />
+      <div className="relative w-[min(100vw-2rem,22rem)] overflow-hidden">
+        <StaffNotificationPopup notification={notification} toastId={toastId} />
+      </div>
     ),
     {
       id: notification.id,
@@ -20,7 +22,8 @@ export function showStaffNotificationPopup(notification: StaffNotification): voi
       position: 'top-right',
       unstyled: true,
       classNames: {
-        toast: '!p-0 !bg-transparent !border-0 !shadow-none !overflow-visible',
+        toast:
+          '!p-0 !m-0 !w-auto !max-w-none !bg-transparent !border-0 !shadow-none !overflow-hidden',
       },
     }
   );

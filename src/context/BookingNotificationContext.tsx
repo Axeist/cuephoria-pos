@@ -11,6 +11,7 @@ import {
   isBookingStaffNotification,
   isSessionStaffNotification,
 } from '@/types/staffNotification.types';
+import { sanitizeStaffNotifications } from '@/utils/staffNotificationSanitize';
 
 interface Booking {
   id: string;
@@ -45,35 +46,6 @@ interface Booking {
   created_at?: string;
 }
 
-function normalizeStoredNotification(raw: Record<string, unknown>): StaffNotification | null {
-  try {
-    if (raw.kind === 'session') {
-      return {
-        ...(raw as SessionStaffNotification),
-        timestamp: new Date(raw.timestamp as string),
-      };
-    }
-    if (raw.booking) {
-      return {
-        kind: 'booking',
-        id: raw.id as string,
-        booking: {
-          ...(raw.booking as Booking),
-          booking_date: (raw.booking as Booking).booking_date,
-          created_at: (raw.booking as Booking).created_at,
-          location_id: (raw.booking as Booking).location_id ?? null,
-        },
-        timestamp: new Date(raw.timestamp as string),
-        isPaid: Boolean(raw.isPaid),
-        isRead: Boolean(raw.isRead),
-      };
-    }
-  } catch {
-    /* ignore malformed entries */
-  }
-  return null;
-}
-
 function notificationMatchesActiveBranch(
   n: StaffNotification,
   activeLocationId: string | null,
@@ -88,9 +60,13 @@ function notificationMatchesActiveBranch(
     return lid === activeLocationId;
   }
 
-  const lid = n.booking.location_id ?? null;
-  if (!lid) return mainId != null && activeLocationId === mainId;
-  return lid === activeLocationId;
+  if (isBookingStaffNotification(n)) {
+    const lid = n.booking.location_id ?? null;
+    if (!lid) return mainId != null && activeLocationId === mainId;
+    return lid === activeLocationId;
+  }
+
+  return false;
 }
 
 interface BookingNotificationContextType {
@@ -123,10 +99,9 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
         const now = new Date();
         const oneDayAgo = now.getTime() - (24 * 60 * 60 * 1000);
         
-        const loaded = parsed
-          .map((n: Record<string, unknown>) => normalizeStoredNotification(n))
-          .filter((n: StaffNotification | null): n is StaffNotification => n != null)
-          .filter((n) => n.timestamp.getTime() > oneDayAgo);
+        const loaded = sanitizeStaffNotifications(parsed).filter(
+          (n) => n.timestamp.getTime() > oneDayAgo
+        );
         
         if (loaded.length < parsed.length) {
           localStorage.setItem('booking-notifications', JSON.stringify(loaded));
@@ -334,7 +309,10 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
 
     setNotifications((prev) => {
       const existingNotification = prev.find(
-        (n) => isBookingStaffNotification(n) && n.booking.id === booking.id
+        (n) =>
+          isBookingStaffNotification(n) &&
+          n.booking?.id != null &&
+          n.booking.id === booking.id
       );
       if (existingNotification) {
         console.log('🔔 Notification already exists for booking:', booking.id);

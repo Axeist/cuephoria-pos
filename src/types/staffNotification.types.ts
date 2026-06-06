@@ -53,14 +53,7 @@ export interface SessionStaffNotification {
 
 export type StaffNotification = BookingStaffNotification | SessionStaffNotification;
 
-export function isSessionStaffNotification(
-  notification: StaffNotification
-): notification is SessionStaffNotification {
-  return notification.kind === 'session';
-}
-
-export function isBookingStaffNotification(
-  notification: StaffNotification
-): notification is BookingStaffNotification {
-  return notification.kind === 'booking';
-}
+export {
+  isBookingStaffNotification,
+  isSessionStaffNotification,
+} from '@/utils/staffNotificationSanitize';

@@ -423,24 +423,6 @@
   }
 }
 
-@keyframes notificationShimmer {
-  0% {
-    box-shadow:
-      0 24px 60px -28px rgba(0, 0, 0, 0.75),
-      0 0 0 0 color-mix(in oklab, var(--brand-primary-hex) 35%, transparent);
-  }
-  70% {
-    box-shadow:
-      0 24px 60px -28px rgba(0, 0, 0, 0.75),
-      0 0 0 10px transparent;
-  }
-  100% {
-    box-shadow:
-      0 24px 60px -28px rgba(0, 0, 0, 0.75),
-      0 0 0 0 transparent;
-  }
-}
-
 @keyframes bellRing {
   0%,
   100% {
@@ -468,10 +450,6 @@
   animation: notificationPop 0.48s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.animate-notification-glow {
-  animation: notificationShimmer 1.15s ease-out 2;
-}
-
 .animate-bell-ring {
   transform-origin: top center;
   animation: bellRing 0.85s ease-in-out;
@@ -479,7 +457,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .animate-notification-pop,
-  .animate-notification-glow,
   .animate-bell-ring,
   .animate-slide-up,
   .animate-slide-down,

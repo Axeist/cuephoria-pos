@@ -74,6 +74,11 @@ export function getStaffNotificationPresentation(
 
   if (isBookingStaffNotification(notification)) {
     const { booking, isPaid } = notification;
+    const customerName = booking.customer?.name ?? 'Customer';
+    const stationName = booking.station?.name ?? 'Station';
+    const bookingDate = booking.booking_date
+      ? format(new Date(booking.booking_date), 'MMM dd')
+      : '—';
     const accentClass = isPaid
       ? 'from-emerald-500/80 via-green-500/45 to-transparent border-emerald-400/35 shadow-[0_0_40px_-8px_rgba(16,185,129,0.4)]'
       : 'from-cuephoria-lightpurple/80 via-sky-500/40 to-transparent border-cuephoria-lightpurple/35 shadow-[0_0_40px_-8px_rgba(155,135,245,0.45)]';
@@ -85,8 +90,8 @@ export function getStaffNotificationPresentation(
     return {
       tone: isPaid ? 'booking-paid' : 'booking',
       title: isPaid ? 'New paid booking' : 'New booking',
-      subtitle: booking.customer.name,
-      detail: `${booking.station.name} · ${format(new Date(booking.booking_date), 'MMM dd')} · ${booking.start_time}`,
+      subtitle: customerName,
+      detail: `${stationName} · ${bookingDate} · ${booking.start_time ?? '—'}`,
       meta: booking.final_price ? `₹${booking.final_price}` : undefined,
       Icon: isPaid ? DollarSign : CheckCircle2,
       accentClass,

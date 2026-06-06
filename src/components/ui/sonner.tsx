@@ -21,7 +21,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
             "group toast w-[min(100vw-2rem,20rem)] rounded-xl backdrop-blur-2xl " +
             "border border-white/[0.08] shadow-[0_8px_32px_-6px_rgba(0,0,0,0.5)] " +
             "bg-[linear-gradient(165deg,color-mix(in_oklab,var(--brand-primary-hex)_16%,rgba(255,255,255,0.05))_0%,rgba(6,4,14,0.95)_100%)] " +
-            "text-zinc-50 font-quicksand !p-3 !pl-3.5 !pr-9 relative animate-notification-pop",
+            "text-zinc-50 font-quicksand !p-3 !pl-3.5 !pr-9 relative",
           title: "font-semibold text-[13px] tracking-tight text-white leading-snug font-heading",
           description: "text-zinc-400 text-[12px] leading-relaxed mt-0.5",
           success:

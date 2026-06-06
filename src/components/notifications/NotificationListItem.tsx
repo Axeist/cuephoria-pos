@@ -21,26 +21,21 @@ export function NotificationListItem({
 }: NotificationListItemProps) {
   const { isRead = false, id, timestamp } = notification;
   const presentation = getStaffNotificationPresentation(notification);
+  const displayTime =
+    timestamp instanceof Date ? timestamp : new Date(timestamp);
 
   return (
     <div
       className={cn(
-        'group relative overflow-hidden px-3.5 py-3 transition-all duration-200',
+        'group relative overflow-hidden py-3 pr-3.5 transition-all duration-200',
         'glass-card-interactive cursor-pointer border-0 border-b border-white/[0.06] last:border-b-0',
         !isRead
-          ? 'bg-gradient-to-r from-white/[0.06] via-white/[0.02] to-transparent'
-          : 'bg-transparent hover:bg-white/[0.03]'
+          ? 'border-l-2 border-l-cuephoria-lightpurple/70 bg-gradient-to-r from-white/[0.06] via-white/[0.02] to-transparent pl-3.5'
+          : 'bg-transparent pl-3.5 hover:bg-white/[0.03]'
       )}
       style={{ animationDelay: `${index * 45}ms` }}
       onClick={() => !isRead && onMarkRead(id)}
     >
-      {!isRead ? (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-y-2 left-0 w-0.5 rounded-full bg-gradient-to-b from-cuephoria-lightpurple via-cuephoria-purple to-transparent"
-        />
-      ) : null}
-
       <div className="flex items-start gap-3">
         <div
           className={cn(
@@ -76,7 +71,7 @@ export function NotificationListItem({
 
           <div className="flex flex-wrap items-center gap-2 pt-0.5 text-[10px] text-white/40">
             {presentation.meta ? <span>{presentation.meta}</span> : null}
-            <span className="tabular-nums">{format(timestamp, 'MMM dd · HH:mm:ss')}</span>
+            <span className="tabular-nums">{format(displayTime, 'MMM dd · HH:mm:ss')}</span>
           </div>
         </div>
 

@@ -2316,9 +2316,10 @@ export default function BookingManagement() {
                 </div>
 
                 {/* Footer */}
-                {notifications.length > 0 && (
+                {bookingNotifications.length > 0 && (
                   <div className="p-2.5 border-t bg-muted/30 text-xs text-muted-foreground text-center">
-                    {bookingNotifications.length} {bookingNotifications.length === 1 ? 'notification' : 'notifications'}
+                    {bookingNotifications.length}{' '}
+                    {bookingNotifications.length === 1 ? 'notification' : 'notifications'}
                   </div>
                 )}
               </div>
