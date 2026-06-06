@@ -24,6 +24,7 @@ import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useBookingNotifications } from '@/context/BookingNotificationContext';
+import { isBookingStaffNotification } from '@/types/staffNotification.types';
 import {
   Calendar, Search, Filter, Download, Phone, Mail, Plus, Clock, MapPin, ChevronDown, ChevronRight, Users,
   Trophy, Gift, Tag, Zap, Megaphone, DollarSign, Percent, Ticket, RefreshCw, TrendingUp, TrendingDown, Activity,
@@ -270,6 +271,7 @@ export default function BookingManagement() {
     markAllAsRead,
     clearAllNotifications
   } = useBookingNotifications();
+  const bookingNotifications = notifications.filter(isBookingStaffNotification);
   
   const [notificationOpen, setNotificationOpen] = useState(false);
 
@@ -2181,7 +2183,7 @@ export default function BookingManagement() {
                     >
                       {soundEnabled ? '🔊' : '🔇'}
                     </Button>
-                    {notifications.length > 0 && (
+                    {bookingNotifications.length > 0 && (
                       <>
                         {unreadCount > 0 && (
                           <Button
@@ -2208,7 +2210,7 @@ export default function BookingManagement() {
 
                 {/* Notifications List */}
                 <div className="overflow-y-auto flex-1 overscroll-contain">
-                  {notifications.length === 0 ? (
+                  {bookingNotifications.length === 0 ? (
                     <div className="p-8 text-center text-muted-foreground">
                       <Bell className="h-12 w-12 mx-auto mb-2 opacity-50" />
                       <p className="text-sm">No notifications yet</p>
@@ -2216,7 +2218,7 @@ export default function BookingManagement() {
                     </div>
                   ) : (
                     <div className="divide-y divide-border/50">
-                      {notifications.map((notification) => {
+                      {bookingNotifications.map((notification) => {
                         const { booking, timestamp, isPaid, isRead } = notification;
                         return (
                           <div
@@ -2316,7 +2318,7 @@ export default function BookingManagement() {
                 {/* Footer */}
                 {notifications.length > 0 && (
                   <div className="p-2.5 border-t bg-muted/30 text-xs text-muted-foreground text-center">
-                    {notifications.length} {notifications.length === 1 ? 'notification' : 'notifications'}
+                    {bookingNotifications.length} {bookingNotifications.length === 1 ? 'notification' : 'notifications'}
                   </div>
                 )}
               </div>

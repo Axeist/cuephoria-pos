@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
-import { Bell, X, CheckCircle2, DollarSign } from 'lucide-react';
+import { Bell, X, CheckCircle2, DollarSign, Clock, AlertTriangle, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useBookingNotifications } from '@/context/BookingNotificationContext';
 import { format } from 'date-fns';
 import { useLocation } from '@/context/LocationContext';
+import {
+  isBookingStaffNotification,
+  isSessionStaffNotification,
+} from '@/types/staffNotification.types';
+import { sessionAlertTitle } from '@/utils/sessionStaffNotifications';
 
 export const GlobalNotificationBell: React.FC = () => {
   const { activeLocation } = useLocation();
@@ -45,7 +50,7 @@ export const GlobalNotificationBell: React.FC = () => {
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <Bell className="h-5 w-5 text-cuephoria-lightpurple flex-shrink-0" />
               <div className="min-w-0">
-                <h3 className="font-semibold text-sm truncate">Booking Notifications</h3>
+                <h3 className="font-semibold text-sm truncate">Notifications</h3>
                 {activeLocation && (
                   <p className="text-[10px] text-muted-foreground truncate">
                     {activeLocation.name}
@@ -100,12 +105,81 @@ export const GlobalNotificationBell: React.FC = () => {
               <div className="p-8 text-center text-muted-foreground">
                 <Bell className="h-12 w-12 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No notifications yet</p>
-                <p className="text-xs mt-1">New bookings will appear here</p>
+                <p className="text-xs mt-1">Bookings and session alerts will appear here</p>
               </div>
             ) : (
               <div className="divide-y divide-border/50">
                 {notifications.map((notification) => {
-                  const { booking, timestamp, isPaid, isRead } = notification;
+                  const { timestamp, isRead } = notification;
+
+                  if (isSessionStaffNotification(notification)) {
+                    const sessionIcon =
+                      notification.alertType === 'unsettled_checkout' ? (
+                        <Receipt className="h-4 w-4 text-amber-500" />
+                      ) : notification.alertType === 'overdue_active' ? (
+                        <AlertTriangle className="h-4 w-4 text-red-500" />
+                      ) : (
+                        <Clock className="h-4 w-4 text-amber-500" />
+                      );
+
+                    return (
+                      <div
+                        key={notification.id}
+                        className={`p-3 transition-all duration-200 hover:bg-accent/50 cursor-pointer ${
+                          !isRead ? 'bg-amber-500/5 border-l-2 border-l-amber-500' : 'bg-background'
+                        }`}
+                        onClick={() => !isRead && markAsRead(notification.id)}
+                      >
+                        <div className="flex items-start gap-2">
+                          <div className="flex-shrink-0 mt-0.5">{sessionIcon}</div>
+                          <div className="flex-1 min-w-0 space-y-1.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-sm text-foreground">
+                                {sessionAlertTitle(notification.alertType)}
+                              </span>
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                                Session
+                              </Badge>
+                              {!isRead && (
+                                <span className="h-2 w-2 rounded-full bg-amber-500 flex-shrink-0" />
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground space-y-0.5">
+                              <div className="flex items-start gap-1.5">
+                                <span className="font-medium text-foreground/70">Station:</span>
+                                <span className="break-words">{notification.stationName}</span>
+                              </div>
+                              <div className="flex items-start gap-1.5">
+                                <span className="font-medium text-foreground/70">Customer:</span>
+                                <span className="break-words">{notification.customerName}</span>
+                              </div>
+                              <p className="text-foreground/80 pt-0.5">{notification.message}</p>
+                              <div className="text-[10px] opacity-60 pt-0.5">
+                                {format(timestamp, 'MMM dd, yyyy HH:mm:ss')}
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeNotification(notification.id);
+                            }}
+                            className="h-6 w-6 p-0 flex-shrink-0 opacity-60 hover:opacity-100"
+                            title="Remove notification"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (!isBookingStaffNotification(notification)) return null;
+
+                  const { booking, isPaid } = notification;
+
                   return (
                     <div
                       key={notification.id}
@@ -121,7 +195,6 @@ export const GlobalNotificationBell: React.FC = () => {
                       onClick={() => !isRead && markAsRead(notification.id)}
                     >
                       <div className="flex items-start gap-2">
-                        {/* Icon */}
                         <div className="flex-shrink-0 mt-0.5">
                           {isPaid ? (
                             <DollarSign className="h-4 w-4 text-green-500" />
@@ -129,10 +202,7 @@ export const GlobalNotificationBell: React.FC = () => {
                             <CheckCircle2 className="h-4 w-4 text-blue-500" />
                           )}
                         </div>
-                        
-                        {/* Content */}
                         <div className="flex-1 min-w-0 space-y-1.5">
-                          {/* Header Row */}
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold text-sm text-foreground">
                               {booking.customer.name}
@@ -143,11 +213,9 @@ export const GlobalNotificationBell: React.FC = () => {
                               </Badge>
                             )}
                             {!isRead && (
-                              <span className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0"></span>
+                              <span className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0" />
                             )}
                           </div>
-                          
-                          {/* Details */}
                           <div className="text-xs text-muted-foreground space-y-0.5">
                             <div className="flex items-start gap-1.5">
                               <span className="font-medium text-foreground/70">Station:</span>
@@ -179,8 +247,6 @@ export const GlobalNotificationBell: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                        
-                        {/* Close Button */}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -201,7 +267,6 @@ export const GlobalNotificationBell: React.FC = () => {
             )}
           </div>
 
-          {/* Footer */}
           {notifications.length > 0 && (
             <div className="p-2.5 border-t bg-muted/30 text-xs text-muted-foreground text-center">
               {notifications.length} {notifications.length === 1 ? 'notification' : 'notifications'}
@@ -212,4 +277,3 @@ export const GlobalNotificationBell: React.FC = () => {
     </Popover>
   );
 };
-

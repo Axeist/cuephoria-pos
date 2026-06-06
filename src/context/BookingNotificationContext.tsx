@@ -3,6 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { useLocation } from '@/context/LocationContext';
+import { useSessionStaffNotificationMonitor } from '@/hooks/useSessionStaffNotificationMonitor';
+import {
+  type BookingStaffNotification,
+  type SessionStaffNotification,
+  type StaffNotification,
+  isSessionStaffNotification,
+} from '@/types/staffNotification.types';
 
 interface Booking {
   id: string;
@@ -37,28 +44,56 @@ interface Booking {
   created_at?: string;
 }
 
-interface BookingNotification {
-  id: string;
-  booking: Booking;
-  timestamp: Date;
-  isPaid: boolean;
-  isRead?: boolean;
+function normalizeStoredNotification(raw: Record<string, unknown>): StaffNotification | null {
+  try {
+    if (raw.kind === 'session') {
+      return {
+        ...(raw as SessionStaffNotification),
+        timestamp: new Date(raw.timestamp as string),
+      };
+    }
+    if (raw.booking) {
+      return {
+        kind: 'booking',
+        id: raw.id as string,
+        booking: {
+          ...(raw.booking as Booking),
+          booking_date: (raw.booking as Booking).booking_date,
+          created_at: (raw.booking as Booking).created_at,
+          location_id: (raw.booking as Booking).location_id ?? null,
+        },
+        timestamp: new Date(raw.timestamp as string),
+        isPaid: Boolean(raw.isPaid),
+        isRead: Boolean(raw.isRead),
+      };
+    }
+  } catch {
+    /* ignore malformed entries */
+  }
+  return null;
 }
 
 function notificationMatchesActiveBranch(
-  n: BookingNotification,
+  n: StaffNotification,
   activeLocationId: string | null,
   locations: { id: string; slug: string }[]
 ): boolean {
   if (!activeLocationId) return true;
   const mainId = locations.find((l) => l.slug === 'main')?.id;
+
+  if (isSessionStaffNotification(n)) {
+    const lid = n.locationId ?? null;
+    if (!lid) return mainId != null && activeLocationId === mainId;
+    return lid === activeLocationId;
+  }
+
   const lid = n.booking.location_id ?? null;
   if (!lid) return mainId != null && activeLocationId === mainId;
   return lid === activeLocationId;
 }
 
 interface BookingNotificationContextType {
-  notifications: BookingNotification[];
+  notifications: StaffNotification[];
   unreadCount: number;
   soundEnabled: boolean;
   setSoundEnabled: (enabled: boolean) => void;
@@ -78,7 +113,7 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
   );
 
   // Load from localStorage on mount
-  const [notifications, setNotifications] = useState<BookingNotification[]>(() => {
+  const [notifications, setNotifications] = useState<StaffNotification[]>(() => {
     try {
       const saved = localStorage.getItem('booking-notifications');
       if (saved) {
@@ -87,17 +122,9 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
         const oneDayAgo = now.getTime() - (24 * 60 * 60 * 1000);
         
         const loaded = parsed
-          .map((n: any) => ({
-            ...n,
-            timestamp: new Date(n.timestamp),
-            booking: {
-              ...n.booking,
-              booking_date: n.booking.booking_date,
-              created_at: n.booking.created_at,
-              location_id: n.booking.location_id ?? null,
-            },
-          }))
-          .filter((n: BookingNotification) => n.timestamp.getTime() > oneDayAgo);
+          .map((n: Record<string, unknown>) => normalizeStoredNotification(n))
+          .filter((n: StaffNotification | null): n is StaffNotification => n != null)
+          .filter((n) => n.timestamp.getTime() > oneDayAgo);
         
         if (loaded.length < parsed.length) {
           localStorage.setItem('booking-notifications', JSON.stringify(loaded));
@@ -320,7 +347,8 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
         return prev;
       }
 
-      const notification: BookingNotification = {
+      const notification: BookingStaffNotification = {
+        kind: 'booking',
         id: `${booking.id}-${Date.now()}`,
         booking,
         timestamp: new Date(),
@@ -432,6 +460,24 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
       }
     };
   }, []); // Empty deps - use refs for functions to avoid recreation
+
+  const addSessionNotification = useCallback((notification: SessionStaffNotification) => {
+    setNotifications((prev) => {
+      const duplicate = prev.some(
+        (n) =>
+          isSessionStaffNotification(n) &&
+          n.alertType === notification.alertType &&
+          ((notification.sessionId && n.sessionId === notification.sessionId) ||
+            (notification.customerId &&
+              n.customerId === notification.customerId &&
+              notification.alertType === 'unsettled_checkout'))
+      );
+      if (duplicate) return prev;
+      return [notification, ...prev];
+    });
+  }, []);
+
+  useSessionStaffNotificationMonitor(addSessionNotification, soundEnabled);
 
   // Load existing bookings for the active branch to populate previousBookingIds (no duplicate alerts)
   useEffect(() => {
