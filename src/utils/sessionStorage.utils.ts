@@ -36,6 +36,35 @@ export function rehydrateStations(stations: Station[]): Station[] {
   return stations.map(rehydrateStation);
 }
 
+/** Merge DB session row with richer station.currentsession (pricing, backdated start). */
+export function mergeStationActiveSession(
+  current: Session | null | undefined,
+  incoming: Session
+): Session {
+  const base = rehydrateSession(incoming);
+  if (!current || current.id !== incoming.id) {
+    return base;
+  }
+
+  const currentStart = new Date(current.startTime).getTime();
+  const incomingStart = new Date(incoming.startTime).getTime();
+  const useEarlierStart =
+    Number.isFinite(currentStart) &&
+    Number.isFinite(incomingStart) &&
+    currentStart < incomingStart;
+
+  return rehydrateSession({
+    ...base,
+    startTime: useEarlierStart ? new Date(currentStart) : base.startTime,
+    timeTierPrice: current.timeTierPrice ?? base.timeTierPrice,
+    overtimePerMinute: current.overtimePerMinute ?? base.overtimePerMinute,
+    prepaidBooking: current.prepaidBooking ?? base.prepaidBooking,
+    originalRate: current.originalRate ?? base.originalRate,
+    couponCode: current.couponCode ?? base.couponCode,
+    discountAmount: current.discountAmount ?? base.discountAmount,
+  });
+}
+
 /** JSON-safe session payload for stations.currentsession JSONB column */
 export function serializeSessionForDb(session: Session): Record<string, unknown> {
   return {

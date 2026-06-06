@@ -30,7 +30,10 @@ import { PrepaidBookingNotice } from '@/components/station/PrepaidBookingNotice'
 import { fetchTodayBookingsForStationCustomer, pickDefaultPrepaidBooking } from '@/utils/prepaidBooking.utils';
 import type { StationBookingRow } from '@/types/prepaidBooking.types';
 import {
+  defaultCustomStartTime,
+  formatCustomStartBoundsHint,
   formatElapsedSinceStart,
+  getCustomStartTimeBounds,
   parseCustomSessionStartTime,
   toDatetimeLocalInputValue,
 } from '@/utils/sessionStartTime.utils';
@@ -117,7 +120,12 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   const [useCustomStartTime, setUseCustomStartTime] = useState(false);
   const [customStartTimeInput, setCustomStartTimeInput] = useState('');
   const dialogWasOpenRef = useRef(false);
-  const nowForMaxInput = toDatetimeLocalInputValue(new Date());
+  const customStartBounds = useMemo(
+    () => getCustomStartTimeBounds(new Date()),
+    [open, useCustomStartTime, customStartTimeInput]
+  );
+  const customStartMinInput = toDatetimeLocalInputValue(customStartBounds.min);
+  const customStartMaxInput = toDatetimeLocalInputValue(customStartBounds.max);
 
   // Reset form only when the dialog opens — not on every customers/tiers re-render.
   useEffect(() => {
@@ -515,8 +523,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                     setUseCustomStartTime((on) => {
                       const next = !on;
                       if (next && !customStartTimeInput) {
-                        const defaultStart = new Date(Date.now() - 30 * 60 * 1000);
-                        setCustomStartTimeInput(toDatetimeLocalInputValue(defaultStart));
+                        setCustomStartTimeInput(toDatetimeLocalInputValue(defaultCustomStartTime()));
                       }
                       return next;
                     });
@@ -546,13 +553,14 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                 <Input
                   id="custom-start-time"
                   type="datetime-local"
-                  max={nowForMaxInput}
+                  min={customStartMinInput}
+                  max={customStartMaxInput}
                   value={customStartTimeInput}
                   onChange={(e) => setCustomStartTimeInput(e.target.value)}
                   className="h-9 max-w-xs"
                 />
                 <p className="text-xs text-amber-200/75">
-                  Must be before the current time. Timer and billing count from this moment
+                  {formatCustomStartBoundsHint()}. Timer and billing start from this moment
                   {customStartPreview ? ` (${customStartPreview})` : ''}.
                 </p>
               </div>

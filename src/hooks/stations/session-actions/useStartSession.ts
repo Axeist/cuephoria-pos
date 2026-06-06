@@ -16,6 +16,7 @@ import { isTimeBasedPricing } from '@/utils/stationPricing';
 import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
 import { markPrepaidBookingInProgress } from '@/utils/prepaidBooking.utils';
 import { resolvePrepaidPlayDurationMinutes } from '@/utils/prepaidBooking.core';
+import { validateCustomSessionStartTime } from '@/utils/sessionStartTime.utils';
 import { CACHE_KEYS, cacheKeyWithLocation, invalidateCache } from '@/utils/dataCache';
 
 /**
@@ -78,19 +79,16 @@ export const useStartSession = ({
       
       const startTime = (() => {
         if (!customStartTime) return new Date();
-        const when = new Date(customStartTime);
-        if (!Number.isFinite(when.getTime())) {
-          throw new Error('Invalid start time');
-        }
-        if (when.getTime() > Date.now()) {
+        const validated = validateCustomSessionStartTime(new Date(customStartTime));
+        if (!validated.ok) {
           toast({
             title: 'Invalid start time',
-            description: 'Start time must be in the past (before now).',
+            description: validated.message,
             variant: 'destructive',
           });
-          throw new Error('Start time must be in the past');
+          throw new Error(validated.message);
         }
-        return when;
+        return validated.date;
       })();
       const sessionId = generateId();
       console.log("🆔 Generated session ID:", sessionId);

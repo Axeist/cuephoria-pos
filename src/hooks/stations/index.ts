@@ -5,6 +5,7 @@ import { useSessionActions } from './session-actions';
 import { Station, Session, Customer } from '@/types/pos.types';
 import { useState, useEffect } from 'react';
 import { useLocation } from '@/context/LocationContext';
+import { mergeStationActiveSession } from '@/utils/sessionStorage.utils';
 
 export const useStations = (initialStations: Station[] = [], updateCustomer: (customer: Customer) => void) => {
   const { activeLocationId } = useLocation();
@@ -73,14 +74,15 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
       
       if (activeSession) {
         const current = station.currentSession;
+        const merged = mergeStationActiveSession(current, activeSession);
         if (
-          current?.id === activeSession.id &&
-          sessionTimingMatches(current, activeSession)
+          current?.id === merged.id &&
+          sessionTimingMatches(current, merged)
         ) {
           return station;
         }
         console.log(`Connecting session to station ${station.name}`);
-        return { ...station, isOccupied: true, currentSession: activeSession };
+        return { ...station, isOccupied: true, currentSession: merged };
       } else {
         // Only mark as unoccupied when sessions have loaded AND the station
         // row itself does not have a currentsession stored in the DB.

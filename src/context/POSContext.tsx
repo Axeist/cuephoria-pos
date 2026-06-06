@@ -697,7 +697,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     perPersonRate?: number,
     plannedDurationMinutes?: number,
     prepaidBooking?: PrepaidBookingLink,
-    sessionGroupId?: string
+    sessionGroupId?: string,
+    customStartTime?: Date
   ): Promise<void> => {
     await startSessionBase(
       stationId,
@@ -708,7 +709,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       perPersonRate,
       plannedDurationMinutes,
       prepaidBooking,
-      sessionGroupId
+      sessionGroupId,
+      customStartTime
     );
   };
 
