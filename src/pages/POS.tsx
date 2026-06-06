@@ -30,6 +30,8 @@ import { getProductStockLimit } from '@/utils/cartStock.utils';
 import {
   getCartItemDisplayName,
   getCartItemLineKey,
+  getCartItemPrimaryLabel,
+  getCartItemSecondaryLabel,
   totalProductQuantityInCart,
 } from '@/utils/cartItem.utils';
 import type { CartItem } from '@/types/pos.types';
@@ -461,7 +463,7 @@ const POS = () => {
             {cart.length > 0 ? (
               <div className="space-y-2 sm:space-y-2.5">
                 {!isMobile && (
-                  <div className="sticky top-0 z-10 grid grid-cols-[2fr_1fr_1fr] gap-2 px-3 py-2 -mx-1 rounded-lg bg-muted/60 backdrop-blur-sm text-[10px] sm:text-xs font-medium uppercase tracking-wide text-muted-foreground border border-border/30">
+                  <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_auto_auto] gap-3 px-3 py-2 -mx-1 rounded-lg bg-muted/60 backdrop-blur-sm text-[10px] sm:text-xs font-medium uppercase tracking-wide text-muted-foreground border border-border/30">
                     <span>Item</span>
                     <span className="text-center">Qty</span>
                     <span className="text-right">Total</span>
@@ -470,17 +472,24 @@ const POS = () => {
                 {cart.map((item, index) => (
                   <div 
                     key={getCartItemLineKey(item)} 
-                    className={`rounded-lg border border-border/50 bg-card/60 px-3 py-2.5 sm:py-3 shadow-sm ${fromSessionEnd ? 'animate-pos-cart-item-handoff' : 'animate-fade-in'} ${isMobile ? 'grid grid-cols-[2fr_1fr] gap-2' : 'grid grid-cols-[2fr_1fr_1fr] gap-2 items-center'}`} 
+                    className={`rounded-lg border border-border/50 bg-card/60 px-3 py-2.5 sm:py-3 shadow-sm ${fromSessionEnd ? 'animate-pos-cart-item-handoff' : 'animate-fade-in'} ${isMobile ? 'flex gap-2' : 'grid grid-cols-[minmax(0,1fr)_auto_auto] gap-3 items-center'}`} 
                     style={{ animationDelay: `${index * 70}ms` }}
                   >
-                    <div className="flex flex-col justify-center">
-                      <p className="font-medium font-quicksand truncate text-sm sm:text-base">{getCartItemDisplayName(item)}</p>
-                      <p className="text-[10px] sm:text-xs text-muted-foreground indian-rupee">
+                    <div className="min-w-0 flex flex-col justify-center">
+                      <p className="font-medium font-quicksand text-sm sm:text-base leading-snug line-clamp-2">
+                        {getCartItemPrimaryLabel(item)}
+                      </p>
+                      {getCartItemSecondaryLabel(item) ? (
+                        <p className="mt-0.5 text-[10px] sm:text-xs text-muted-foreground line-clamp-2">
+                          {getCartItemSecondaryLabel(item)}
+                        </p>
+                      ) : null}
+                      <p className="mt-1 text-[10px] sm:text-xs text-muted-foreground indian-rupee">
                         {item.price.toLocaleString('en-IN')} each
                       </p>
                     </div>
                     {!isMobile && (
-                      <div className="flex items-center justify-center space-x-1.5 sm:space-x-2">
+                      <div className="flex shrink-0 items-center justify-center space-x-1.5 sm:space-x-2">
                         <Button
                           variant="outline"
                           size="sm"
@@ -501,7 +510,7 @@ const POS = () => {
                         </Button>
                       </div>
                     )}
-                    <div className="flex flex-col items-end gap-1">
+                    <div className="flex shrink-0 flex-col items-end gap-1">
                       {isMobile && (
                         <div className="flex items-center space-x-1 mb-1">
                           <Button

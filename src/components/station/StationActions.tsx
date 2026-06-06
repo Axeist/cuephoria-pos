@@ -118,12 +118,12 @@ const StationActions: React.FC<StationActionsProps> = ({
 
   const handleEndSession = async () => {
     if (!station.isOccupied || !station.currentSession) return;
+    const customerId = station.currentSession.customerId;
     try {
       setIsLoading(true);
       const mode = await onEndSession(station.id);
       if (mode === 'pos') {
-        const customer = customers.find((c) => c.id === station.currentSession!.customerId);
-        if (customer) selectCustomer(customer.id);
+        if (customerId) selectCustomer(customerId);
         await sleep(SESSION_TRANSITION.posHandoffMs);
         navigateToPOS(navigate, { stationName: station.name });
       }
@@ -136,10 +136,10 @@ const StationActions: React.FC<StationActionsProps> = ({
 
   const handleEndSessionGroup = async () => {
     if (!station.isOccupied || !station.currentSession || !onEndSessionGroup || groupSize < 2) return;
+    const customerId = station.currentSession.customerId;
     try {
       setIsLoading(true);
-      const customer = customers.find((c) => c.id === station.currentSession!.customerId);
-      if (customer) selectCustomer(customer.id);
+      if (customerId) selectCustomer(customerId);
       await onEndSessionGroup(station.id);
       await sleep(SESSION_TRANSITION.posHandoffMs);
       navigateToPOS(navigate, { stationName: station.name });

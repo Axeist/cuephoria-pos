@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   POSContextType, 
   ResetOptions, 
@@ -22,6 +22,7 @@ import { supabase, handleSupabaseError } from '@/integrations/supabase/client';
 import { useLocation } from '@/context/LocationContext';
 import { clampCartItemsToStock, getProductStockLimit } from '@/utils/cartStock.utils';
 import { mergeSessionCartItems } from '@/utils/sessionCartMerge';
+import { isSessionOnlyCart } from '@/utils/savedCart.utils';
 
 const POSContext = createContext<POSContextType>({
   products: [],
@@ -175,6 +176,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const { toast } = useToast();
   const { activeLocationId } = useLocation();
+  /** When set, the next saved-cart restore for this customer may load session-only drafts (checkout handoff). */
+  const forceLoadSavedCartCustomerIdRef = useRef<string | null>(null);
 
   const addToCartWithStock = useCallback(
     (item: Omit<CartItem, 'total'>) => {
@@ -265,6 +268,16 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void loadSavedCartForCustomer(selectedCustomer.id).then((savedCartData) => {
       if (cancelled || !savedCartData?.items.length) return;
 
+      const forceLoad =
+        forceLoadSavedCartCustomerIdRef.current === selectedCustomer.id;
+      if (forceLoad) {
+        forceLoadSavedCartCustomerIdRef.current = null;
+      }
+
+      if (isSessionOnlyCart(savedCartData.items) && !forceLoad) {
+        return;
+      }
+
       setCart(clampCartItemsToStock(savedCartData.items, products));
       setDiscountAmount(Number(savedCartData.discount ?? 0));
       setDiscountType(savedCartData.discount_type ?? 'percentage');
@@ -296,19 +309,41 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [selectedCustomer, activeLocationId, removeSavedCart, clearCart]
   );
 
-  // Debounced sync to DB while building a cart (global across terminals)
+  // Debounced sync to DB while building a cart (global across terminals).
+  // Preserve session-only draft lines from group partial ends — never overwrite them.
   useEffect(() => {
     if (!selectedCustomer || !activeLocationId || cart.length === 0) return;
 
-    schedulePersistSavedCart(
-      selectedCustomer.id,
-      selectedCustomer.name,
-      cart,
-      discount,
-      discountType,
-      loyaltyPointsUsed
-    );
-  }, [cart, discount, discountType, loyaltyPointsUsed, selectedCustomer?.id, activeLocationId]);
+    let cancelled = false;
+
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const saved = await loadSavedCartForCustomer(selectedCustomer.id);
+        if (cancelled) return;
+
+        const sessionDraftLines = (saved?.items ?? []).filter((item) => item.type === 'session');
+        const liveLines = cart.filter((item) => item.type !== 'session');
+        const merged =
+          sessionDraftLines.length > 0
+            ? mergeSessionCartItems(sessionDraftLines, liveLines, [])
+            : cart;
+
+        schedulePersistSavedCart(
+          selectedCustomer.id,
+          selectedCustomer.name,
+          merged,
+          discount,
+          discountType,
+          loyaltyPointsUsed
+        );
+      })();
+    }, 800);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [cart, discount, discountType, loyaltyPointsUsed, selectedCustomer?.id, selectedCustomer?.name, activeLocationId, loadSavedCartForCustomer, schedulePersistSavedCart]);
 
   const moveCartToSaved = useCallback(async () => {
     if (!selectedCustomer) {
@@ -691,8 +726,12 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           loyaltyUsed,
         );
       }
+
+      if (selectedCustomer?.id === customer.id) {
+        setCart((prev) => prev.filter((item) => item.type !== 'session'));
+      }
     },
-    [activeLocationId, loadSavedCartForCustomer, persistSavedCart],
+    [activeLocationId, loadSavedCartForCustomer, persistSavedCart, selectedCustomer?.id, setCart],
   );
 
   /** Sticky POS cart: final session end loads the collated bill into checkout. */
@@ -722,6 +761,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
       }
 
+      forceLoadSavedCartCustomerIdRef.current = customer.id;
       selectCustomer(customer.id);
 
       if (mergedCart.length > 0) {
