@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { format } from 'date-fns';
 import { useLocation } from '@/context/LocationContext';
 import { useSessionStaffNotificationMonitor } from '@/hooks/useSessionStaffNotificationMonitor';
+import { showStaffNotificationPopup } from '@/lib/showStaffNotificationPopup';
+import { playStaffNotificationSound } from '@/lib/staffNotificationSound';
 import {
   type BookingStaffNotification,
   type SessionStaffNotification,
   type StaffNotification,
+  isBookingStaffNotification,
   isSessionStaffNotification,
 } from '@/types/staffNotification.types';
 
@@ -95,6 +96,7 @@ function notificationMatchesActiveBranch(
 interface BookingNotificationContextType {
   notifications: StaffNotification[];
   unreadCount: number;
+  ringSignal: number;
   soundEnabled: boolean;
   setSoundEnabled: (enabled: boolean) => void;
   removeNotification: (id: string) => void;
@@ -176,6 +178,9 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
     }
   });
 
+  const [ringSignal, setRingSignal] = useState(0);
+  const ringSignalRef = useRef(0);
+
   // Save to localStorage whenever state changes
   useEffect(() => {
     try {
@@ -205,6 +210,15 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
     setSoundEnabledState(enabled);
   }, []);
 
+  const presentStaffNotification = useCallback((notification: StaffNotification) => {
+    showStaffNotificationPopup(notification);
+    ringSignalRef.current += 1;
+    setRingSignal(ringSignalRef.current);
+    if (soundEnabledRef.current) {
+      playStaffNotificationSound(notification);
+    }
+  }, []);
+
   const visibleNotifications = useMemo(
     () =>
       notifications.filter((n) =>
@@ -213,32 +227,6 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
     [notifications, activeLocationId, locations]
   );
 
-  // Function to play notification sound
-  const playNotificationSound = useCallback((isPaid: boolean) => {
-    if (!soundEnabled) return;
-    
-    try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.value = isPaid ? 1000 : 600;
-      oscillator.type = 'sine';
-      
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
-    } catch (error) {
-      console.error('Error playing notification sound:', error);
-    }
-  }, [soundEnabled]);
-
-  // Fetch booking details when a new booking is detected - use ref to avoid recreation
   const fetchBookingDetailsRef = useRef(async (bookingId: string): Promise<Booking | null> => {
     try {
       const { data: bookingData, error } = await supabase
@@ -329,6 +317,11 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
     soundEnabledRef.current = soundEnabled;
   }, [soundEnabled]);
 
+  const presentStaffNotificationRef = useRef(presentStaffNotification);
+  useEffect(() => {
+    presentStaffNotificationRef.current = presentStaffNotification;
+  }, [presentStaffNotification]);
+
   // Add notification function - use ref to avoid recreation
   const addNotificationRef = useRef((booking: Booking) => {
     const isPaid = !!(booking.payment_mode && booking.payment_mode !== 'venue' && booking.payment_txn_id);
@@ -340,8 +333,9 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
       (bookingLoc ? bookingLoc === activeId : mainId != null && activeId === mainId);
 
     setNotifications((prev) => {
-      // Check if notification already exists
-      const existingNotification = prev.find((n) => n.booking.id === booking.id);
+      const existingNotification = prev.find(
+        (n) => isBookingStaffNotification(n) && n.booking.id === booking.id
+      );
       if (existingNotification) {
         console.log('🔔 Notification already exists for booking:', booking.id);
         return prev;
@@ -356,33 +350,8 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
         isRead: false,
       };
 
-      if (isForActiveBranch && soundEnabledRef.current) {
-        try {
-          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-          const oscillator = audioContext.createOscillator();
-          const gainNode = audioContext.createGain();
-
-          oscillator.connect(gainNode);
-          gainNode.connect(audioContext.destination);
-
-          oscillator.frequency.value = isPaid ? 1000 : 600;
-          oscillator.type = 'sine';
-
-          gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-
-          oscillator.start(audioContext.currentTime);
-          oscillator.stop(audioContext.currentTime + 0.3);
-        } catch (error) {
-          console.error('Error playing notification sound:', error);
-        }
-      }
-
       if (isForActiveBranch) {
-        toast.success(`New ${isPaid ? 'Paid ' : ''}Booking: ${booking.customer.name}`, {
-          description: `${booking.station.name} • ${format(new Date(booking.booking_date), 'MMM dd')} • ${booking.start_time}`,
-          duration: 5000,
-        });
+        queueMicrotask(() => presentStaffNotificationRef.current(notification));
       }
 
       return [notification, ...prev];
@@ -473,11 +442,13 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
               notification.alertType === 'unsettled_checkout'))
       );
       if (duplicate) return prev;
+
+      queueMicrotask(() => presentStaffNotificationRef.current(notification));
       return [notification, ...prev];
     });
   }, []);
 
-  useSessionStaffNotificationMonitor(addSessionNotification, soundEnabled);
+  useSessionStaffNotificationMonitor(addSessionNotification);
 
   // Load existing bookings for the active branch to populate previousBookingIds (no duplicate alerts)
   useEffect(() => {
@@ -571,6 +542,7 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
       value={{
         notifications: visibleNotifications,
         unreadCount,
+        ringSignal,
         soundEnabled,
         setSoundEnabled,
         removeNotification,
