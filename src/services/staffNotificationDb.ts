@@ -18,13 +18,31 @@ export interface StaffNotificationRow {
 
 const HISTORY_MS = 24 * 60 * 60 * 1000;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizePayload(payload: unknown): Record<string, unknown> {
+  if (typeof payload === 'string') {
+    try {
+      const parsed = JSON.parse(payload) as unknown;
+      return isRecord(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return isRecord(payload) ? payload : {};
+}
+
 function payloadToStaffNotification(row: StaffNotificationRow): StaffNotification | null {
   const timestamp = new Date(row.created_at);
   if (Number.isNaN(timestamp.getTime())) return null;
 
+  const payload = normalizePayload(row.payload);
+
   if (row.kind === 'booking') {
-    const isPaid = Boolean(row.payload.isPaid);
-    const booking = row.payload.booking;
+    const isPaid = Boolean(payload.isPaid);
+    const booking = payload.booking;
     const raw = {
       kind: 'booking',
       id: row.id,
@@ -33,28 +51,32 @@ function payloadToStaffNotification(row: StaffNotificationRow): StaffNotificatio
       isPaid,
       isRead: row.is_read,
     };
-    return sanitizeStaffNotification(raw);
+    const model = sanitizeStaffNotification(raw);
+    if (!model) {
+      console.warn('Failed to parse booking staff notification row', row.id, payload);
+    }
+    return model;
   }
 
   if (row.kind === 'session') {
-    const alertType = row.payload.alertType as SessionAlertType | undefined;
-    if (!alertType || typeof row.payload.message !== 'string') return null;
+    const alertType = payload.alertType as SessionAlertType | undefined;
+    if (!alertType || typeof payload.message !== 'string') return null;
 
     return {
       kind: 'session',
       id: row.id,
       alertType,
       sessionId:
-        typeof row.payload.sessionId === 'string' ? row.payload.sessionId : undefined,
+        typeof payload.sessionId === 'string' ? payload.sessionId : undefined,
       customerId:
-        typeof row.payload.customerId === 'string' ? row.payload.customerId : undefined,
+        typeof payload.customerId === 'string' ? payload.customerId : undefined,
       stationId:
-        typeof row.payload.stationId === 'string' ? row.payload.stationId : undefined,
+        typeof payload.stationId === 'string' ? payload.stationId : undefined,
       stationName:
-        typeof row.payload.stationName === 'string' ? row.payload.stationName : 'Station',
+        typeof payload.stationName === 'string' ? payload.stationName : 'Station',
       customerName:
-        typeof row.payload.customerName === 'string' ? row.payload.customerName : 'Customer',
-      message: row.payload.message,
+        typeof payload.customerName === 'string' ? payload.customerName : 'Customer',
+      message: payload.message,
       locationId: row.location_id,
       timestamp,
       isRead: row.is_read,
@@ -132,6 +154,16 @@ export async function syncStaffSessionNotifications(locationId: string): Promise
 
   if (error) {
     console.error('Failed to sync session staff notifications:', error);
+  }
+}
+
+export async function ensureStaffBookingNotification(bookingId: string): Promise<void> {
+  const { error } = await supabase.rpc('ensure_staff_booking_notification', {
+    p_booking_id: bookingId,
+  });
+
+  if (error) {
+    console.error('Failed to ensure staff booking notification:', error);
   }
 }
 

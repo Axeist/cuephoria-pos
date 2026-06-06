@@ -2183,6 +2183,10 @@ export type Database = {
         Args: { p_location_id?: string | null }
         Returns: number
       }
+      ensure_staff_booking_notification: {
+        Args: { p_booking_id: string }
+        Returns: string
+      }
       update_missed_bookings: {
         Args: Record<PropertyKey, never>
         Returns: undefined

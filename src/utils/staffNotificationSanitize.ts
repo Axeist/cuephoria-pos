@@ -23,10 +23,12 @@ export function isBookingStaffNotification(
   notification: StaffNotification
 ): notification is BookingStaffNotification {
   const booking = isRecord(notification) ? notification.booking : undefined;
+  const bookingId = isRecord(booking) ? booking.id : null;
   return (
     notification?.kind === 'booking' &&
     isRecord(booking) &&
-    typeof booking.id === 'string' &&
+    bookingId != null &&
+    String(bookingId).length > 0 &&
     isRecord(booking.customer) &&
     isRecord(booking.station)
   );
@@ -60,7 +62,9 @@ export function sanitizeStaffNotification(raw: unknown): StaffNotification | nul
   }
 
   const booking = isRecord(raw.booking) ? raw.booking : null;
-  if (!booking || typeof booking.id !== 'string') return null;
+  if (!booking || booking.id == null || String(booking.id).length === 0) return null;
+
+  const bookingId = String(booking.id);
 
   const station = isRecord(booking.station) ? booking.station : { name: 'Unknown', type: 'unknown' };
   const customer = isRecord(booking.customer)
@@ -72,7 +76,7 @@ export function sanitizeStaffNotification(raw: unknown): StaffNotification | nul
     id: raw.id,
     booking: {
       ...(booking as BookingStaffNotification['booking']),
-      id: booking.id,
+      id: bookingId,
       station: {
         name: typeof station.name === 'string' ? station.name : 'Unknown',
         type: typeof station.type === 'string' ? station.type : 'unknown',

@@ -19,6 +19,7 @@ import {
 } from '@/types/staffNotification.types';
 import {
   clearStaffNotificationsForLocation,
+  ensureStaffBookingNotification,
   fetchStaffNotifications,
   markAllStaffNotificationsRead,
   markStaffNotificationRead,
@@ -69,6 +70,7 @@ const BookingNotificationContext = createContext<BookingNotificationContextType 
 );
 
 const SESSION_SYNC_MS = 15_000;
+const REFETCH_MS = 20_000;
 const POPUP_FRESH_MS = 45_000;
 
 export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -140,7 +142,10 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
   const handleRealtimeRow = useCallback(
     (row: StaffNotificationRow, event: 'INSERT' | 'UPDATE') => {
       const model = staffNotificationRowToModel(row);
-      if (!model) return;
+      if (!model) {
+        console.warn('Ignored staff notification row — could not parse', row?.id, row?.kind);
+        return;
+      }
 
       setNotifications((prev) => sortStaffNotifications(mergeStaffNotification(prev, model)));
 
@@ -150,6 +155,27 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
       if (!notificationMatchesActiveBranch(model, activeLocationId, locations)) return;
 
       queueMicrotask(() => presentStaffNotificationRef.current(model));
+    },
+    [activeLocationId, locations]
+  );
+
+  const applyFetchedNotifications = useCallback(
+    (items: StaffNotification[], options: { announceNew?: boolean } = {}) => {
+      setNotifications((prev) => {
+        const prevIds = new Set(prev.map((n) => n.id));
+        const merged = sortStaffNotifications(items);
+
+        if (options.announceNew && !skipPopupRef.current) {
+          for (const item of merged) {
+            if (prevIds.has(item.id) || item.isRead) continue;
+            if (Date.now() - item.timestamp.getTime() > POPUP_FRESH_MS) continue;
+            if (!notificationMatchesActiveBranch(item, activeLocationId, locations)) continue;
+            queueMicrotask(() => presentStaffNotificationRef.current(item));
+          }
+        }
+
+        return merged;
+      });
     },
     [activeLocationId, locations]
   );
@@ -168,11 +194,18 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
     const load = async () => {
       const items = await fetchStaffNotifications(activeLocationId);
       if (cancelled) return;
-      setNotifications(sortStaffNotifications(items));
+      applyFetchedNotifications(items);
       skipPopupRef.current = false;
     };
 
     void load();
+
+    const refetchId = window.setInterval(() => {
+      void fetchStaffNotifications(activeLocationId).then((items) => {
+        if (cancelled) return;
+        applyFetchedNotifications(items, { announceNew: true });
+      });
+    }, REFETCH_MS);
 
     const channel = supabase
       .channel(`staff-notifications-${activeLocationId}`)
@@ -210,9 +243,32 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
 
     return () => {
       cancelled = true;
+      window.clearInterval(refetchId);
       supabase.removeChannel(channel);
     };
-  }, [activeLocationId, handleRealtimeRow]);
+  }, [activeLocationId, applyFetchedNotifications, handleRealtimeRow]);
+
+  // Fallback: ensure DB notification row when a booking is inserted (covers missed triggers / Realtime)
+  useEffect(() => {
+    if (!activeLocationId) return;
+
+    const channel = supabase
+      .channel(`staff-booking-fallback-${activeLocationId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'bookings' },
+        (payload) => {
+          const bookingId = (payload.new as { id?: string })?.id;
+          if (!bookingId) return;
+          void ensureStaffBookingNotification(bookingId);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeLocationId]);
 
   // Session timeout alerts: evaluate server-side, broadcast via staff_notifications
   useEffect(() => {
