@@ -1,6 +1,6 @@
 import type { Session, Station } from '@/types/pos.types';
 import type { OccupancyRates } from '@/utils/stationPricing';
-import { parsePrepaidBookingLink } from '@/utils/prepaidBooking.utils';
+import { parsePrepaidBookingLink } from '@/utils/prepaidBooking.core';
 
 /** Matches Station Command “On booking page” / `eventEnabled` in transformStationRow. */
 export function isStationPublicBookable(row: {
@@ -96,7 +96,12 @@ export function transformStationRow(item: Record<string, unknown>): Station {
     isOccupied: Boolean(item.is_occupied),
     currentSession: parseCurrentSession(item.currentsession, String(item.id)),
     category: (item.category as string | null) ?? null,
-    eventEnabled: item.event_enabled ?? (item.category ? false : true),
+    eventEnabled:
+      typeof item.event_enabled === 'boolean'
+        ? item.event_enabled
+        : item.category
+          ? false
+          : true,
     slotDuration: item.slot_duration != null ? Number(item.slot_duration) : null,
     maxPlayers,
     occupancyRates,
