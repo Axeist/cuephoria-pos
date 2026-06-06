@@ -164,5 +164,7 @@ export function transformStationRow(item: Record<string, unknown>): Station {
   };
 }
 
-export const STATION_SELECT_FIELDS =
-  'id,name,type,hourly_rate,is_occupied,currentsession,created_at,category,event_enabled,slot_duration,max_players,occupancy_rates,pricing_mode,duration_tiers,team_name,team_color,max_capacity,single_rate,accent_color';
+export const STATION_SELECT_FIELDS_BASE =
+  'id,name,type,hourly_rate,is_occupied,currentsession,created_at,category,event_enabled,slot_duration,max_players,occupancy_rates,pricing_mode,duration_tiers,team_name,team_color,max_capacity,single_rate';
+
+export const STATION_SELECT_FIELDS = `${STATION_SELECT_FIELDS_BASE},accent_color`;

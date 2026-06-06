@@ -38,6 +38,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { AccentColorPicker } from '@/components/ui/AccentColorPicker';
 import { getDefaultStationTypeHex } from '@/utils/colorTheme.utils';
+import { isMissingColumnError } from '@/utils/supabaseColumn.utils';
 
 const stationSchema = z.object({
   name: z.string().min(2, { message: 'Station name must be at least 2 characters.' }),
@@ -163,7 +164,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
         accentColor: accentColor ?? undefined,
       };
 
-      const { error } = await supabase.from('stations').insert({
+      const insertPayload: Record<string, unknown> = {
         id: stationId,
         name: values.name,
         type: values.type,
@@ -176,9 +177,18 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
         occupancy_rates: rates,
         pricing_mode: pricingMode,
         duration_tiers: tiers,
-        accent_color: accentColor,
         location_id: activeLocationId,
-      });
+      };
+      if (accentColor) {
+        insertPayload.accent_color = accentColor;
+      }
+
+      let { error } = await supabase.from('stations').insert(insertPayload);
+
+      if (error && isMissingColumnError(error, 'accent_color')) {
+        delete insertPayload.accent_color;
+        ({ error } = await supabase.from('stations').insert(insertPayload));
+      }
 
       if (error) {
         console.error('Error adding station:', error);

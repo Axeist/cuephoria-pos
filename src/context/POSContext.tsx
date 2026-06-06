@@ -12,6 +12,7 @@ import {
   ProductCategoryMeta,
 } from '@/types/pos.types';
 import { getDefaultCategoryHex, normalizeHexColor, resolveCategoryHex } from '@/utils/colorTheme.utils';
+import { isMissingColumnError } from '@/utils/supabaseColumn.utils';
 import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
 import { useProducts } from '@/hooks/useProducts';
 import { useCustomers } from '@/hooks/useCustomers';
@@ -121,6 +122,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   
   const [categories, setCategories] = useState<string[]>(['uncategorized']);
   const [categoryMeta, setCategoryMeta] = useState<Record<string, ProductCategoryMeta>>({});
+  const categoryAppearanceColumnsRef = useRef(true);
 
   const getCategoryAccentColor = useCallback(
     (category: string) => {
@@ -218,19 +220,59 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!key || !activeLocationId) return;
 
       const updatePayload: Record<string, unknown> = {};
-      if (patch.accentColor !== undefined) {
+      if (patch.accentColor !== undefined && categoryAppearanceColumnsRef.current) {
         updatePayload.accent_color = normalizeHexColor(patch.accentColor);
       }
-      if (patch.quickShopEnabled !== undefined) {
+      if (patch.quickShopEnabled !== undefined && categoryAppearanceColumnsRef.current) {
         updatePayload.quick_shop_enabled = patch.quickShopEnabled;
       }
-      if (Object.keys(updatePayload).length === 0) return;
+      if (Object.keys(updatePayload).length === 0) {
+        setCategoryMeta((prev) => ({
+          ...prev,
+          [key]: {
+            name: key,
+            accentColor:
+              patch.accentColor !== undefined
+                ? normalizeHexColor(patch.accentColor)
+                : (prev[key]?.accentColor ?? null),
+            quickShopEnabled:
+              patch.quickShopEnabled ?? prev[key]?.quickShopEnabled ?? true,
+          },
+        }));
+        return;
+      }
 
-      const { error } = await supabase
+      let { error } = await supabase
         .from('categories')
         .update(updatePayload)
         .eq('name', key)
         .eq('location_id', activeLocationId);
+
+      if (
+        error &&
+        (isMissingColumnError(error, 'accent_color') ||
+          isMissingColumnError(error, 'quick_shop_enabled'))
+      ) {
+        categoryAppearanceColumnsRef.current = false;
+        setCategoryMeta((prev) => ({
+          ...prev,
+          [key]: {
+            name: key,
+            accentColor:
+              patch.accentColor !== undefined
+                ? normalizeHexColor(patch.accentColor)
+                : (prev[key]?.accentColor ?? null),
+            quickShopEnabled:
+              patch.quickShopEnabled ?? prev[key]?.quickShopEnabled ?? true,
+          },
+        }));
+        toast({
+          title: 'Appearance saved locally',
+          description:
+            'Run the accent-color migration on Supabase to persist category colors across devices.',
+        });
+        return;
+      }
 
       if (error) {
         toast({
@@ -496,10 +538,45 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         if (!activeLocationId) return;
 
-        const { data, error } = await supabase
+        const buildMetaFromRows = (
+          rows: Array<{ name: string; accent_color?: string | null; quick_shop_enabled?: boolean | null }>,
+          useDefaultsOnly: boolean
+        ) => {
+          const meta: Record<string, ProductCategoryMeta> = {};
+          const names = rows.map((item) => {
+            const name = String(item.name).toLowerCase();
+            meta[name] = {
+              name,
+              accentColor: useDefaultsOnly
+                ? null
+                : normalizeHexColor(item.accent_color as string | null),
+              quickShopEnabled: useDefaultsOnly
+                ? true
+                : (item.quick_shop_enabled ?? true),
+            };
+            return name;
+          });
+          return { meta, names };
+        };
+
+        let { data, error } = await supabase
           .from('categories')
           .select('name, accent_color, quick_shop_enabled')
           .eq('location_id', activeLocationId);
+
+        let useDefaultsOnly = false;
+        if (
+          error &&
+          (isMissingColumnError(error, 'accent_color') ||
+            isMissingColumnError(error, 'quick_shop_enabled'))
+        ) {
+          categoryAppearanceColumnsRef.current = false;
+          useDefaultsOnly = true;
+          ({ data, error } = await supabase
+            .from('categories')
+            .select('name')
+            .eq('location_id', activeLocationId));
+        }
         
         if (error) {
           console.error('Error fetching categories:', error);
@@ -507,16 +584,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         if (data && data.length > 0) {
-          const meta: Record<string, ProductCategoryMeta> = {};
-          const dbCategories = data.map((item) => {
-            const name = String(item.name).toLowerCase();
-            meta[name] = {
-              name,
-              accentColor: normalizeHexColor(item.accent_color as string | null),
-              quickShopEnabled: item.quick_shop_enabled ?? true,
-            };
-            return name;
-          });
+          const { meta, names: dbCategories } = buildMetaFromRows(data as any[], useDefaultsOnly);
           
           if (!dbCategories.includes('uncategorized')) {
             try {
@@ -591,14 +659,28 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
       
-      const { error } = await supabase
-        .from('categories')
-        .insert({
+      const insertPayload: Record<string, unknown> = {
+        name: trimmedCategory,
+        location_id: activeLocationId,
+      };
+      if (categoryAppearanceColumnsRef.current) {
+        insertPayload.accent_color = getDefaultCategoryHex(trimmedCategory);
+        insertPayload.quick_shop_enabled = true;
+      }
+
+      let { error } = await supabase.from('categories').insert(insertPayload);
+
+      if (
+        error &&
+        (isMissingColumnError(error, 'accent_color') ||
+          isMissingColumnError(error, 'quick_shop_enabled'))
+      ) {
+        categoryAppearanceColumnsRef.current = false;
+        ({ error } = await supabase.from('categories').insert({
           name: trimmedCategory,
           location_id: activeLocationId,
-          accent_color: getDefaultCategoryHex(trimmedCategory),
-          quick_shop_enabled: true,
-        });
+        }));
+      }
         
       if (error) {
         console.error('Error adding category to Supabase:', error);

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Station } from '@/types/pos.types';
-import { STATION_SELECT_FIELDS, transformStationRow } from '@/utils/stationTransform';
+import { STATION_SELECT_FIELDS, STATION_SELECT_FIELDS_BASE, transformStationRow } from '@/utils/stationTransform';
+import { isMissingColumnError } from '@/utils/supabaseColumn.utils';
 import type { OccupancyRates } from '@/utils/stationPricing';
 import { totalRateAtMaxOccupancy } from '@/utils/stationPricing';
 import type { DurationTier } from '@/utils/timeBasedPricing.utils';
@@ -25,6 +26,7 @@ export const useStationsData = () => {
     [activeLocationId]
   );
   const prevLocationIdRef = useRef<string | null>(null);
+  const stationAccentColumnRef = useRef(true);
   
   const refreshStationsFromDB = useCallback(async (silent: boolean = false) => {
     if (!activeLocationId) {
@@ -39,7 +41,9 @@ export const useStationsData = () => {
     }
     
     try {
-      const selectFields = STATION_SELECT_FIELDS;
+      let selectFields = stationAccentColumnRef.current
+        ? STATION_SELECT_FIELDS
+        : STATION_SELECT_FIELDS_BASE;
       
       let page = 0;
       const pageSize = 1000;
@@ -47,12 +51,23 @@ export const useStationsData = () => {
       let finished = false;
 
       while (!finished) {
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from('stations')
           .select(selectFields)
           .eq('location_id', activeLocationId)
           .order('created_at', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (error && isMissingColumnError(error, 'accent_color')) {
+          stationAccentColumnRef.current = false;
+          selectFields = STATION_SELECT_FIELDS_BASE;
+          ({ data, error } = await supabase
+            .from('stations')
+            .select(selectFields)
+            .eq('location_id', activeLocationId)
+            .order('created_at', { ascending: false })
+            .range(page * pageSize, (page + 1) * pageSize - 1));
+        }
           
         if (error) {
           console.error('Error fetching stations:', error);
@@ -186,15 +201,28 @@ export const useStationsData = () => {
       if (updates.durationTiers !== undefined) {
         updateData.duration_tiers = updates.durationTiers;
       }
-      if (updates.accentColor !== undefined) {
+      if (updates.accentColor !== undefined && stationAccentColumnRef.current) {
         updateData.accent_color = updates.accentColor;
       }
       const { error } = await supabase
         .from('stations')
         .update(updateData)
         .eq('id', stationId);
-        
-      if (error) {
+
+      if (error && isMissingColumnError(error, 'accent_color') && updateData.accent_color !== undefined) {
+        stationAccentColumnRef.current = false;
+        delete updateData.accent_color;
+        const retry = await supabase.from('stations').update(updateData).eq('id', stationId);
+        if (retry.error) {
+          console.error('Error updating station in Supabase:', retry.error);
+          toast({
+            title: 'Database Error',
+            description: 'Failed to update station in database',
+            variant: 'destructive',
+          });
+          return false;
+        }
+      } else if (error) {
         console.error('Error updating station in Supabase:', error);
         toast({
           title: 'Database Error',
