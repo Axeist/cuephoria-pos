@@ -11,6 +11,10 @@ import {
 import {
   formatRemainingTime,
   getSessionDurationState,
+  getUrgencyHeartbeatClass,
+  getUrgencyTextColor,
+  getUrgencyTimerContainerClass,
+  type SessionUrgency,
 } from '@/utils/sessionDuration.utils';
 import { Timer } from 'lucide-react';
 import type { StationTheme } from '@/utils/stationTheme';
@@ -39,6 +43,9 @@ const StationTimer: React.FC<StationTimerProps> = ({
   const [seconds, setSeconds] = useState(0);
   const [cost, setCost] = useState(0);
   const [remainingLabel, setRemainingLabel] = useState<string | null>(null);
+  const [urgency, setUrgency] = useState<SessionUrgency | null>(null);
+  const [remainingRatio, setRemainingRatio] = useState<number | null>(null);
+  const [isOverdue, setIsOverdue] = useState(false);
   const [tick, setTick] = useState(false);
   const { customers } = usePOS();
   const customersRef = useRef(customers);
@@ -58,6 +65,10 @@ const StationTimer: React.FC<StationTimerProps> = ({
       setMinutes(0);
       setSeconds(0);
       setCost(0);
+      setRemainingLabel(null);
+      setUrgency(null);
+      setRemainingRatio(null);
+      setIsOverdue(false);
       return;
     }
 
@@ -95,8 +106,14 @@ const StationTimer: React.FC<StationTimerProps> = ({
             ? `+${formatRemainingTime(durationState.remainingMs)}`
             : formatRemainingTime(durationState.remainingMs)
         );
+        setUrgency(durationState.urgency);
+        setRemainingRatio(durationState.remainingRatio);
+        setIsOverdue(durationState.isOverdue);
       } else {
         setRemainingLabel(null);
+        setUrgency(null);
+        setRemainingRatio(null);
+        setIsOverdue(false);
       }
     };
 
@@ -138,19 +155,39 @@ const StationTimer: React.FC<StationTimerProps> = ({
 
   const costSizeClass = prominent ? 'text-base' : compact ? 'text-sm' : 'text-lg';
 
+  const hasUrgency = urgency != null && urgency !== 'comfortable' && !isPaused;
+  const urgencyContainerClass = hasUrgency && urgency ? getUrgencyTimerContainerClass(urgency) : '';
+  const heartbeatClass = hasUrgency && urgency ? getUrgencyHeartbeatClass(urgency) : '';
+  const remainingColor =
+    remainingRatio != null
+      ? getUrgencyTextColor(remainingRatio, isOverdue)
+      : isOverdue
+        ? 'rgb(248, 113, 113)'
+        : 'rgb(110, 231, 183)';
+
   return (
     <div
-      className={`relative overflow-hidden flex flex-col items-center justify-center rounded-lg border backdrop-blur-sm transition-all duration-150 ${sizeClass} ${
+      className={`relative overflow-hidden flex flex-col items-center justify-center rounded-lg border backdrop-blur-sm transition-all duration-300 ${sizeClass} ${
         isPaused
           ? 'bg-amber-950/60 border-amber-500/35'
-          : 'bg-black/55 border-white/10 shadow-inner'
+          : hasUrgency
+            ? urgencyContainerClass
+            : 'bg-black/55 border-white/10 shadow-inner'
       } ${tick && !isPaused && !prominent ? 'scale-[1.01]' : ''}`}
     >
-      {!isPaused && (
+      {!isPaused && !hasUrgency && (
         <div
           className="pointer-events-none absolute inset-0 opacity-20"
           style={{
             background: `linear-gradient(90deg, transparent, ${theme.accent.includes('violet') ? 'rgba(139,92,246,0.3)' : 'rgba(249,115,22,0.2)'}, transparent)`,
+          }}
+        />
+      )}
+      {hasUrgency && (
+        <div
+          className="pointer-events-none absolute inset-0 opacity-30"
+          style={{
+            background: `radial-gradient(ellipse at center, ${remainingColor}33 0%, transparent 70%)`,
           }}
         />
       )}
@@ -175,14 +212,21 @@ const StationTimer: React.FC<StationTimerProps> = ({
       />
       {remainingLabel && (
         <span
-          className={`relative font-semibold tabular-nums ${
-            prominent ? 'text-sm' : 'text-[10px]'
-          } ${
-            remainingLabel.startsWith('+')
-              ? 'text-red-400'
-              : 'text-emerald-300/90'
-          }`}
+          className={`relative inline-flex items-center gap-1 font-bold tabular-nums drop-shadow-sm ${
+            prominent ? 'text-base sm:text-lg mt-0.5' : 'text-[10px]'
+          } ${heartbeatClass}`}
+          style={{ color: remainingColor }}
         >
+          {hasUrgency && (
+            <span
+              className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+              style={{
+                backgroundColor: remainingColor,
+                boxShadow: `0 0 6px ${remainingColor}`,
+              }}
+              aria-hidden
+            />
+          )}
           {remainingLabel.startsWith('+') ? remainingLabel : `${remainingLabel} left`}
         </span>
       )}

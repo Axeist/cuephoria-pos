@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { Session } from '@/types/pos.types';
 import { getBillableMs } from '@/utils/sessionTimer.utils';
 
@@ -74,27 +75,80 @@ export function formatRemainingTime(remainingMs: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+/** Smooth green → amber → red based on how much session time remains (1 = full, 0 = none). */
+export function getUrgencyHue(remainingRatio: number): number {
+  const clamped = Math.max(0, Math.min(1, remainingRatio));
+  return Math.round(clamped * 142);
+}
+
+export function getUrgencyTextColor(remainingRatio: number, isOverdue: boolean): string {
+  if (isOverdue) return 'rgb(248, 113, 113)';
+  const hue = getUrgencyHue(remainingRatio);
+  return `hsl(${hue}, 82%, 58%)`;
+}
+
+export function getUrgencyBarStyle(remainingRatio: number, isOverdue: boolean): CSSProperties {
+  if (isOverdue) {
+    return {
+      width: '100%',
+      background: 'linear-gradient(90deg, rgb(220, 38, 38), rgb(248, 113, 113), rgb(220, 38, 38))',
+      backgroundSize: '200% 100%',
+    };
+  }
+  const hue = getUrgencyHue(remainingRatio);
+  const hue2 = Math.max(0, hue - 18);
+  return {
+    background: `linear-gradient(90deg, hsl(${hue}, 78%, 46%), hsl(${hue2}, 85%, 58%))`,
+  };
+}
+
 export function getUrgencyBarClass(urgency: SessionUrgency): string {
   switch (urgency) {
     case 'overdue':
-      return 'bg-red-500 animate-pulse';
+      return 'animate-session-bar-overdue';
     case 'critical':
-      return 'bg-gradient-to-r from-red-500 to-orange-500';
+      return 'animate-session-bar-shimmer';
     case 'warning':
-      return 'bg-gradient-to-r from-amber-400 to-yellow-400';
+      return '';
     default:
-      return 'bg-gradient-to-r from-emerald-500 to-green-400';
+      return '';
   }
 }
 
 export function getUrgencyRingClass(urgency: SessionUrgency): string {
   switch (urgency) {
     case 'overdue':
-      return 'ring-2 ring-red-500/70 shadow-[0_0_20px_rgba(239,68,68,0.35)]';
+      return 'ring-2 ring-red-500/80 shadow-[0_0_24px_rgba(239,68,68,0.45)] animate-session-card-glow-overdue';
     case 'critical':
-      return 'ring-2 ring-red-500/50 shadow-[0_0_16px_rgba(239,68,68,0.25)]';
+      return 'ring-2 ring-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.35)] animate-session-card-glow-critical';
     case 'warning':
-      return 'ring-2 ring-amber-400/45 shadow-[0_0_12px_rgba(251,191,36,0.2)]';
+      return 'ring-2 ring-amber-400/50 shadow-[0_0_14px_rgba(251,191,36,0.25)]';
+    default:
+      return '';
+  }
+}
+
+export function getUrgencyHeartbeatClass(urgency: SessionUrgency): string {
+  switch (urgency) {
+    case 'overdue':
+      return 'animate-session-heartbeat-overdue';
+    case 'critical':
+      return 'animate-session-heartbeat-critical';
+    case 'warning':
+      return 'animate-session-heartbeat-warning';
+    default:
+      return '';
+  }
+}
+
+export function getUrgencyTimerContainerClass(urgency: SessionUrgency): string {
+  switch (urgency) {
+    case 'overdue':
+      return 'border-red-500/55 bg-red-950/45 animate-session-timer-glow-overdue';
+    case 'critical':
+      return 'border-red-500/40 bg-red-950/30 animate-session-timer-glow-critical';
+    case 'warning':
+      return 'border-amber-400/35 bg-amber-950/25';
     default:
       return '';
   }

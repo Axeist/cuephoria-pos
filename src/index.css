@@ -311,6 +311,156 @@
   }
 }
 
+/* Session ending soon — irregular “dying heartbeat” pulse */
+@keyframes session-heartbeat-warning {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  12% {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+  24% {
+    transform: scale(1);
+    opacity: 0.92;
+  }
+  50%, 100% {
+    transform: scale(1);
+    opacity: 0.95;
+  }
+}
+
+@keyframes session-heartbeat-critical {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  6% {
+    transform: scale(1.1);
+    filter: brightness(1.35);
+  }
+  12% {
+    transform: scale(1);
+    filter: brightness(0.9);
+  }
+  18% {
+    transform: scale(1.06);
+    filter: brightness(1.2);
+  }
+  24% {
+    transform: scale(1);
+    filter: brightness(0.85);
+  }
+  38% {
+    transform: scale(1);
+    filter: brightness(0.8);
+  }
+  44% {
+    transform: scale(1.05);
+    filter: brightness(1.15);
+  }
+  52% {
+    transform: scale(1);
+    filter: brightness(0.75);
+  }
+  70%, 100% {
+    transform: scale(1);
+    filter: brightness(0.7);
+    opacity: 0.88;
+  }
+}
+
+@keyframes session-heartbeat-overdue {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  5% {
+    transform: scale(1.14);
+    filter: brightness(1.5);
+  }
+  10% {
+    transform: scale(1);
+    filter: brightness(0.85);
+  }
+  15% {
+    transform: scale(1.08);
+    filter: brightness(1.25);
+  }
+  22% {
+    transform: scale(1);
+    filter: brightness(0.7);
+  }
+  35% {
+    transform: scale(1.06);
+    filter: brightness(1.2);
+  }
+  42% {
+    transform: scale(1);
+    filter: brightness(0.65);
+  }
+  55%, 100% {
+    transform: scale(1);
+    filter: brightness(0.6);
+    opacity: 0.85;
+  }
+}
+
+@keyframes session-timer-glow-critical {
+  0%, 100% {
+    box-shadow: inset 0 0 14px rgba(239, 68, 68, 0.12), 0 0 10px rgba(239, 68, 68, 0.18);
+  }
+  50% {
+    box-shadow: inset 0 0 22px rgba(239, 68, 68, 0.28), 0 0 18px rgba(239, 68, 68, 0.35);
+  }
+}
+
+@keyframes session-timer-glow-overdue {
+  0%, 100% {
+    box-shadow: inset 0 0 16px rgba(239, 68, 68, 0.2), 0 0 12px rgba(239, 68, 68, 0.28);
+  }
+  50% {
+    box-shadow: inset 0 0 28px rgba(239, 68, 68, 0.4), 0 0 24px rgba(239, 68, 68, 0.5);
+  }
+}
+
+@keyframes session-card-glow-critical {
+  0%, 100% {
+    box-shadow: 0 0 16px rgba(239, 68, 68, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(239, 68, 68, 0.45);
+  }
+}
+
+@keyframes session-card-glow-overdue {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 36px rgba(239, 68, 68, 0.6);
+  }
+}
+
+@keyframes session-bar-shimmer {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
+
+@keyframes session-bar-overdue {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
 @keyframes pulse-soft {
   0% {
     opacity: 0.5;
@@ -481,7 +631,16 @@
   .animate-slide-down,
   .animate-fade-in,
   .animate-scale-in,
-  .page-enter-fast {
+  .page-enter-fast,
+  .animate-session-heartbeat-warning,
+  .animate-session-heartbeat-critical,
+  .animate-session-heartbeat-overdue,
+  .animate-session-timer-glow-critical,
+  .animate-session-timer-glow-overdue,
+  .animate-session-card-glow-critical,
+  .animate-session-card-glow-overdue,
+  .animate-session-bar-shimmer,
+  .animate-session-bar-overdue {
     animation: none !important;
   }
 
@@ -513,6 +672,45 @@
 
 .animate-pulse-subtle {
   animation: pulse-subtle 3s ease-in-out infinite;
+}
+
+.animate-session-heartbeat-warning {
+  animation: session-heartbeat-warning 2.8s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.animate-session-heartbeat-critical {
+  animation: session-heartbeat-critical 2.2s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.animate-session-heartbeat-overdue {
+  animation: session-heartbeat-overdue 1.6s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.animate-session-timer-glow-critical {
+  animation: session-timer-glow-critical 2.2s ease-in-out infinite;
+}
+
+.animate-session-timer-glow-overdue {
+  animation: session-timer-glow-overdue 1.6s ease-in-out infinite;
+}
+
+.animate-session-card-glow-critical {
+  animation: session-card-glow-critical 2.2s ease-in-out infinite;
+}
+
+.animate-session-card-glow-overdue {
+  animation: session-card-glow-overdue 1.6s ease-in-out infinite;
+}
+
+.animate-session-bar-shimmer {
+  animation: session-bar-shimmer 1.8s ease-in-out infinite;
+}
+
+.animate-session-bar-overdue {
+  animation: session-bar-overdue 1.2s ease-in-out infinite;
 }
 
 /* Animation delays */
