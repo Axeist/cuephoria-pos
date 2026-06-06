@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,8 @@ import { fetchTodayBookingsForStationCustomer, pickDefaultPrepaidBooking } from 
 import type { StationBookingRow } from '@/types/prepaidBooking.types';
 
 const isLateNight = () => new Date().getHours() < 6;
+
+const DEFAULT_DURATION_TIERS = getDefaultDurationTiers();
 
 interface StartSessionDialogProps {
   open: boolean;
@@ -77,7 +79,10 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   onConfirm,
   initialCustomerId = null,
 }) => {
-  const effectiveTiers = durationTiers.length > 0 ? durationTiers : getDefaultDurationTiers();
+  const effectiveTiers = useMemo(
+    () => (durationTiers.length > 0 ? durationTiers : DEFAULT_DURATION_TIERS),
+    [durationTiers]
+  );
   const isTimeBased = pricingMode === 'time_based';
   const { customers } = usePOS();
   const { activeLocationId } = useLocation();
@@ -103,13 +108,24 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   const [selectedPrepaidId, setSelectedPrepaidId] = useState<string | null>(null);
   const [prepaidLink, setPrepaidLink] = useState<PrepaidBookingLink | null>(null);
   const [bookingsLoading, setBookingsLoading] = useState(false);
+  const dialogWasOpenRef = useRef(false);
 
+  // Reset form only when the dialog opens — not on every customers/tiers re-render.
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      dialogWasOpenRef.current = false;
+      return;
+    }
+    if (dialogWasOpenRef.current) return;
+    dialogWasOpenRef.current = true;
+
     setPlannedDuration(getDefaultPlannedDuration(slotDuration, isTimeBased ? effectiveTiers : undefined));
     setSelectedPrepaidId(null);
     setPrepaidLink(null);
     setTodayBookings([]);
+    setSelectedCoupon('none');
+    setPlayerCount(1);
+    setLateNightPinUnlocked(false);
     if (initialCustomerId) {
       const match = customers.find((c) => c.id === initialCustomerId);
       setSelectedCustomer(match ?? null);
@@ -118,7 +134,17 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
       setSelectedCustomer(null);
       setCustomerSearchQuery('');
     }
-  }, [open, slotDuration, initialCustomerId, customers, isTimeBased, effectiveTiers]);
+    // customers read on open only; ongoing list updates must not wipe typed search
+  }, [open, slotDuration, initialCustomerId, isTimeBased, effectiveTiers]);
+
+  // Pre-select customer after inline add-customer while dialog stays open.
+  useEffect(() => {
+    if (!open || !initialCustomerId) return;
+    const match = customers.find((c) => c.id === initialCustomerId);
+    if (!match) return;
+    setSelectedCustomer((prev) => (prev?.id === match.id ? prev : match));
+    setCustomerSearchQuery((prev) => (prev === match.name ? prev : match.name));
+  }, [open, initialCustomerId, customers]);
 
   useEffect(() => {
     if (!open || !selectedCustomer?.id || !activeLocationId) {

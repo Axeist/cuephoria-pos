@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { DialogFooter } from '@/components/ui/dialog';
 import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
@@ -88,12 +88,19 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
   const [stationBookings, setStationBookings] = useState<Record<string, StationBookingRow[]>>({});
   const [prepaidByStation, setPrepaidByStation] = useState<Record<string, PrepaidBookingLink | null>>({});
   const [bookingsLoading, setBookingsLoading] = useState(false);
+  const dialogWasOpenRef = useRef(false);
 
   const slotDuration = stations[0]?.slotDuration;
   const durationPresets = getDurationPresets(slotDuration);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      dialogWasOpenRef.current = false;
+      return;
+    }
+    if (dialogWasOpenRef.current) return;
+    dialogWasOpenRef.current = true;
+
     const initial: Record<string, number> = {};
     for (const s of stations) {
       initial[s.id] = 1;
@@ -105,7 +112,7 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
     setCustomerSearchQuery('');
     setStationBookings({});
     setPrepaidByStation({});
-  }, [open, stations, slotDuration]);
+  }, [open, slotDuration, stations]);
 
   useEffect(() => {
     if (!open || !selectedCustomer?.id || !activeLocationId) {

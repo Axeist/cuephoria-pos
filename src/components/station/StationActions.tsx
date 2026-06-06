@@ -19,6 +19,9 @@ import {
 import type { StationTheme, StationPhase } from '@/utils/stationTheme';
 import { prefetchPOS, navigateToPOS, sleep, SESSION_TRANSITION } from '@/utils/viewTransition';
 
+const EMPTY_OCCUPANCY_RATES: Record<string, number> = {};
+const EMPTY_DURATION_TIERS: { minutes: number; price: number }[] = [];
+
 interface StationActionsProps {
   station: Station;
   customers: Customer[];
@@ -388,12 +391,12 @@ const StationActions: React.FC<StationActionsProps> = ({
         baseRate={defaultPricing.totalRate}
         hourlyRate={station.hourlyRate}
         maxPlayers={station.maxPlayers ?? 1}
-        occupancyRates={station.occupancyRates ?? {}}
+        occupancyRates={station.occupancyRates ?? EMPTY_OCCUPANCY_RATES}
         stationCategory={station.category}
         slotDuration={station.slotDuration}
         stationType={station.type}
         pricingMode={station.pricingMode}
-        durationTiers={station.durationTiers ?? []}
+        durationTiers={station.durationTiers ?? EMPTY_DURATION_TIERS}
         initialCustomerId={preselectedCustomerId}
         onConfirm={handleStartSession}
       />
