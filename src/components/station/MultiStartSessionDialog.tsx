@@ -33,7 +33,7 @@ import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
 import type { StationBookingRow } from '@/types/prepaidBooking.types';
 import { useLocation } from '@/context/LocationContext';
 import { PrepaidBookingNotice } from '@/components/station/PrepaidBookingNotice';
-import { fetchTodayBookingsForStationCustomer } from '@/utils/prepaidBooking.utils';
+import { fetchTodayBookingsForStationCustomer, pickDefaultPrepaidBooking } from '@/utils/prepaidBooking.utils';
 import {
   applyCouponToRate,
   COUPON_OPTIONS,
@@ -122,7 +122,7 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
       stations.map(async (station) => {
         const rows = await fetchTodayBookingsForStationCustomer(
           station.id,
-          selectedCustomer.id,
+          { id: selectedCustomer.id, phone: selectedCustomer.phone },
           activeLocationId
         );
         return [station.id, rows] as const;
@@ -130,7 +130,24 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
     )
       .then((entries) => {
         if (cancelled) return;
-        setStationBookings(Object.fromEntries(entries));
+        const map = Object.fromEntries(entries);
+        setStationBookings(map);
+
+        const autoLinks: Record<string, PrepaidBookingLink | null> = {};
+        for (const [stationId, rows] of entries) {
+          const auto = pickDefaultPrepaidBooking(rows);
+          if (auto) autoLinks[stationId] = auto.link;
+        }
+        if (Object.keys(autoLinks).length > 0) {
+          setPrepaidByStation((prev) => ({ ...prev, ...autoLinks }));
+          const maxDuration = Object.values(autoLinks).reduce(
+            (max, link) => Math.max(max, link?.durationMinutes ?? 0),
+            0
+          );
+          if (maxDuration > 0) {
+            setPlannedDuration((d) => Math.max(d, maxDuration));
+          }
+        }
       })
       .finally(() => {
         if (!cancelled) setBookingsLoading(false);
@@ -433,6 +450,7 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
                     <p className="mb-1 text-xs font-medium text-muted-foreground">{row.station.name}</p>
                     <PrepaidBookingNotice
                       compact
+                      loading={false}
                       bookings={stationBookings[row.station.id] ?? []}
                       selectedBookingId={
                         prepaidByStation[row.station.id]

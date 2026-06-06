@@ -21,7 +21,7 @@ import type { Station } from '@/types/pos.types';
 import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
 import { useLocation } from '@/context/LocationContext';
 import { PrepaidBookingNotice } from '@/components/station/PrepaidBookingNotice';
-import { fetchTodayBookingsForStationCustomer } from '@/utils/prepaidBooking.utils';
+import { fetchTodayBookingsForStationCustomer, pickDefaultPrepaidBooking } from '@/utils/prepaidBooking.utils';
 import type { StationBookingRow } from '@/types/prepaidBooking.types';
 
 const isLateNight = () => new Date().getHours() < 6;
@@ -120,9 +120,22 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
 
     let cancelled = false;
     setBookingsLoading(true);
-    void fetchTodayBookingsForStationCustomer(stationId, selectedCustomer.id, activeLocationId)
+    void fetchTodayBookingsForStationCustomer(
+      stationId,
+      { id: selectedCustomer.id, phone: selectedCustomer.phone },
+      activeLocationId
+    )
       .then((rows) => {
-        if (!cancelled) setTodayBookings(rows);
+        if (!cancelled) {
+          setTodayBookings(rows);
+          const auto = pickDefaultPrepaidBooking(rows);
+          if (auto) {
+            setSelectedPrepaidId(auto.booking.id);
+            setPrepaidLink(auto.link);
+            setPlannedDuration(auto.link.durationMinutes);
+            setSelectedCoupon('none');
+          }
+        }
       })
       .finally(() => {
         if (!cancelled) setBookingsLoading(false);
@@ -476,17 +489,12 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
           </div>
 
           {selectedCustomer && (
-            <>
-              {bookingsLoading ? (
-                <p className="text-xs text-muted-foreground">Checking today&apos;s bookings…</p>
-              ) : (
-                <PrepaidBookingNotice
-                  bookings={todayBookings}
-                  selectedBookingId={selectedPrepaidId}
-                  onSelectBooking={handlePrepaidSelect}
-                />
-              )}
-            </>
+            <PrepaidBookingNotice
+              bookings={todayBookings}
+              selectedBookingId={selectedPrepaidId}
+              onSelectBooking={handlePrepaidSelect}
+              loading={bookingsLoading}
+            />
           )}
 
           {/* Coupon Selection */}

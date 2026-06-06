@@ -1,7 +1,7 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CreditCard, CalendarCheck } from 'lucide-react';
+import { CreditCard, CalendarCheck, AlertCircle } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
 import type { StationBookingRow } from '@/types/prepaidBooking.types';
@@ -16,6 +16,7 @@ interface PrepaidBookingNoticeProps {
   selectedBookingId: string | null;
   onSelectBooking: (bookingId: string | null, link: PrepaidBookingLink | null) => void;
   compact?: boolean;
+  loading?: boolean;
 }
 
 export function PrepaidBookingNotice({
@@ -23,9 +24,49 @@ export function PrepaidBookingNotice({
   selectedBookingId,
   onSelectBooking,
   compact = false,
+  loading = false,
 }: PrepaidBookingNoticeProps) {
+  if (loading) {
+    return (
+      <p className={`text-muted-foreground ${compact ? 'text-[11px]' : 'text-xs'}`}>
+        Checking today&apos;s paid bookings…
+      </p>
+    );
+  }
+
   const prepaidBookings = bookings.filter(isOnlinePrepaidBooking);
-  if (prepaidBookings.length === 0) return null;
+
+  if (bookings.length === 0) {
+    return (
+      <div
+        className={`rounded-lg border border-white/10 bg-muted/15 ${
+          compact ? 'p-2.5' : 'p-3'
+        }`}
+      >
+        <p className={`text-muted-foreground ${compact ? 'text-[11px]' : 'text-xs'}`}>
+          No bookings today for this customer on this station.
+        </p>
+      </div>
+    );
+  }
+
+  if (prepaidBookings.length === 0) {
+    return (
+      <div
+        className={`rounded-lg border border-amber-500/30 bg-amber-950/20 ${
+          compact ? 'p-2.5' : 'p-3'
+        }`}
+      >
+        <div className="flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+          <p className={`text-amber-100/90 ${compact ? 'text-[11px]' : 'text-xs'}`}>
+            {bookings.length} booking{bookings.length === 1 ? '' : 's'} today, but none are marked
+            as paid online. Link only works for Razorpay / online payments.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -40,7 +81,7 @@ export function PrepaidBookingNotice({
             Pre-paid booking today
           </p>
           <p className={`text-teal-200/75 ${compact ? 'text-[11px]' : 'text-xs'}`}>
-            Session time is already paid online. POS opens only for shop items or overtime.
+            Tap to link — session time is already paid. POS opens only for shop items or overtime.
           </p>
         </div>
       </div>

@@ -828,38 +828,47 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const billableMs = getBillableMs(billingSession, endTime);
         const overtimeMs = prepaid ? getPrepaidOvertimeMs(billingSession, billableMs) : 0;
         const needsPos = sessionNeedsPosCheckout(stationQuickShopItems.length, overtimeMs);
-        
-        if (customer) {
-          const incomingItems: CartItem[] = [
-            ...stationQuickShopItems,
-            ...(sessionCartItem ? [sessionCartItem] : []),
-          ];
 
-          clearStationQuickShopSession(sessionId);
+        const incomingItems: CartItem[] = [
+          ...stationQuickShopItems,
+          ...(sessionCartItem ? [sessionCartItem] : []),
+        ];
 
-          if (!needsPos && incomingItems.length === 0) {
-            toast({
-              title: prepaid ? 'Pre-paid session complete' : 'Session ended',
-              description: prepaid
-                ? `${station.name} — play time already paid online`
-                : `${station.name} ended with no charges`,
-            });
-            return 'draft';
-          }
+        clearStationQuickShopSession(sessionId);
 
-          if (isPartialGroupEnd) {
-            await saveSessionCheckoutDraft(customer, incomingItems);
-            toast({
-              title: 'Station bill saved',
-              description: `${station.name} added to ${customer.name}'s tab. ${otherActiveInGroup} station${otherActiveInGroup === 1 ? '' : 's'} still active — checkout opens when the group ends.`,
-            });
-            return 'draft';
-          }
-
-          console.log('Auto-selecting customer for checkout:', customer.name);
-          await applySessionCheckoutCart(customer, incomingItems);
-          return 'pos';
+        if (!needsPos && incomingItems.length === 0) {
+          toast({
+            title: prepaid ? 'Pre-paid session complete' : 'Session ended',
+            description: prepaid
+              ? `${station.name} — play time already paid online`
+              : `${station.name} ended with no charges`,
+          });
+          return 'draft';
         }
+
+        if (!customer) {
+          if (needsPos && incomingItems.length > 0) {
+            toast({
+              title: 'Checkout needs customer',
+              description: 'Session ended but customer record was not found for POS checkout.',
+              variant: 'destructive',
+            });
+          }
+          return needsPos ? undefined : 'draft';
+        }
+
+        if (isPartialGroupEnd) {
+          await saveSessionCheckoutDraft(customer, incomingItems);
+          toast({
+            title: 'Station bill saved',
+            description: `${station.name} added to ${customer.name}'s tab. ${otherActiveInGroup} station${otherActiveInGroup === 1 ? '' : 's'} still active — checkout opens when the group ends.`,
+          });
+          return 'draft';
+        }
+
+        console.log('Auto-selecting customer for checkout:', customer.name);
+        await applySessionCheckoutCart(customer, incomingItems);
+        return 'pos';
       }
     } catch (error) {
       console.error('Error in endSession:', error);

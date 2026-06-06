@@ -3,12 +3,30 @@ import type { PrepaidBookingLink, StationBookingRow } from '@/types/prepaidBooki
 
 /** Pure helpers safe for Edge/server bundles (no Supabase client). */
 
+const VENUE_TZ = 'Asia/Kolkata';
+
+export function bookingTodayDate(timeZone = VENUE_TZ): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
+}
+
+export function normalizeBookingPhone(phone: string | null | undefined): string {
+  return (phone ?? '').replace(/\D/g, '');
+}
+
 export function isOnlinePrepaidBooking(
-  booking: Pick<StationBookingRow, 'payment_mode' | 'payment_txn_id'>
+  booking: Pick<StationBookingRow, 'payment_mode' | 'payment_txn_id' | 'final_price'>
 ): boolean {
-  return Boolean(
-    booking.payment_mode && booking.payment_mode !== 'venue' && booking.payment_txn_id
-  );
+  const mode = booking.payment_mode?.toLowerCase();
+  if (!mode || mode === 'venue') return false;
+
+  if (booking.payment_txn_id) return true;
+
+  // Razorpay / online rows should count even if txn id is missing from a partial select
+  if (mode === 'razorpay' || mode === 'upi' || mode === 'online') {
+    return Number(booking.final_price ?? 0) > 0;
+  }
+
+  return Number(booking.final_price ?? 0) > 0;
 }
 
 export function bookingToPrepaidLink(booking: StationBookingRow): PrepaidBookingLink {
@@ -22,6 +40,15 @@ export function bookingToPrepaidLink(booking: StationBookingRow): PrepaidBooking
     paymentMode: booking.payment_mode ?? 'online',
     couponCode: booking.coupon_code,
   };
+}
+
+export function pickDefaultPrepaidBooking(
+  bookings: StationBookingRow[]
+): { booking: StationBookingRow; link: PrepaidBookingLink } | null {
+  const prepaid = bookings.filter(isOnlinePrepaidBooking);
+  if (prepaid.length !== 1) return null;
+  const booking = prepaid[0];
+  return { booking, link: bookingToPrepaidLink(booking) };
 }
 
 export function parsePrepaidBookingLink(raw: unknown): PrepaidBookingLink | undefined {
