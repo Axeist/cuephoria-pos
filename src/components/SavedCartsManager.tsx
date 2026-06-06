@@ -25,7 +25,7 @@ import type { SavedCartSummary } from '@/types/pos.types';
 const SavedCartsManager: React.FC = () => {
   const { toast } = useToast();
   const {
-    selectCustomer,
+    loadSavedCartForCheckout,
     savedCarts,
     savedCartsLoading,
     refreshSavedCarts,
@@ -49,15 +49,8 @@ const SavedCartsManager: React.FC = () => {
     });
   };
 
-  const handleGoToBill = (customerId: string, customerName: string) => {
-    selectCustomer(customerId);
-    
-    toast({
-      title: 'Customer Selected',
-      description: `${customerName}'s cart has been loaded. Ready to checkout!`,
-      duration: 3000,
-    });
-
+  const handleGoToBill = (customerId: string) => {
+    loadSavedCartForCheckout(customerId);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -244,7 +237,7 @@ const SavedCartsManager: React.FC = () => {
                               <Button
                                 variant="default"
                                 size="sm"
-                                onClick={() => handleGoToBill(cart.customerId, cart.customerName)}
+                                onClick={() => handleGoToBill(cart.customerId)}
                                 className="bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:opacity-90"
                               >
                                 <ArrowRight className="h-4 w-4 mr-1" />

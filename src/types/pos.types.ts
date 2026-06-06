@@ -231,8 +231,8 @@ export interface POSContextType {
   }) => Customer | null;
   deleteCustomer: (id: string) => void;
   selectCustomer: (id: string | null) => void;
-  
-  checkMembershipValidity: (customerId: string) => boolean;
+  /** Load a saved cart into checkout, including session-only drafts from group/partial ends. */
+  loadSavedCartForCheckout: (customerId: string) => void;
   deductMembershipHours: (customerId: string, hours: number) => boolean;
   
   addToCart: (item: Omit<CartItem, 'total'>) => void;

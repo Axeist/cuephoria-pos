@@ -75,6 +75,7 @@ const POSContext = createContext<POSContextType>({
   updateCustomerMembership: () => null,
   deleteCustomer: () => {},
   selectCustomer: () => {},
+  loadSavedCartForCheckout: () => {},
   checkMembershipValidity: () => false,
   deductMembershipHours: () => false,
   addToCart: () => {},
@@ -302,6 +303,14 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cancelled = true;
     };
   }, [selectedCustomer?.id, activeLocationId, loadSavedCartForCustomer, products, setCart, setDiscountAmount, setDiscountType, setLoyaltyPointsUsedAmount, toast]);
+
+  const loadSavedCartForCheckout = useCallback(
+    (customerId: string) => {
+      forceLoadSavedCartCustomerIdRef.current = customerId;
+      selectCustomer(customerId);
+    },
+    [selectCustomer]
+  );
 
   const handleClearCart = useCallback(
     async (options?: { silent?: boolean; skipSavedCartDelete?: boolean }) => {
@@ -1241,6 +1250,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     updateCustomerMembership: updateCustomerMembershipWrapper,
     deleteCustomer,
     selectCustomer,
+    loadSavedCartForCheckout,
     checkMembershipValidity,
     deductMembershipHours,
     addToCart: addToCartWithStock,
@@ -1281,7 +1291,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addCategory, updateCategory, deleteCategory,
     startSession, endSession, endSessionGroup, pauseSession, resumeSession, extendSession, moveSession, deleteStation, updateStation, refreshStations,
     addCustomer, updateCustomer, updateCustomerMembershipWrapper,
-    deleteCustomer, selectCustomer, checkMembershipValidity, deductMembershipHours,
+    deleteCustomer, selectCustomer, loadSavedCartForCheckout, checkMembershipValidity, deductMembershipHours,
     addToCartWithStock, removeFromCart, updateCartItemWithStock, handleClearCart,
     savedCarts, savedCartsLoading, refreshSavedCarts, removeSavedCart, removeAllSavedCarts, moveCartToSaved,
     getStationQuickShopItems, addToStationQuickShop,
