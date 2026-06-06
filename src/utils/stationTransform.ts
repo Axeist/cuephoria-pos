@@ -1,6 +1,29 @@
 import type { Session, Station } from '@/types/pos.types';
 import type { OccupancyRates } from '@/utils/stationPricing';
-import { parseDurationTiers } from '@/utils/timeBasedPricing.utils';
+
+type DurationTierRow = { minutes: number; price: number };
+
+/** Inline — stationTransform is bundled in Edge; no separate time-based pricing modules. */
+function parseDurationTiersFromRow(raw: unknown): DurationTierRow[] {
+  if (!Array.isArray(raw)) return [];
+  const tiers: DurationTierRow[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const minutes = Number(row.minutes);
+    const price = Number(row.price);
+    if (!Number.isFinite(minutes) || minutes <= 0) continue;
+    if (!Number.isFinite(price) || price < 0) continue;
+    tiers.push({ minutes: Math.round(minutes), price: Math.round(price) });
+  }
+  tiers.sort((a, b) => a.minutes - b.minutes);
+  const seen = new Set<number>();
+  return tiers.filter((t) => {
+    if (seen.has(t.minutes)) return false;
+    seen.add(t.minutes);
+    return true;
+  });
+}
 
 /** Inline parser — stationTransform is bundled in Edge; no separate prepaid modules. */
 function parsePrepaidBookingFromSessionJson(raw: unknown): Session['prepaidBooking'] {
@@ -112,7 +135,7 @@ export function transformStationRow(item: Record<string, unknown>): Station {
       : Object.keys(occupancyRates).length > 0
         ? 'per_player'
         : 'static';
-  const durationTiers = parseDurationTiers(item.duration_tiers);
+  const durationTiers = parseDurationTiersFromRow(item.duration_tiers);
 
   return {
     id: String(item.id),
