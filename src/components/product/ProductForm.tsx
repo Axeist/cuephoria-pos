@@ -12,6 +12,7 @@ import { usePOS } from '@/context/POSContext';
 interface ProductFormProps {
   isEditMode: boolean;
   selectedProduct: Product | null;
+  isSuperAdmin?: boolean;
   onSubmit: (e: React.FormEvent, formData: ProductFormState) => void;
   onCancel: () => void;
   isSubmitting: boolean;
@@ -24,6 +25,7 @@ export interface ProductFormState {
   sellingPrice: string;
   category: string;
   stock: string;
+  maxStock: string;
   originalPrice: string;
   offerPrice: string;
   studentPrice: string;
@@ -34,6 +36,7 @@ export interface ProductFormState {
 const ProductForm: React.FC<ProductFormProps> = ({
   isEditMode,
   selectedProduct,
+  isSuperAdmin = false,
   onSubmit,
   onCancel,
   isSubmitting
@@ -49,6 +52,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
     sellingPrice: '',
     category: '',
     stock: '',
+    maxStock: '',
     originalPrice: '',
     offerPrice: '',
     studentPrice: '',
@@ -62,6 +66,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
   // Define categories that shouldn't show buying/selling price fields
   const hidePricingFieldsCategories = ['membership', 'challenges'];
   const shouldShowPricingFields = !hidePricingFieldsCategories.includes(formState.category);
+  const tracksInventory = formState.category !== 'membership';
   
   useEffect(() => {
     if (isEditMode && selectedProduct) {
@@ -72,6 +77,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         sellingPrice: selectedProduct.sellingPrice?.toString() || selectedProduct.price.toString(),
         category: selectedProduct.category,
         stock: selectedProduct.stock.toString(),
+        maxStock: selectedProduct.maxStock?.toString() ?? '',
         originalPrice: selectedProduct.originalPrice?.toString() || '',
         offerPrice: selectedProduct.offerPrice?.toString() || '',
         studentPrice: selectedProduct.studentPrice?.toString() || '',
@@ -94,6 +100,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         sellingPrice: '',
         category: '',
         stock: '',
+        maxStock: '',
         originalPrice: '',
         offerPrice: '',
         studentPrice: '',
@@ -210,9 +217,26 @@ const ProductForm: React.FC<ProductFormProps> = ({
     if (!formState.category) {
       errors.category = 'Category is required';
     }
-    if (!formState.stock) {
+    if (tracksInventory) {
+      if (!formState.maxStock && (!isEditMode || isSuperAdmin)) {
+        errors.maxStock = 'Maximum stock is required';
+      } else if (formState.maxStock && parseInt(formState.maxStock, 10) < 0) {
+        errors.maxStock = 'Maximum stock cannot be negative';
+      }
+
+      if (!formState.stock && formState.stock !== '0') {
+        errors.stock = 'Stock is required';
+      } else if (parseInt(formState.stock, 10) < 0) {
+        errors.stock = 'Stock cannot be negative';
+      } else if (
+        formState.maxStock &&
+        parseInt(formState.stock, 10) > parseInt(formState.maxStock, 10)
+      ) {
+        errors.stock = 'Current stock cannot exceed maximum stock';
+      }
+    } else if (!formState.stock) {
       errors.stock = 'Stock is required';
-    } else if (parseInt(formState.stock) < 0) {
+    } else if (parseInt(formState.stock, 10) < 0) {
       errors.stock = 'Stock cannot be negative';
     }
 
@@ -320,11 +344,72 @@ const ProductForm: React.FC<ProductFormProps> = ({
           </div>
         )}
         
+        {tracksInventory && (
+          <div className="grid gap-2">
+            <Label htmlFor="maxStock" className={validationErrors.maxStock ? 'text-destructive' : ''}>
+              Maximum Stock*
+            </Label>
+            {isEditMode && !isSuperAdmin ? (
+              <Input
+                id="maxStock"
+                name="maxStock"
+                type="number"
+                value={formState.maxStock}
+                readOnly
+                disabled
+                className="bg-muted"
+              />
+            ) : (
+              <Input
+                id="maxStock"
+                name="maxStock"
+                type="number"
+                value={formState.maxStock}
+                onChange={handleChange}
+                placeholder="Shelf / storage capacity"
+                className={validationErrors.maxStock ? 'border-destructive' : ''}
+                min="0"
+                required
+              />
+            )}
+            <p className="text-xs text-muted-foreground">
+              Restock cannot push on-hand stock above this limit.
+            </p>
+            {validationErrors.maxStock && (
+              <p className="text-xs text-destructive mt-1">{validationErrors.maxStock}</p>
+            )}
+          </div>
+        )}
+
         <div className="grid gap-2">
           <Label htmlFor="stock" className={validationErrors.stock ? 'text-destructive' : ''}>
-            Stock*
+            {tracksInventory ? 'Current Stock*' : 'Stock*'}
           </Label>
-          <Input id="stock" name="stock" type="number" value={formState.stock} onChange={handleChange} placeholder="Enter stock quantity" className={validationErrors.stock ? 'border-destructive' : ''} min="0" required />
+          {isEditMode && !isSuperAdmin ? (
+            <div className="space-y-2">
+              <Input
+                id="stock"
+                name="stock"
+                type="number"
+                value={formState.stock}
+                readOnly
+                disabled
+                className="bg-muted"
+              />
+              <p className="text-xs text-muted-foreground">
+                Use the <strong>Restock</strong> button on the product card to add incoming stock. Manual stock adjustments are limited to super admins.
+              </p>
+            </div>
+          ) : (
+            <>
+              <Input id="stock" name="stock" type="number" value={formState.stock} onChange={handleChange} placeholder="Enter stock quantity" className={validationErrors.stock ? 'border-destructive' : ''} min="0" required />
+              {isEditMode && isSuperAdmin && (
+                <p className="text-xs text-muted-foreground">
+                  Changing stock here records a manual adjustment for discrepancies. Use Restock for regular replenishment.
+                </p>
+              )}
+            </>
+          )}
           {validationErrors.stock && <p className="text-xs text-destructive mt-1">{validationErrors.stock}</p>}
         </div>
 

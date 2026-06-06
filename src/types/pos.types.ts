@@ -9,6 +9,8 @@ export interface Product {
   profit?: number;
   category: string;
   stock: number;
+  /** Maximum on-hand capacity; restock cannot exceed this when set. */
+  maxStock?: number;
   image?: string;
   originalPrice?: number;
   offerPrice?: number;

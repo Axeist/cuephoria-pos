@@ -3,24 +3,27 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Button } from '@/components/ui/button';
 import { usePOS, Product } from '@/context/POSContext';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { ShoppingCart, Edit, Trash, Clock, GraduationCap, Lock } from 'lucide-react';
+import { ShoppingCart, Edit, Trash, Clock, GraduationCap, Lock, Truck } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
+import { getRestockHeadroom } from '@/utils/productStock.utils';
 
 interface ProductCardProps {
   product: Product;
   isAdmin?: boolean;
   onEdit?: (product: Product) => void;
+  onRestock?: (product: Product) => void;
   onDelete?: (id: string) => void;
   className?: string;
-  showManagementActions?: boolean; // New prop to control showing edit/delete buttons
+  showManagementActions?: boolean;
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ 
   product, 
-  isAdmin = false, 
-  onEdit, 
+  isAdmin = false,
+  onEdit,
+  onRestock,
   onDelete,
   className = '',
   showManagementActions = false
@@ -188,9 +191,11 @@ const ProductCard: React.FC<ProductCardProps> = ({
             
             {product.category !== 'membership' && (
               <div className="flex justify-between text-sm">
-                <span>Available:</span>
+                <span>On hand:</span>
                 <span className={remainingStock <= 10 ? 'text-red-500' : ''}>
-                  {remainingStock} / {product.stock}
+                  {product.stock}
+                  {product.maxStock != null ? ` / ${product.maxStock} max` : ''}
+                  {remainingStock !== product.stock ? ` (${remainingStock} avail.)` : ''}
                 </span>
               </div>
             )}
@@ -198,27 +203,39 @@ const ProductCard: React.FC<ProductCardProps> = ({
         </CardContent>
         <CardFooter className="mt-auto pt-2">
           {showManagementActions ? (
-            <div className="flex w-full space-x-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="flex-1 justify-center"
-                onClick={() => onEdit && onEdit(product)}
-              >
-                <Edit className="h-4 w-4 mr-2" /> Edit
-              </Button>
-              <Button 
-                variant="destructive" 
-                size="sm" 
-                className="flex-1 justify-center relative"
-                onClick={handleDelete}
-                title={!isAdmin ? "PIN verification required for staff" : "Delete product"}
-              >
-                <Trash className="h-4 w-4 mr-2" /> Delete
-                {!isAdmin && (
-                  <Lock className="h-3 w-3 absolute -top-1 -right-1 text-amber-500" />
-                )}
-              </Button>
+            <div className="flex w-full flex-col gap-2">
+              {product.category !== 'membership' && onRestock && getRestockHeadroom(product) !== 0 && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="w-full justify-center bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500"
+                  onClick={() => onRestock(product)}
+                >
+                  <Truck className="h-4 w-4 mr-2" /> Restock
+                </Button>
+              )}
+              <div className="flex w-full space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex-1 justify-center"
+                  onClick={() => onEdit && onEdit(product)}
+                >
+                  <Edit className="h-4 w-4 mr-2" /> Edit
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  className="flex-1 justify-center relative"
+                  onClick={handleDelete}
+                  title={!isAdmin ? "PIN verification required for staff" : "Delete product"}
+                >
+                  <Trash className="h-4 w-4 mr-2" /> Delete
+                  {!isAdmin && (
+                    <Lock className="h-3 w-3 absolute -top-1 -right-1 text-amber-500" />
+                  )}
+                </Button>
+              </div>
             </div>
           ) : (
             <Button 

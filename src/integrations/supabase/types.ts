@@ -1082,6 +1082,7 @@ export type Database = {
           profit: number | null
           selling_price: number | null
           stock: number
+          max_stock: number | null
           student_price: number | null
         }
         Insert: {
@@ -1099,6 +1100,7 @@ export type Database = {
           profit?: number | null
           selling_price?: number | null
           stock: number
+          max_stock?: number | null
           student_price?: number | null
         }
         Update: {
@@ -1116,6 +1118,7 @@ export type Database = {
           profit?: number | null
           selling_price?: number | null
           stock?: number
+          max_stock?: number | null
           student_price?: number | null
         }
         Relationships: []

@@ -3,7 +3,7 @@ export interface StockLog {
   id: string;
   productId: string;
   productName: string;
-  changeType: 'addition' | 'deduction' | 'adjustment' | 'initial';
+  changeType: 'restock' | 'addition' | 'deduction' | 'adjustment' | 'initial';
   previousStock: number;
   newStock: number;
   quantityChanged: number;
@@ -13,6 +13,16 @@ export interface StockLog {
   notes?: string;
 }
 
+/** Product list filters on the Products page */
 export interface FilterOptions {
-  stockStatuses?: string[];  // Changed to array for multi-select
+  stockStatuses?: string[];
+}
+
+/** Filters for the stock change log viewer */
+export interface StockLogFilterOptions {
+  changeTypes?: StockLog['changeType'][];
+  dateFrom?: string;
+  dateTo?: string;
+  searchTerm?: string;
+  performedBy?: string;
 }

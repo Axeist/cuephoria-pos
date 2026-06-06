@@ -22,8 +22,10 @@ import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { useAuth } from '@/context/AuthContext';
 import AdvancedFilters from '@/components/product/AdvancedFilters';
 import StockLogsViewer from '@/components/product/StockLogsViewer';
+import RestockDialog from '@/components/product/RestockDialog';
 import { FilterOptions } from '@/types/stockLog.types';
 import { createStockLog, saveStockLog } from '@/utils/stockLogger';
+import { getRestockHeadroom, isStockWithinMax } from '@/utils/productStock.utils';
 import {
   Sheet,
   SheetContent,
@@ -39,6 +41,8 @@ const ProductsPage: React.FC = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.isAdmin || false;
+  const isSuperAdmin = user?.isSuperAdmin || false;
+  const performedByLabel = user?.displayName || user?.username || 'Unknown User';
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -49,6 +53,8 @@ const ProductsPage: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showZeroStockOnly, setShowZeroStockOnly] = useState<boolean>(false);
+  const [restockProduct, setRestockProduct] = useState<Product | null>(null);
+  const [isRestockOpen, setIsRestockOpen] = useState(false);
   
   // Advanced filters state
   const [advancedFilters, setAdvancedFilters] = useState<FilterOptions>({});
@@ -118,6 +124,42 @@ const ProductsPage: React.FC = () => {
     setIsDialogOpen(true);
   };
 
+  const handleRestockProduct = (product: Product) => {
+    setRestockProduct(product);
+    setIsRestockOpen(true);
+  };
+
+  const handleConfirmRestock = async (product: Product, quantity: number, notes: string) => {
+    const headroom = getRestockHeadroom(product);
+    if (headroom !== null && quantity > headroom) {
+      throw new Error(
+        headroom === 0
+          ? 'This product is already at maximum stock capacity.'
+          : `You can only add up to ${headroom} more units (max capacity: ${product.maxStock}).`
+      );
+    }
+
+    const previousStock = product.stock;
+    const newStock = previousStock + quantity;
+
+    await updateProduct({ ...product, stock: newStock });
+
+    const stockLog = createStockLog(
+      product,
+      previousStock,
+      newStock,
+      'restock',
+      performedByLabel,
+      notes || 'Stock replenishment'
+    );
+    saveStockLog(stockLog);
+
+    toast({
+      title: 'Stock Restocked',
+      description: `Added ${quantity} units to ${product.name}. New stock: ${newStock}.`,
+    });
+  };
+
   const handleDeleteProduct = (id: string) => {
     try {
       deleteProduct(id);
@@ -146,7 +188,7 @@ const ProductsPage: React.FC = () => {
       setFormError(null);
       
       const { 
-        name, price, category, stock, originalPrice, offerPrice, 
+        name, price, category, stock, maxStock, originalPrice, offerPrice, 
         studentPrice, duration, membershipHours, buyingPrice, sellingPrice 
       } = formData;
       
@@ -160,12 +202,38 @@ const ProductsPage: React.FC = () => {
         return;
       }
       
+      const tracksInventory = category !== 'membership';
+      const parsedStock = isEditMode && selectedProduct && !isSuperAdmin
+        ? selectedProduct.stock
+        : Number(stock);
+      const parsedMaxStock = tracksInventory
+        ? isEditMode && selectedProduct && !isSuperAdmin
+          ? selectedProduct.maxStock
+          : maxStock.trim() === ''
+            ? undefined
+            : Number(maxStock)
+        : undefined;
+
+      if (tracksInventory && parsedMaxStock != null && !isStockWithinMax(parsedStock, parsedMaxStock)) {
+        toast({
+          title: 'Invalid stock',
+          description: 'Current stock cannot exceed the maximum stock capacity.',
+          variant: 'destructive',
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
       const productData: Omit<Product, 'id'> = {
         name,
         price: Number(price),
         category: category as string,
-        stock: Number(stock),
+        stock: parsedStock,
       };
+
+      if (tracksInventory && parsedMaxStock != null) {
+        productData.maxStock = parsedMaxStock;
+      }
       
       // Add the new fields for buying price and profit only for applicable categories
       const shouldIncludePriceFields = !hidePricingFieldsCategories.includes(category);
@@ -186,15 +254,27 @@ const ProductsPage: React.FC = () => {
       console.log('Submitting product data:', productData);
       
       if (isEditMode && selectedProduct) {
-        // Log stock changes
-        if (selectedProduct.stock !== Number(stock)) {
+        if (isSuperAdmin && selectedProduct.stock !== productData.stock) {
+          if (
+            productData.maxStock != null &&
+            !isStockWithinMax(productData.stock, productData.maxStock)
+          ) {
+            toast({
+              title: 'Invalid stock',
+              description: 'Adjusted stock cannot exceed maximum capacity.',
+              variant: 'destructive',
+            });
+            setIsSubmitting(false);
+            return;
+          }
+
           const stockLog = createStockLog(
             { ...selectedProduct, ...productData, id: selectedProduct.id },
             selectedProduct.stock,
-            Number(stock),
-            Number(stock) > selectedProduct.stock ? 'addition' : 'deduction',
-            user?.name || user?.email || 'Unknown User',
-            'Stock updated via product edit'
+            productData.stock,
+            'adjustment',
+            performedByLabel,
+            'Manual stock adjustment via product edit'
           );
           saveStockLog(stockLog);
         }
@@ -215,7 +295,7 @@ const ProductsPage: React.FC = () => {
             0,
             Number(stock),
             'initial',
-            user?.name || user?.email || 'Unknown User',
+            performedByLabel,
             'Initial stock added'
           );
           saveStockLog(stockLog);
@@ -322,8 +402,16 @@ const ProductsPage: React.FC = () => {
         onOpenChange={setIsDialogOpen}
         isEditMode={isEditMode}
         selectedProduct={selectedProduct}
+        isSuperAdmin={isSuperAdmin}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
+      />
+
+      <RestockDialog
+        product={restockProduct}
+        open={isRestockOpen}
+        onOpenChange={setIsRestockOpen}
+        onConfirm={handleConfirmRestock}
       />
 
       <PinVerificationDialog
@@ -377,6 +465,7 @@ const ProductsPage: React.FC = () => {
           onTabChange={setActiveTab}
           categoryCounts={categoryCounts}
           onEdit={handleEditProduct}
+          onRestock={handleRestockProduct}
           onDelete={handleDeleteProduct}
           onAddProduct={handleOpenDialog}
           showManagementActions={true}

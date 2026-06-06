@@ -10,6 +10,7 @@ interface ProductDialogProps {
   onOpenChange: (open: boolean) => void;
   isEditMode: boolean;
   selectedProduct: Product | null;
+  isSuperAdmin?: boolean;
   onSubmit: (e: React.FormEvent, formData: ProductFormState) => void;
   isSubmitting: boolean;
 }
@@ -19,6 +20,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
   onOpenChange,
   isEditMode,
   selectedProduct,
+  isSuperAdmin = false,
   onSubmit,
   isSubmitting
 }) => {
@@ -42,6 +44,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
         <ProductForm
           isEditMode={isEditMode}
           selectedProduct={selectedProduct}
+          isSuperAdmin={isSuperAdmin}
           onSubmit={onSubmit}
           onCancel={() => onOpenChange(false)}
           isSubmitting={isSubmitting}

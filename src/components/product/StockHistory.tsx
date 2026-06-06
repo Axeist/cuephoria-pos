@@ -9,10 +9,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { History, TrendingUp, TrendingDown, AlertCircle, Package } from 'lucide-react';
+import { History } from 'lucide-react';
 import { format } from 'date-fns';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { getStockLogTypeBadge, getStockLogTypeIcon } from '@/utils/stockLogDisplay';
 import {
   Table,
   TableBody,
@@ -61,34 +61,8 @@ const StockHistory: React.FC<StockHistoryProps> = ({
     }
   };
 
-  const getChangeTypeIcon = (type: StockLog['changeType']) => {
-    switch (type) {
-      case 'addition':
-        return <TrendingUp className="h-4 w-4 text-green-500" />;
-      case 'deduction':
-        return <TrendingDown className="h-4 w-4 text-red-500" />;
-      case 'adjustment':
-        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
-      case 'initial':
-        return <Package className="h-4 w-4 text-blue-500" />;
-      default:
-        return null;
-    }
-  };
-
-  const getChangeTypeBadge = (type: StockLog['changeType']) => {
-    const variants: Record<StockLog['changeType'], 'default' | 'destructive' | 'secondary'> = {
-      addition: 'default',
-      deduction: 'destructive',
-      adjustment: 'secondary',
-      initial: 'secondary',
-    };
-    return (
-      <Badge variant={variants[type]} className="capitalize">
-        {type}
-      </Badge>
-    );
-  };
+  const getChangeTypeIcon = getStockLogTypeIcon;
+  const getChangeTypeBadge = getStockLogTypeBadge;
 
   return (
     <>
