@@ -12,6 +12,10 @@ import {
   getBillableMs,
   resolveSessionForBilling,
 } from '@/utils/sessionTimer.utils';
+import {
+  getPresetSessionBilledMinutes,
+  usesPresetSessionBilling,
+} from '@/utils/sessionBilling.utils';
 
 /**
  * Hook to provide session end functionality
@@ -157,7 +161,13 @@ export const useEndSession = ({
       
       const stationRate = session.hourlyRate || station.hourlyRate;
       const isMember = customer?.isMember || false;
-      const sessionCost = calculateSessionCost(station, stationRate, billableMs, isMember);
+      const usesPresetBilling = usesPresetSessionBilling(session.plannedDurationMinutes);
+      const billedMinutes = usesPresetBilling
+        ? getPresetSessionBilledMinutes(durationMinutes)
+        : durationMinutes;
+      const sessionCost = calculateSessionCost(station, stationRate, billableMs, isMember, {
+        plannedDurationMinutes: session.plannedDurationMinutes,
+      });
       
       if (isMember) {
         console.log(`Applied 50% member discount to session cost: ${sessionCost}`);
@@ -166,7 +176,10 @@ export const useEndSession = ({
       console.log("Session cost calculation:", { 
         stationRate, 
         durationMinutes,
+        billedMinutes,
         billableMs,
+        plannedDurationMinutes: session.plannedDurationMinutes,
+        usesPresetBilling,
         stationCategory: station.category,
         slotDuration: station.slotDuration,
         stationType: station.type,
@@ -177,11 +190,17 @@ export const useEndSession = ({
       // ✅ UPDATED: Show coupon info if it was applied
       const couponInfo = session.couponCode ? ` - ${session.couponCode}` : '';
       const memberInfo = isMember ? ' - Member 50% OFF' : '';
+      const durationInfo =
+        usesPresetBilling && billedMinutes !== durationMinutes
+          ? ` · ${billedMinutes} min billed`
+          : usesPresetBilling
+            ? ` · ${billedMinutes} min`
+            : '';
       
       // Create cart item for the session with discount info in the name if applicable
       const sessionCartItem: CartItem = {
         id: cartItemId,
-        name: `${station.name} (${customer?.name || 'Unknown Customer'})${couponInfo}${memberInfo}`,
+        name: `${station.name} (${customer?.name || 'Unknown Customer'})${durationInfo}${couponInfo}${memberInfo}`,
         price: sessionCost,
         quantity: 1,
         total: sessionCost,

@@ -15,6 +15,7 @@ import {
   wouldExtensionConflict,
   type BookingConflict,
 } from '@/utils/sessionDuration.utils';
+import { getPresetSessionExtensionPlan } from '@/utils/sessionBilling.utils';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -79,6 +80,13 @@ export const useExtendSession = ({
       endTime: String(b.end_time),
     }));
 
+    const extensionPlan = getPresetSessionExtensionPlan(session, extraMinutes, now);
+    if (!extensionPlan) {
+      throw new Error('Invalid extension');
+    }
+
+    const { newPlannedMinutes, effectiveAddedMinutes, overtimeMinutes } = extensionPlan;
+
     const conflict = wouldExtensionConflict(bookings, session, extraMinutes, now);
     if (conflict.blocked) {
       const slot = conflict.conflict
@@ -92,7 +100,7 @@ export const useExtendSession = ({
       throw new Error('Extension blocked by booking');
     }
 
-    const newPlanned = session.plannedDurationMinutes + extraMinutes;
+    const newPlanned = newPlannedMinutes;
     const updatedSession: Session = {
       ...session,
       plannedDurationMinutes: newPlanned,
@@ -130,11 +138,15 @@ export const useExtendSession = ({
     }
 
     const state = getSessionDurationState(updatedSession, now);
+    const overtimeNote =
+      overtimeMinutes > 0 && effectiveAddedMinutes < extraMinutes
+        ? ` (${effectiveAddedMinutes} min added — ${overtimeMinutes} min past plan counted toward +${extraMinutes})`
+        : '';
     toast({
       title: 'Session extended',
-      description: `+${extraMinutes} min · ${newPlanned} min total${
+      description: `+${extraMinutes} min package · ${newPlanned} min total${
         state ? ` · ${Math.ceil(state.remainingMs / 60000)} min left` : ''
-      }`,
+      }${overtimeNote}`,
     });
   };
 
