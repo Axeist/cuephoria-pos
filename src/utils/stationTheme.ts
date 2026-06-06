@@ -10,11 +10,13 @@ import {
 import type { Station } from '@/types/pos.types';
 import { getRateSuffix, isPerPlayerPricing } from '@/utils/stationPricing';
 import { stationTypeLabel } from '@/utils/stationTypeUtils';
+import type { CSSProperties } from 'react';
 import {
   buildStationAccentStyle,
   hasCustomAccent,
   resolveStationAccentHex,
   type StationAccentStyle,
+  type StationTextPalette,
 } from '@/utils/colorTheme.utils';
 
 export type StationPhase = 'idle' | 'starting' | 'live' | 'ending';
@@ -45,6 +47,59 @@ export interface StationTheme {
   accentHex: string;
   /** Inline tint styles when station has a custom accent_color set. */
   accentStyle?: StationAccentStyle;
+  /** Harmonized text colors when a custom tint is active. */
+  textPalette?: StationTextPalette;
+}
+
+export type ThemeTextProps = { className: string; style?: CSSProperties };
+
+export function themeText(
+  theme: StationTheme,
+  role: 'primary' | 'muted' | 'soft',
+  extraClass = ''
+): ThemeTextProps {
+  if (theme.textPalette) {
+    const color =
+      role === 'primary'
+        ? theme.textPalette.primary
+        : role === 'muted'
+          ? theme.textPalette.muted
+          : theme.textPalette.soft;
+    return { className: extraClass, style: { color } };
+  }
+  const fallback =
+    role === 'muted' ? theme.accentMuted : theme.accent;
+  return { className: `${extraClass} ${fallback}`.trim() };
+}
+
+export function themeStatText(
+  theme: StationTheme,
+  stat: 'players' | 'slot' | 'rate' | 'rateSuffix',
+  extraClass = ''
+): ThemeTextProps {
+  if (!theme.textPalette) {
+    const defaults = {
+      players: 'text-violet-400',
+      slot: 'text-cyan-400',
+      rate: 'text-emerald-200',
+      rateSuffix: 'text-emerald-300/90',
+    };
+    return { className: `${extraClass} ${defaults[stat]}`.trim() };
+  }
+  const colors = {
+    players: theme.textPalette.statPlayers,
+    slot: theme.textPalette.statSlot,
+    rate: theme.textPalette.statRate,
+    rateSuffix: theme.textPalette.statRateSuffix,
+  };
+  return { className: extraClass, style: { color: colors[stat] } };
+}
+
+export function themeIconBgProps(theme: StationTheme): ThemeTextProps {
+  if (theme.accentStyle) {
+    return { className: 'ring-1 ring-white/10', style: theme.accentStyle.iconBgStyle };
+  }
+  return { className: theme.iconBg };
 }
 
 const THEMES: Record<string, Omit<StationTheme, 'label'>> = {
@@ -161,11 +216,13 @@ export function getStationTheme(
   const base = THEMES[slug] ?? DEFAULT_THEME;
   const accentHex = resolveStationAccentHex(slug, station.accentColor);
   const hasCustomTint = hasCustomAccent(station.accentColor);
+  const accentStyle = hasCustomTint ? buildStationAccentStyle(station.accentColor!) : undefined;
   return {
     ...base,
     label: typeLabel ?? stationTypeLabel(slug),
     accentHex,
-    accentStyle: hasCustomTint ? buildStationAccentStyle(station.accentColor!) : undefined,
+    accentStyle,
+    textPalette: accentStyle?.textPalette,
   };
 }
 

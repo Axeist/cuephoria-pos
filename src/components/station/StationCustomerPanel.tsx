@@ -19,7 +19,7 @@ import { formatPlayTimeMinutes } from '@/utils/formatPlayTime';
 import { formatStationRateCompact } from '@/utils/stationPricing';
 import { stationTypeLabel } from '@/utils/stationTypeUtils';
 import type { CustomerRecentSession } from '@/hooks/stations/useStationCustomerIntel';
-import type { StationTheme } from '@/utils/stationTheme';
+import { themeIconBgProps, themeStatText, themeText } from '@/utils/stationTheme';
 
 interface StationCustomerPanelProps {
   station: Station;
@@ -46,10 +46,21 @@ const StationCustomerPanel: React.FC<StationCustomerPanelProps> = ({
     const statBoxClass =
       'flex min-w-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.06] px-1.5 py-3 min-h-[72px]';
     const statLabelClass =
-      'mt-1.5 max-w-full truncate text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground';
+      'mt-1.5 max-w-full truncate text-center text-[10px] font-semibold uppercase tracking-wide';
+    const statLabelMuted = theme.textPalette
+      ? themeText(theme, 'muted', statLabelClass)
+      : { className: `${statLabelClass} text-muted-foreground` };
     const statValueClass = 'max-w-full text-sm font-bold tabular-nums text-foreground/90';
 
     const rateCompact = formatStationRateCompact(station);
+    const playersStat = themeStatText(theme, 'players', `shrink-0 ${expanded ? 'h-5 w-5' : 'h-4 w-4'}`);
+    const slotStat = themeStatText(theme, 'slot', `shrink-0 ${expanded ? 'h-5 w-5' : 'h-4 w-4'}`);
+    const rateIconStat = themeStatText(theme, 'rate', `shrink-0 ${expanded ? 'h-5 w-5' : 'h-4 w-4'}`);
+    const playersValue = themeStatText(theme, 'players', statValueClass);
+    const slotValue = themeStatText(theme, 'slot', statValueClass);
+    const rateValue = themeStatText(theme, 'rate', `${statValueClass} ${expanded ? 'text-sm' : 'text-xs'}`);
+    const rateSuffix = themeStatText(theme, 'rateSuffix', 'mt-0.5 max-w-full truncate text-[9px] font-semibold tabular-nums');
+    const readyLabel = themeText(theme, 'muted', `text-center font-semibold uppercase tracking-widest shrink-0 ${expanded ? 'text-[10px] mb-3' : 'text-[9px] mb-2'}`);
 
     return (
       <div
@@ -57,28 +68,28 @@ const StationCustomerPanel: React.FC<StationCustomerPanelProps> = ({
           expanded ? 'flex h-full min-h-[130px] flex-col px-3 py-3' : 'px-3 py-2.5'
         }`}
       >
-        <p className={`text-center font-semibold uppercase tracking-widest text-muted-foreground shrink-0 ${expanded ? 'text-[10px] mb-3' : 'text-[9px] mb-2'}`}>
+        <p className={readyLabel.className} style={readyLabel.style}>
           Station ready
         </p>
         <div className={`grid min-w-0 grid-cols-3 ${expanded ? 'gap-2 flex-1 items-stretch' : 'gap-1.5'}`}>
           <div className={statBoxClass}>
-            <Users className={`shrink-0 text-violet-400 ${expanded ? 'h-5 w-5' : 'h-4 w-4'}`} />
-            <p className={statLabelClass}>Max players</p>
-            <p className={`${statValueClass} text-violet-200`}>{station.maxPlayers ?? 1}</p>
+            <Users className={playersStat.className} style={playersStat.style} />
+            <p className={statLabelMuted.className} style={statLabelMuted.style}>Max players</p>
+            <p className={playersValue.className} style={playersValue.style}>{station.maxPlayers ?? 1}</p>
           </div>
           <div className={statBoxClass}>
-            <Timer className={`shrink-0 text-cyan-400 ${expanded ? 'h-5 w-5' : 'h-4 w-4'}`} />
-            <p className={statLabelClass}>Slot</p>
-            <p className={`${statValueClass} text-cyan-200`}>{station.slotDuration ?? 60}m</p>
+            <Timer className={slotStat.className} style={slotStat.style} />
+            <p className={statLabelMuted.className} style={statLabelMuted.style}>Slot</p>
+            <p className={slotValue.className} style={slotValue.style}>{station.slotDuration ?? 60}m</p>
           </div>
           <div className={statBoxClass}>
-            <Gamepad2 className={`shrink-0 text-emerald-400 ${expanded ? 'h-5 w-5' : 'h-4 w-4'}`} />
-            <p className={statLabelClass}>Rate</p>
+            <Gamepad2 className={rateIconStat.className} style={rateIconStat.style} />
+            <p className={statLabelMuted.className} style={statLabelMuted.style}>Rate</p>
             <div className="mt-0.5 flex max-w-full flex-col items-center leading-none">
-              <span className={`${statValueClass} text-emerald-200 ${expanded ? 'text-sm' : 'text-xs'}`}>
+              <span className={rateValue.className} style={rateValue.style}>
                 {rateCompact.amount}
               </span>
-              <span className="mt-0.5 max-w-full truncate text-[9px] font-semibold tabular-nums text-emerald-300/90">
+              <span className={rateSuffix.className} style={rateSuffix.style}>
                 {rateCompact.suffix}
               </span>
             </div>
@@ -110,6 +121,9 @@ const StationCustomerPanel: React.FC<StationCustomerPanelProps> = ({
     : 'mt-0.5 text-[9px] uppercase text-muted-foreground';
 
   const statValueClass = expanded ? 'text-base font-bold tabular-nums' : 'text-xs font-bold tabular-nums';
+  const avatarBg = themeIconBgProps(theme);
+  const avatarText = themeText(theme, 'primary', 'font-bold');
+  const recentIcon = themeText(theme, 'soft', `mt-0.5 shrink-0 ${expanded ? 'h-3.5 w-3.5' : 'h-2.5 w-2.5'}`);
 
   return (
     <div
@@ -121,11 +135,14 @@ const StationCustomerPanel: React.FC<StationCustomerPanelProps> = ({
     >
       <div className="flex items-start gap-2.5 shrink-0">
         <div
-          className={`flex shrink-0 items-center justify-center rounded-lg font-bold ring-1 ring-white/10 ${theme.iconBg} ${
+          className={`flex shrink-0 items-center justify-center rounded-lg ${avatarBg.className} ${
             expanded ? 'h-10 w-10 text-sm' : 'h-8 w-8 text-xs'
           }`}
+          style={avatarBg.style}
         >
-          {initials || '?'}
+          <span className={avatarText.className} style={avatarText.style}>
+            {initials || '?'}
+          </span>
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -207,7 +224,7 @@ const StationCustomerPanel: React.FC<StationCustomerPanelProps> = ({
                       expanded ? 'px-2 py-1.5 text-xs' : 'text-[11px]'
                     }`}
                   >
-                    <Gamepad2 className={`mt-0.5 shrink-0 ${theme.accent} ${expanded ? 'h-3.5 w-3.5' : 'h-2.5 w-2.5'}`} />
+                    <Gamepad2 className={recentIcon.className} style={recentIcon.style} />
                     <span className="min-w-0 break-words text-foreground/90">
                       {s.stationName}
                       <span className="text-muted-foreground">

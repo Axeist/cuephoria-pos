@@ -17,6 +17,8 @@ import {
   getStationTheme,
   cardPhaseClass,
   cardRingClass,
+  themeIconBgProps,
+  themeText,
   type StationPhase,
 } from '@/utils/stationTheme';
 import {
@@ -90,6 +92,8 @@ const StationCard: React.FC<StationCardProps> = ({
   } = usePOS();
   const { toast } = useToast();
   const theme = getStationTheme(station);
+  const readyIconBg = themeIconBgProps(theme);
+  const readyIcon = themeText(theme, 'primary', 'h-5 w-5 fill-current opacity-70');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isTogglingPublic, setIsTogglingPublic] = useState(false);
   const [quickShopOpen, setQuickShopOpen] = useState(false);
@@ -365,8 +369,19 @@ const StationCard: React.FC<StationCardProps> = ({
 
         <div
           className={`relative z-10 w-full shrink-0 ${
-            durationState ? '' : `h-1 ${isLive && phase !== 'ending' ? theme.topBarLive : theme.topBarIdle}`
+            durationState
+              ? ''
+              : `h-1 ${
+                  theme.accentStyle || (isLive && phase !== 'ending')
+                    ? ''
+                    : theme.topBarIdle
+                } ${!theme.accentStyle && isLive && phase !== 'ending' ? theme.topBarLive : ''}`
           }`}
+          style={
+            !durationState && theme.accentStyle && !(isLive && phase !== 'ending')
+              ? theme.accentStyle.topBarIdleStyle
+              : undefined
+          }
         >
           {durationState && session && (
             <SessionDurationBar session={session} station={station} className="px-3 pt-2" />
@@ -428,7 +443,8 @@ const StationCard: React.FC<StationCardProps> = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-7 w-7 hover:bg-white/10 ${theme.accent}`}
+                  className={`h-7 w-7 hover:bg-white/10 ${theme.accentStyle ? '' : theme.accent}`}
+                  style={theme.accentStyle ? { color: theme.textPalette?.primary } : undefined}
                   disabled={station.isOccupied}
                   onClick={() => setEditDialogOpen(true)}
                   title="Edit station"
@@ -516,9 +532,10 @@ const StationCard: React.FC<StationCardProps> = ({
               ) : (
                 <div className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-white/12 bg-black/25 px-4 py-6 min-h-[130px]">
                   <div
-                    className={`flex h-12 w-12 items-center justify-center rounded-xl ring-1 ring-white/10 ${theme.iconBg}`}
+                    className={`flex h-12 w-12 items-center justify-center rounded-xl ${readyIconBg.className}`}
+                    style={readyIconBg.style}
                   >
-                    <Play className={`h-5 w-5 fill-current opacity-70 ${theme.accent}`} />
+                    <Play className={readyIcon.className} style={readyIcon.style} />
                   </div>
                   <p className="mt-3 text-sm font-semibold text-foreground/80">Ready for players</p>
                   <p className="mt-1 text-center text-[11px] text-muted-foreground max-w-[180px]">

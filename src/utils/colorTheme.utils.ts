@@ -2,6 +2,19 @@ import type { CSSProperties } from 'react';
 
 /** Shared color presets and helpers for category + station theming. */
 
+export type StationTextPalette = {
+  primary: string;
+  muted: string;
+  soft: string;
+  statPlayers: string;
+  statSlot: string;
+  statRate: string;
+  statRateSuffix: string;
+  border: string;
+  badgeOpen: CSSProperties;
+  rateBadge: CSSProperties;
+};
+
 export type StationAccentStyle = {
   accentHex: string;
   cardStyle: CSSProperties;
@@ -9,6 +22,7 @@ export type StationAccentStyle = {
   topBarIdleStyle: CSSProperties;
   iconBgStyle: CSSProperties;
   startBtnStyle: CSSProperties;
+  textPalette: StationTextPalette;
 };
 
 const DEFAULT_CATEGORY_HEX: Record<string, string> = {
@@ -139,6 +153,132 @@ export function hexWithAlpha(hex: string, alpha: number): string {
   return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
 }
 
+function rgbToHex(r: number, g: number, b: number): string {
+  const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
+  return `#${[clamp(r), clamp(g), clamp(b)]
+    .map((n) => n.toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase()}`;
+}
+
+function mixWithWhite(hex: string, amount: number): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  const t = Math.max(0, Math.min(1, amount));
+  return rgbToHex(
+    rgb.r + (255 - rgb.r) * t,
+    rgb.g + (255 - rgb.g) * t,
+    rgb.b + (255 - rgb.b) * t
+  );
+}
+
+function shiftHue(hex: string, degrees: number): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  const r = rgb.r / 255;
+  const g = rgb.g / 255;
+  const b = rgb.b / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r:
+        h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+        break;
+      case g:
+        h = ((b - r) / d + 2) / 6;
+        break;
+      default:
+        h = ((r - g) / d + 4) / 6;
+        break;
+    }
+  }
+  const newH = (((h * 360 + degrees) % 360) + 360) % 360;
+  const hue2rgb = (p: number, q: number, t: number) => {
+    let tt = t;
+    if (tt < 0) tt += 1;
+    if (tt > 1) tt -= 1;
+    if (tt < 1 / 6) return p + (q - p) * 6 * tt;
+    if (tt < 1 / 2) return q;
+    if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6;
+    return p;
+  };
+  if (s === 0) return rgbToHex(l * 255, l * 255, l * 255);
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const hr = hue2rgb(p, q, newH / 360 + 1 / 3);
+  const hg = hue2rgb(p, q, newH / 360);
+  const hb = hue2rgb(p, q, newH / 360 - 1 / 3);
+  return rgbToHex(hr * 255, hg * 255, hb * 255);
+}
+
+function makeTextPalette(accent: string, secondary = accent): StationTextPalette {
+  return {
+    primary: mixWithWhite(accent, 0.72),
+    muted: mixWithWhite(secondary, 0.48),
+    soft: mixWithWhite(accent, 0.8),
+    statPlayers: mixWithWhite(shiftHue(accent, -24), 0.58),
+    statSlot: mixWithWhite(accent, 0.54),
+    statRate: mixWithWhite(shiftHue(secondary, 18), 0.6),
+    statRateSuffix: mixWithWhite(shiftHue(secondary, 18), 0.44),
+    border: hexWithAlpha(accent, 0.45),
+    badgeOpen: {
+      backgroundColor: hexWithAlpha(accent, 0.24),
+      borderColor: hexWithAlpha(accent, 0.42),
+      color: mixWithWhite(accent, 0.74),
+    },
+    rateBadge: {
+      backgroundColor: hexWithAlpha(accent, 0.16),
+      borderColor: hexWithAlpha(accent, 0.4),
+      color: mixWithWhite(accent, 0.68),
+    },
+  };
+}
+
+/** Curated text palettes for solid tint presets — tuned for dark station cards. */
+const CURATED_SOLID_PALETTES: Record<string, StationTextPalette> = {
+  '#F97316': makeTextPalette('#F97316', '#FBBF24'),
+  '#0EA5E9': makeTextPalette('#0EA5E9', '#38BDF8'),
+  '#EF4444': makeTextPalette('#EF4444', '#F87171'),
+  '#22C55E': makeTextPalette('#22C55E', '#4ADE80'),
+  '#7C3AED': makeTextPalette('#7C3AED', '#A78BFA'),
+  '#8B5CF6': makeTextPalette('#8B5CF6', '#C4B5FD'),
+  '#10B981': makeTextPalette('#10B981', '#34D399'),
+  '#D97706': makeTextPalette('#D97706', '#FBBF24'),
+  '#84CC16': makeTextPalette('#84CC16', '#A3E635'),
+  '#22D3EE': makeTextPalette('#22D3EE', '#67E8F9'),
+  '#EC4899': makeTextPalette('#EC4899', '#F472B6'),
+  '#F59E0B': makeTextPalette('#F59E0B', '#FCD34D'),
+  '#6B7280': makeTextPalette('#94A3B8', '#CBD5E1'),
+};
+
+/** Curated palettes for gradient presets. */
+const CURATED_GRADIENT_PALETTES: Record<string, StationTextPalette> = Object.fromEntries(
+  ACCENT_GRADIENT_PRESETS.map((g) => [g.id, makeTextPalette(g.from, g.to)])
+);
+
+export function deriveStationTextPalette(accentValue: string): StationTextPalette {
+  const parsed = parseAccentColor(accentValue);
+  if (parsed.kind === 'gradient') {
+    const match = ACCENT_GRADIENT_PRESETS.find(
+      (g) => g.from === parsed.from && g.to === parsed.to
+    );
+    if (match && CURATED_GRADIENT_PALETTES[match.id]) {
+      return CURATED_GRADIENT_PALETTES[match.id];
+    }
+    return makeTextPalette(parsed.from, parsed.to);
+  }
+  if (parsed.kind === 'solid') {
+    return CURATED_SOLID_PALETTES[parsed.hex] ?? makeTextPalette(parsed.hex);
+  }
+  return makeTextPalette('#A855F7');
+}
+
 export function getDefaultCategoryHex(category: string): string {
   const key = category.trim().toLowerCase();
   return DEFAULT_CATEGORY_HEX[key] ?? DEFAULT_CATEGORY_HEX.uncategorized;
@@ -190,6 +330,7 @@ export function getCategoryChipStyle(
 }
 
 export function buildStationAccentStyle(accentValue: string): StationAccentStyle {
+  const textPalette = deriveStationTextPalette(accentValue);
   const parsed = parseAccentColor(accentValue);
   if (parsed.kind === 'gradient') {
     const { from, to, angle } = parsed;
@@ -197,6 +338,7 @@ export function buildStationAccentStyle(accentValue: string): StationAccentStyle
     const mesh = `linear-gradient(${angle}deg, ${hexWithAlpha(from, 0.35)}, ${hexWithAlpha(to, 0.2)})`;
     return {
       accentHex: from,
+      textPalette,
       cardStyle: {
         borderColor: hexWithAlpha(from, 0.45),
         background: `linear-gradient(${angle}deg, ${hexWithAlpha(from, 0.32)}, ${hexWithAlpha(to, 0.18)} 45%, rgba(0,0,0,0.9) 70%, rgba(0,0,0,0.95))`,
@@ -223,6 +365,7 @@ export function buildStationAccentStyle(accentValue: string): StationAccentStyle
   const accentHex = parsed.kind === 'solid' ? parsed.hex : accentValue;
   return {
     accentHex,
+    textPalette,
     cardStyle: {
       borderColor: hexWithAlpha(accentHex, 0.45),
       background: `linear-gradient(to bottom right, ${hexWithAlpha(accentHex, 0.28)}, rgba(0,0,0,0.88) 55%, rgba(0,0,0,0.95))`,

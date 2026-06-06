@@ -17,7 +17,7 @@ import {
   type SessionUrgency,
 } from '@/utils/sessionDuration.utils';
 import { Timer } from 'lucide-react';
-import type { StationTheme } from '@/utils/stationTheme';
+import { getStationTheme, themeText, type StationTheme } from '@/utils/stationTheme';
 
 interface StationTimerProps {
   station: Station;

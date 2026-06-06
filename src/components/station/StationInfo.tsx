@@ -2,7 +2,7 @@ import React from 'react';
 import { Station } from '@/context/POSContext';
 import { Badge } from '@/components/ui/badge';
 import { Tag, Zap, Users, CreditCard } from 'lucide-react';
-import { getStationTheme, stationPricingBadge, type StationPhase } from '@/utils/stationTheme';
+import { getStationTheme, stationPricingBadge, themeIconBgProps, themeText, type StationPhase } from '@/utils/stationTheme';
 import SessionRateBadge from '@/components/station/SessionRateBadge';
 import { isPrepaidSession, formatBookingSlotLabel } from '@/utils/prepaidBooking.utils';
 
@@ -19,6 +19,12 @@ const StationInfo: React.FC<StationInfoProps> = ({
 }) => {
   const theme = getStationTheme(station);
   const Icon = theme.icon;
+  const nameText = themeText(theme, 'primary', 'font-heading text-base font-bold leading-snug break-words');
+  const labelText = themeText(theme, 'muted', 'text-[10px] font-semibold uppercase tracking-widest');
+  const pricingText = themeText(theme, 'muted', 'mt-1 text-xs leading-snug');
+  const iconText = themeText(theme, 'primary', 'h-4 w-4');
+  const iconBg = themeIconBgProps(theme);
+  const nowPlayingText = themeText(theme, 'primary', 'text-xs font-medium');
   const isPaused = station.currentSession?.isPaused;
   const sessionPlayers = station.currentSession?.playerCount ?? 1;
   const hasCoupon = station.currentSession?.couponCode;
@@ -32,7 +38,19 @@ const StationInfo: React.FC<StationInfoProps> = ({
       ? 'bg-teal-500/25 text-teal-100 border-teal-400/45'
       : station.isOccupied || phase === 'live' || isStarting
         ? theme.badgeOccupied
-        : theme.badgeAvailable;
+        : theme.textPalette
+          ? ''
+          : theme.badgeAvailable;
+
+  const statusBadgeStyle =
+    !isPaused &&
+    !isPrepaid &&
+    !station.isOccupied &&
+    phase !== 'live' &&
+    !isStarting &&
+    theme.textPalette
+      ? theme.textPalette.badgeOpen
+      : undefined;
 
   const statusLabel = isPaused
     ? 'Paused'
@@ -48,9 +66,10 @@ const StationInfo: React.FC<StationInfoProps> = ({
     <div className="min-w-0">
       <div className="flex items-start gap-2.5">
         <div
-          className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 ${theme.iconBg}`}
+          className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg.className}`}
+          style={iconBg.style}
         >
-          <Icon className={`h-4 w-4 ${theme.accent}`} />
+          <Icon className={iconText.className} style={iconText.style} />
           {(station.isOccupied || isStarting) && (
             <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
               <span
@@ -69,16 +88,17 @@ const StationInfo: React.FC<StationInfoProps> = ({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <p className={`font-heading text-base font-bold leading-snug break-words ${theme.accent}`}>
+              <p className={nameText.className} style={nameText.style}>
                 {station.name}
               </p>
-              <p className={`text-[10px] font-semibold uppercase tracking-widest ${theme.accentMuted}`}>
+              <p className={labelText.className} style={labelText.style}>
                 {theme.label}
               </p>
             </div>
             <Badge
               variant="outline"
               className={`shrink-0 gap-0.5 px-1.5 py-0 text-[9px] uppercase tracking-wider ${statusBadge}`}
+              style={statusBadgeStyle}
             >
               {(station.isOccupied || isStarting) && !isPaused && !isPrepaid && (
                 <Zap className="h-2.5 w-2.5 fill-current" />
@@ -87,7 +107,7 @@ const StationInfo: React.FC<StationInfoProps> = ({
               {statusLabel}
             </Badge>
           </div>
-          <p className={`mt-1 text-xs leading-snug ${theme.accentMuted}`}>
+          <p className={pricingText.className} style={pricingText.style}>
             {stationPricingBadge(station)}
           </p>
         </div>
@@ -95,12 +115,24 @@ const StationInfo: React.FC<StationInfoProps> = ({
 
       {station.isOccupied && station.currentSession && customerName && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5 animate-fade-in">
-          <span className={`text-xs font-medium ${theme.accent}`}>Now playing</span>
+          <span className={nowPlayingText.className} style={nowPlayingText.style}>
+            Now playing
+          </span>
           <span className="max-w-full rounded border border-white/10 bg-white/5 px-2 py-0.5 text-xs font-semibold text-white break-words">
             {customerName}
           </span>
           <span
-            className={`inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${theme.border} bg-white/5 ${theme.accent}`}
+            className={`inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] font-semibold tabular-nums bg-white/5 ${
+              theme.textPalette ? '' : `${theme.border} ${theme.accent}`
+            }`}
+            style={
+              theme.textPalette
+                ? {
+                    borderColor: theme.textPalette.border,
+                    color: theme.textPalette.primary,
+                  }
+                : undefined
+            }
           >
             <Users className="h-3 w-3 shrink-0" />
             {sessionPlayers}p

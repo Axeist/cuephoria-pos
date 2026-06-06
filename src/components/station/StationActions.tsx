@@ -363,7 +363,10 @@ const StationActions: React.FC<StationActionsProps> = ({
         <Button
           type="button"
           size={footerLayout ? 'default' : 'sm'}
-          className={`h-11 text-sm font-bold text-white transition-all duration-300 active:scale-[0.98] hover:brightness-110 ${theme.startBtn}`}
+          className={`h-11 text-sm font-bold text-white transition-all duration-300 active:scale-[0.98] hover:brightness-110 ${
+            theme.accentStyle ? '' : theme.startBtn
+          }`}
+          style={theme.accentStyle?.startBtnStyle}
           disabled={isLoading || isTransitioning}
           onClick={() => {
             setPreselectedCustomerId(null);
