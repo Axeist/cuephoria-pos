@@ -1451,8 +1451,8 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
           <div className="w-32 h-32 mb-8 flex items-center justify-center relative">
             <div className="absolute inset-0 rounded-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue opacity-20 animate-ping"></div>
             <img 
-              src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png" 
-              alt="Cuephoria Logo" 
+              src="/branding/cuetronix-logo.png" 
+              alt="Cuetronix" 
               className="animate-float z-10 relative"
             />
           </div>
@@ -1501,8 +1501,8 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
             <div className="mb-8 animate-float relative">
               <div className="absolute inset-0 rounded-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue opacity-30 blur-xl animate-pulse"></div>
               <img 
-                src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png" 
-                alt="Cuephoria Logo" 
+                src="/branding/cuetronix-logo.png" 
+                alt="Cuetronix" 
                 className="h-32 relative z-10 shadow-2xl shadow-cuephoria-lightpurple/40"
               />
             </div>
@@ -1745,8 +1745,8 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
             {/* Logo and description */}
             <div className="text-center md:text-left">
               <img 
-                src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
-                alt="Cuephoria Logo" 
+                src="/branding/cuetronix-logo.png"
+                alt="Cuetronix" 
                 className="h-12 mb-4 mx-auto md:mx-0" 
               />
               <p className="text-cuephoria-grey text-sm leading-relaxed mb-4">

@@ -9,6 +9,7 @@ import {
   Twitter,
   Youtube,
 } from "lucide-react";
+import { CUETRONIX_ASSETS } from "@/branding/assets";
 
 const Footer: React.FC = () => {
   const navigate = useNavigate();
@@ -124,16 +125,12 @@ const Footer: React.FC = () => {
               {/* Brand */}
               <div className="max-w-sm sm:col-span-2 md:col-span-4 lg:col-span-1">
                 <div className="mb-4 flex items-center gap-2.5">
-                  <div className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500 shadow-md shadow-violet-600/40">
-                    <Gamepad2 size={17} className="text-white" />
-                    <div className="pointer-events-none absolute inset-0 rounded-lg bg-gradient-to-br from-white/25 to-transparent" />
-                  </div>
-                  <span className="text-xl font-bold tracking-tight">
-                    Cue
-                    <span className="bg-gradient-to-r from-violet-300 to-fuchsia-300 bg-clip-text text-transparent">
-                      tronix
-                    </span>
-                  </span>
+                  <img
+                    src={CUETRONIX_ASSETS.logoUrl}
+                    alt={CUETRONIX_ASSETS.logoAlt}
+                    className="h-10 w-auto max-w-[160px] object-contain object-left"
+                    draggable={false}
+                  />
                 </div>
 
                 {/* Built-by strip — glass card with two "credits" */}

@@ -8,7 +8,8 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, CheckCircle2, Gamepad2, Globe, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Globe, ShieldCheck, Sparkles } from "lucide-react";
+import { CUETRONIX_ASSETS } from "@/branding/assets";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -112,10 +113,12 @@ export default function Signup() {
               }}
             >
               <div className="mb-5 flex items-center gap-2.5 lg:hidden">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500">
-                  <Gamepad2 size={17} className="text-white" />
-                </div>
-                <span className="text-lg font-bold">Cuetronix</span>
+                <img
+                  src={CUETRONIX_ASSETS.logoUrl}
+                  alt={CUETRONIX_ASSETS.logoAlt}
+                  className="h-9 w-auto max-w-[130px] object-contain"
+                  draggable={false}
+                />
               </div>
               <h2 className="text-2xl font-extrabold tracking-tight sm:text-[28px]">Create your workspace</h2>
               <p className="mt-2 text-sm text-gray-400">

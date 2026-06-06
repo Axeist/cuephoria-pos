@@ -44,6 +44,7 @@ import { GlobalNotificationBell } from '@/components/GlobalNotificationBell';
 import { LocationSwitcher } from '@/components/LocationSwitcher';
 import { useLocation as useLocationCtx } from '@/context/LocationContext';
 import { useTenantBrandingOptional } from '@/branding/BrandingProvider';
+import { CUETRONIX_ASSETS } from '@/branding/assets';
 import { usePOS } from '@/context/POSContext';
 import { cn } from '@/lib/utils';
 
@@ -166,7 +167,12 @@ const AppSidebar: React.FC = () => {
           onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
         />
       ) : (
-        <Sparkles className="h-5 w-5 text-white" />
+        <img
+          src={CUETRONIX_ASSETS.iconUrl}
+          alt={CUETRONIX_ASSETS.logoAlt}
+          className="h-full w-full object-cover"
+          draggable={false}
+        />
       )}
       <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/15" />
     </div>

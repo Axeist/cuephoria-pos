@@ -353,8 +353,8 @@ export default function PublicTournamentPaymentSuccess() {
           <div className="relative">
             <div className="absolute -inset-4 rounded-full bg-gradient-to-r from-cuephoria-purple/30 to-cuephoria-lightpurple/30 blur-xl animate-pulse"></div>
             <img
-              src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
-              alt="Cuephoria Logo"
+              src="/branding/cuetronix-logo.png"
+              alt="Cuetronix"
               className="h-20 md:h-24 relative z-10 drop-shadow-[0_0_25px_rgba(155,135,245,0.5)] animate-float"
             />
           </div>

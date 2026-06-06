@@ -10,7 +10,6 @@ import {
   Eye,
   EyeOff,
   FileText,
-  Gamepad2,
   Loader2,
   Lock,
   Mail,
@@ -19,6 +18,7 @@ import {
   Users,
   Zap,
 } from "lucide-react";
+import { CUETRONIX_ASSETS } from "@/branding/assets";
 import { appToast } from "@/lib/appToast";
 import { summarizeWorkspaceMemberships } from "@/lib/tenantPortalLabels";
 import GoogleButton from "@/components/auth/GoogleButton";
@@ -368,15 +368,12 @@ const Login = () => {
 
               <div className="mb-7">
                 <div className="mb-5 flex items-center gap-2.5 lg:hidden">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500 shadow-md shadow-violet-600/40">
-                    <Gamepad2 size={17} className="text-white" />
-                  </div>
-                  <span className="text-lg font-bold tracking-tight">
-                    Cue
-                    <span className="bg-gradient-to-r from-violet-300 to-fuchsia-300 bg-clip-text text-transparent">
-                      tronix
-                    </span>
-                  </span>
+                  <img
+                    src={CUETRONIX_ASSETS.logoUrl}
+                    alt={CUETRONIX_ASSETS.logoAlt}
+                    className="h-9 w-auto max-w-[130px] object-contain"
+                    draggable={false}
+                  />
                 </div>
 
                 <h2 className="text-2xl font-extrabold tracking-tight sm:text-[28px]">Sign in</h2>

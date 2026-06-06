@@ -190,7 +190,7 @@ export function CafeSidebar() {
               <>
                 <span className="text-zinc-600 text-[10px] shrink-0">×</span>
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-zinc-800 to-zinc-900 p-0.5 shadow-md ring-1 ring-white/10">
-                  <img src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png" alt="" className="h-full w-full rounded-md object-contain" />
+                  <img src="/branding/cuetronix-logo.png" alt="" className="h-full w-full rounded-md object-contain" />
                 </div>
                 <div className="min-w-0 ml-0.5">
                   <p className="font-heading text-sm font-bold leading-tight text-transparent bg-gradient-to-r from-orange-400 to-[hsl(270_60%_65%)] bg-clip-text truncate">

@@ -24,8 +24,8 @@ export default function PublicPaymentFailed() {
           <div className="relative">
             <div className="absolute -inset-4 rounded-full bg-gradient-to-r from-red-500/20 to-orange-500/20 blur-xl animate-pulse"></div>
             <img
-              src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
-              alt="Cuephoria Logo"
+              src="/branding/cuetronix-logo.png"
+              alt="Cuetronix"
               className="h-20 md:h-24 relative z-10 drop-shadow-[0_0_25px_rgba(239,68,68,0.3)] animate-float"
             />
           </div>

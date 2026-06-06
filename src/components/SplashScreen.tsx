@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Gamepad2, ShieldCheck, Sparkles } from "lucide-react";
+import { ShieldCheck, Sparkles } from "lucide-react";
+import { CUETRONIX_ASSETS } from "@/branding/assets";
 
 export type SplashVariant = "boot" | "login_success";
 
@@ -429,16 +430,17 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
                     <div
                       className={[
                         "gh-splash-pop relative flex h-14 w-14 items-center justify-center rounded-2xl",
-                        "border border-white/15 shadow-lg shadow-violet-600/40",
+                        "border border-white/15 shadow-lg shadow-violet-600/40 overflow-hidden",
                       ].join(" ")}
                       style={{
-                        background:
-                          "linear-gradient(135deg, #8b5cf6 0%, #ec4899 55%, #f43f5e 100%)",
+                        background: "#000",
                       }}
                     >
-                      <Gamepad2
-                        size={24}
-                        className="text-white drop-shadow-[0_0_8px_rgba(236,72,153,0.45)]"
+                      <img
+                        src={CUETRONIX_ASSETS.iconUrl}
+                        alt={CUETRONIX_ASSETS.logoAlt}
+                        className="h-full w-full object-cover"
+                        draggable={false}
                       />
                     </div>
                   )}

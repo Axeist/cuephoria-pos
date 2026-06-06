@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Gamepad2, LogIn, Menu, Scale, Sparkles, X } from "lucide-react";
+import { ArrowRight, LogIn, Menu, Scale, Sparkles, X } from "lucide-react";
+import { CUETRONIX_ASSETS } from "@/branding/assets";
 
 type NavItem =
   | { label: string; id: string; href?: never }
@@ -125,21 +126,12 @@ const Header: React.FC = () => {
                 className="group flex min-w-0 items-center gap-2.5"
                 aria-label="Cuetronix home"
               >
-                <div className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500 shadow-md shadow-violet-600/40">
-                  <Gamepad2 size={17} className="text-white" />
-                  <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-white/30 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[16px] font-bold leading-none tracking-tight">
-                    Cue
-                    <span className="bg-gradient-to-r from-violet-300 to-fuchsia-300 bg-clip-text text-transparent">
-                      tronix
-                    </span>
-                  </div>
-                  <div className="mt-1 hidden text-[9px] uppercase tracking-[0.22em] text-white/45 lg:block">
-                    Premium lounge OS
-                  </div>
-                </div>
+                <img
+                  src={CUETRONIX_ASSETS.logoUrl}
+                  alt={CUETRONIX_ASSETS.logoAlt}
+                  className="h-9 w-auto max-w-[140px] object-contain object-left"
+                  draggable={false}
+                />
               </a>
 
               {/* Center nav */}

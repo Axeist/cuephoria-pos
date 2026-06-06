@@ -1,7 +1,7 @@
+import { CUETRONIX_ASSETS } from "./assets";
+
 /**
  * Brand constants (B0 Cuetronix / default Cuephoria).
- *
- * Three layers:
  *   - PARENT_BRAND:  Cuephoria Tech Pvt. Ltd. (legal / parent company)
  *   - PRODUCT_BRAND: Cuetronix (the SaaS product shell)
  *   - TENANT_BRAND:  per-organization (Cuephoria is the default flagship)
@@ -25,6 +25,9 @@ export const PRODUCT_BRAND = {
   marketingUrl: "https://cuephoriatech.in/cuetronix",
   docsUrl: "https://cuephoriatech.in/docs",
   statusUrl: "https://cuephoriatech.in/status",
+  logoUrl: CUETRONIX_ASSETS.logoUrl,
+  iconUrl: CUETRONIX_ASSETS.iconUrl,
+  faviconUrl: CUETRONIX_ASSETS.faviconUrl,
 } as const;
 
 /**
@@ -112,6 +115,10 @@ export const DEFAULT_TENANT_BRAND: TenantBrand = {
     headingFamily: '"Poppins", system-ui, sans-serif',
     bodyFamily: '"Quicksand", system-ui, sans-serif',
   },
-  assets: {},
+  assets: {
+    logoLightUrl: CUETRONIX_ASSETS.logoUrl,
+    logoDarkUrl: CUETRONIX_ASSETS.logoUrl,
+    faviconUrl: CUETRONIX_ASSETS.faviconUrl,
+  },
   hidePoweredBy: true,
 };

@@ -1,35 +1,27 @@
 {
-  "name": "Cuephoria",
-  "short_name": "Cuephoria",
-  "description": "Cuephoria Gaming Center Management System",
+  "name": "Cuetronix",
+  "short_name": "Cuetronix",
+  "description": "Cuetronix — all-in-one gaming venue billing, booking, and staff management",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1A1F2C",
-  "theme_color": "#1A1F2C",
+  "background_color": "#0a0514",
+  "theme_color": "#0a0514",
   "orientation": "any",
   "scope": "/",
   "lang": "en",
   "categories": ["business", "productivity", "utilities"],
   "icons": [
     {
-      "src": "/lovable-uploads/07157232-bb2c-49af-a30e-ffda65959b05.png",
+      "src": "/branding/cuetronix-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/controller.png",
+      "src": "/branding/cuetronix-icon.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/lovable-uploads/07157232-bb2c-49af-a30e-ffda65959b05.png",
-      "sizes": "1280x720",
       "type": "image/png",
-      "form_factor": "wide"
+      "purpose": "any maskable"
     }
   ],
   "shortcuts": [
@@ -40,8 +32,8 @@
       "url": "/pos",
       "icons": [
         {
-          "src": "/lovable-uploads/07157232-bb2c-49af-a30e-ffda65959b05.png",
-          "sizes": "96x96"
+          "src": "/branding/cuetronix-icon-192.png",
+          "sizes": "192x192"
         }
       ]
     },
@@ -52,8 +44,8 @@
       "url": "/dashboard",
       "icons": [
         {
-          "src": "/lovable-uploads/07157232-bb2c-49af-a30e-ffda65959b05.png",
-          "sizes": "96x96"
+          "src": "/branding/cuetronix-icon-192.png",
+          "sizes": "192x192"
         }
       ]
     }
