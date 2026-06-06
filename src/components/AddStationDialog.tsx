@@ -36,6 +36,8 @@ import type { Station } from '@/types/pos.types';
 import type { StationType } from '@/types/stationType.types';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { AccentColorPicker } from '@/components/ui/AccentColorPicker';
+import { getDefaultStationTypeHex } from '@/utils/colorTheme.utils';
 
 const stationSchema = z.object({
   name: z.string().min(2, { message: 'Station name must be at least 2 characters.' }),
@@ -61,6 +63,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
   const [staticRate, setStaticRate] = useState(200);
   const [occupancyRates, setOccupancyRates] = useState<OccupancyRates>({});
   const [selectedType, setSelectedType] = useState<StationType | null>(null);
+  const [accentColor, setAccentColor] = useState<string | null>(null);
 
   const form = useForm<StationFormValues>({
     resolver: zodResolver(stationSchema),
@@ -86,6 +89,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
     setDurationTiers(getDefaultDurationTiers());
     setStaticRate(200);
     setOccupancyRates(buildDefaultOccupancyRates(4, 200, 100));
+    setAccentColor(null);
   }, [open, form]);
 
   useEffect(() => {
@@ -156,6 +160,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
         occupancyRates: rates,
         pricingMode,
         durationTiers: tiers.length > 0 ? tiers : undefined,
+        accentColor: accentColor ?? undefined,
       };
 
       const { error } = await supabase.from('stations').insert({
@@ -171,6 +176,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
         occupancy_rates: rates,
         pricing_mode: pricingMode,
         duration_tiers: tiers,
+        accent_color: accentColor,
         location_id: activeLocationId,
       });
 
@@ -285,6 +291,18 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
                 />
               </>
             )}
+
+            <div className="space-y-2 rounded-lg border p-3">
+              <Label>Card color tint</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Optional — pick a custom tint or use the default for this station type.
+              </p>
+              <AccentColorPicker
+                value={accentColor}
+                defaultHex={getDefaultStationTypeHex(selectedSlug)}
+                onChange={setAccentColor}
+              />
+            </div>
 
             <FormField
               control={form.control}

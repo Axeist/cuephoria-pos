@@ -10,6 +10,12 @@ import {
 import type { Station } from '@/types/pos.types';
 import { getRateSuffix, isPerPlayerPricing } from '@/utils/stationPricing';
 import { stationTypeLabel } from '@/utils/stationTypeUtils';
+import {
+  buildStationAccentStyle,
+  normalizeHexColor,
+  resolveStationAccentHex,
+  type StationAccentStyle,
+} from '@/utils/colorTheme.utils';
 
 export type StationPhase = 'idle' | 'starting' | 'live' | 'ending';
 
@@ -35,6 +41,10 @@ export interface StationTheme {
   liveRing: string;
   /** Decorative scan line (VR etc.) */
   showScanLine: boolean;
+  /** Resolved accent hex (type default or station override). */
+  accentHex: string;
+  /** Inline tint styles when station has a custom accent_color set. */
+  accentStyle?: StationAccentStyle;
 }
 
 const THEMES: Record<string, Omit<StationTheme, 'label'>> = {
@@ -143,12 +153,19 @@ const DEFAULT_THEME: Omit<StationTheme, 'label'> = {
   showScanLine: false,
 };
 
-export function getStationTheme(station: Pick<Station, 'type'>, typeLabel?: string): StationTheme {
+export function getStationTheme(
+  station: Pick<Station, 'type' | 'accentColor'>,
+  typeLabel?: string
+): StationTheme {
   const slug = (station.type || 'custom').toLowerCase();
   const base = THEMES[slug] ?? DEFAULT_THEME;
+  const accentHex = resolveStationAccentHex(slug, station.accentColor);
+  const hasCustomTint = normalizeHexColor(station.accentColor) != null;
   return {
     ...base,
     label: typeLabel ?? stationTypeLabel(slug),
+    accentHex,
+    accentStyle: hasCustomTint ? buildStationAccentStyle(accentHex) : undefined,
   };
 }
 

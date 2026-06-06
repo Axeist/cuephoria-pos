@@ -147,6 +147,7 @@ export const useStationsData = () => {
       type?: string;
       pricingMode?: 'static' | 'per_player' | 'time_based';
       durationTiers?: DurationTier[];
+      accentColor?: string | null;
     }
   ) => {
     try {
@@ -185,7 +186,9 @@ export const useStationsData = () => {
       if (updates.durationTiers !== undefined) {
         updateData.duration_tiers = updates.durationTiers;
       }
-      
+      if (updates.accentColor !== undefined) {
+        updateData.accent_color = updates.accentColor;
+      }
       const { error } = await supabase
         .from('stations')
         .update(updateData)
@@ -215,6 +218,8 @@ export const useStationsData = () => {
               type: updates.type ?? s.type,
               pricingMode: updates.pricingMode ?? s.pricingMode,
               durationTiers: updates.durationTiers ?? s.durationTiers,
+              accentColor:
+                updates.accentColor !== undefined ? updates.accentColor : s.accentColor,
             }
           : s
       ));

@@ -21,6 +21,8 @@ import { getDefaultDurationTiers, getTierPackagePrice } from '@/utils/timeBasedP
 import type { StationType } from '@/types/stationType.types';
 import { defaultSlotMinutesForSlug } from '@/utils/stationTypeUtils';
 import { Switch } from '@/components/ui/switch';
+import { AccentColorPicker } from '@/components/ui/AccentColorPicker';
+import { getDefaultStationTypeHex } from '@/utils/colorTheme.utils';
 
 export interface StationUpdatePayload {
   name: string;
@@ -32,6 +34,7 @@ export interface StationUpdatePayload {
   slotDuration: number | null;
   pricingMode: PricingMode;
   durationTiers: DurationTier[];
+  accentColor?: string | null;
 }
 
 interface EditStationDialogProps {
@@ -56,6 +59,7 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
   const [staticRate, setStaticRate] = React.useState(200);
   const [publicBooking, setPublicBooking] = React.useState(true);
   const [selectedType, setSelectedType] = React.useState<StationType | null>(null);
+  const [accentColor, setAccentColor] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
 
   React.useEffect(() => {
@@ -70,6 +74,7 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
       );
       setStaticRate(station.hourlyRate);
       setPublicBooking(station.eventEnabled !== false);
+      setAccentColor(station.accentColor ?? null);
       setSelectedType(null);
     }
   }, [station]);
@@ -116,6 +121,7 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
         slotDuration,
         pricingMode,
         durationTiers: tiers,
+        accentColor,
       });
       if (success) onOpenChange(false);
     } finally {
@@ -190,6 +196,18 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
               />
             </>
           )}
+
+          <div className="space-y-2 rounded-lg border p-3">
+            <Label>Card color tint</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Optional override — defaults to the color for this station type.
+            </p>
+            <AccentColorPicker
+              value={accentColor}
+              defaultHex={getDefaultStationTypeHex(typeSlug)}
+              onChange={setAccentColor}
+            />
+          </div>
 
           <div className="flex items-center justify-between rounded-lg border p-3">
             <div>

@@ -9,7 +9,9 @@ import {
   Station,
   Session,
   SessionEndCheckoutMode,
+  ProductCategoryMeta,
 } from '@/types/pos.types';
+import { getDefaultCategoryHex, normalizeHexColor, resolveCategoryHex } from '@/utils/colorTheme.utils';
 import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
 import { useProducts } from '@/hooks/useProducts';
 import { useCustomers } from '@/hooks/useCustomers';
@@ -50,6 +52,10 @@ const POSContext = createContext<POSContextType>({
   cashAmount: 0,
   upiAmount: 0,
   categories: ['uncategorized'],
+  categoryMeta: {},
+  getCategoryAccentColor: () => '#6B7280',
+  isCategoryInQuickShop: () => true,
+  updateCategoryAppearance: async () => {},
   setIsStudentDiscount: () => {},
   setBills: () => {},
   setCustomers: () => {},
@@ -114,6 +120,23 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isStudentDiscount, setIsStudentDiscount] = useState<boolean>(false);
   
   const [categories, setCategories] = useState<string[]>(['uncategorized']);
+  const [categoryMeta, setCategoryMeta] = useState<Record<string, ProductCategoryMeta>>({});
+
+  const getCategoryAccentColor = useCallback(
+    (category: string) => {
+      const key = category.trim().toLowerCase();
+      return resolveCategoryHex(category, categoryMeta[key]?.accentColor);
+    },
+    [categoryMeta]
+  );
+
+  const isCategoryInQuickShop = useCallback(
+    (category: string) => {
+      const key = category.trim().toLowerCase();
+      return categoryMeta[key]?.quickShopEnabled ?? true;
+    },
+    [categoryMeta]
+  );
   
   const { 
     products, 
@@ -185,6 +208,54 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const { toast } = useToast();
   const { activeLocationId } = useLocation();
+
+  const updateCategoryAppearance = useCallback(
+    async (
+      category: string,
+      patch: { accentColor?: string | null; quickShopEnabled?: boolean }
+    ) => {
+      const key = category.trim().toLowerCase();
+      if (!key || !activeLocationId) return;
+
+      const updatePayload: Record<string, unknown> = {};
+      if (patch.accentColor !== undefined) {
+        updatePayload.accent_color = normalizeHexColor(patch.accentColor);
+      }
+      if (patch.quickShopEnabled !== undefined) {
+        updatePayload.quick_shop_enabled = patch.quickShopEnabled;
+      }
+      if (Object.keys(updatePayload).length === 0) return;
+
+      const { error } = await supabase
+        .from('categories')
+        .update(updatePayload)
+        .eq('name', key)
+        .eq('location_id', activeLocationId);
+
+      if (error) {
+        toast({
+          title: 'Error',
+          description: `Failed to update category appearance: ${handleSupabaseError(error, 'update')}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setCategoryMeta((prev) => ({
+        ...prev,
+        [key]: {
+          name: key,
+          accentColor:
+            patch.accentColor !== undefined
+              ? normalizeHexColor(patch.accentColor)
+              : (prev[key]?.accentColor ?? null),
+          quickShopEnabled:
+            patch.quickShopEnabled ?? prev[key]?.quickShopEnabled ?? true,
+        },
+      }));
+    },
+    [activeLocationId, toast]
+  );
   /** When set, the next saved-cart restore for this customer may load session-only drafts (checkout handoff). */
   const forceLoadSavedCartCustomerIdRef = useRef<string | null>(null);
 
@@ -427,7 +498,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const { data, error } = await supabase
           .from('categories')
-          .select('name')
+          .select('name, accent_color, quick_shop_enabled')
           .eq('location_id', activeLocationId);
         
         if (error) {
@@ -436,7 +507,16 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         if (data && data.length > 0) {
-          const dbCategories = data.map(item => item.name.toLowerCase());
+          const meta: Record<string, ProductCategoryMeta> = {};
+          const dbCategories = data.map((item) => {
+            const name = String(item.name).toLowerCase();
+            meta[name] = {
+              name,
+              accentColor: normalizeHexColor(item.accent_color as string | null),
+              quickShopEnabled: item.quick_shop_enabled ?? true,
+            };
+            return name;
+          });
           
           if (!dbCategories.includes('uncategorized')) {
             try {
@@ -447,12 +527,18 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   { onConflict: 'name,location_id', ignoreDuplicates: true }
                 );
               dbCategories.push('uncategorized');
+              meta.uncategorized = {
+                name: 'uncategorized',
+                accentColor: getDefaultCategoryHex('uncategorized'),
+                quickShopEnabled: true,
+              };
             } catch (err) {
               console.error('Error creating uncategorized category:', err);
             }
           }
           
           setCategories(dbCategories);
+          setCategoryMeta(meta);
           localStorage.setItem('cuephoriaCategories', JSON.stringify(dbCategories));
           console.log('Categories loaded from database:', dbCategories);
         } else {
@@ -470,6 +556,13 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
           
           setCategories(defaultCategories);
+          setCategoryMeta({
+            uncategorized: {
+              name: 'uncategorized',
+              accentColor: getDefaultCategoryHex('uncategorized'),
+              quickShopEnabled: true,
+            },
+          });
           localStorage.setItem('cuephoriaCategories', JSON.stringify(defaultCategories));
   console.log('Default categories created:', defaultCategories);
         }
@@ -500,7 +593,12 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       const { error } = await supabase
         .from('categories')
-        .insert({ name: trimmedCategory, location_id: activeLocationId });
+        .insert({
+          name: trimmedCategory,
+          location_id: activeLocationId,
+          accent_color: getDefaultCategoryHex(trimmedCategory),
+          quick_shop_enabled: true,
+        });
         
       if (error) {
         console.error('Error adding category to Supabase:', error);
@@ -517,6 +615,14 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem('cuephoriaCategories', JSON.stringify(updated));
         return updated;
       });
+      setCategoryMeta((prev) => ({
+        ...prev,
+        [trimmedCategory]: {
+          name: trimmedCategory,
+          accentColor: getDefaultCategoryHex(trimmedCategory),
+          quickShopEnabled: true,
+        },
+      }));
       
       toast({
         title: 'Success',
@@ -599,6 +705,16 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem('cuephoriaCategories', JSON.stringify(updated));
         return updated;
       });
+      setCategoryMeta((prev) => {
+        const oldKey = oldCategory.toLowerCase();
+        const next = { ...prev };
+        const existing = next[oldKey];
+        if (existing) {
+          delete next[oldKey];
+          next[trimmedNewCategory] = { ...existing, name: trimmedNewCategory };
+        }
+        return next;
+      });
       
       toast({
         title: 'Success',
@@ -672,7 +788,12 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem('cuephoriaCategories', JSON.stringify(updated));
         return updated;
       });
-      
+      setCategoryMeta((prev) => {
+        const next = { ...prev };
+        delete next[lowerCategory];
+        return next;
+      });
+
       toast({
         title: 'Success',
         description: `Category "${category}" has been deleted`,
@@ -1227,6 +1348,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUpiAmount,
     updateSplitAmounts,
     categories,
+    categoryMeta,
+    getCategoryAccentColor,
+    isCategoryInQuickShop,
+    updateCategoryAppearance,
     setIsStudentDiscount,
     setBills,
     setCustomers,
@@ -1289,6 +1414,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isStudentDiscount, isSplitPayment, cashAmount, upiAmount,
     setIsSplitPayment, setCashAmount, setUpiAmount, updateSplitAmounts,
     categories, setIsStudentDiscount, setBills, setCustomers, setStations,
+    categoryMeta, getCategoryAccentColor, isCategoryInQuickShop, updateCategoryAppearance,
     addProduct, updateProduct, deleteProduct,
     addCategory, updateCategory, deleteCategory,
     startSession, endSession, endSessionGroup, pauseSession, resumeSession, extendSession, moveSession, deleteStation, updateStation, refreshStations,

@@ -5,6 +5,11 @@ import { usePOS, Customer, Station, Product } from '@/context/POSContext';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { getCartItemDisplayName } from '@/utils/cartItem.utils';
 import {
+  getCategoryCardStyle,
+  getCategoryChipStyle,
+  hexWithAlpha,
+} from '@/utils/colorTheme.utils';
+import {
   ResponsiveDialog,
   ResponsiveDialogContent,
   ResponsiveDialogDescription,
@@ -14,6 +19,7 @@ import {
 } from '@/components/ui/responsive-dialog';
 import { Minus, Plus, Search, ShoppingBag, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getStationTheme } from '@/utils/stationTheme';
 
 type QuickShopTab = 'products' | 'order';
 
@@ -26,8 +32,6 @@ interface StationQuickShopDialogProps {
   initialTab?: QuickShopTab;
 }
 
-const QUICK_SHOP_CATEGORIES = new Set(['food', 'drinks']);
-
 const StationQuickShopDialog: React.FC<StationQuickShopDialogProps> = ({
   open,
   onOpenChange,
@@ -36,11 +40,23 @@ const StationQuickShopDialog: React.FC<StationQuickShopDialogProps> = ({
   sessionId,
   initialTab = 'products',
 }) => {
-  const { products, getStationQuickShopItems, addToStationQuickShop, updateStationQuickShopQuantity, removeFromStationQuickShop } = usePOS();
+  const {
+    products,
+    categories,
+    categoryMeta,
+    getCategoryAccentColor,
+    isCategoryInQuickShop,
+    getStationQuickShopItems,
+    addToStationQuickShop,
+    updateStationQuickShopQuantity,
+    removeFromStationQuickShop,
+  } = usePOS();
   const { toast } = useToast();
+  const stationTheme = getStationTheme(station);
+  const accentHex = stationTheme.accentHex;
   const [activeTab, setActiveTab] = useState<QuickShopTab>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<'all' | 'food' | 'drinks'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   useEffect(() => {
     if (open) {
@@ -52,19 +68,31 @@ const StationQuickShopDialog: React.FC<StationQuickShopDialogProps> = ({
   const orderCount = orderItems.reduce((sum, item) => sum + item.quantity, 0);
   const orderTotal = orderItems.reduce((sum, item) => sum + item.total, 0);
 
+  const quickShopCategories = useMemo(() => {
+    const fromProducts = new Set(
+      products
+        .filter((p) => p.stock > 0 && isCategoryInQuickShop(p.category))
+        .map((p) => p.category.toLowerCase())
+    );
+    return categories.filter(
+      (cat) => fromProducts.has(cat.toLowerCase()) && isCategoryInQuickShop(cat)
+    );
+  }, [products, categories, isCategoryInQuickShop]);
+
   const availableProducts = useMemo(
     () =>
       products.filter(
-        (product) =>
-          QUICK_SHOP_CATEGORIES.has(product.category) && product.stock > 0
+        (product) => product.stock > 0 && isCategoryInQuickShop(product.category)
       ),
-    [products]
+    [products, isCategoryInQuickShop]
   );
 
   const filteredProducts = useMemo(() => {
     let list = availableProducts;
     if (categoryFilter !== 'all') {
-      list = list.filter((product) => product.category === categoryFilter);
+      list = list.filter(
+        (product) => product.category.toLowerCase() === categoryFilter.toLowerCase()
+      );
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -99,6 +127,11 @@ const StationQuickShopDialog: React.FC<StationQuickShopDialogProps> = ({
     });
   };
 
+  const tabActiveStyle = {
+    borderColor: accentHex,
+    color: accentHex,
+  };
+
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange} mobileVariant="sheet-bottom">
       <ResponsiveDialogContent
@@ -107,12 +140,12 @@ const StationQuickShopDialog: React.FC<StationQuickShopDialogProps> = ({
       >
         <ResponsiveDialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 border-b border-white/10 shrink-0">
           <ResponsiveDialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
-            <ShoppingBag className="h-5 w-5 text-emerald-400" />
+            <ShoppingBag className="h-5 w-5" style={{ color: accentHex }} />
             Quick Shop — {station.name}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
             {customer
-              ? `Adding snacks & drinks for ${customer.name}. Items stay on this station until the session ends.`
+              ? `Add products for ${customer.name}. Items stay on this station until the session ends.`
               : 'Add items for this active session.'}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
@@ -121,26 +154,26 @@ const StationQuickShopDialog: React.FC<StationQuickShopDialogProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('products')}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'products'
-                ? 'border-emerald-400 text-emerald-300'
-                : 'border-transparent text-muted-foreground hover:text-white'
-            }`}
+            className="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors border-transparent text-muted-foreground hover:text-white"
+            style={activeTab === 'products' ? tabActiveStyle : undefined}
           >
             Products
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('order')}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'order'
-                ? 'border-emerald-400 text-emerald-300'
-                : 'border-transparent text-muted-foreground hover:text-white'
-            }`}
+            className="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 border-transparent text-muted-foreground hover:text-white"
+            style={activeTab === 'order' ? tabActiveStyle : undefined}
           >
             Station Order
             {orderCount > 0 && (
-              <span className="rounded-full bg-emerald-500/20 text-emerald-300 text-xs px-2 py-0.5">
+              <span
+                className="rounded-full text-xs px-2 py-0.5"
+                style={{
+                  backgroundColor: hexWithAlpha(accentHex, 0.2),
+                  color: accentHex,
+                }}
+              >
                 {orderCount}
               </span>
             )}
@@ -154,25 +187,34 @@ const StationQuickShopDialog: React.FC<StationQuickShopDialogProps> = ({
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search snacks & drinks..."
+                    placeholder="Search products..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-8 h-9"
                   />
                 </div>
-                <div className="flex gap-2">
-                  {(['all', 'food', 'drinks'] as const).map((cat) => (
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setCategoryFilter('all')}
+                    className="text-xs px-3 py-1.5 rounded-lg font-medium capitalize transition-colors border bg-white/5 text-muted-foreground hover:text-white border-transparent"
+                    style={getCategoryChipStyle('all', accentHex, categoryFilter === 'all')}
+                  >
+                    All
+                  </button>
+                  {quickShopCategories.map((cat) => (
                     <button
                       key={cat}
                       type="button"
                       onClick={() => setCategoryFilter(cat)}
-                      className={`text-xs px-3 py-1.5 rounded-lg font-medium capitalize transition-colors ${
+                      className="text-xs px-3 py-1.5 rounded-lg font-medium capitalize transition-colors border bg-white/5 text-muted-foreground hover:text-white border-transparent"
+                      style={getCategoryChipStyle(
+                        cat,
+                        categoryMeta[cat]?.accentColor ?? getCategoryAccentColor(cat),
                         categoryFilter === cat
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : 'bg-white/5 text-muted-foreground hover:text-white'
-                      }`}
+                      )}
                     >
-                      {cat === 'all' ? 'All' : cat}
+                      {cat}
                     </button>
                   ))}
                 </div>
@@ -183,21 +225,34 @@ const StationQuickShopDialog: React.FC<StationQuickShopDialogProps> = ({
                     {filteredProducts.map((product) => {
                       const inOrder = getQtyInOrder(product.id);
                       const remaining = getRemainingStock(product);
+                      const catHex = getCategoryAccentColor(product.category);
+                      const cardStyle = getCategoryCardStyle(
+                        product.category,
+                        categoryMeta[product.category.toLowerCase()]?.accentColor
+                      );
                       return (
                         <div
                           key={product.id}
-                          className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3"
+                          className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                          style={cardStyle}
                         >
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-sm truncate">{product.name}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{product.category}</p>
+                            <p
+                              className="text-xs capitalize"
+                              style={{ color: hexWithAlpha(catHex, 0.85) }}
+                            >
+                              {product.category}
+                            </p>
                             <div className="flex items-center gap-2 mt-1">
-                              <CurrencyDisplay amount={product.price} className="text-sm text-emerald-300" />
+                              <span style={{ color: catHex }}>
+                                <CurrencyDisplay amount={product.price} className="text-sm font-medium" />
+                              </span>
                               <span className="text-[10px] text-muted-foreground">
                                 {remaining} left
                               </span>
                               {inOrder > 0 && (
-                                <span className="text-[10px] text-emerald-400">
+                                <span className="text-[10px]" style={{ color: catHex }}>
                                   · {inOrder} in order
                                 </span>
                               )}
@@ -206,7 +261,8 @@ const StationQuickShopDialog: React.FC<StationQuickShopDialogProps> = ({
                           <Button
                             size="sm"
                             disabled={remaining <= 0}
-                            className="shrink-0 bg-emerald-600 hover:bg-emerald-700"
+                            className="shrink-0 text-white border-0"
+                            style={{ backgroundColor: catHex }}
                             onClick={() => handleAddProduct(product)}
                           >
                             <Plus className="h-4 w-4" />
@@ -292,7 +348,9 @@ const StationQuickShopDialog: React.FC<StationQuickShopDialogProps> = ({
                   ))}
                   <div className="flex justify-between items-center pt-3 border-t border-white/10 mt-2">
                     <span className="font-medium">Order total</span>
-                    <CurrencyDisplay amount={orderTotal} className="text-lg font-bold text-emerald-300" />
+                    <span style={{ color: accentHex }}>
+                      <CurrencyDisplay amount={orderTotal} className="text-lg font-bold" />
+                    </span>
                   </div>
                 </div>
               ) : (
@@ -303,7 +361,10 @@ const StationQuickShopDialog: React.FC<StationQuickShopDialogProps> = ({
                     variant="outline"
                     size="sm"
                     onClick={() => setActiveTab('products')}
-                    className="border-emerald-500/30 text-emerald-300"
+                    style={{
+                      borderColor: hexWithAlpha(accentHex, 0.35),
+                      color: accentHex,
+                    }}
                   >
                     Browse products
                   </Button>
@@ -318,13 +379,19 @@ const StationQuickShopDialog: React.FC<StationQuickShopDialogProps> = ({
             {orderCount > 0 ? (
               <span>
                 {orderCount} item{orderCount !== 1 ? 's' : ''} ·{' '}
-                <CurrencyDisplay amount={orderTotal} className="inline text-emerald-300" />
+                <span style={{ color: accentHex }}>
+                  <CurrencyDisplay amount={orderTotal} className="inline" />
+                </span>
               </span>
             ) : (
               'Nothing added yet'
             )}
           </div>
-          <Button onClick={() => onOpenChange(false)} className="bg-emerald-600 hover:bg-emerald-700">
+          <Button
+            onClick={() => onOpenChange(false)}
+            className="text-white border-0"
+            style={{ backgroundColor: accentHex }}
+          >
             Done
           </Button>
         </ResponsiveDialogFooter>

@@ -60,6 +60,8 @@ export interface Station {
   teamColor?: string | null;
   maxCapacity?: number | null;
   singleRate?: number | null;
+  /** Optional hex tint override for station card (e.g. #8B5CF6). */
+  accentColor?: string | null;
 }
 
 export interface Session {
@@ -88,6 +90,12 @@ export interface Session {
   timeTierPrice?: number;
   /** Per-minute rate when play exceeds planned duration (time_based). */
   overtimePerMinute?: number;
+}
+
+export interface ProductCategoryMeta {
+  name: string;
+  accentColor: string | null;
+  quickShopEnabled: boolean;
 }
 
 export interface CartItem {
@@ -172,6 +180,13 @@ export interface POSContextType {
   loyaltyPointsUsed: number;
   isStudentDiscount: boolean;
   categories: string[];
+  categoryMeta: Record<string, ProductCategoryMeta>;
+  getCategoryAccentColor: (category: string) => string;
+  isCategoryInQuickShop: (category: string) => boolean;
+  updateCategoryAppearance: (
+    category: string,
+    patch: { accentColor?: string | null; quickShopEnabled?: boolean }
+  ) => Promise<void>;
   isSplitPayment: boolean;
   cashAmount: number;
   upiAmount: number;
@@ -227,6 +242,7 @@ export interface POSContextType {
       type?: string;
       pricingMode?: 'static' | 'per_player' | 'time_based';
       durationTiers?: DurationTier[];
+      accentColor?: string | null;
     }
   ) => Promise<boolean>;
   refreshStations: (silent?: boolean) => Promise<void>;

@@ -228,7 +228,7 @@ const StationCard: React.FC<StationCardProps> = ({
         className={`
           group relative overflow-hidden rounded-xl border backdrop-blur-md
           transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]
-          ${theme.border} ${theme.bg} ${theme.glow}
+          ${theme.accentStyle ? '' : `${theme.border} ${theme.bg} ${theme.glow}`}
           ${cardPhaseClass(phase, station.isOccupied)}
           ${cardRingClass(
             phase,
@@ -248,8 +248,13 @@ const StationCard: React.FC<StationCardProps> = ({
               }
             : undefined
         }
+        style={theme.accentStyle?.cardStyle}
       >
-        <div className={`pointer-events-none absolute inset-0 ${theme.mesh}`} aria-hidden />
+        <div
+          className={`pointer-events-none absolute inset-0 ${theme.accentStyle ? '' : theme.mesh}`}
+          style={theme.accentStyle?.meshStyle}
+          aria-hidden
+        />
 
         {phase === 'starting' && (
           <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-black/35 backdrop-blur-[1px] animate-station-phase-in">
@@ -555,6 +560,7 @@ const StationCard: React.FC<StationCardProps> = ({
             slotDuration: updates.slotDuration,
             pricingMode: updates.pricingMode,
             durationTiers: updates.durationTiers,
+            accentColor: updates.accentColor,
           })
         }
       />

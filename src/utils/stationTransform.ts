@@ -160,8 +160,9 @@ export function transformStationRow(item: Record<string, unknown>): Station {
     teamColor: (item.team_color as string | null) ?? null,
     maxCapacity: item.max_capacity != null ? Number(item.max_capacity) : null,
     singleRate: item.single_rate != null ? Number(item.single_rate) : null,
+    accentColor: (item.accent_color as string | null) ?? null,
   };
 }
 
 export const STATION_SELECT_FIELDS =
-  'id,name,type,hourly_rate,is_occupied,currentsession,created_at,category,event_enabled,slot_duration,max_players,occupancy_rates,pricing_mode,duration_tiers,team_name,team_color,max_capacity,single_rate';
+  'id,name,type,hourly_rate,is_occupied,currentsession,created_at,category,event_enabled,slot_duration,max_players,occupancy_rates,pricing_mode,duration_tiers,team_name,team_color,max_capacity,single_rate,accent_color';
