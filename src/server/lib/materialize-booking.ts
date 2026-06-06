@@ -92,6 +92,10 @@ type BookingPayload = {
   coupons?: string;
   locationId?: string;
   profile?: "default" | "lite";
+  stationPlayerCounts?: Record<string, number>;
+  /** Compact parallel array aligned with `s` / selectedStations (Razorpay notes fallback). */
+  pc?: number[];
+  spc?: Record<string, number>;
 };
 
 export type NormalizedPayload = {
@@ -102,6 +106,7 @@ export type NormalizedPayload = {
   customer: { id?: string; name: string; phone: string; email?: string };
   pricing: { original: number; discount: number; final: number; coupons: string };
   locationId: string | null;
+  stationPlayerCounts: Record<string, number>;
 };
 
 type PaymentOrderRow = {
@@ -300,7 +305,9 @@ function timeToMinutes(timeStr: string): number {
 export function normalizeBookingPayload(raw: BookingPayload | string): NormalizedPayload {
   const data: BookingPayload = typeof raw === "string" ? JSON.parse(raw) : raw;
 
-  const selectedStations: string[] = data.selectedStations || data.s || [];
+  const selectedStations: string[] = [
+    ...new Set((data.selectedStations || data.s || []).filter(Boolean)),
+  ];
   const selectedDateISO: string = data.selectedDateISO || data.d || "";
 
   const rawSlots: Array<{ start_time?: string; end_time?: string; s?: string; e?: string }> =
@@ -338,7 +345,34 @@ export function normalizeBookingPayload(raw: BookingPayload | string): Normalize
 
   const locationId = (data.locationId as string | undefined) || null;
 
-  return { selectedStations, selectedDateISO, slots, duration, customer, pricing, locationId };
+  const stationPlayerCounts: Record<string, number> = {};
+  const countsFromMap = data.stationPlayerCounts || data.spc || {};
+  for (const [stationId, rawCount] of Object.entries(countsFromMap)) {
+    const n = Number(rawCount);
+    if (stationId && Number.isFinite(n) && n > 0) {
+      stationPlayerCounts[stationId] = Math.floor(n);
+    }
+  }
+  const compactCounts = Array.isArray(data.pc) ? data.pc : [];
+  if (compactCounts.length === selectedStations.length) {
+    selectedStations.forEach((stationId, index) => {
+      const n = Number(compactCounts[index]);
+      if (Number.isFinite(n) && n > 0) {
+        stationPlayerCounts[stationId] = Math.floor(n);
+      }
+    });
+  }
+
+  return {
+    selectedStations,
+    selectedDateISO,
+    slots,
+    duration,
+    customer,
+    pricing,
+    locationId,
+    stationPlayerCounts,
+  };
 }
 
 /** Fall back to Razorpay order notes if no payment_orders row exists. */
@@ -494,6 +528,7 @@ async function createBookingsRows(
         coupon_code: payload.pricing.coupons || null,
         payment_mode: "razorpay",
         payment_txn_id: paymentId,
+        player_count: payload.stationPlayerCounts[station_id] ?? 1,
         notes: orderTag,
       });
     });

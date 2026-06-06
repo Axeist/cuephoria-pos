@@ -1,9 +1,16 @@
 import { toast } from 'sonner';
 import { StaffNotificationPopup } from '@/components/notifications/StaffNotificationPopup';
 import type { StaffNotification } from '@/types/staffNotification.types';
-import { isSessionStaffNotification } from '@/types/staffNotification.types';
+import { isSessionStaffNotification, isBookingStaffNotification } from '@/types/staffNotification.types';
 
 const POPUP_DURATION_MS = 9000;
+
+function staffNotificationToastId(notification: StaffNotification): string {
+  if (isBookingStaffNotification(notification)) {
+    return `staff-booking-${notification.booking.id}`;
+  }
+  return notification.id;
+}
 
 export function showStaffNotificationPopup(notification: StaffNotification): void {
   const duration = isSessionStaffNotification(notification)
@@ -15,13 +22,13 @@ export function showStaffNotificationPopup(notification: StaffNotification): voi
       <StaffNotificationPopup notification={notification} toastId={toastId} />
     ),
     {
-      id: notification.id,
+      id: staffNotificationToastId(notification),
       duration,
       position: 'top-right',
       unstyled: true,
       classNames: {
         toast:
-          '!p-0 !m-0 !w-[min(calc(100vw-2rem),340px)] !max-w-[340px] !bg-transparent !border-0 !shadow-none !overflow-hidden',
+          'staff-notification-toast !p-0 !m-0 !h-auto !min-h-0 !w-[min(calc(100vw-2rem),340px)] !max-w-[340px] !bg-transparent !border-0 !shadow-none !overflow-visible',
       },
     }
   );

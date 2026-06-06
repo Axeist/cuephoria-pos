@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react"
+import type { ComponentProps, CSSProperties } from "react"
 import { Toaster as Sonner } from "sonner"
 
 type ToasterProps = ComponentProps<typeof Sonner>
@@ -13,7 +13,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       visibleToasts={4}
       gap={12}
       offset={{ top: 76, right: 20 }}
-      style={{ zIndex: 9999 }}
+      style={{ zIndex: 9999, '--gap': '12px' } as CSSProperties}
       toastOptions={{
         duration: 3800,
         classNames: {

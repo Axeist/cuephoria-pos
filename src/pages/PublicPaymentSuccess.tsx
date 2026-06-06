@@ -5,6 +5,7 @@ import { CheckCircle2, Loader2, AlertCircle, Sparkles } from "lucide-react";
 
 type PendingBooking = {
   selectedStations: string[];
+  stationPlayerCounts?: Record<string, number>;
   selectedDateISO: string;
   slots: Array<{ start_time: string; end_time: string }>;
   duration: number;
@@ -25,6 +26,108 @@ const generateCustomerID = (phone: string): string => {
   const phoneHash = normalized.slice(-4);
   return `CUE${phoneHash}${timestamp}`;
 };
+
+function razorpayOrderTag(orderId: string): string {
+  return `Razorpay Order: ${orderId}`;
+}
+
+function formatBookingTime(timeString: string): string {
+  return new Date(`2000-01-01T${timeString}`).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+async function fetchPaidBookingsForCheckout(paymentId: string, orderId: string) {
+  const { data: byPayment } = await supabase
+    .from("bookings")
+    .select("id, booking_date, start_time, end_time, final_price, station_id, customer_id")
+    .eq("payment_txn_id", paymentId);
+
+  if (byPayment && byPayment.length > 0) {
+    return byPayment;
+  }
+
+  const { data: byOrder } = await supabase
+    .from("bookings")
+    .select("id, booking_date, start_time, end_time, final_price, station_id, customer_id")
+    .eq("notes", razorpayOrderTag(orderId))
+    .eq("payment_mode", "razorpay");
+
+  return byOrder ?? [];
+}
+
+async function buildConfirmationAndRedirect(args: {
+  bookings: Array<{
+    id: string;
+    booking_date: string;
+    start_time: string;
+    end_time: string;
+    final_price?: number | null;
+    station_id: string;
+    customer_id: string;
+  }>;
+  paymentId: string;
+  pb: PendingBooking | null;
+  razorpayProfile: string;
+  navigate: (path: string) => void;
+}) {
+  const { bookings, paymentId, pb, razorpayProfile, navigate } = args;
+  const sorted = [...bookings].sort((a, b) => a.start_time.localeCompare(b.start_time));
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+
+  const stationIds = [...new Set(bookings.map((b) => b.station_id))];
+  const { data: stationsData } = await supabase
+    .from("stations")
+    .select("id, name")
+    .in("id", stationIds);
+
+  const stationNames =
+    stationsData?.map((s) => s.name) ??
+    pb?.selectedStations ??
+    stationIds;
+
+  let customerName = pb?.customer.name ?? "";
+  if (!customerName && first.customer_id) {
+    const { data: customer } = await supabase
+      .from("customers")
+      .select("name")
+      .eq("id", first.customer_id)
+      .maybeSingle();
+    customerName = customer?.name ?? "";
+  }
+
+  const totalAmount =
+    pb?.pricing.final ??
+    bookings.reduce((sum, b) => sum + (Number(b.final_price) || 0), 0);
+
+  localStorage.setItem(
+    "bookingConfirmation",
+    JSON.stringify({
+      bookingId: first.id.slice(0, 8).toUpperCase(),
+      customerName,
+      stationNames,
+      date: first.booking_date,
+      startTime: formatBookingTime(first.start_time),
+      endTime: formatBookingTime(last.end_time),
+      totalAmount,
+      transactionFee: pb?.pricing.transactionFee,
+      totalWithFee: pb?.pricing.totalWithFee || totalAmount,
+      couponCode: pb?.pricing.coupons || undefined,
+      discountAmount: pb?.pricing.discount && pb.pricing.discount > 0 ? pb.pricing.discount : undefined,
+      sessionDuration: (pb?.duration ?? 60) === 15 ? "15 minutes" : "60 minutes",
+      paymentMode: "razorpay",
+      paymentTxnId: paymentId,
+    })
+  );
+  localStorage.removeItem("pendingBooking");
+
+  const bookingBase =
+    razorpayProfile === "lite" ? "/lite/public/booking" : "/public/booking";
+  navigate(`${bookingBase}?booking_success=true`);
+}
 
 export default function PublicPaymentSuccess() {
   const [searchParams] = useSearchParams();
@@ -62,13 +165,10 @@ export default function PublicPaymentSuccess() {
       setMsg("Payment successful! Creating your booking…");
 
       // ──────────────────────────────────────────────────────────────────
-      // The booking is materialized server-side via /api/bookings/materialize.
-      // The same idempotent helper is also called by:
-      //   - /api/razorpay/webhook on payment.captured / order.paid
-      //   - /api/razorpay/reconcile fired by pg_cron every 15s
-      // So even if the customer never reaches this page (closed UPI app,
-      // lost network, etc.), the booking still gets created.
+      // Primary path: server-side idempotent materialize (webhook may have
+      // already run). Never insert client-side if bookings already exist.
       // ──────────────────────────────────────────────────────────────────
+      let materializeSucceeded = false;
       try {
         const matRes = await fetch("/api/bookings/materialize", {
           method: "POST",
@@ -81,65 +181,55 @@ export default function PublicPaymentSuccess() {
           }),
         });
         const matData = await matRes.json().catch(() => null);
-        if (!matRes.ok || !matData?.ok || matData?.success === false) {
-          // Fall back to the legacy localStorage path below — gives us one
-          // more chance to create the booking client-side if the server
-          // path failed (e.g., transient network blip on Razorpay fetch).
-          console.warn(
-            "⚠️ Server-side materialize did not succeed, falling back to client path:",
-            matData,
-          );
-        } else {
+        materializeSucceeded = Boolean(
+          matRes.ok && matData?.ok && matData?.success !== false
+        );
+        if (materializeSucceeded) {
           console.log("✅ Server-side booking materialized:", matData);
+        } else {
+          console.warn("⚠️ Server-side materialize did not succeed:", matData);
         }
       } catch (err) {
-        console.warn("⚠️ Server-side materialize threw, falling back to client path:", err);
+        console.warn("⚠️ Server-side materialize threw:", err);
       }
 
-      // Legacy / fallback path: read pendingBooking from localStorage and
-      // do the booking insert client-side. Kept ONLY as a backup — the
-      // primary path is now server-side. Most users will hit "already
-      // exists" here because the webhook or reconciler beat them to it.
-      const raw = localStorage.getItem("pendingBooking");
-      if (!raw) {
-        // No localStorage payload → check whether the server path created
-        // a booking we can show, then we're done.
-        const serverBookingRes = (await supabase
-          .from("bookings")
-          .select("id")
-          .eq("payment_txn_id", paymentId)
-          .limit(1)) as { data: Array<{ id: string }> | null };
-        const serverBooking = serverBookingRes.data;
-        if (Array.isArray(serverBooking) && serverBooking.length > 0) {
-          setStatus("done");
-          setMsg("Payment successful — your booking is confirmed!");
-          // Best-effort confirmation dialog hand-off; UI may have less detail
-          // than the localStorage path but the booking exists in the DB.
-          localStorage.setItem(
-            "bookingConfirmation",
-            JSON.stringify({
-              bookingId: serverBooking[0].id?.slice(0, 8).toUpperCase() || "BOOKING",
-              customerName: "",
-              stationNames: [],
-              date: new Date().toISOString().split("T")[0],
-              startTime: "",
-              endTime: "",
-              totalAmount: 0,
-              paymentMode: "razorpay",
-              paymentTxnId: paymentId,
-            }),
-          );
-          const bookingBase =
-            razorpayProfile === "lite" ? "/lite/public/booking" : "/public/booking";
-          navigate(`${bookingBase}?booking_success=true`);
-          return;
-        }
-        setStatus("failed");
-        setMsg("Payment received but booking details are not available. Please contact support — your payment is safe and we'll reconcile it within 30 seconds automatically.");
+      const pendingRaw = localStorage.getItem("pendingBooking");
+      const pendingBooking: PendingBooking | null = pendingRaw
+        ? JSON.parse(pendingRaw)
+        : null;
+
+      const existingBookings = await fetchPaidBookingsForCheckout(paymentId, orderId);
+      if (existingBookings.length > 0) {
+        setStatus("done");
+        setMsg("Payment successful — your booking is confirmed!");
+        await buildConfirmationAndRedirect({
+          bookings: existingBookings,
+          paymentId,
+          pb: pendingBooking,
+          razorpayProfile,
+          navigate,
+        });
         return;
       }
 
-      const pb: PendingBooking = JSON.parse(raw);
+      if (materializeSucceeded) {
+        setStatus("failed");
+        setMsg(
+          "Payment verified but booking rows are not visible yet. Please wait — our system reconciles automatically within 30 seconds."
+        );
+        return;
+      }
+
+      // Legacy fallback: only when materialize failed AND no rows exist yet.
+      if (!pendingBooking) {
+        setStatus("failed");
+        setMsg(
+          "Payment received but booking details are not available. Please contact support — your payment is safe and we'll reconcile it within 30 seconds automatically."
+        );
+        return;
+      }
+
+      const pb = pendingBooking;
 
       // Resolve location_id early — needed for both customer and booking inserts
       let locationId: string | null = pb.locationId || null;
@@ -241,114 +331,85 @@ export default function PublicPaymentSuccess() {
         }
       }
 
-      // 4) Check if booking already exists (created by webhook / materialize API)
-      const { data: existingBookings } = await supabase
-        .from("bookings")
-        .select("id")
-        .eq("payment_txn_id", paymentId);
+      // 4) Last-chance check before client insert (webhook may have landed)
+      const preInsertBookings = await fetchPaidBookingsForCheckout(paymentId, orderId);
+      if (preInsertBookings.length > 0) {
+        setStatus("done");
+        setMsg("Payment successful — your booking is confirmed!");
+        await buildConfirmationAndRedirect({
+          bookings: preInsertBookings,
+          paymentId,
+          pb,
+          razorpayProfile,
+          navigate,
+        });
+        return;
+      }
 
-      let insertedBookings;
-      if (existingBookings && existingBookings.length > 0) {
-        console.log("✅ Bookings already exist for payment:", existingBookings.length);
-        insertedBookings = existingBookings;
-      } else {
-        // 5) Insert booking rows directly (one per station per slot)
-        // Calculate total number of bookings (stations × slots) to properly divide pricing
-        const totalBookings = pb.selectedStations.length * pb.slots.length;
-        const rows: any[] = [];
-        pb.selectedStations.forEach((station_id) => {
-          pb.slots.forEach((slot) => {
-            rows.push({
-              station_id,
-              customer_id: customerId!,
-              location_id: locationId,
-              booking_date: pb.selectedDateISO,
-              start_time: slot.start_time,
-              end_time: slot.end_time,
-              duration: pb.duration,
-              status: "confirmed",
-              original_price: pb.pricing.original / totalBookings,
-              discount_percentage:
-                pb.pricing.discount > 0 ? (pb.pricing.discount / pb.pricing.original) * 100 : null,
-              final_price: pb.pricing.final / totalBookings,
-              coupon_code: pb.pricing.coupons || null,
-              payment_mode: "razorpay",
-              payment_txn_id: paymentId, // Store Razorpay payment ID
-              notes: `Razorpay Order: ${orderId}`, // Store order ID in notes for reference
-            });
+      // 5) Insert booking rows directly (one per station per slot) — backup only
+      const uniqueStations = [...new Set(pb.selectedStations)];
+      const totalBookings = uniqueStations.length * pb.slots.length;
+      const rows: Array<Record<string, unknown>> = [];
+      uniqueStations.forEach((station_id) => {
+        pb.slots.forEach((slot) => {
+          rows.push({
+            station_id,
+            customer_id: customerId!,
+            location_id: locationId,
+            booking_date: pb.selectedDateISO,
+            start_time: slot.start_time,
+            end_time: slot.end_time,
+            duration: pb.duration,
+            status: "confirmed",
+            original_price: pb.pricing.original / totalBookings,
+            discount_percentage:
+              pb.pricing.discount > 0 ? (pb.pricing.discount / pb.pricing.original) * 100 : null,
+            final_price: pb.pricing.final / totalBookings,
+            coupon_code: pb.pricing.coupons || null,
+            payment_mode: "razorpay",
+            payment_txn_id: paymentId,
+            player_count: pb.stationPlayerCounts?.[station_id] ?? 1,
+            notes: razorpayOrderTag(orderId),
           });
         });
+      });
 
-        const { error: bErr, data: inserted } = await supabase
-          .from("bookings")
-          .insert(rows)
-          .select("id");
+      const { error: bErr, data: inserted } = await supabase
+        .from("bookings")
+        .insert(rows)
+        .select("id, booking_date, start_time, end_time, final_price, station_id, customer_id");
 
-        if (bErr) {
-          console.error("Booking creation error:", bErr);
-          setStatus("failed");
-          setMsg(
-            `Payment ok, but booking creation failed: ${bErr.message || "Database error"}. Please contact support or rebook.`
-          );
+      if (bErr) {
+        const racedBookings = await fetchPaidBookingsForCheckout(paymentId, orderId);
+        if (racedBookings.length > 0) {
+          setStatus("done");
+          setMsg("Payment successful — your booking is confirmed!");
+          await buildConfirmationAndRedirect({
+            bookings: racedBookings,
+            paymentId,
+            pb,
+            razorpayProfile,
+            navigate,
+          });
           return;
         }
-        insertedBookings = inserted;
+        console.error("Booking creation error:", bErr);
+        setStatus("failed");
+        setMsg(
+          `Payment ok, but booking creation failed: ${bErr.message || "Database error"}. Please contact support or rebook.`
+        );
+        return;
       }
 
-      console.log("✅ Bookings created/found:", insertedBookings?.length || 0);
-
-      // 5) Fetch station names for confirmation dialog
-      const stationIds = [...new Set(pb.selectedStations)];
-      const { data: stationsData, error: stationsError } = await supabase
-        .from("stations")
-        .select("id, name")
-        .in("id", stationIds);
-
-      if (stationsError) {
-        console.error("Error fetching stations:", stationsError);
-      }
-
-      const stationNames = stationsData?.map(s => s.name) || pb.selectedStations;
-      const firstSlot = pb.slots[0];
-      const lastSlot = pb.slots[pb.slots.length - 1];
-
-      // Bill creation is handled exclusively by materializeBookingFromPaymentOrder
-      // (webhook, reconciler, and /api/bookings/materialize above).
-
-      // Format times
-      const formatTime = (timeString: string) => {
-        return new Date(`2000-01-01T${timeString}`).toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-          hour12: true
-        });
-      };
-
-      // Store confirmation data in localStorage for the booking page to pick up
-      const confirmationData = {
-        bookingId: insertedBookings?.[0]?.id?.slice(0, 8).toUpperCase() || "BOOKING",
-        customerName: pb.customer.name,
-        stationNames: stationNames,
-        date: pb.selectedDateISO,
-        startTime: formatTime(firstSlot.start_time),
-        endTime: formatTime(lastSlot.end_time),
-        totalAmount: pb.pricing.final,
-        transactionFee: pb.pricing.transactionFee,
-        totalWithFee: pb.pricing.totalWithFee || pb.pricing.final,
-        couponCode: pb.pricing.coupons || undefined,
-        discountAmount: pb.pricing.discount > 0 ? pb.pricing.discount : undefined,
-        sessionDuration: pb.duration === 15 ? "15 minutes" : "60 minutes",
-        paymentMode: "razorpay", // Online payment via Razorpay
-        paymentTxnId: paymentId, // Razorpay payment ID
-      };
-
-      localStorage.setItem("bookingConfirmation", JSON.stringify(confirmationData));
-      localStorage.removeItem("pendingBooking");
-
-      // Redirect to booking page with success flag (same branch as checkout)
-      const bookingBase =
-        razorpayProfile === "lite" ? "/lite/public/booking" : "/public/booking";
-      navigate(`${bookingBase}?booking_success=true`);
+      setStatus("done");
+      setMsg("Payment successful — your booking is confirmed!");
+      await buildConfirmationAndRedirect({
+        bookings: inserted ?? [],
+        paymentId,
+        pb,
+        razorpayProfile,
+        navigate,
+      });
     };
 
     run();

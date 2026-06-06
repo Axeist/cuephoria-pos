@@ -455,6 +455,25 @@
   animation: bellRing 0.85s ease-in-out;
 }
 
+/* Sonner: staff notification popups must stack tightly (custom unstyled toasts). */
+[data-sonner-toaster][data-y-position='top'] {
+  --gap: 12px;
+}
+
+[data-sonner-toaster] [data-sonner-toast].staff-notification-toast,
+[data-sonner-toaster] [data-sonner-toast][data-styled='false'] {
+  height: auto !important;
+  min-height: 0 !important;
+  --initial-height: auto;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast].staff-notification-toast:not(:last-child),
+[data-sonner-toaster] [data-sonner-toast][data-styled='false']:not(:last-child) {
+  margin-bottom: 0 !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-notification-pop,
   .animate-bell-ring,

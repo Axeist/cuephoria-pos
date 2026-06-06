@@ -321,7 +321,7 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
 
       const notification: BookingStaffNotification = {
         kind: 'booking',
-        id: `${booking.id}-${Date.now()}`,
+        id: `booking-${booking.id}`,
         booking,
         timestamp: new Date(),
         isPaid,
@@ -329,7 +329,19 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
       };
 
       if (isForActiveBranch) {
-        queueMicrotask(() => presentStaffNotificationRef.current(notification));
+        const isDuplicatePaidSlot = prev.some(
+          (n) =>
+            isBookingStaffNotification(n) &&
+            n.booking.payment_txn_id &&
+            booking.payment_txn_id &&
+            n.booking.payment_txn_id === booking.payment_txn_id &&
+            n.booking.station.name === booking.station.name &&
+            n.booking.start_time === booking.start_time &&
+            n.booking.booking_date === booking.booking_date
+        );
+        if (!isDuplicatePaidSlot) {
+          queueMicrotask(() => presentStaffNotificationRef.current(notification));
+        }
       }
 
       return [notification, ...prev];
