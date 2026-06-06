@@ -1,52 +1,37 @@
 import React, { useMemo, useState } from 'react';
 import { format, addDays, subDays } from 'date-fns';
 import {
+  Activity,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
   Gift,
   Minimize2,
   Sparkles,
+  TrendingUp,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
 import { cn } from '@/lib/utils';
 import { BookingCalendarDetailDialog } from './BookingCalendarDetailDialog';
+import { BookingCalendarInsightsPanel } from './BookingCalendarInsightsPanel';
 import {
   type CalendarBookingInput,
+  blockGeometryPercent,
   buildCalendarLayout,
   CALENDAR_GRID_HEIGHT_PX,
+  computeCalendarDayInsights,
   formatCalendarTime,
   generateCalendarTimeSlots,
   getBookingBlockAccent,
   getCurrentTimeIndicatorPx,
   getStationAccent,
   HOUR_HEIGHT_PX,
-  STATION_COLUMN_BASE_PX,
   TIME_GUTTER_PX,
-  COLUMN_PAD_PX,
-  BLOCK_GAP_PX,
 } from './bookingCalendar.utils';
-
-function blockGeometry(item: {
-  laneIndex: number;
-  laneCount: number;
-  columnWidthPx: number;
-}): { left: number; width: number } {
-  const innerWidth = item.columnWidthPx - COLUMN_PAD_PX * 2;
-  if (item.laneCount <= 1) {
-    return { left: COLUMN_PAD_PX, width: innerWidth };
-  }
-  const laneGap = BLOCK_GAP_PX;
-  const width = (innerWidth - laneGap * (item.laneCount - 1)) / item.laneCount;
-  return {
-    left: COLUMN_PAD_PX + item.laneIndex * (width + laneGap),
-    width,
-  };
-}
 
 interface BookingCalendarDayViewProps {
   bookings: CalendarBookingInput[];
@@ -93,11 +78,12 @@ export const BookingCalendarDayView: React.FC<BookingCalendarDayViewProps> = ({
     return { total, completed, withCoupons, revenue };
   }, [dayBookings, calculateRevenue]);
 
-  const nowIndicatorPx = getCurrentTimeIndicatorPx(selectedDate);
-  const gridWidthPx = stations.reduce(
-    (sum, s) => sum + (s.columnWidthPx ?? STATION_COLUMN_BASE_PX),
-    0,
+  const insights = useMemo(
+    () => computeCalendarDayInsights(dayBookings, selectedDate),
+    [dayBookings, selectedDate],
   );
+
+  const nowIndicatorPx = getCurrentTimeIndicatorPx(selectedDate);
 
   const itemsByColumn = useMemo(() => {
     const map = new Map<number, typeof items>();
@@ -114,14 +100,21 @@ export const BookingCalendarDayView: React.FC<BookingCalendarDayViewProps> = ({
   };
 
   const shiftDate = (delta: number) => {
-    const next = delta > 0 ? addDays(new Date(selectedDate), delta) : subDays(new Date(selectedDate), -delta);
+    const next =
+      delta > 0 ? addDays(new Date(selectedDate), delta) : subDays(new Date(selectedDate), -delta);
     onDateChange(format(next, 'yyyy-MM-dd'));
   };
 
   return (
     <>
-      <Card className="overflow-hidden border-white/10 bg-gradient-to-b from-[#0c0a14] to-[#07060c] shadow-2xl shadow-black/40">
-        <CardHeader className="border-b border-white/8 bg-gradient-to-r from-indigo-950/40 via-violet-950/20 to-transparent pb-5">
+      <Card className="relative overflow-hidden border-white/10 bg-gradient-to-b from-[#0c0a14] to-[#07060c] shadow-2xl shadow-black/40">
+        {/* Decorative background */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -right-32 -top-32 h-96 w-96 rounded-full bg-violet-600/8 blur-3xl" />
+          <div className="absolute -bottom-24 left-1/3 h-72 w-72 rounded-full bg-indigo-600/6 blur-3xl" />
+        </div>
+
+        <CardHeader className="relative border-b border-white/8 bg-gradient-to-r from-indigo-950/50 via-violet-950/25 to-cyan-950/10 pb-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-3">
               <div className="rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-600 to-cyan-500 p-2.5 shadow-lg shadow-indigo-600/25">
@@ -129,14 +122,14 @@ export const BookingCalendarDayView: React.FC<BookingCalendarDayViewProps> = ({
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-violet-300/80">
-                  Station schedule
+                  Station command center
                 </p>
                 <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
                   {getDateLabel(selectedDate)}
                 </h2>
                 <p className="mt-1 text-sm text-zinc-500">
-                  {stations.length} station{stations.length === 1 ? '' : 's'} · {stats.total} booking
-                  {stats.total === 1 ? '' : 's'}
+                  {stations.length} stations · {stats.total} bookings ·{' '}
+                  <span className="text-cyan-400/90">{insights.dayUtilizationPct}% utilized</span>
                 </p>
               </div>
             </div>
@@ -170,40 +163,65 @@ export const BookingCalendarDayView: React.FC<BookingCalendarDayViewProps> = ({
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {[
-              { label: 'Bookings', value: stats.total, tone: 'text-cyan-300' },
+              { label: 'Bookings', value: stats.total, tone: 'text-cyan-300', icon: CalendarDays },
               {
                 label: 'Completed',
                 value: stats.completed,
                 sub: stats.total ? `${Math.round((stats.completed / stats.total) * 100)}%` : '0%',
                 tone: 'text-emerald-300',
+                icon: TrendingUp,
+              },
+              {
+                label: 'Live now',
+                value: insights.activeNow.length,
+                tone: 'text-rose-300',
+                icon: Activity,
+              },
+              {
+                label: 'Utilization',
+                value: `${insights.dayUtilizationPct}%`,
+                tone: 'text-indigo-300',
+                icon: Activity,
               },
               {
                 label: 'Coupons',
                 value: stats.withCoupons,
                 sub: stats.total ? `${Math.round((stats.withCoupons / stats.total) * 100)}%` : '0%',
                 tone: 'text-purple-300',
+                icon: Gift,
               },
-              { label: 'Revenue', value: `₹${stats.revenue.toLocaleString()}`, tone: 'text-amber-200' },
-            ].map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 backdrop-blur-sm"
-              >
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{stat.label}</p>
-                <p className={cn('mt-0.5 text-lg sm:text-xl font-bold tabular-nums', stat.tone)}>
-                  {stat.value}
-                </p>
-                {'sub' in stat && stat.sub && (
-                  <p className="text-[10px] text-zinc-600">{stat.sub}</p>
-                )}
-              </div>
-            ))}
+              {
+                label: 'Revenue',
+                value: `₹${stats.revenue.toLocaleString()}`,
+                tone: 'text-amber-200',
+                icon: CreditCard,
+              },
+            ].map((stat) => {
+              const Icon = stat.icon;
+              return (
+                <div
+                  key={stat.label}
+                  className="rounded-xl border border-white/8 bg-white/[0.04] px-3 py-2.5 backdrop-blur-sm"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Icon className="h-3 w-3 text-zinc-500" />
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                      {stat.label}
+                    </p>
+                  </div>
+                  <p className={cn('mt-0.5 text-lg font-bold tabular-nums', stat.tone)}>{stat.value}</p>
+                  {'sub' in stat && stat.sub && (
+                    <p className="text-[10px] text-zinc-600">{stat.sub}</p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </CardHeader>
 
-        <CardContent className="p-0">
+        <CardContent className="relative p-0">
           {stats.total === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-center">
               <div className="mb-4 rounded-full bg-white/5 p-5">
@@ -213,53 +231,47 @@ export const BookingCalendarDayView: React.FC<BookingCalendarDayViewProps> = ({
               <p className="mt-1 text-sm text-zinc-600">Pick another date or adjust your filters</p>
             </div>
           ) : (
-            <div className="overflow-auto max-h-[min(72vh,820px)] overscroll-contain">
-              <div
-                className="relative min-w-max"
-                style={{ width: TIME_GUTTER_PX + gridWidthPx }}
-              >
-                {/* Sticky header row */}
-                <div className="sticky top-0 z-40 flex border-b border-white/10 bg-[#0a0812]/95 backdrop-blur-md">
-                  <div
-                    className="sticky left-0 z-50 shrink-0 border-r border-white/10 bg-[#0a0812]/98"
-                    style={{ width: TIME_GUTTER_PX, height: 72 }}
-                  />
-                  {stations.map((station) => {
-                    const accent = getStationAccent(station.type);
-                    const colW = station.columnWidthPx ?? STATION_COLUMN_BASE_PX;
-                    return (
-                      <div
-                        key={station.key}
-                        className={cn(
-                          'shrink-0 overflow-hidden border-r border-white/8 px-3 py-3 bg-gradient-to-b',
-                          accent.header,
-                        )}
-                        style={{ width: colW, minHeight: 72 }}
-                      >
-                        <div className="flex items-start gap-2 min-w-0">
-                          <span className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', accent.dot)} />
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-bold text-white leading-tight">
-                              {station.name}
-                            </p>
-                            <p className="mt-0.5 truncate text-[10px] text-zinc-400">
-                              {getStationTypeLabel(station.type, station.category)}
-                            </p>
-                            <Badge
-                              variant="outline"
-                              className="mt-1.5 h-5 max-w-full truncate border-white/10 bg-black/20 px-1.5 text-[10px] text-zinc-400"
-                            >
-                              {station.bookingCount} slot{station.bookingCount === 1 ? '' : 's'}
-                            </Badge>
+            <div className="flex flex-col xl:flex-row">
+              {/* Calendar — fills all remaining width */}
+              <div className="min-w-0 flex-1 overflow-auto max-h-[min(72vh,820px)] overscroll-contain">
+                <div className="w-full min-w-[520px]">
+                  {/* Sticky station header */}
+                  <div className="sticky top-0 z-40 flex border-b border-white/10 bg-[#0a0812]/95 backdrop-blur-md">
+                    <div
+                      className="sticky left-0 z-50 shrink-0 border-r border-white/10 bg-[#0a0812]/98"
+                      style={{ width: TIME_GUTTER_PX, height: 76 }}
+                    />
+                    {stations.map((station) => {
+                      const accent = getStationAccent(station.type);
+                      return (
+                        <div
+                          key={station.key}
+                          className={cn(
+                            'min-w-0 flex-1 overflow-hidden border-r border-white/8 px-3 py-3 bg-gradient-to-b',
+                            accent.header,
+                          )}
+                          style={{ minHeight: 76 }}
+                        >
+                          <div className="flex items-start gap-2 min-w-0">
+                            <span className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', accent.dot)} />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-bold text-white leading-tight">
+                                {station.name}
+                              </p>
+                              <p className="mt-0.5 truncate text-[10px] text-zinc-400">
+                                {getStationTypeLabel(station.type, station.category)}
+                              </p>
+                              <p className="mt-1 text-[10px] font-medium text-zinc-500">
+                                {station.bookingCount} slot{station.bookingCount === 1 ? '' : 's'}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
 
-                {/* Grid body */}
-                <div className="flex">
+                  <div className="flex">
                   {/* Time gutter */}
                   <div
                     className="sticky left-0 z-30 shrink-0 border-r border-white/10 bg-[#08070d]/98"
@@ -278,13 +290,10 @@ export const BookingCalendarDayView: React.FC<BookingCalendarDayViewProps> = ({
                     ))}
                   </div>
 
-                  {/* Station columns — each clipped so blocks never bleed sideways */}
-                  <div className="relative flex" style={{ height: CALENDAR_GRID_HEIGHT_PX }}>
-                    {/* Shared grid lines behind columns */}
-                    <div
-                      className="pointer-events-none absolute inset-0 z-0"
-                      style={{ width: gridWidthPx }}
-                    >
+                  {/* Flex columns */}
+                  <div className="relative flex min-w-0 flex-1" style={{ height: CALENDAR_GRID_HEIGHT_PX }}>
+                    {/* Grid lines */}
+                    <div className="pointer-events-none absolute inset-0 z-0">
                       {timeSlots.map((slot, i) => (
                         <div
                           key={slot.hour}
@@ -303,35 +312,24 @@ export const BookingCalendarDayView: React.FC<BookingCalendarDayViewProps> = ({
                         />
                       ))}
                       {nowIndicatorPx != null && (
-                        <div
-                          className="absolute left-0 right-0 z-10"
-                          style={{ top: nowIndicatorPx }}
-                        >
-                          <div className="relative h-0.5 bg-gradient-to-r from-transparent via-rose-500 to-transparent shadow-[0_0_12px_rgba(244,63,94,0.6)]">
-                            <div className="absolute -left-1 -top-1.5 h-3 w-3 rounded-full bg-rose-500 ring-2 ring-rose-300/50" />
-                          </div>
+                        <div className="absolute left-0 right-0 z-10" style={{ top: nowIndicatorPx }}>
+                          <div className="h-0.5 bg-gradient-to-r from-transparent via-rose-500 to-transparent shadow-[0_0_12px_rgba(244,63,94,0.6)]" />
                         </div>
                       )}
                     </div>
 
                     {stations.map((station, colIdx) => {
-                      const colW = station.columnWidthPx ?? STATION_COLUMN_BASE_PX;
                       const colItems = itemsByColumn.get(colIdx) ?? [];
 
                       return (
                         <div
                           key={station.key}
-                          className="relative z-[1] shrink-0 overflow-hidden border-r border-white/[0.06]"
-                          style={{ width: colW, height: CALENDAR_GRID_HEIGHT_PX }}
+                          className="relative z-[1] min-w-0 flex-1 overflow-hidden border-r border-white/[0.06]"
+                          style={{ height: CALENDAR_GRID_HEIGHT_PX }}
                         >
                           {colItems.map((item) => {
-                            const { booking, topPx, heightPx, laneIndex, laneCount, columnWidthPx } =
-                              item;
-                            const { left, width } = blockGeometry({
-                              laneIndex,
-                              laneCount,
-                              columnWidthPx,
-                            });
+                            const { booking, topPx, heightPx, laneIndex, laneCount } = item;
+                            const { left, width } = blockGeometryPercent(laneIndex, laneCount);
 
                             const compact = heightPx < 52;
                             const tiny = heightPx < 36;
@@ -349,15 +347,9 @@ export const BookingCalendarDayView: React.FC<BookingCalendarDayViewProps> = ({
                                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60',
                                   getBookingBlockAccent(booking),
                                 )}
-                                style={{
-                                  top: topPx,
-                                  height: heightPx,
-                                  left,
-                                  width,
-                                  maxWidth: colW - COLUMN_PAD_PX * 2,
-                                }}
+                                style={{ top: topPx, height: heightPx, left, width }}
                               >
-                                <div className="flex h-full min-w-0 flex-col px-1.5 py-1">
+                                <div className="flex h-full min-w-0 flex-col px-2 py-1">
                                   <p
                                     className={cn(
                                       'min-w-0 truncate font-bold text-white leading-tight',
@@ -368,14 +360,9 @@ export const BookingCalendarDayView: React.FC<BookingCalendarDayViewProps> = ({
                                   </p>
                                   {!tiny && (
                                     <p className="mt-0.5 min-w-0 truncate text-[10px] text-white/70">
-                                      {compact ? (
-                                        formatCalendarTime(booking.start_time)
-                                      ) : (
-                                        <>
-                                          {formatCalendarTime(booking.start_time)} –{' '}
-                                          {formatCalendarTime(booking.end_time)}
-                                        </>
-                                      )}
+                                      {compact
+                                        ? formatCalendarTime(booking.start_time)
+                                        : `${formatCalendarTime(booking.start_time)} – ${formatCalendarTime(booking.end_time)}`}
                                     </p>
                                   )}
                                   {!compact && heightPx >= 68 && (
@@ -383,6 +370,11 @@ export const BookingCalendarDayView: React.FC<BookingCalendarDayViewProps> = ({
                                       <BookingStatusBadge status={booking.status} />
                                       {booking.coupon_code && (
                                         <Gift className="h-3 w-3 shrink-0 text-purple-300" />
+                                      )}
+                                      {booking.final_price != null && heightPx >= 88 && (
+                                        <span className="ml-auto shrink-0 text-[10px] font-semibold text-emerald-200/90">
+                                          ₹{booking.final_price}
+                                        </span>
                                       )}
                                     </div>
                                   )}
@@ -394,11 +386,10 @@ export const BookingCalendarDayView: React.FC<BookingCalendarDayViewProps> = ({
                       );
                     })}
 
-                    {/* Now time label — spans full grid width */}
                     {nowIndicatorPx != null && (
                       <div
                         className="pointer-events-none absolute left-0 z-20"
-                        style={{ top: nowIndicatorPx, width: gridWidthPx }}
+                        style={{ top: nowIndicatorPx, right: 0 }}
                       >
                         <span className="absolute -top-6 left-1 rounded-md bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-lg">
                           {format(new Date(), 'HH:mm')}
@@ -408,6 +399,10 @@ export const BookingCalendarDayView: React.FC<BookingCalendarDayViewProps> = ({
                   </div>
                 </div>
               </div>
+              </div>
+
+              {/* Insights sidebar */}
+              <BookingCalendarInsightsPanel insights={insights} onSelectBooking={openDetail} />
             </div>
           )}
         </CardContent>

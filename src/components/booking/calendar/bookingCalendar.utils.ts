@@ -348,3 +348,188 @@ export function getCurrentTimeIndicatorPx(selectedDate: string, now = new Date()
   const minutesFromStart = (hour - CALENDAR_START_HOUR) * 60 + minute;
   return (minutesFromStart / (CALENDAR_HOURS * 60)) * CALENDAR_GRID_HEIGHT_PX;
 }
+
+export interface StationUtilization {
+  key: string;
+  name: string;
+  type: string;
+  bookingCount: number;
+  bookedMinutes: number;
+  utilizationPct: number;
+}
+
+export interface CalendarDayInsights {
+  stationUtilization: StationUtilization[];
+  peakHours: Array<{ hour: number; label: string; count: number; pct: number }>;
+  busiestHour: { hour: number; label: string; count: number } | null;
+  topStation: { name: string; count: number } | null;
+  activeNow: CalendarBookingInput[];
+  upcoming: CalendarBookingInput[];
+  paidOnlineCount: number;
+  payAtVenueCount: number;
+  avgDurationMin: number;
+  totalBookedMinutes: number;
+  dayUtilizationPct: number;
+}
+
+function bookingStartMin(b: CalendarBookingInput): number {
+  return parseMinutesFromMidnight(b.start_time);
+}
+
+function bookingEndMin(b: CalendarBookingInput): number {
+  return parseBookingEndMinutes(b.start_time, b.end_time);
+}
+
+function hourLabel(hour: number): string {
+  const displayHour = hour > 12 ? hour - 12 : hour;
+  const ampm = hour < 12 ? 'AM' : 'PM';
+  return hour === 12 ? '12 PM' : `${displayHour} ${ampm}`;
+}
+
+export function computeCalendarDayInsights(
+  dayBookings: CalendarBookingInput[],
+  selectedDate: string,
+  now = new Date(),
+): CalendarDayInsights {
+  const viewStartMin = CALENDAR_START_HOUR * 60;
+  const viewEndMin = (CALENDAR_END_HOUR + 1) * 60;
+  const openMinutesPerStation = viewEndMin - viewStartMin;
+
+  const byStation = new Map<string, { name: string; type: string; minutes: number; count: number }>();
+  const hourCounts = new Map<number, number>();
+
+  for (const b of dayBookings) {
+    const key = stationKey(b.station?.name || 'Unknown');
+    const start = Math.max(bookingStartMin(b), viewStartMin);
+    const end = Math.min(bookingEndMin(b), viewEndMin);
+    const mins = Math.max(0, end - start);
+
+    const row = byStation.get(key) ?? {
+      name: b.station?.name || 'Unknown',
+      type: b.station?.type || 'unknown',
+      minutes: 0,
+      count: 0,
+    };
+    row.minutes += mins;
+    row.count += 1;
+    byStation.set(key, row);
+
+    const startHour = parseMinutesFromMidnight(b.start_time) / 60 | 0;
+    if (startHour >= CALENDAR_START_HOUR && startHour <= CALENDAR_END_HOUR) {
+      hourCounts.set(startHour, (hourCounts.get(startHour) ?? 0) + 1);
+    }
+  }
+
+  const stationUtilization: StationUtilization[] = [...byStation.entries()]
+    .map(([key, v]) => ({
+      key,
+      name: v.name,
+      type: v.type,
+      bookingCount: v.count,
+      bookedMinutes: v.minutes,
+      utilizationPct: openMinutesPerStation
+        ? Math.min(100, Math.round((v.minutes / openMinutesPerStation) * 100))
+        : 0,
+    }))
+    .sort((a, b) => b.utilizationPct - a.utilizationPct);
+
+  const maxHourCount = Math.max(0, ...hourCounts.values());
+  const peakHours = Array.from({ length: CALENDAR_HOURS }, (_, i) => {
+    const hour = CALENDAR_START_HOUR + i;
+    const count = hourCounts.get(hour) ?? 0;
+    return {
+      hour,
+      label: hourLabel(hour),
+      count,
+      pct: maxHourCount ? Math.round((count / maxHourCount) * 100) : 0,
+    };
+  });
+
+  const busiestEntry = [...hourCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+  const busiestHour = busiestEntry
+    ? { hour: busiestEntry[0], label: hourLabel(busiestEntry[0]), count: busiestEntry[1] }
+    : null;
+
+  const topStationEntry = stationUtilization[0];
+  const topStation = topStationEntry
+    ? { name: topStationEntry.name, count: topStationEntry.bookingCount }
+    : null;
+
+  const isToday = selectedDate === formatDateYmd(now);
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  const activeNow = isToday
+    ? dayBookings.filter((b) => {
+        const s = bookingStartMin(b);
+        const e = bookingEndMin(b);
+        return s <= nowMin && e > nowMin && b.status !== 'cancelled';
+      })
+    : [];
+
+  const upcoming = isToday
+    ? dayBookings
+        .filter((b) => bookingStartMin(b) > nowMin && b.status !== 'cancelled')
+        .sort((a, b) => bookingStartMin(a) - bookingStartMin(b))
+        .slice(0, 5)
+    : dayBookings
+        .filter((b) => b.status !== 'cancelled')
+        .sort((a, b) => bookingStartMin(a) - bookingStartMin(b))
+        .slice(0, 5);
+
+  const paidOnlineCount = dayBookings.filter(
+    (b) => b.payment_mode && b.payment_mode !== 'venue' && b.payment_txn_id,
+  ).length;
+  const payAtVenueCount = dayBookings.length - paidOnlineCount;
+
+  const totalDuration = dayBookings.reduce((s, b) => s + (b.duration || 0), 0);
+  const avgDurationMin = dayBookings.length ? Math.round(totalDuration / dayBookings.length) : 0;
+
+  const totalBookedMinutes = stationUtilization.reduce((s, st) => s + st.bookedMinutes, 0);
+  const dayUtilizationPct =
+    stationUtilization.length && openMinutesPerStation
+      ? Math.min(
+          100,
+          Math.round(
+            totalBookedMinutes / (openMinutesPerStation * stationUtilization.length),
+          ),
+        )
+      : 0;
+
+  return {
+    stationUtilization,
+    peakHours,
+    busiestHour,
+    topStation,
+    activeNow,
+    upcoming,
+    paidOnlineCount,
+    payAtVenueCount,
+    avgDurationMin,
+    totalBookedMinutes,
+    dayUtilizationPct,
+  };
+}
+
+function formatDateYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Lane geometry as percentages so columns can flex to fill width. */
+export function blockGeometryPercent(
+  laneIndex: number,
+  laneCount: number,
+): { left: string; width: string } {
+  if (laneCount <= 1) {
+    return {
+      left: `${COLUMN_PAD_PX}px`,
+      width: `calc(100% - ${COLUMN_PAD_PX * 2}px)`,
+    };
+  }
+  const gap = BLOCK_GAP_PX;
+  const laneWidth = `calc((100% - ${COLUMN_PAD_PX * 2}px - ${gap * (laneCount - 1)}px) / ${laneCount})`;
+  const left = `calc(${COLUMN_PAD_PX}px + ${laneIndex} * (${laneWidth} + ${gap}px))`;
+  return { left, width: laneWidth };
+}
