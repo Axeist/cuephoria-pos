@@ -1,7 +1,15 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Station } from '@/types/pos.types';
-import { STATION_SELECT_FIELDS, STATION_SELECT_FIELDS_BASE, transformStationRow } from '@/utils/stationTransform';
-import { isMissingColumnError } from '@/utils/supabaseColumn.utils';
+import {
+  STATION_SELECT_FIELDS,
+  STATION_SELECT_TIERS,
+  transformStationRow,
+} from '@/utils/stationTransform';
+import {
+  isMissingColumnError,
+  parseMissingColumnName,
+  stripColumnFromSelect,
+} from '@/utils/supabaseColumn.utils';
 import type { OccupancyRates } from '@/utils/stationPricing';
 import { totalRateAtMaxOccupancy } from '@/utils/stationPricing';
 import type { DurationTier } from '@/utils/timeBasedPricing.utils';
@@ -26,7 +34,55 @@ export const useStationsData = () => {
     [activeLocationId]
   );
   const prevLocationIdRef = useRef<string | null>(null);
-  const stationAccentColumnRef = useRef(true);
+  const stationSelectFieldsRef = useRef<string>(STATION_SELECT_FIELDS);
+
+  const fetchStationsPage = async (
+    locationId: string,
+    page: number,
+    pageSize: number
+  ): Promise<{ data: Record<string, unknown>[] | null; error: Error | null }> => {
+    let selectFields = stationSelectFieldsRef.current;
+    let tierIndex = STATION_SELECT_TIERS.indexOf(
+      selectFields as (typeof STATION_SELECT_TIERS)[number]
+    );
+    if (tierIndex < 0) tierIndex = 0;
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const { data, error } = await supabase
+        .from('stations')
+        .select(selectFields)
+        .eq('location_id', locationId)
+        .order('created_at', { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (!error) {
+        stationSelectFieldsRef.current = selectFields;
+        return { data: (data as Record<string, unknown>[] | null) ?? null, error: null };
+      }
+
+      const missingCol = parseMissingColumnName(error);
+      if (
+        missingCol &&
+        selectFields.split(',').map((field) => field.trim()).includes(missingCol)
+      ) {
+        selectFields = stripColumnFromSelect(selectFields, missingCol);
+        continue;
+      }
+
+      if (isMissingColumnError(error)) {
+        const nextTier = tierIndex + 1;
+        if (nextTier < STATION_SELECT_TIERS.length) {
+          tierIndex = nextTier;
+          selectFields = STATION_SELECT_TIERS[nextTier];
+          continue;
+        }
+      }
+
+      return { data: null, error: new Error(error.message) };
+    }
+
+    return { data: null, error: new Error('Failed to fetch stations after column fallbacks') };
+  };
   
   const refreshStationsFromDB = useCallback(async (silent: boolean = false) => {
     if (!activeLocationId) {
@@ -41,33 +97,13 @@ export const useStationsData = () => {
     }
     
     try {
-      let selectFields = stationAccentColumnRef.current
-        ? STATION_SELECT_FIELDS
-        : STATION_SELECT_FIELDS_BASE;
-      
       let page = 0;
       const pageSize = 1000;
       let allStationsData: any[] = [];
       let finished = false;
 
       while (!finished) {
-        let { data, error } = await supabase
-          .from('stations')
-          .select(selectFields)
-          .eq('location_id', activeLocationId)
-          .order('created_at', { ascending: false })
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-
-        if (error && isMissingColumnError(error, 'accent_color')) {
-          stationAccentColumnRef.current = false;
-          selectFields = STATION_SELECT_FIELDS_BASE;
-          ({ data, error } = await supabase
-            .from('stations')
-            .select(selectFields)
-            .eq('location_id', activeLocationId)
-            .order('created_at', { ascending: false })
-            .range(page * pageSize, (page + 1) * pageSize - 1));
-        }
+        const { data, error } = await fetchStationsPage(activeLocationId, page, pageSize);
           
         if (error) {
           console.error('Error fetching stations:', error);
@@ -201,28 +237,22 @@ export const useStationsData = () => {
       if (updates.durationTiers !== undefined) {
         updateData.duration_tiers = updates.durationTiers;
       }
-      if (updates.accentColor !== undefined && stationAccentColumnRef.current) {
+      if (updates.accentColor !== undefined) {
         updateData.accent_color = updates.accentColor;
       }
-      const { error } = await supabase
+      let { error } = await supabase
         .from('stations')
         .update(updateData)
         .eq('id', stationId);
 
-      if (error && isMissingColumnError(error, 'accent_color') && updateData.accent_color !== undefined) {
-        stationAccentColumnRef.current = false;
-        delete updateData.accent_color;
-        const retry = await supabase.from('stations').update(updateData).eq('id', stationId);
-        if (retry.error) {
-          console.error('Error updating station in Supabase:', retry.error);
-          toast({
-            title: 'Database Error',
-            description: 'Failed to update station in database',
-            variant: 'destructive',
-          });
-          return false;
-        }
-      } else if (error) {
+      for (let attempt = 0; attempt < 5 && error && isMissingColumnError(error); attempt++) {
+        const missingCol = parseMissingColumnName(error);
+        if (!missingCol || !(missingCol in updateData)) break;
+        delete updateData[missingCol];
+        ({ error } = await supabase.from('stations').update(updateData).eq('id', stationId));
+      }
+
+      if (error) {
         console.error('Error updating station in Supabase:', error);
         toast({
           title: 'Database Error',

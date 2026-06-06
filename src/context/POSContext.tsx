@@ -250,8 +250,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (
         error &&
-        (isMissingColumnError(error, 'accent_color') ||
-          isMissingColumnError(error, 'quick_shop_enabled'))
+        isMissingColumnError(error)
       ) {
         categoryAppearanceColumnsRef.current = false;
         setCategoryMeta((prev) => ({
@@ -565,11 +564,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .eq('location_id', activeLocationId);
 
         let useDefaultsOnly = false;
-        if (
-          error &&
-          (isMissingColumnError(error, 'accent_color') ||
-            isMissingColumnError(error, 'quick_shop_enabled'))
-        ) {
+        if (error && isMissingColumnError(error)) {
           categoryAppearanceColumnsRef.current = false;
           useDefaultsOnly = true;
           ({ data, error } = await supabase
@@ -672,8 +667,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (
         error &&
-        (isMissingColumnError(error, 'accent_color') ||
-          isMissingColumnError(error, 'quick_shop_enabled'))
+        isMissingColumnError(error)
       ) {
         categoryAppearanceColumnsRef.current = false;
         ({ error } = await supabase.from('categories').insert({

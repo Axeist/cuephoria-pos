@@ -38,7 +38,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { AccentColorPicker } from '@/components/ui/AccentColorPicker';
 import { getDefaultStationTypeHex } from '@/utils/colorTheme.utils';
-import { isMissingColumnError } from '@/utils/supabaseColumn.utils';
+import { isMissingColumnError, parseMissingColumnName } from '@/utils/supabaseColumn.utils';
 
 const stationSchema = z.object({
   name: z.string().min(2, { message: 'Station name must be at least 2 characters.' }),
@@ -185,8 +185,10 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
 
       let { error } = await supabase.from('stations').insert(insertPayload);
 
-      if (error && isMissingColumnError(error, 'accent_color')) {
-        delete insertPayload.accent_color;
+      for (let attempt = 0; attempt < 5 && error && isMissingColumnError(error); attempt++) {
+        const missingCol = parseMissingColumnName(error);
+        if (!missingCol || !(missingCol in insertPayload)) break;
+        delete insertPayload[missingCol];
         ({ error } = await supabase.from('stations').insert(insertPayload));
       }
 
