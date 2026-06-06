@@ -1018,6 +1018,45 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_notifications: {
+        Row: {
+          alert_type: string
+          created_at: string
+          dedupe_key: string
+          expires_at: string
+          id: string
+          is_read: boolean
+          kind: string
+          location_id: string
+          organization_id: string
+          payload: Json
+        }
+        Insert: {
+          alert_type: string
+          created_at?: string
+          dedupe_key: string
+          expires_at?: string
+          id?: string
+          is_read?: boolean
+          kind: string
+          location_id: string
+          organization_id: string
+          payload?: Json
+        }
+        Update: {
+          alert_type?: string
+          created_at?: string
+          dedupe_key?: string
+          expires_at?: string
+          id?: string
+          is_read?: boolean
+          kind?: string
+          location_id?: string
+          organization_id?: string
+          payload?: Json
+        }
+        Relationships: []
+      }
       offers: {
         Row: {
           created_at: string | null
@@ -2139,6 +2178,10 @@ export type Database = {
       save_bill_edit_audit: {
         Args: { p_bill_id: string; p_editor_name: string; p_changes: string }
         Returns: undefined
+      }
+      sync_staff_session_notifications: {
+        Args: { p_location_id?: string | null }
+        Returns: number
       }
       update_missed_bookings: {
         Args: Record<PropertyKey, never>

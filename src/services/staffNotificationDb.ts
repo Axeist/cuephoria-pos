@@ -1,0 +1,153 @@
+import { supabase } from '@/integrations/supabase/client';
+import type { StaffNotification } from '@/types/staffNotification.types';
+import type { SessionAlertType } from '@/utils/sessionStaffNotifications';
+import { sanitizeStaffNotification } from '@/utils/staffNotificationSanitize';
+
+export interface StaffNotificationRow {
+  id: string;
+  organization_id: string;
+  location_id: string;
+  kind: 'booking' | 'session';
+  alert_type: string;
+  dedupe_key: string;
+  payload: Record<string, unknown>;
+  is_read: boolean;
+  created_at: string;
+  expires_at: string;
+}
+
+const HISTORY_MS = 24 * 60 * 60 * 1000;
+
+function payloadToStaffNotification(row: StaffNotificationRow): StaffNotification | null {
+  const timestamp = new Date(row.created_at);
+  if (Number.isNaN(timestamp.getTime())) return null;
+
+  if (row.kind === 'booking') {
+    const isPaid = Boolean(row.payload.isPaid);
+    const booking = row.payload.booking;
+    const raw = {
+      kind: 'booking',
+      id: row.id,
+      booking,
+      timestamp,
+      isPaid,
+      isRead: row.is_read,
+    };
+    return sanitizeStaffNotification(raw);
+  }
+
+  if (row.kind === 'session') {
+    const alertType = row.payload.alertType as SessionAlertType | undefined;
+    if (!alertType || typeof row.payload.message !== 'string') return null;
+
+    return {
+      kind: 'session',
+      id: row.id,
+      alertType,
+      sessionId:
+        typeof row.payload.sessionId === 'string' ? row.payload.sessionId : undefined,
+      customerId:
+        typeof row.payload.customerId === 'string' ? row.payload.customerId : undefined,
+      stationId:
+        typeof row.payload.stationId === 'string' ? row.payload.stationId : undefined,
+      stationName:
+        typeof row.payload.stationName === 'string' ? row.payload.stationName : 'Station',
+      customerName:
+        typeof row.payload.customerName === 'string' ? row.payload.customerName : 'Customer',
+      message: row.payload.message,
+      locationId: row.location_id,
+      timestamp,
+      isRead: row.is_read,
+    };
+  }
+
+  return null;
+}
+
+export function staffNotificationRowToModel(row: StaffNotificationRow): StaffNotification | null {
+  return payloadToStaffNotification(row);
+}
+
+export async function fetchStaffNotifications(
+  locationId: string
+): Promise<StaffNotification[]> {
+  const since = new Date(Date.now() - HISTORY_MS).toISOString();
+
+  const { data, error } = await supabase
+    .from('staff_notifications')
+    .select('*')
+    .eq('location_id', locationId)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  if (error) {
+    console.error('Failed to load staff notifications:', error);
+    return [];
+  }
+
+  return (data as unknown as StaffNotificationRow[])
+    .map(staffNotificationRowToModel)
+    .filter((n): n is StaffNotification => n != null);
+}
+
+export async function markStaffNotificationRead(notificationId: string): Promise<void> {
+  const { error } = await supabase
+    .from('staff_notifications')
+    .update({ is_read: true })
+    .eq('id', notificationId);
+
+  if (error) {
+    console.error('Failed to mark notification read:', error);
+  }
+}
+
+export async function markAllStaffNotificationsRead(locationId: string): Promise<void> {
+  const { error } = await supabase
+    .from('staff_notifications')
+    .update({ is_read: true })
+    .eq('location_id', locationId)
+    .eq('is_read', false);
+
+  if (error) {
+    console.error('Failed to mark all notifications read:', error);
+  }
+}
+
+export async function clearStaffNotificationsForLocation(locationId: string): Promise<void> {
+  const { error } = await supabase
+    .from('staff_notifications')
+    .delete()
+    .eq('location_id', locationId);
+
+  if (error) {
+    console.error('Failed to clear staff notifications:', error);
+  }
+}
+
+export async function syncStaffSessionNotifications(locationId: string): Promise<void> {
+  const { error } = await supabase.rpc('sync_staff_session_notifications', {
+    p_location_id: locationId,
+  });
+
+  if (error) {
+    console.error('Failed to sync session staff notifications:', error);
+  }
+}
+
+export function mergeStaffNotification(
+  prev: StaffNotification[],
+  incoming: StaffNotification
+): StaffNotification[] {
+  const idx = prev.findIndex((n) => n.id === incoming.id);
+  if (idx >= 0) {
+    const next = [...prev];
+    next[idx] = incoming;
+    return next;
+  }
+  return [incoming, ...prev];
+}
+
+export function sortStaffNotifications(items: StaffNotification[]): StaffNotification[] {
+  return [...items].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+}
