@@ -186,6 +186,7 @@ const StationCard: React.FC<StationCardProps> = ({
           (s) => s.isOccupied && s.currentSession?.sessionGroupId === sessionGroupId
         ).length
       : 0;
+  const isPartialGroupEndHint = sessionGroupId != null && groupSize >= 2;
 
   const wrappedEndSessionGroup = useCallback(
     async (stationId: string) => {
@@ -239,9 +240,23 @@ const StationCard: React.FC<StationCardProps> = ({
 
         {phase === 'ending' && (
           <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-black/40 backdrop-blur-[2px] animate-station-phase-in">
-            <div className="flex items-center gap-2 rounded-full border border-emerald-500/45 bg-emerald-950/85 px-4 py-2 shadow-[0_0_20px_rgba(16,185,129,0.25)]">
-              <span className="text-sm font-semibold text-emerald-100">Sending to checkout</span>
-              <ArrowRight className="h-4 w-4 text-emerald-400 animate-checkout-nudge" />
+            <div
+              className={`flex items-center gap-2 rounded-full border px-4 py-2 shadow-[0_0_20px_rgba(16,185,129,0.25)] ${
+                isPartialGroupEndHint
+                  ? 'border-violet-500/45 bg-violet-950/85'
+                  : 'border-emerald-500/45 bg-emerald-950/85'
+              }`}
+            >
+              <span
+                className={`text-sm font-semibold ${
+                  isPartialGroupEndHint ? 'text-violet-100' : 'text-emerald-100'
+                }`}
+              >
+                {isPartialGroupEndHint ? 'Saving station bill…' : 'Sending to checkout'}
+              </span>
+              {!isPartialGroupEndHint ? (
+                <ArrowRight className="h-4 w-4 text-emerald-400 animate-checkout-nudge" />
+              ) : null}
             </div>
           </div>
         )}

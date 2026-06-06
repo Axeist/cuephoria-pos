@@ -289,7 +289,7 @@ export const useEndSession = ({
 
       toast({
         title: 'Group ended',
-        description: `${sessionCartItems.length} station${sessionCartItems.length === 1 ? '' : 's'} ready in POS`,
+        description: `${sessionCartItems.length} station${sessionCartItems.length === 1 ? '' : 's'} collated — opening POS checkout`,
       });
 
       return { sessionCartItems, customer };

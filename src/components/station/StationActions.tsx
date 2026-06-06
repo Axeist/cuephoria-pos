@@ -8,7 +8,7 @@ import { Pause, Play, Square, ShoppingBag, Loader2, Plus, Users, ArrowRightLeft,
 import StartSessionDialog from '@/components/StartSessionDialog';
 import AddCustomerDialog from '@/components/customers/AddCustomerDialog';
 import MoveSessionDialog from '@/components/station/MoveSessionDialog';
-import type { Customer } from '@/types/pos.types';
+import type { Customer, SessionEndCheckoutMode } from '@/types/pos.types';
 import { getRateForPlayerCount } from '@/utils/stationPricing';
 import { getDurationPresets, stationsMatchForMove } from '@/utils/sessionDuration.utils';
 import type { StationTheme, StationPhase } from '@/utils/stationTheme';
@@ -28,7 +28,7 @@ interface StationActionsProps {
     perPersonRate?: number,
     plannedDurationMinutes?: number
   ) => Promise<void>;
-  onEndSession: (stationId: string) => Promise<void>;
+  onEndSession: (stationId: string) => Promise<SessionEndCheckoutMode | void>;
   onEndSessionGroup?: (stationId: string) => Promise<void>;
   groupSize?: number;
   onPauseSession: (stationId: string) => Promise<void>;
@@ -120,11 +120,13 @@ const StationActions: React.FC<StationActionsProps> = ({
     if (!station.isOccupied || !station.currentSession) return;
     try {
       setIsLoading(true);
-      const customer = customers.find((c) => c.id === station.currentSession!.customerId);
-      if (customer) selectCustomer(customer.id);
-      await onEndSession(station.id);
-      await sleep(SESSION_TRANSITION.posHandoffMs);
-      navigateToPOS(navigate, { stationName: station.name });
+      const mode = await onEndSession(station.id);
+      if (mode === 'pos') {
+        const customer = customers.find((c) => c.id === station.currentSession!.customerId);
+        if (customer) selectCustomer(customer.id);
+        await sleep(SESSION_TRANSITION.posHandoffMs);
+        navigateToPOS(navigate, { stationName: station.name });
+      }
     } catch {
       toast({ title: 'Error', description: 'Failed to end session.', variant: 'destructive' });
     } finally {
@@ -280,7 +282,7 @@ const StationActions: React.FC<StationActionsProps> = ({
           ) : (
             <Square className={`mr-1.5 fill-current ${footerLayout ? 'h-4 w-4' : 'h-3 w-3'}`} />
           )}
-          End
+          {groupSize >= 2 ? 'End station' : 'End'}
         </Button>
         </div>
       </div>

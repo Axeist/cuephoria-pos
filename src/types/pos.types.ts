@@ -128,6 +128,9 @@ export interface SessionGroupResult {
   customer?: Customer;
 }
 
+/** How ending a session resolves checkout — POS handoff vs backend draft only. */
+export type SessionEndCheckoutMode = 'pos' | 'draft';
+
 export interface SavedCartSummary {
   customerId: string;
   customerName: string;
@@ -191,7 +194,7 @@ export interface POSContextType {
   ) => Promise<void>;
   extendSession: (stationId: string, extraMinutes: number) => Promise<void>;
   moveSession: (fromStationId: string, toStationId: string) => Promise<void>;
-  endSession: (stationId: string) => Promise<void>;
+  endSession: (stationId: string) => Promise<SessionEndCheckoutMode | void>;
   endSessionGroup: (stationId: string) => Promise<void>;
   pauseSession: (stationId: string) => Promise<void>;
   resumeSession: (stationId: string) => Promise<void>;

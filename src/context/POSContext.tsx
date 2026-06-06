@@ -7,7 +7,8 @@ import {
   Bill,
   Product,
   Station,
-  Session
+  Session,
+  SessionEndCheckoutMode,
 } from '@/types/pos.types';
 import { useProducts } from '@/hooks/useProducts';
 import { useCustomers } from '@/hooks/useCustomers';
@@ -665,7 +666,36 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await moveSessionBase(fromStationId, toStationId);
   };
 
-  /** Sticky POS cart: group/partial session ends append to the customer's existing bill draft. */
+  /** Merge session lines into the customer's saved cart without opening POS. */
+  const saveSessionCheckoutDraft = useCallback(
+    async (customer: Customer, incomingItems: CartItem[]): Promise<void> => {
+      const saved =
+        activeLocationId != null
+          ? await loadSavedCartForCustomer(customer.id)
+          : null;
+
+      const priorItems = saved?.items ?? [];
+      const mergedCart = mergeSessionCartItems(priorItems, [], incomingItems);
+
+      const discountVal = Number(saved?.discount ?? 0);
+      const discountTyp = (saved?.discount_type ?? 'percentage') as 'percentage' | 'fixed';
+      const loyaltyUsed = Number(saved?.loyalty_points_used ?? 0);
+
+      if (mergedCart.length > 0 && activeLocationId) {
+        await persistSavedCart(
+          customer.id,
+          customer.name,
+          mergedCart,
+          discountVal,
+          discountTyp,
+          loyaltyUsed,
+        );
+      }
+    },
+    [activeLocationId, loadSavedCartForCustomer, persistSavedCart],
+  );
+
+  /** Sticky POS cart: final session end loads the collated bill into checkout. */
   const applySessionCheckoutCart = useCallback(
     async (customer: Customer, incomingItems: CartItem[]): Promise<void> => {
       const saved =
@@ -717,7 +747,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ],
   );
   
-  const endSession = async (stationId: string): Promise<void> => {
+  const endSession = async (stationId: string): Promise<SessionEndCheckoutMode | void> => {
     try {
       const station = stations.find(s => s.id === stationId);
       if (!station || !station.isOccupied || !station.currentSession) {
@@ -726,7 +756,18 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       
       const sessionId = station.currentSession.id;
-      const customerId = station.currentSession.customerId;
+      const sessionGroupId = station.currentSession.sessionGroupId;
+      const otherActiveInGroup =
+        sessionGroupId != null
+          ? stations.filter(
+              (s) =>
+                s.id !== stationId &&
+                s.isOccupied &&
+                s.currentSession?.sessionGroupId === sessionGroupId
+            ).length
+          : 0;
+      const isPartialGroupEnd = sessionGroupId != null && otherActiveInGroup > 0;
+
       const stationQuickShopItems = getStationQuickShopItems(sessionId);
       
       const result = await endSessionBase(stationId, customers);
@@ -735,15 +776,25 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const { sessionCartItem, customer } = result;
         
         if (customer) {
-          console.log('Auto-selecting customer:', customer.name);
-
           const incomingItems: CartItem[] = [
             ...stationQuickShopItems,
             ...(sessionCartItem ? [sessionCartItem] : []),
           ];
 
           clearStationQuickShopSession(sessionId);
+
+          if (isPartialGroupEnd) {
+            await saveSessionCheckoutDraft(customer, incomingItems);
+            toast({
+              title: 'Station bill saved',
+              description: `${station.name} added to ${customer.name}'s tab. ${otherActiveInGroup} station${otherActiveInGroup === 1 ? '' : 's'} still active — checkout opens when the group ends.`,
+            });
+            return 'draft';
+          }
+
+          console.log('Auto-selecting customer for checkout:', customer.name);
           await applySessionCheckoutCart(customer, incomingItems);
+          return 'pos';
         }
       }
     } catch (error) {
