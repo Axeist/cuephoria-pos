@@ -25,6 +25,7 @@ import {
 } from '@/utils/sessionDuration.utils';
 import { hapticImpact } from '@/utils/capacitor';
 import { runWithMinDuration, SESSION_TRANSITION } from '@/utils/viewTransition';
+import type { SessionEndCheckoutMode } from '@/types/pos.types';
 import type { CustomerRecentSession } from '@/hooks/stations/useStationCustomerIntel';
 import {
   AlertDialog,
@@ -165,12 +166,16 @@ const StationCard: React.FC<StationCardProps> = ({
   );
 
   const wrappedEndSession = useCallback(
-    async (stationId: string) => {
+    async (stationId: string): Promise<SessionEndCheckoutMode | void> => {
       setPhase('ending');
       void hapticImpact('heavy');
       try {
-        await runWithMinDuration(endSession(stationId), SESSION_TRANSITION.endMinMs);
+        const mode = await runWithMinDuration(
+          endSession(stationId),
+          SESSION_TRANSITION.endMinMs
+        );
         setPhase('idle');
+        return mode;
       } catch (error) {
         setPhase('idle');
         throw error;
