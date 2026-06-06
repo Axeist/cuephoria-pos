@@ -161,6 +161,7 @@ export function transformStationRow(item: Record<string, unknown>): Station {
     maxCapacity: item.max_capacity != null ? Number(item.max_capacity) : null,
     singleRate: item.single_rate != null ? Number(item.single_rate) : null,
     accentColor: (item.accent_color as string | null) ?? null,
+    sortOrder: item.sort_order != null ? Number(item.sort_order) : 0,
   };
 }
 
@@ -170,7 +171,7 @@ export const STATION_SELECT_FIELDS_LEGACY =
 export const STATION_SELECT_FIELDS_BASE =
   `${STATION_SELECT_FIELDS_LEGACY},pricing_mode,duration_tiers`;
 
-export const STATION_SELECT_FIELDS = `${STATION_SELECT_FIELDS_BASE},accent_color`;
+export const STATION_SELECT_FIELDS = `${STATION_SELECT_FIELDS_BASE},accent_color,sort_order`;
 
 /** Progressive fallbacks when newer migrations are not applied yet */
 export const STATION_SELECT_TIERS = [

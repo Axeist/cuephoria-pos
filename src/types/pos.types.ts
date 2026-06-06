@@ -60,8 +60,10 @@ export interface Station {
   teamColor?: string | null;
   maxCapacity?: number | null;
   singleRate?: number | null;
-  /** Optional hex tint override for station card (e.g. #8B5CF6). */
+  /** Optional hex or gradient tint override (e.g. #8B5CF6 or gradient:8B5CF6:EC4899:135). */
   accentColor?: string | null;
+  /** Grid display order on Station Command (lower = first). */
+  sortOrder?: number;
 }
 
 export interface Session {
@@ -246,6 +248,8 @@ export interface POSContextType {
     }
   ) => Promise<boolean>;
   refreshStations: (silent?: boolean) => Promise<void>;
+  reorderStations: (orderedIds: string[]) => Promise<boolean>;
+  applyAccentToStationType: (typeSlug: string, accentColor: string | null) => Promise<boolean>;
   
   addCustomer: (customer: Omit<Customer, 'id' | 'createdAt'>) => void;
   updateCustomer: (customer: Customer) => void;

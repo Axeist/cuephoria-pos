@@ -77,6 +77,8 @@ const POSContext = createContext<POSContextType>({
   deleteStation: async () => false,
   updateStation: async () => false,
   refreshStations: async () => {},
+  reorderStations: async () => false,
+  applyAccentToStationType: async () => false,
   addCustomer: () => ({}),
   updateCustomer: () => ({}),
   updateCustomerMembership: () => null,
@@ -180,6 +182,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     deleteStation,
     updateStation,
     refreshStations,
+    reorderStations,
+    applyAccentToStationType,
   } = useStations([], updateCustomer);
   
   const { 
@@ -1448,6 +1452,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     deleteStation,
     updateStation,
     refreshStations,
+    reorderStations,
+    applyAccentToStationType,
     addCustomer,
     updateCustomer,
     updateCustomerMembership: updateCustomerMembershipWrapper,
@@ -1493,7 +1499,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     categoryMeta, getCategoryAccentColor, isCategoryInQuickShop, updateCategoryAppearance,
     addProduct, updateProduct, deleteProduct,
     addCategory, updateCategory, deleteCategory,
-    startSession, endSession, endSessionGroup, pauseSession, resumeSession, extendSession, moveSession, deleteStation, updateStation, refreshStations,
+    startSession, endSession, endSessionGroup, pauseSession, resumeSession, extendSession, moveSession, deleteStation, updateStation, refreshStations, reorderStations, applyAccentToStationType,
     addCustomer, updateCustomer, updateCustomerMembershipWrapper,
     deleteCustomer, selectCustomer, loadSavedCartForCheckout, checkMembershipValidity, deductMembershipHours,
     addToCartWithStock, removeFromCart, updateCartItemWithStock, handleClearCart,

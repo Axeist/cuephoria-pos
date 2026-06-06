@@ -21,6 +21,7 @@ import { getDefaultDurationTiers, getTierPackagePrice } from '@/utils/timeBasedP
 import type { StationType } from '@/types/stationType.types';
 import { defaultSlotMinutesForSlug } from '@/utils/stationTypeUtils';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { AccentColorPicker } from '@/components/ui/AccentColorPicker';
 import { getDefaultStationTypeHex } from '@/utils/colorTheme.utils';
 
@@ -42,6 +43,8 @@ interface EditStationDialogProps {
   onOpenChange: (open: boolean) => void;
   station: Station | null;
   onSave: (stationId: string, updates: StationUpdatePayload) => Promise<boolean>;
+  onApplyAccentToType?: (typeSlug: string, accentColor: string | null) => Promise<boolean>;
+  sameTypeCount?: number;
 }
 
 const EditStationDialog: React.FC<EditStationDialogProps> = ({
@@ -49,6 +52,8 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
   onOpenChange,
   station,
   onSave,
+  onApplyAccentToType,
+  sameTypeCount = 1,
 }) => {
   const [name, setName] = React.useState('');
   const [typeSlug, setTypeSlug] = React.useState('ps5');
@@ -60,6 +65,7 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
   const [publicBooking, setPublicBooking] = React.useState(true);
   const [selectedType, setSelectedType] = React.useState<StationType | null>(null);
   const [accentColor, setAccentColor] = React.useState<string | null>(null);
+  const [applyTintToType, setApplyTintToType] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
 
   React.useEffect(() => {
@@ -75,6 +81,7 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
       setStaticRate(station.hourlyRate);
       setPublicBooking(station.eventEnabled !== false);
       setAccentColor(station.accentColor ?? null);
+      setApplyTintToType(false);
       setSelectedType(null);
     }
   }, [station]);
@@ -123,6 +130,9 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
         durationTiers: tiers,
         accentColor,
       });
+      if (success && applyTintToType && onApplyAccentToType) {
+        await onApplyAccentToType(typeSlug, accentColor);
+      }
       if (success) onOpenChange(false);
     } finally {
       setIsLoading(false);
@@ -207,6 +217,20 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
               defaultHex={getDefaultStationTypeHex(typeSlug)}
               onChange={setAccentColor}
             />
+            {sameTypeCount > 1 && onApplyAccentToType && (
+              <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-md border border-white/10 bg-black/20 p-2.5">
+                <Checkbox
+                  checked={applyTintToType}
+                  onCheckedChange={(v) => setApplyTintToType(v === true)}
+                  className="mt-0.5"
+                />
+                <span className="text-xs leading-snug text-muted-foreground">
+                  Apply this tint to all{' '}
+                  <span className="font-semibold text-foreground">{sameTypeCount}</span>{' '}
+                  stations in this type
+                </span>
+              </label>
+            )}
           </div>
 
           <div className="flex items-center justify-between rounded-lg border p-3">

@@ -16,7 +16,9 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
     stationsError,
     refreshStations,
     deleteStation,
-    updateStation
+    updateStation,
+    reorderStations,
+    applyAccentToStationType,
   } = useStationsData();
   
   const {
@@ -137,6 +139,8 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
     sessionsError,
     refreshStations,
     refreshSessions,
+    reorderStations,
+    applyAccentToStationType,
     isLoading
   };
 };

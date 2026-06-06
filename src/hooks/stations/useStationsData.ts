@@ -502,6 +502,115 @@ export const useStationsData = () => {
       supabase.removeChannel(channel);
     };
   }, [activeLocationId, stationsCacheKey, refreshStationsFromDB]);
+
+  const reorderStations = async (orderedIds: string[]): Promise<boolean> => {
+    if (!activeLocationId || orderedIds.length === 0) return false;
+
+    try {
+      const orderMap = new Map(orderedIds.map((id, index) => [id, index]));
+      setStations((prev) => {
+        const byId = new Map(prev.map((s) => [s.id, s]));
+        const reordered = orderedIds
+          .map((id) => byId.get(id))
+          .filter((s): s is Station => Boolean(s))
+          .map((s, index) => ({ ...s, sortOrder: index }));
+        const missing = prev.filter((s) => !orderMap.has(s.id));
+        const next = [...reordered, ...missing];
+        saveToCache(stationsCacheKey, next);
+        return next;
+      });
+
+      const updates = orderedIds.map((id, index) =>
+        supabase
+          .from('stations')
+          .update({ sort_order: index })
+          .eq('id', id)
+          .eq('location_id', activeLocationId)
+      );
+
+      const results = await Promise.all(updates);
+      const failed = results.find((r) => r.error);
+      if (failed?.error && isMissingColumnError(failed.error, 'sort_order')) {
+        const { saveLocalStationOrder } = await import('@/utils/stationSort.utils');
+        saveLocalStationOrder(activeLocationId, orderedIds);
+      } else if (failed?.error) {
+        throw failed.error;
+      }
+
+      invalidateCache(stationsCacheKey);
+
+      toast({
+        title: 'Order saved',
+        description: 'Station layout updated.',
+      });
+      return true;
+    } catch (error) {
+      console.error('reorderStations:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save station order',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
+  const applyAccentToStationType = async (
+    typeSlug: string,
+    accentColor: string | null
+  ): Promise<boolean> => {
+    if (!activeLocationId) return false;
+    const slug = typeSlug.trim().toLowerCase();
+    const targetIds = stations
+      .filter((s) => (s.type || '').toLowerCase() === slug)
+      .map((s) => s.id);
+
+    if (targetIds.length === 0) return true;
+
+    try {
+      let { error } = await supabase
+        .from('stations')
+        .update({ accent_color: accentColor })
+        .in('id', targetIds)
+        .eq('location_id', activeLocationId);
+
+      if (error && isMissingColumnError(error, 'accent_color')) {
+        toast({
+          title: 'Tint saved locally',
+          description: 'Run the accent-color migration on Supabase to persist tints.',
+        });
+        setStations((prev) =>
+          prev.map((s) =>
+            (s.type || '').toLowerCase() === slug ? { ...s, accentColor } : s
+          )
+        );
+        return true;
+      }
+
+      if (error) throw error;
+
+      setStations((prev) =>
+        prev.map((s) =>
+          (s.type || '').toLowerCase() === slug ? { ...s, accentColor } : s
+        )
+      );
+      invalidateCache(stationsCacheKey);
+
+      toast({
+        title: 'Tint applied',
+        description: `Updated ${targetIds.length} ${typeSlug} station${targetIds.length === 1 ? '' : 's'}.`,
+      });
+      return true;
+    } catch (error) {
+      console.error('applyAccentToStationType:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to apply tint to category',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
   
   return {
     stations,
@@ -510,6 +619,8 @@ export const useStationsData = () => {
     stationsError,
     refreshStations,
     deleteStation,
-    updateStation
+    updateStation,
+    reorderStations,
+    applyAccentToStationType,
   };
 };

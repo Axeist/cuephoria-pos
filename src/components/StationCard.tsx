@@ -6,7 +6,7 @@ import StationActions from '@/components/station/StationActions';
 import StationCustomerPanel from '@/components/station/StationCustomerPanel';
 import SessionDurationBar from '@/components/station/SessionDurationBar';
 import { Button } from '@/components/ui/button';
-import { Trash2, Edit2, ShoppingBag, Globe, CheckSquare, Square as SquareIcon, ArrowRight, Play } from 'lucide-react';
+import { Trash2, Edit2, ShoppingBag, Globe, CheckSquare, Square as SquareIcon, ArrowRight, Play, GripVertical } from 'lucide-react';
 import EditStationDialog from './EditStationDialog';
 import StationQuickShopDialog from '@/components/station/StationQuickShopDialog';
 import { CurrencyDisplay } from '@/components/ui/currency';
@@ -48,6 +48,13 @@ interface StationCardProps {
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (stationId: string) => void;
+  dragEnabled?: boolean;
+  isDragOver?: boolean;
+  isDragging?: boolean;
+  onDragStart?: (stationId: string) => void;
+  onDragEnd?: () => void;
+  onDragOver?: (stationId: string) => void;
+  onDrop?: (stationId: string) => void;
 }
 
 
@@ -58,6 +65,13 @@ const StationCard: React.FC<StationCardProps> = ({
   selectionMode = false,
   selected = false,
   onToggleSelect,
+  dragEnabled = false,
+  isDragOver = false,
+  isDragging = false,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop,
 }) => {
   const {
     customers,
@@ -72,6 +86,7 @@ const StationCard: React.FC<StationCardProps> = ({
     stations,
     setStations,
     getStationQuickShopItems,
+    applyAccentToStationType,
   } = usePOS();
   const { toast } = useToast();
   const theme = getStationTheme(station);
@@ -221,10 +236,32 @@ const StationCard: React.FC<StationCardProps> = ({
   );
 
   const canSelect = selectionMode && !station.isOccupied && phase === 'idle';
+  const sameTypeCount = stations.filter(
+    (s) => (s.type || '').toLowerCase() === (station.type || '').toLowerCase()
+  ).length;
 
   return (
     <>
       <article
+        draggable={dragEnabled && !station.isOccupied && !selectionMode}
+        onDragStart={(e) => {
+          if (!dragEnabled) return;
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', station.id);
+          onDragStart?.(station.id);
+        }}
+        onDragEnd={() => onDragEnd?.()}
+        onDragOver={(e) => {
+          if (!dragEnabled) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          onDragOver?.(station.id);
+        }}
+        onDrop={(e) => {
+          if (!dragEnabled) return;
+          e.preventDefault();
+          onDrop?.(station.id);
+        }}
         className={`
           group relative overflow-hidden rounded-xl border backdrop-blur-md
           transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]
@@ -237,6 +274,8 @@ const StationCard: React.FC<StationCardProps> = ({
           )}
           ${isPrepaid && showSessionBlock ? 'border-teal-500/50' : ''}
           ${urgencyRing}
+          ${isDragOver ? 'ring-2 ring-cuephoria-lightpurple/70 scale-[1.01]' : ''}
+          ${isDragging ? 'opacity-50 scale-[0.98]' : ''}
           ${canSelect && selected ? 'ring-2 ring-cuephoria-purple/70 border-cuephoria-purple/50' : ''}
           ${canSelect ? 'cursor-pointer' : ''}
         `}
@@ -344,6 +383,14 @@ const StationCard: React.FC<StationCardProps> = ({
             />
             <div className="flex items-center justify-between gap-2 rounded-lg border border-white/8 bg-black/25 px-2.5 py-1.5">
               <div className="flex items-center gap-2 min-w-0">
+                {dragEnabled && !station.isOccupied && (
+                  <span
+                    className="flex h-8 w-6 shrink-0 cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing"
+                    title="Drag to reorder"
+                  >
+                    <GripVertical className="h-4 w-4" />
+                  </span>
+                )}
                 {canSelect && (
                   <button
                     type="button"
@@ -549,6 +596,8 @@ const StationCard: React.FC<StationCardProps> = ({
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         station={station}
+        sameTypeCount={sameTypeCount}
+        onApplyAccentToType={applyAccentToStationType}
         onSave={(id, updates) =>
           updateStation(id, {
             name: updates.name,

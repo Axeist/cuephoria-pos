@@ -12,7 +12,7 @@ import { getRateSuffix, isPerPlayerPricing } from '@/utils/stationPricing';
 import { stationTypeLabel } from '@/utils/stationTypeUtils';
 import {
   buildStationAccentStyle,
-  normalizeHexColor,
+  hasCustomAccent,
   resolveStationAccentHex,
   type StationAccentStyle,
 } from '@/utils/colorTheme.utils';
@@ -160,12 +160,12 @@ export function getStationTheme(
   const slug = (station.type || 'custom').toLowerCase();
   const base = THEMES[slug] ?? DEFAULT_THEME;
   const accentHex = resolveStationAccentHex(slug, station.accentColor);
-  const hasCustomTint = normalizeHexColor(station.accentColor) != null;
+  const hasCustomTint = hasCustomAccent(station.accentColor);
   return {
     ...base,
     label: typeLabel ?? stationTypeLabel(slug),
     accentHex,
-    accentStyle: hasCustomTint ? buildStationAccentStyle(accentHex) : undefined,
+    accentStyle: hasCustomTint ? buildStationAccentStyle(station.accentColor!) : undefined,
   };
 }
 
