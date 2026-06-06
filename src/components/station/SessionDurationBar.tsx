@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import type { Session } from '@/types/pos.types';
+import type { Session, Station } from '@/types/pos.types';
 import { isPrepaidSession } from '@/utils/prepaidBooking.utils';
 import {
   formatRemainingTime,
@@ -12,10 +12,15 @@ import {
 
 interface SessionDurationBarProps {
   session: Session;
+  station?: Pick<Station, 'type' | 'slotDuration'>;
   className?: string;
 }
 
-const SessionDurationBar: React.FC<SessionDurationBarProps> = ({ session, className = '' }) => {
+const SessionDurationBar: React.FC<SessionDurationBarProps> = ({
+  session,
+  station,
+  className = '',
+}) => {
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -23,7 +28,7 @@ const SessionDurationBar: React.FC<SessionDurationBarProps> = ({ session, classN
     return () => window.clearInterval(id);
   }, []);
 
-  const state = getSessionDurationState(session);
+  const state = getSessionDurationState(session, new Date(), station);
   if (!state) return null;
 
   const isPrepaid = isPrepaidSession(session);

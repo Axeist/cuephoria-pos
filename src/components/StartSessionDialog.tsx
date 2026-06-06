@@ -17,6 +17,12 @@ import PinVerificationDialog from '@/components/PinVerificationDialog';
 
 import { getRateForPlayerCount, getRateSuffix as pricingRateSuffix, isPerPlayerPricing } from '@/utils/stationPricing';
 import { getDefaultPlannedDuration, getDurationPresets } from '@/utils/sessionDuration.utils';
+import {
+  formatOvertimePerMinute,
+  getDefaultDurationTiers,
+  getOvertimePerMinute,
+  getTierPackagePrice,
+} from '@/utils/timeBasedPricing.utils';
 import type { Station } from '@/types/pos.types';
 import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
 import { useLocation } from '@/context/LocationContext';
@@ -35,10 +41,11 @@ interface StartSessionDialogProps {
   stationCategory?: string | null;
   slotDuration?: number | null;
   stationType?: string;
-  pricingMode?: 'static' | 'per_player';
+  pricingMode?: 'static' | 'per_player' | 'time_based';
   maxPlayers?: number;
   occupancyRates?: Record<string, number>;
   hourlyRate?: number;
+  durationTiers?: { minutes: number; price: number }[];
   onConfirm: (
     customerId: string,
     customerName: string,
@@ -66,9 +73,12 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   maxPlayers = 1,
   occupancyRates = {},
   hourlyRate = baseRate,
+  durationTiers = [],
   onConfirm,
   initialCustomerId = null,
 }) => {
+  const effectiveTiers = durationTiers.length > 0 ? durationTiers : getDefaultDurationTiers();
+  const isTimeBased = pricingMode === 'time_based';
   const { customers } = usePOS();
   const { activeLocationId } = useLocation();
   const { toast } = useToast();
@@ -83,9 +93,9 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   const [finalRate, setFinalRate] = useState(baseRate);
   const [perPersonRate, setPerPersonRate] = useState(baseRate);
   const [lateNightPinUnlocked, setLateNightPinUnlocked] = useState(false);
-  const durationPresets = getDurationPresets(slotDuration);
+  const durationPresets = getDurationPresets(slotDuration, isTimeBased ? effectiveTiers : undefined);
   const [plannedDuration, setPlannedDuration] = useState(() =>
-    getDefaultPlannedDuration(slotDuration)
+    getDefaultPlannedDuration(slotDuration, isTimeBased ? effectiveTiers : undefined)
   );
 
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
@@ -96,7 +106,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
 
   useEffect(() => {
     if (!open) return;
-    setPlannedDuration(getDefaultPlannedDuration(slotDuration));
+    setPlannedDuration(getDefaultPlannedDuration(slotDuration, isTimeBased ? effectiveTiers : undefined));
     setSelectedPrepaidId(null);
     setPrepaidLink(null);
     setTodayBookings([]);
@@ -108,7 +118,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
       setSelectedCustomer(null);
       setCustomerSearchQuery('');
     }
-  }, [open, slotDuration, initialCustomerId, customers]);
+  }, [open, slotDuration, initialCustomerId, customers, isTimeBased, effectiveTiers]);
 
   useEffect(() => {
     if (!open || !selectedCustomer?.id || !activeLocationId) {
@@ -128,7 +138,10 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
       .then((rows) => {
         if (!cancelled) {
           setTodayBookings(rows);
-          const auto = pickDefaultPrepaidBooking(rows);
+          const auto = pickDefaultPrepaidBooking(rows, {
+            type: stationType,
+            slotDuration,
+          });
           if (auto) {
             setSelectedPrepaidId(auto.booking.id);
             setPrepaidLink(auto.link);
@@ -189,10 +202,17 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     pricingMode,
   };
 
-  const showPlayerCount = isPerPlayerPricing(pricingStation) && maxPlayers > 1;
+  const undiscountedRate = isTimeBased
+    ? getTierPackagePrice(plannedDuration, effectiveTiers)
+    : getRateForPlayerCount(pricingStation, playerCount).totalRate;
+  const undiscountedPerPerson = isTimeBased
+    ? undiscountedRate
+    : getRateForPlayerCount(pricingStation, playerCount).perPersonRate;
 
-  const undiscountedRate = getRateForPlayerCount(pricingStation, playerCount).totalRate;
-  const undiscountedPerPerson = getRateForPlayerCount(pricingStation, playerCount).perPersonRate;
+  const showPlayerCount = isPerPlayerPricing(pricingStation) && maxPlayers > 1 && !isTimeBased;
+  const overtimePerMin = isTimeBased
+    ? getOvertimePerMinute(plannedDuration, effectiveTiers)
+    : null;
 
   const getRateSuffix = (): string =>
     pricingRateSuffix({
@@ -304,7 +324,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     setSelectedCustomer(null);
     setSelectedCoupon('none');
     setPlayerCount(1);
-    setPlannedDuration(getDefaultPlannedDuration(slotDuration));
+    setPlannedDuration(getDefaultPlannedDuration(slotDuration, isTimeBased ? effectiveTiers : undefined));
     setCustomerSearchQuery('');
     setSelectedPrepaidId(null);
     setPrepaidLink(null);
@@ -316,7 +336,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     setSelectedCustomer(null);
     setSelectedCoupon('none');
     setPlayerCount(1);
-    setPlannedDuration(getDefaultPlannedDuration(slotDuration));
+    setPlannedDuration(getDefaultPlannedDuration(slotDuration, isTimeBased ? effectiveTiers : undefined));
     setCustomerSearchQuery('');
     setSelectedPrepaidId(null);
     setPrepaidLink(null);
@@ -384,6 +404,11 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                   onClick={() => setPlannedDuration(mins)}
                 >
                   {mins} min
+                  {isTimeBased && (
+                    <span className="ml-1 opacity-90">
+                      · ₹{getTierPackagePrice(mins, effectiveTiers)}
+                    </span>
+                  )}
                 </Button>
               ))}
             </div>
@@ -494,6 +519,8 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
               selectedBookingId={selectedPrepaidId}
               onSelectBooking={handlePrepaidSelect}
               loading={bookingsLoading}
+              stationType={stationType}
+              slotDuration={slotDuration}
             />
           )}
 
@@ -604,6 +631,33 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                     <p className="text-xs text-teal-200/70">
                       Session time covered. POS only for shop items or overtime beyond {prepaidLink.durationMinutes} min.
                     </p>
+                  </>
+                ) : isTimeBased ? (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">
+                        Package ({plannedDuration} min)
+                      </span>
+                      <CurrencyDisplay amount={undiscountedRate} className="text-sm font-semibold" />
+                    </div>
+                    {overtimePerMin != null && overtimePerMin > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Overtime: ₹{formatOvertimePerMinute(overtimePerMin)}/min after {plannedDuration} min
+                      </p>
+                    )}
+                    {selectedCoupon !== 'none' && finalRate !== undiscountedRate && (
+                      <>
+                        <div className="flex justify-between items-center text-cuephoria-orange">
+                          <span className="text-sm">Discount ({selectedCoupon})</span>
+                          <span className="text-sm font-semibold">- ₹{undiscountedRate - finalRate}</span>
+                        </div>
+                        <div className="border-t pt-2" />
+                      </>
+                    )}
+                    <div className="flex justify-between items-center text-lg font-bold">
+                      <span>Final package</span>
+                      <CurrencyDisplay amount={finalRate} className="text-cuephoria-lightpurple text-xl" />
+                    </div>
                   </>
                 ) : (
                   <>

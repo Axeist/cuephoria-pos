@@ -113,7 +113,7 @@ const StationCard: React.FC<StationCardProps> = ({
   const isLive = station.isOccupied || phase === 'live' || phase === 'starting';
   const showSessionBlock = station.isOccupied && session && phase !== 'ending';
   void durationTick;
-  const durationState = session ? getSessionDurationState(session) : null;
+  const durationState = session ? getSessionDurationState(session, new Date(), station) : null;
   const urgencyRing = durationState ? getUrgencyRingClass(durationState.urgency) : '';
 
   const handleTogglePublicBooking = async (nextValue: boolean) => {
@@ -322,7 +322,7 @@ const StationCard: React.FC<StationCardProps> = ({
           }`}
         >
           {durationState && session && (
-            <SessionDurationBar session={session} className="px-3 pt-2" />
+            <SessionDurationBar session={session} station={station} className="px-3 pt-2" />
           )}
         </div>
 
@@ -551,6 +551,7 @@ const StationCard: React.FC<StationCardProps> = ({
             type: updates.type,
             slotDuration: updates.slotDuration,
             pricingMode: updates.pricingMode,
+            durationTiers: updates.durationTiers,
           })
         }
       />

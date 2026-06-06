@@ -507,6 +507,25 @@ async function createBookingsRows(
     return { ids: (alreadyByPayment as Array<{ id: string }>).map((r) => r.id), alreadyExists: true };
   }
 
+  const VR_PASS_DURATION_MINUTES = 15;
+  const { data: stationRows } = await supabase
+    .from("stations")
+    .select("id, type, slot_duration")
+    .in("id", payload.selectedStations);
+  const stationMeta = new Map(
+    (stationRows ?? []).map((s: { id: string; type: string; slot_duration: number | null }) => [
+      s.id,
+      s,
+    ])
+  );
+  const playDurationForStation = (stationId: string): number => {
+    const meta = stationMeta.get(stationId);
+    if (!meta) return payload.duration;
+    if (meta.type === "vr") return VR_PASS_DURATION_MINUTES;
+    if (meta.slot_duration != null && meta.slot_duration > 0) return Number(meta.slot_duration);
+    return payload.duration;
+  };
+
   const rows: Array<Record<string, unknown>> = [];
   payload.selectedStations.forEach((station_id) => {
     payload.slots.forEach((slot) => {
@@ -517,7 +536,7 @@ async function createBookingsRows(
         booking_date: payload.selectedDateISO,
         start_time: slot.start_time,
         end_time: slot.end_time,
-        duration: payload.duration,
+        duration: playDurationForStation(station_id),
         status: "confirmed",
         original_price: payload.pricing.original / totalBookings,
         discount_percentage:

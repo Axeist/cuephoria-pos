@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { OccupancyRatesEditor } from '@/components/station/OccupancyRatesEditor';
 import { StationTypePicker } from '@/components/station/StationTypePicker';
 import { StationPricingModeField } from '@/components/station/StationPricingModeField';
+import { DurationTiersEditor } from '@/components/station/DurationTiersEditor';
 import {
   buildDefaultOccupancyRates,
   getRateSuffix,
@@ -21,6 +22,11 @@ import {
   type OccupancyRates,
   type PricingMode,
 } from '@/utils/stationPricing';
+import {
+  getDefaultDurationTiers,
+  getTierPackagePrice,
+  type DurationTier,
+} from '@/utils/timeBasedPricing.utils';
 import {
   defaultMaxPlayersForSlug,
   defaultPricingModeForSlug,
@@ -51,6 +57,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
   const { activeLocationId } = useLocation();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pricingMode, setPricingMode] = useState<PricingMode>('static');
+  const [durationTiers, setDurationTiers] = useState<DurationTier[]>(getDefaultDurationTiers());
   const [staticRate, setStaticRate] = useState(200);
   const [occupancyRates, setOccupancyRates] = useState<OccupancyRates>({});
   const [selectedType, setSelectedType] = useState<StationType | null>(null);
@@ -76,6 +83,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
     form.reset({ name: '', type: 'ps5', maxPlayers: 4, publicBooking: true });
     setSelectedType(null);
     setPricingMode('per_player');
+    setDurationTiers(getDefaultDurationTiers());
     setStaticRate(200);
     setOccupancyRates(buildDefaultOccupancyRates(4, 200, 100));
   }, [open, form]);
@@ -123,10 +131,16 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
 
       const stationId = crypto.randomUUID();
       const rates = pricingMode === 'per_player' ? occupancyRates : {};
+      const tiers = pricingMode === 'time_based' ? durationTiers : [];
       const hourlyRate =
         pricingMode === 'static'
           ? staticRate
-          : totalRateAtMaxOccupancy(values.maxPlayers, occupancyRates, 100 * values.maxPlayers);
+          : pricingMode === 'time_based'
+            ? getTierPackagePrice(
+                durationTiers[durationTiers.length - 1]?.minutes ?? 60,
+                durationTiers
+              )
+            : totalRateAtMaxOccupancy(values.maxPlayers, occupancyRates, 100 * values.maxPlayers);
 
       const newStation: Station = {
         id: stationId,
@@ -141,6 +155,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
         maxPlayers: values.maxPlayers,
         occupancyRates: rates,
         pricingMode,
+        durationTiers: tiers.length > 0 ? tiers : undefined,
       };
 
       const { error } = await supabase.from('stations').insert({
@@ -155,6 +170,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
         max_players: values.maxPlayers,
         occupancy_rates: rates,
         pricing_mode: pricingMode,
+        duration_tiers: tiers,
         location_id: activeLocationId,
       });
 
@@ -242,6 +258,8 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
                   Same price regardless of player count — classic table / turf / VR slot pricing.
                 </p>
               </div>
+            ) : pricingMode === 'time_based' ? (
+              <DurationTiersEditor tiers={durationTiers} onChange={setDurationTiers} />
             ) : (
               <>
                 <FormField

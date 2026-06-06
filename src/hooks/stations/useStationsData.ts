@@ -3,6 +3,7 @@ import type { Station } from '@/types/pos.types';
 import { STATION_SELECT_FIELDS, transformStationRow } from '@/utils/stationTransform';
 import type { OccupancyRates } from '@/utils/stationPricing';
 import { totalRateAtMaxOccupancy } from '@/utils/stationPricing';
+import type { DurationTier } from '@/utils/timeBasedPricing.utils';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -141,7 +142,8 @@ export const useStationsData = () => {
       eventEnabled?: boolean;
       category?: string | null;
       type?: string;
-      pricingMode?: 'static' | 'per_player';
+      pricingMode?: 'static' | 'per_player' | 'time_based';
+      durationTiers?: DurationTier[];
     }
   ) => {
     try {
@@ -177,6 +179,9 @@ export const useStationsData = () => {
       if (updates.pricingMode !== undefined) {
         updateData.pricing_mode = updates.pricingMode;
       }
+      if (updates.durationTiers !== undefined) {
+        updateData.duration_tiers = updates.durationTiers;
+      }
       
       const { error } = await supabase
         .from('stations')
@@ -206,6 +211,7 @@ export const useStationsData = () => {
               category: (updateData.category as string | null | undefined) ?? s.category,
               type: updates.type ?? s.type,
               pricingMode: updates.pricingMode ?? s.pricingMode,
+              durationTiers: updates.durationTiers ?? s.durationTiers,
             }
           : s
       ));

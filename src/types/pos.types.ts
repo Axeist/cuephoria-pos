@@ -1,4 +1,5 @@
 import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
+import type { DurationTier } from '@/utils/timeBasedPricing.utils';
 
 export type { PrepaidBookingLink };
 export interface Product {
@@ -51,7 +52,9 @@ export interface Station {
   slotDuration?: number | null;
   maxPlayers: number;
   occupancyRates: Record<string, number>;
-  pricingMode: 'static' | 'per_player';
+  pricingMode: 'static' | 'per_player' | 'time_based';
+  /** Duration tiers for time_based pricing (minutes → flat price). */
+  durationTiers?: DurationTier[];
   /** @deprecated Legacy controller grouping */
   teamName?: string | null;
   teamColor?: string | null;
@@ -81,6 +84,10 @@ export interface Session {
   sessionGroupId?: string;
   /** Linked online booking — session time pre-paid; bill overtime / shop only. */
   prepaidBooking?: PrepaidBookingLink;
+  /** Locked package price for time_based sessions. */
+  timeTierPrice?: number;
+  /** Per-minute rate when play exceeds planned duration (time_based). */
+  overtimePerMinute?: number;
 }
 
 export interface CartItem {
@@ -217,7 +224,8 @@ export interface POSContextType {
       eventEnabled?: boolean;
       category?: string | null;
       type?: string;
-      pricingMode?: 'static' | 'per_player';
+      pricingMode?: 'static' | 'per_player' | 'time_based';
+      durationTiers?: DurationTier[];
     }
   ) => Promise<boolean>;
   refreshStations: (silent?: boolean) => Promise<void>;

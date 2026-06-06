@@ -9,12 +9,15 @@ import { Edit } from 'lucide-react';
 import { OccupancyRatesEditor } from '@/components/station/OccupancyRatesEditor';
 import { StationTypePicker } from '@/components/station/StationTypePicker';
 import { StationPricingModeField } from '@/components/station/StationPricingModeField';
+import { DurationTiersEditor } from '@/components/station/DurationTiersEditor';
 import type { OccupancyRates, PricingMode } from '@/utils/stationPricing';
 import {
   getRateSuffix,
   resolvePricingMode,
   totalRateAtMaxOccupancy,
 } from '@/utils/stationPricing';
+import type { DurationTier } from '@/utils/timeBasedPricing.utils';
+import { getDefaultDurationTiers, getTierPackagePrice } from '@/utils/timeBasedPricing.utils';
 import type { StationType } from '@/types/stationType.types';
 import { defaultSlotMinutesForSlug } from '@/utils/stationTypeUtils';
 import { Switch } from '@/components/ui/switch';
@@ -28,6 +31,7 @@ export interface StationUpdatePayload {
   type: string;
   slotDuration: number | null;
   pricingMode: PricingMode;
+  durationTiers: DurationTier[];
 }
 
 interface EditStationDialogProps {
@@ -48,6 +52,7 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
   const [maxPlayers, setMaxPlayers] = React.useState(1);
   const [occupancyRates, setOccupancyRates] = React.useState<OccupancyRates>({});
   const [pricingMode, setPricingMode] = React.useState<PricingMode>('static');
+  const [durationTiers, setDurationTiers] = React.useState<DurationTier[]>(getDefaultDurationTiers());
   const [staticRate, setStaticRate] = React.useState(200);
   const [publicBooking, setPublicBooking] = React.useState(true);
   const [selectedType, setSelectedType] = React.useState<StationType | null>(null);
@@ -60,6 +65,9 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
       setMaxPlayers(station.maxPlayers ?? 1);
       setOccupancyRates(station.occupancyRates ?? {});
       setPricingMode(resolvePricingMode(station));
+      setDurationTiers(
+        station.durationTiers?.length ? station.durationTiers : getDefaultDurationTiers()
+      );
       setStaticRate(station.hourlyRate);
       setPublicBooking(station.eventEnabled !== false);
       setSelectedType(null);
@@ -87,10 +95,16 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
     setIsLoading(true);
     try {
       const rates = pricingMode === 'per_player' ? occupancyRates : {};
+      const tiers = pricingMode === 'time_based' ? durationTiers : [];
       const hourlyRate =
         pricingMode === 'static'
           ? staticRate
-          : totalRateAtMaxOccupancy(maxPlayers, occupancyRates, station.hourlyRate);
+          : pricingMode === 'time_based'
+            ? getTierPackagePrice(
+                durationTiers[durationTiers.length - 1]?.minutes ?? 60,
+                durationTiers
+              )
+            : totalRateAtMaxOccupancy(maxPlayers, occupancyRates, station.hourlyRate);
 
       const success = await onSave(station.id, {
         name,
@@ -101,6 +115,7 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
         type: typeSlug,
         slotDuration,
         pricingMode,
+        durationTiers: tiers,
       });
       if (success) onOpenChange(false);
     } finally {
@@ -150,6 +165,8 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
                 onChange={(e) => setStaticRate(Number(e.target.value) || 0)}
               />
             </div>
+          ) : pricingMode === 'time_based' ? (
+            <DurationTiersEditor tiers={durationTiers} onChange={setDurationTiers} />
           ) : (
             <>
               <div className="space-y-2">

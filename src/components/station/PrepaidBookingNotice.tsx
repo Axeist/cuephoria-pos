@@ -17,6 +17,8 @@ interface PrepaidBookingNoticeProps {
   onSelectBooking: (bookingId: string | null, link: PrepaidBookingLink | null) => void;
   compact?: boolean;
   loading?: boolean;
+  stationType?: string;
+  slotDuration?: number | null;
 }
 
 export function PrepaidBookingNotice({
@@ -25,6 +27,8 @@ export function PrepaidBookingNotice({
   onSelectBooking,
   compact = false,
   loading = false,
+  stationType,
+  slotDuration,
 }: PrepaidBookingNoticeProps) {
   if (loading) {
     return (
@@ -88,8 +92,9 @@ export function PrepaidBookingNotice({
 
       <div className="space-y-2">
         {prepaidBookings.map((booking) => {
-          const link = bookingToPrepaidLink(booking);
+          const link = bookingToPrepaidLink(booking, { type: stationType, slotDuration });
           const selected = selectedBookingId === booking.id;
+          const playMinutes = link.durationMinutes;
           return (
             <button
               key={booking.id}
@@ -110,7 +115,7 @@ export function PrepaidBookingNotice({
                     {formatBookingSlotLabel(booking.start_time, booking.end_time)}
                   </span>
                   <Badge variant="outline" className="text-[10px] border-teal-400/40 text-teal-200">
-                    {booking.duration} min
+                    {playMinutes} min play
                   </Badge>
                 </div>
                 <div className="text-right">

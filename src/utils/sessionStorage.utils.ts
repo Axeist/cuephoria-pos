@@ -30,5 +30,7 @@ export function serializeSessionForDb(session: Session): Record<string, unknown>
     plannedDurationMinutes: session.plannedDurationMinutes,
     sessionGroupId: session.sessionGroupId,
     prepaidBooking: session.prepaidBooking,
+    timeTierPrice: session.timeTierPrice,
+    overtimePerMinute: session.overtimePerMinute,
   };
 }

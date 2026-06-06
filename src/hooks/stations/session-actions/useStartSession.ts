@@ -6,9 +6,16 @@ import React from 'react';
 import { generateId } from '@/utils/pos.utils';
 import { useLocation } from '@/context/LocationContext';
 import { serializeSessionForDb } from '@/utils/sessionStorage.utils';
-import { getDefaultPlannedDuration } from '@/utils/sessionDuration.utils';
+import { getDefaultPlannedDuration, getDurationPresets } from '@/utils/sessionDuration.utils';
+import {
+  buildTimeBasedSessionPricing,
+  getDefaultDurationTiers,
+  getTierPackagePrice,
+} from '@/utils/timeBasedPricing.utils';
+import { isTimeBasedPricing } from '@/utils/stationPricing';
 import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
 import { markPrepaidBookingInProgress } from '@/utils/prepaidBooking.utils';
+import { resolvePrepaidPlayDurationMinutes } from '@/utils/prepaidBooking.core';
 import { CACHE_KEYS, cacheKeyWithLocation, invalidateCache } from '@/utils/dataCache';
 
 /**
@@ -73,20 +80,46 @@ export const useStartSession = ({
       console.log("🆔 Generated session ID:", sessionId);
       
       const pricingPlayerCount = playerCount ?? 1;
-      const sessionRate = finalRate !== undefined ? finalRate : station.hourlyRate;
-      const undiscountedTotal =
-        perPersonRate != null
+      const timeBased = isTimeBasedPricing(station) && !prepaidBooking;
+      const tiers =
+        station.durationTiers?.length ? station.durationTiers : getDefaultDurationTiers();
+      const resolvedPlanned = prepaidBooking
+        ? resolvePrepaidPlayDurationMinutes(
+            station.type,
+            station.slotDuration,
+            prepaidBooking.durationMinutes
+          )
+        : plannedDurationMinutes ??
+          getDefaultPlannedDuration(station.slotDuration, timeBased ? tiers : undefined);
+
+      const normalizedPrepaid = prepaidBooking
+        ? {
+            ...prepaidBooking,
+            durationMinutes: resolvedPlanned,
+          }
+        : undefined;
+
+      const undiscountedTotal = timeBased
+        ? getTierPackagePrice(resolvedPlanned, tiers)
+        : perPersonRate != null
           ? perPersonRate * pricingPlayerCount
           : station.hourlyRate;
+      const sessionRate = finalRate !== undefined ? finalRate : undiscountedTotal;
       const originalRate = undiscountedTotal;
       const discountAmount = Math.max(0, originalRate - sessionRate);
       const resolvedPerPerson =
         perPersonRate ?? (pricingPlayerCount > 0 ? sessionRate / pricingPlayerCount : sessionRate);
-      const resolvedPlanned = prepaidBooking
-        ? prepaidBooking.durationMinutes
-        : plannedDurationMinutes ?? getDefaultPlannedDuration(station.slotDuration);
 
-      const billingRate = prepaidBooking ? station.hourlyRate : sessionRate;
+      let timeTierPrice: number | undefined;
+      let overtimePerMinute: number | undefined;
+      let billingRate = prepaidBooking ? station.hourlyRate : sessionRate;
+
+      if (timeBased) {
+        const pricing = buildTimeBasedSessionPricing(resolvedPlanned, tiers);
+        timeTierPrice = sessionRate;
+        overtimePerMinute = pricing.overtimePerMinute;
+        billingRate = pricing.hourlyRate;
+      }
       
       console.log("💰 Rate calculation:", {
         originalRate,
@@ -109,14 +142,15 @@ export const useStartSession = ({
         playerCount: pricingPlayerCount,
         perPersonRate: resolvedPerPerson,
         plannedDurationMinutes: resolvedPlanned,
-        prepaidBooking,
+        prepaidBooking: normalizedPrepaid,
         sessionGroupId,
+        timeTierPrice,
+        overtimePerMinute,
       };
 
       if (prepaidBooking) {
         await markPrepaidBookingInProgress(prepaidBooking.bookingId);
       }
-      
       console.log("📦 Created new session object:", JSON.stringify(newSession, null, 2));
       
       // Update local state FIRST

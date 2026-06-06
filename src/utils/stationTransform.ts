@@ -1,5 +1,6 @@
 import type { Session, Station } from '@/types/pos.types';
 import type { OccupancyRates } from '@/utils/stationPricing';
+import { parseDurationTiers } from '@/utils/timeBasedPricing.utils';
 
 /** Inline parser — stationTransform is bundled in Edge; no separate prepaid modules. */
 function parsePrepaidBookingFromSessionJson(raw: unknown): Session['prepaidBooking'] {
@@ -86,6 +87,10 @@ export function parseCurrentSession(
       prepaidBooking: parsePrepaidBookingFromSessionJson(
         sessionData.prepaidBooking ?? sessionData.prepaid_booking
       ),
+      timeTierPrice:
+        Number(sessionData.timeTierPrice ?? sessionData.time_tier_price ?? 0) || undefined,
+      overtimePerMinute:
+        Number(sessionData.overtimePerMinute ?? sessionData.overtime_per_minute ?? 0) || undefined,
     };
   } catch {
     return null;
@@ -100,11 +105,14 @@ export function transformStationRow(item: Record<string, unknown>): Station {
   );
   const pricingModeRaw = item.pricing_mode as string | undefined;
   const pricingMode: Station['pricingMode'] =
-    pricingModeRaw === 'per_player' || pricingModeRaw === 'static'
+    pricingModeRaw === 'per_player' ||
+    pricingModeRaw === 'static' ||
+    pricingModeRaw === 'time_based'
       ? pricingModeRaw
       : Object.keys(occupancyRates).length > 0
         ? 'per_player'
         : 'static';
+  const durationTiers = parseDurationTiers(item.duration_tiers);
 
   return {
     id: String(item.id),
@@ -124,6 +132,7 @@ export function transformStationRow(item: Record<string, unknown>): Station {
     maxPlayers,
     occupancyRates,
     pricingMode,
+    durationTiers,
     teamName: (item.team_name as string | null) ?? null,
     teamColor: (item.team_color as string | null) ?? null,
     maxCapacity: item.max_capacity != null ? Number(item.max_capacity) : null,
@@ -132,4 +141,4 @@ export function transformStationRow(item: Record<string, unknown>): Station {
 }
 
 export const STATION_SELECT_FIELDS =
-  'id,name,type,hourly_rate,is_occupied,currentsession,created_at,category,event_enabled,slot_duration,max_players,occupancy_rates,pricing_mode,team_name,team_color,max_capacity,single_rate';
+  'id,name,type,hourly_rate,is_occupied,currentsession,created_at,category,event_enabled,slot_duration,max_players,occupancy_rates,pricing_mode,duration_tiers,team_name,team_color,max_capacity,single_rate';

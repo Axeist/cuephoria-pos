@@ -1,4 +1,5 @@
 import { Session, Station } from '@/types/pos.types';
+import { isTimeBasedSession, calculateTimeBasedLiveCost } from '@/utils/timeBasedPricing.utils';
 
 type BillableSession = Pick<
   Session,
@@ -82,4 +83,20 @@ export function calculateSessionCost(
   }
 
   return cost;
+}
+
+export function calculateLiveSessionCost(
+  station: Pick<Station, 'category' | 'slotDuration' | 'type' | 'pricingMode'>,
+  session: Pick<
+    Session,
+    'hourlyRate' | 'timeTierPrice' | 'overtimePerMinute' | 'plannedDurationMinutes'
+  >,
+  billableMs: number,
+  isMember = false
+): number {
+  if (isTimeBasedSession(session)) {
+    return calculateTimeBasedLiveCost(session, billableMs, isMember);
+  }
+  const sessionRate = session.hourlyRate ?? 0;
+  return calculateSessionCost(station, sessionRate, billableMs, isMember);
 }

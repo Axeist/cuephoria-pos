@@ -1,7 +1,55 @@
 import type { CartItem, Session } from '@/types/pos.types';
 import type { PrepaidBookingLink, StationBookingRow } from '@/types/prepaidBooking.types';
+import { VR_PASS_DURATION_MINUTES } from '@/utils/publicBookingAvailability';
 
 /** Pure helpers safe for Edge/server bundles (no Supabase client). */
+
+export { VR_PASS_DURATION_MINUTES };
+
+export type PrepaidStationRef = {
+  type?: string;
+  slotDuration?: number | null;
+};
+
+/** Play time covered by a pre-paid booking (VR pass = 15 min, not the 1-hour calendar block). */
+export function resolvePrepaidPlayDurationMinutes(
+  stationType: string | undefined,
+  stationSlotDuration: number | null | undefined,
+  bookingDurationMinutes: number
+): number {
+  const type = (stationType ?? '').toLowerCase();
+  if (type === 'vr') {
+    return VR_PASS_DURATION_MINUTES;
+  }
+  if (stationSlotDuration != null && stationSlotDuration > 0) {
+    return stationSlotDuration;
+  }
+  return bookingDurationMinutes > 0 ? bookingDurationMinutes : 60;
+}
+
+/** Planned countdown for live sessions — corrects VR pre-paid rows stored as 60 min. */
+export function getEffectivePlannedDurationMinutes(
+  session: Pick<Session, 'plannedDurationMinutes' | 'prepaidBooking'>,
+  station?: PrepaidStationRef
+): number {
+  const planned = session.plannedDurationMinutes ?? 0;
+  if (!station) return planned;
+
+  if (session.prepaidBooking) {
+    return resolvePrepaidPlayDurationMinutes(
+      station.type,
+      station.slotDuration,
+      session.prepaidBooking.durationMinutes
+    );
+  }
+
+  if ((station.type ?? '').toLowerCase() === 'vr') {
+    if (planned <= 0) return VR_PASS_DURATION_MINUTES;
+    if (station.slotDuration === 15 && planned !== 15) return VR_PASS_DURATION_MINUTES;
+  }
+
+  return planned;
+}
 
 const VENUE_TZ = 'Asia/Kolkata';
 
@@ -29,12 +77,20 @@ export function isOnlinePrepaidBooking(
   return Number(booking.final_price ?? 0) > 0;
 }
 
-export function bookingToPrepaidLink(booking: StationBookingRow): PrepaidBookingLink {
+export function bookingToPrepaidLink(
+  booking: StationBookingRow,
+  station?: PrepaidStationRef
+): PrepaidBookingLink {
+  const bookingDuration = Number(booking.duration) || 60;
   return {
     bookingId: booking.id,
     paidAmount: Number(booking.final_price ?? 0),
     originalPrice: booking.original_price,
-    durationMinutes: Number(booking.duration) || 60,
+    durationMinutes: resolvePrepaidPlayDurationMinutes(
+      station?.type,
+      station?.slotDuration,
+      bookingDuration
+    ),
     slotStartTime: booking.start_time.slice(0, 5),
     slotEndTime: booking.end_time.slice(0, 5),
     paymentMode: booking.payment_mode ?? 'online',
@@ -43,12 +99,13 @@ export function bookingToPrepaidLink(booking: StationBookingRow): PrepaidBooking
 }
 
 export function pickDefaultPrepaidBooking(
-  bookings: StationBookingRow[]
+  bookings: StationBookingRow[],
+  station?: PrepaidStationRef
 ): { booking: StationBookingRow; link: PrepaidBookingLink } | null {
   const prepaid = bookings.filter(isOnlinePrepaidBooking);
   if (prepaid.length !== 1) return null;
   const booking = prepaid[0];
-  return { booking, link: bookingToPrepaidLink(booking) };
+  return { booking, link: bookingToPrepaidLink(booking, station) };
 }
 
 export function parsePrepaidBookingLink(raw: unknown): PrepaidBookingLink | undefined {
@@ -77,13 +134,15 @@ export function isPrepaidSession(
 export function getPrepaidOvertimeMs(
   session: Pick<
     Session,
-    'prepaidBooking' | 'startTime' | 'isPaused' | 'pausedAt' | 'totalPausedMs'
+    'prepaidBooking' | 'startTime' | 'isPaused' | 'pausedAt' | 'totalPausedMs' | 'plannedDurationMinutes'
   >,
-  billableMs: number
+  billableMs: number,
+  station?: PrepaidStationRef
 ): number {
   const prepaid = session.prepaidBooking;
   if (!prepaid) return 0;
-  const coveredMs = prepaid.durationMinutes * 60 * 1000;
+  const coveredMs =
+    getEffectivePlannedDurationMinutes(session, station) * 60 * 1000;
   return Math.max(0, billableMs - coveredMs);
 }
 

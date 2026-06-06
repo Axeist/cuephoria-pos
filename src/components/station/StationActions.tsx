@@ -10,8 +10,12 @@ import AddCustomerDialog from '@/components/customers/AddCustomerDialog';
 import MoveSessionDialog from '@/components/station/MoveSessionDialog';
 import type { Customer, SessionEndCheckoutMode } from '@/types/pos.types';
 import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
-import { getRateForPlayerCount } from '@/utils/stationPricing';
+import { getRateForPlayerCount, isTimeBasedPricing } from '@/utils/stationPricing';
 import { getDurationPresets, stationsMatchForMove } from '@/utils/sessionDuration.utils';
+import {
+  getDefaultDurationTiers,
+  getTierPackagePrice,
+} from '@/utils/timeBasedPricing.utils';
 import type { StationTheme, StationPhase } from '@/utils/stationTheme';
 import { prefetchPOS, navigateToPOS, sleep, SESSION_TRANSITION } from '@/utils/viewTransition';
 
@@ -166,7 +170,11 @@ const StationActions: React.FC<StationActionsProps> = ({
     ? 'h-10 flex-1 border-cuephoria-purple/40 bg-cuephoria-purple/10 text-sm font-semibold text-cuephoria-lightpurple hover:bg-cuephoria-purple/20'
     : 'h-7 flex-1 border-cuephoria-purple/40 bg-cuephoria-purple/10 px-1 text-[10px] font-semibold text-cuephoria-lightpurple hover:bg-cuephoria-purple/20';
 
-  const extendPresets = getDurationPresets(station.slotDuration).slice(0, 3);
+  const tiers = station.durationTiers?.length ? station.durationTiers : getDefaultDurationTiers();
+  const extendPresets = isTimeBasedPricing(station)
+    ? tiers.slice(0, 3).map((t) => t.minutes)
+    : getDurationPresets(station.slotDuration).slice(0, 3);
+  const plannedMinutes = station.currentSession?.plannedDurationMinutes ?? 0;
 
   const handleExtend = async (extraMinutes: number) => {
     if (!onExtendSession) return;
@@ -219,7 +227,13 @@ const StationActions: React.FC<StationActionsProps> = ({
                 disabled={isLoading || isTransitioning}
               >
                 <Plus className={`mr-1 ${footerLayout ? 'h-4 w-4' : 'h-3 w-3'}`} />
-                {mins}m
+                {isTimeBasedPricing(station) ? (
+                  <>
+                    +{mins}m · ₹{getTierPackagePrice(plannedMinutes + mins, tiers)}
+                  </>
+                ) : (
+                  <>{mins}m</>
+                )}
               </Button>
             ))}
           </div>
@@ -379,6 +393,7 @@ const StationActions: React.FC<StationActionsProps> = ({
         slotDuration={station.slotDuration}
         stationType={station.type}
         pricingMode={station.pricingMode}
+        durationTiers={station.durationTiers ?? []}
         initialCustomerId={preselectedCustomerId}
         onConfirm={handleStartSession}
       />

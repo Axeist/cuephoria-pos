@@ -2,7 +2,7 @@ import type { Session, Station } from '@/types/pos.types';
 
 export type OccupancyRates = Record<string, number>;
 
-export type PricingMode = 'static' | 'per_player';
+export type PricingMode = 'static' | 'per_player' | 'time_based';
 
 export type StationPricingInput = Pick<
   Station,
@@ -26,10 +26,20 @@ export function hasOccupancyRates(station: StationPricingInput): boolean {
 }
 
 export function resolvePricingMode(station: StationPricingInput): PricingMode {
-  if (station.pricingMode === 'static' || station.pricingMode === 'per_player') {
+  if (
+    station.pricingMode === 'static' ||
+    station.pricingMode === 'per_player' ||
+    station.pricingMode === 'time_based'
+  ) {
     return station.pricingMode;
   }
   return hasOccupancyRates(station) ? 'per_player' : 'static';
+}
+
+export function isTimeBasedPricing(
+  station: Pick<StationPricingInput, 'pricingMode'>
+): boolean {
+  return resolvePricingMode(station) === 'time_based';
 }
 
 export function isPerPlayerPricing(station: StationPricingInput): boolean {
@@ -177,8 +187,26 @@ export function getRateSuffix(station: Pick<Station, 'type' | 'slotDuration' | '
 /** Active session rate for station card badges (uses locked-in session pricing). */
 export function formatLiveSessionRate(
   station: Pick<Station, 'type' | 'slotDuration' | 'category' | 'pricingMode' | 'occupancyRates'>,
-  session: Pick<Session, 'hourlyRate' | 'perPersonRate' | 'playerCount'>
+  session: Pick<
+    Session,
+    'hourlyRate' | 'perPersonRate' | 'playerCount' | 'timeTierPrice' | 'overtimePerMinute' | 'plannedDurationMinutes'
+  >
 ): { totalRate: number; suffix: string; detail?: string } {
+  if (
+    isTimeBasedPricing(station) &&
+    session.timeTierPrice != null &&
+    session.overtimePerMinute != null
+  ) {
+    const mins = session.plannedDurationMinutes ?? 0;
+    const ot = Math.round(session.overtimePerMinute * 10) / 10;
+    const otLabel = Number.isInteger(ot) ? String(ot) : ot.toFixed(1);
+    return {
+      totalRate: session.timeTierPrice,
+      suffix: mins > 0 ? ` / ${mins}m` : '',
+      detail: `₹${otLabel}/min OT`,
+    };
+  }
+
   const totalRate = session.hourlyRate ?? 0;
   const suffix = getRateSuffix(station);
   const players = session.playerCount ?? 1;

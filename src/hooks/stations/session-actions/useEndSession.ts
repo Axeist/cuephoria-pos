@@ -16,6 +16,7 @@ import {
   calculatePresetSessionCheckoutCost,
   usesPresetSessionBilling,
 } from '@/utils/sessionBilling.utils';
+import { calculateTimeBasedLiveCost, isTimeBasedSession } from '@/utils/timeBasedPricing.utils';
 import {
   buildPrepaidOvertimeCartItem,
   calculatePrepaidOvertimeCost,
@@ -175,7 +176,7 @@ export const useEndSession = ({
 
       if (prepaid) {
         await markPrepaidBookingCompleted(prepaid.bookingId);
-        const overtimeMs = getPrepaidOvertimeMs(session, billableMs);
+        const overtimeMs = getPrepaidOvertimeMs(session, billableMs, station);
         if (overtimeMs > 0) {
           const overtime = calculatePrepaidOvertimeCost(stationRate, overtimeMs, isMember);
           sessionCost = overtime.cost;
@@ -192,6 +193,9 @@ export const useEndSession = ({
           }
         }
         console.log('Pre-paid session end:', { overtimeMs, sessionCost, billedMinutes });
+      } else if (isTimeBasedSession(session)) {
+        sessionCost = calculateTimeBasedLiveCost(session, billableMs, isMember);
+        billedMinutes = Math.ceil(billableMs / (1000 * 60));
       } else {
         const usesPresetBilling =
           usesPresetSessionBilling(session.plannedDurationMinutes) &&
@@ -205,18 +209,49 @@ export const useEndSession = ({
         } else {
           sessionCost = calculateSessionCost(station, stationRate, billableMs, isMember);
         }
+      }
 
+      if (!prepaid && !isTimeBasedSession(session)) {
         if (isMember) {
           console.log(`Applied 50% member discount to session cost: ${sessionCost}`);
         }
 
         const couponInfo = session.couponCode ? ` - ${session.couponCode}` : '';
         const memberInfo = isMember ? ' - Member 50% OFF' : '';
+        const usesPresetBilling =
+          usesPresetSessionBilling(session.plannedDurationMinutes) &&
+          station.category !== 'nit_event' &&
+          station.type !== 'vr';
         const durationInfo =
           usesPresetBilling && billedMinutes !== durationMinutes
             ? ` · ${billedMinutes} min billed`
             : usesPresetBilling
               ? ` · ${billedMinutes} min`
+              : '';
+
+        sessionCartItem = {
+          id: cartItemId,
+          name: `${station.name} (${customer?.name || 'Unknown Customer'})${durationInfo}${couponInfo}${memberInfo}`,
+          price: sessionCost,
+          quantity: 1,
+          total: sessionCost,
+          type: 'session',
+        };
+      } else if (!prepaid && isTimeBasedSession(session)) {
+        if (isMember) {
+          console.log(`Applied 50% member discount to session cost: ${sessionCost}`);
+        }
+
+        const planned = session.plannedDurationMinutes ?? 0;
+        const played = Math.ceil(billableMs / (1000 * 60));
+        const overtimeMin = Math.max(0, played - planned);
+        const couponInfo = session.couponCode ? ` - ${session.couponCode}` : '';
+        const memberInfo = isMember ? ' - Member 50% OFF' : '';
+        const durationInfo =
+          overtimeMin > 0
+            ? ` · ${planned}m + ${overtimeMin}m OT`
+            : planned > 0
+              ? ` · ${planned}m`
               : '';
 
         sessionCartItem = {

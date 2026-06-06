@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
-import type { Session } from '@/types/pos.types';
+import type { Session, Station } from '@/types/pos.types';
 import { getBillableMs } from '@/utils/sessionTimer.utils';
+import { getEffectivePlannedDurationMinutes } from '@/utils/prepaidBooking.core';
 
 export type SessionUrgency = 'comfortable' | 'warning' | 'critical' | 'overdue';
 
@@ -15,16 +16,25 @@ export interface SessionDurationState {
   isOverdue: boolean;
 }
 
-export function getDurationPresets(slotDuration?: number | null): number[] {
+export function getDurationPresets(
+  slotDuration?: number | null,
+  durationTiers?: { minutes: number }[]
+): number[] {
+  if (durationTiers && durationTiers.length > 0) {
+    return durationTiers.map((t) => t.minutes).sort((a, b) => a - b);
+  }
   const slot = slotDuration ?? 60;
   if (slot <= 15) return [15, 30, 45, 60];
   if (slot <= 30) return [30, 60, 90];
   return [30, 60, 90, 120];
 }
 
-export function getDefaultPlannedDuration(slotDuration?: number | null): number {
-  const presets = getDurationPresets(slotDuration);
-  return presets[1] ?? slotDuration ?? 60;
+export function getDefaultPlannedDuration(
+  slotDuration?: number | null,
+  durationTiers?: { minutes: number }[]
+): number {
+  const presets = getDurationPresets(slotDuration, durationTiers);
+  return presets[0] ?? slotDuration ?? 60;
 }
 
 export function hasPlannedDuration(session: Pick<Session, 'plannedDurationMinutes'>): boolean {
@@ -33,9 +43,10 @@ export function hasPlannedDuration(session: Pick<Session, 'plannedDurationMinute
 
 export function getSessionDurationState(
   session: Session,
-  now = new Date()
+  now = new Date(),
+  station?: Pick<Station, 'type' | 'slotDuration'>
 ): SessionDurationState | null {
-  const plannedMinutes = session.plannedDurationMinutes;
+  const plannedMinutes = getEffectivePlannedDurationMinutes(session, station);
   if (!plannedMinutes || plannedMinutes <= 0) return null;
 
   const plannedMs = plannedMinutes * 60 * 1000;

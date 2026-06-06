@@ -838,7 +838,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const endTime = updatedSession?.endTime ?? new Date();
         const billingSession = updatedSession ?? resolveSessionForBilling(station.currentSession!, endTime);
         const billableMs = getBillableMs(billingSession, endTime);
-        const overtimeMs = prepaid ? getPrepaidOvertimeMs(billingSession, billableMs) : 0;
+        const overtimeMs = prepaid ? getPrepaidOvertimeMs(billingSession, billableMs, station) : 0;
 
         const incomingItems: CartItem[] = [
           ...stationQuickShopItems,

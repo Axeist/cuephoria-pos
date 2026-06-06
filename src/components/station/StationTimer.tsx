@@ -4,7 +4,7 @@ import { CurrencyDisplay } from '@/components/ui/currency';
 import { usePOS } from '@/context/POSContext';
 import { Session } from '@/types/pos.types';
 import {
-  calculateSessionCost,
+  calculateLiveSessionCost,
   formatBillableTime,
   getBillableMs,
 } from '@/utils/sessionTimer.utils';
@@ -97,9 +97,9 @@ const StationTimer: React.FC<StationTimerProps> = ({
       });
       setMinutes(time.minutes);
       setHours(time.hours);
-      setCost(calculateSessionCost(station, rate, billableMs, isMember));
+      setCost(calculateLiveSessionCost(station, sessionSnapshot, billableMs, isMember));
 
-      const durationState = getSessionDurationState(sessionSnapshot);
+      const durationState = getSessionDurationState(sessionSnapshot, new Date(), station);
       if (durationState) {
         setRemainingLabel(
           durationState.isOverdue

@@ -16,6 +16,12 @@ import {
   type BookingConflict,
 } from '@/utils/sessionDuration.utils';
 import { getPresetSessionExtensionPlan } from '@/utils/sessionBilling.utils';
+import {
+  buildTimeBasedSessionPricing,
+  getDefaultDurationTiers,
+  getTierPackagePrice,
+} from '@/utils/timeBasedPricing.utils';
+import { isTimeBasedPricing } from '@/utils/stationPricing';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -101,10 +107,24 @@ export const useExtendSession = ({
     }
 
     const newPlanned = newPlannedMinutes;
-    const updatedSession: Session = {
+    const tiers =
+      station.durationTiers?.length ? station.durationTiers : getDefaultDurationTiers();
+    const timeBased = isTimeBasedPricing(station) && !session.prepaidBooking;
+
+    let updatedSession: Session = {
       ...session,
       plannedDurationMinutes: newPlanned,
     };
+
+    if (timeBased) {
+      const pricing = buildTimeBasedSessionPricing(newPlanned, tiers);
+      updatedSession = {
+        ...updatedSession,
+        timeTierPrice: pricing.timeTierPrice,
+        overtimePerMinute: pricing.overtimePerMinute,
+        hourlyRate: pricing.hourlyRate,
+      };
+    }
 
     setSessions((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
     setStations((prev) =>
@@ -138,6 +158,10 @@ export const useExtendSession = ({
     }
 
     const state = getSessionDurationState(updatedSession, now);
+    const packageNote =
+      timeBased && tiers.length > 0
+        ? ` · ₹${getTierPackagePrice(newPlanned, tiers)} package`
+        : '';
     const overtimeNote =
       overtimeMinutes > 0 && effectiveAddedMinutes < extraMinutes
         ? ` (${effectiveAddedMinutes} min added — ${overtimeMinutes} min past plan counted toward +${extraMinutes})`
@@ -146,7 +170,7 @@ export const useExtendSession = ({
       title: 'Session extended',
       description: `+${extraMinutes} min package · ${newPlanned} min total${
         state ? ` · ${Math.ceil(state.remainingMs / 60000)} min left` : ''
-      }${overtimeNote}`,
+      }${packageNote}${overtimeNote}`,
     });
   };
 

@@ -293,7 +293,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // STEP 4: Create booking records
     const couponCodes = appliedCoupons ? Object.values(appliedCoupons).join(",") : "";
-    
+    const VR_PASS_DURATION_MINUTES = 15;
+
+    const { data: stationRows } = await supabase
+      .from("stations")
+      .select("id, type, slot_duration")
+      .in("id", selectedStations);
+
+    const stationMeta = new Map(
+      (stationRows ?? []).map((s: { id: string; type: string; slot_duration: number | null }) => [
+        s.id,
+        s,
+      ])
+    );
+
+    const playDurationForStation = (stationId: string): number => {
+      const meta = stationMeta.get(stationId);
+      if (!meta) return 60;
+      if (meta.type === "vr") return VR_PASS_DURATION_MINUTES;
+      if (meta.slot_duration != null && meta.slot_duration > 0) return Number(meta.slot_duration);
+      return 60;
+    };
+
     const rows = (slotsToBook as any[]).flatMap((slot) =>
       selectedStations.map((stationId: string) => ({
         station_id: stationId,
@@ -302,7 +323,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         booking_date: selectedDate,
         start_time: slot.start_time,
         end_time: slot.end_time,
-        duration: 60,
+        duration: playDurationForStation(stationId),
         status: "confirmed",
         original_price: originalPrice || 0,
         discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,

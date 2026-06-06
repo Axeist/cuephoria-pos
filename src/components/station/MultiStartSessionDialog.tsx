@@ -135,7 +135,11 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
 
         const autoLinks: Record<string, PrepaidBookingLink | null> = {};
         for (const [stationId, rows] of entries) {
-          const auto = pickDefaultPrepaidBooking(rows);
+          const station = stations.find((s) => s.id === stationId);
+          const auto = pickDefaultPrepaidBooking(rows, {
+            type: station?.type,
+            slotDuration: station?.slotDuration,
+          });
           if (auto) autoLinks[stationId] = auto.link;
         }
         if (Object.keys(autoLinks).length > 0) {

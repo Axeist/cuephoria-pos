@@ -257,6 +257,9 @@ const getBookingDuration = (stationIds: string[], stations: Station[]) => {
   if (selected.some((s) => s.type === 'vr') && selected.some((s) => s.type !== 'vr')) {
     return 60;
   }
+  if (selected.length > 0 && selected.every((s) => s.type === 'vr')) {
+    return VR_PASS_DURATION_MINUTES;
+  }
   return getSlotDuration(selected[0]);
 };
 
