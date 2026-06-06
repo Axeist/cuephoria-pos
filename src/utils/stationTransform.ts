@@ -1,6 +1,22 @@
 import type { Session, Station } from '@/types/pos.types';
 import type { OccupancyRates } from '@/utils/stationPricing';
-import { parsePrepaidBookingLink } from '@/utils/prepaidBooking.core';
+
+/** Inline parser — stationTransform is bundled in Edge; no separate prepaid modules. */
+function parsePrepaidBookingFromSessionJson(raw: unknown): Session['prepaidBooking'] {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const data = raw as Record<string, unknown>;
+  if (typeof data.bookingId !== 'string' || !data.bookingId) return undefined;
+  return {
+    bookingId: data.bookingId,
+    paidAmount: Number(data.paidAmount ?? 0),
+    originalPrice: data.originalPrice != null ? Number(data.originalPrice) : null,
+    durationMinutes: Number(data.durationMinutes) || 60,
+    slotStartTime: String(data.slotStartTime ?? ''),
+    slotEndTime: String(data.slotEndTime ?? ''),
+    paymentMode: String(data.paymentMode ?? 'online'),
+    couponCode: typeof data.couponCode === 'string' ? data.couponCode : null,
+  };
+}
 
 /** Matches Station Command “On booking page” / `eventEnabled` in transformStationRow. */
 export function isStationPublicBookable(row: {
@@ -67,7 +83,9 @@ export function parseCurrentSession(
         (sessionData.sessionGroupId ?? sessionData.session_group_id) != null
           ? String(sessionData.sessionGroupId ?? sessionData.session_group_id)
           : undefined,
-      prepaidBooking: parsePrepaidBookingLink(sessionData.prepaidBooking ?? sessionData.prepaid_booking),
+      prepaidBooking: parsePrepaidBookingFromSessionJson(
+        sessionData.prepaidBooking ?? sessionData.prepaid_booking
+      ),
     };
   } catch {
     return null;
