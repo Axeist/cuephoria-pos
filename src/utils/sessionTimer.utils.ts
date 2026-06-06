@@ -1,8 +1,4 @@
 import { Session, Station } from '@/types/pos.types';
-import {
-  getPresetSessionBilledMinutes,
-  usesPresetSessionBilling,
-} from '@/utils/sessionBilling.utils';
 
 type BillableSession = Pick<
   Session,
@@ -65,24 +61,16 @@ export function calculateSessionCost(
   station: Pick<Station, 'category' | 'slotDuration' | 'type'>,
   sessionRate: number,
   billableMs: number,
-  isMember = false,
-  options?: { plannedDurationMinutes?: number }
+  isMember = false
 ): number {
-  const actualMinutes = Math.ceil(billableMs / (1000 * 60));
+  const durationMinutes = Math.ceil(billableMs / (1000 * 60));
 
   let cost: number;
-  if (
-    usesPresetSessionBilling(options?.plannedDurationMinutes) &&
-    station.category !== 'nit_event' &&
-    station.type !== 'vr'
-  ) {
-    const billedMinutes = getPresetSessionBilledMinutes(actualMinutes);
-    cost = Math.ceil((billedMinutes / 60) * sessionRate);
-  } else if (station.category === 'nit_event' && station.slotDuration) {
-    const slotsPlayed = Math.ceil(actualMinutes / station.slotDuration);
+  if (station.category === 'nit_event' && station.slotDuration) {
+    const slotsPlayed = Math.ceil(durationMinutes / station.slotDuration);
     cost = slotsPlayed * sessionRate;
   } else if (station.type === 'vr') {
-    const slotsPlayed = Math.ceil(actualMinutes / 15);
+    const slotsPlayed = Math.ceil(durationMinutes / 15);
     cost = slotsPlayed * sessionRate;
   } else {
     const hoursElapsed = billableMs / (1000 * 60 * 60);

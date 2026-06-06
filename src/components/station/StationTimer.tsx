@@ -86,11 +86,7 @@ const StationTimer: React.FC<StationTimerProps> = ({
       });
       setMinutes(time.minutes);
       setHours(time.hours);
-      setCost(
-        calculateSessionCost(station, rate, billableMs, isMember, {
-          plannedDurationMinutes: sessionSnapshot.plannedDurationMinutes,
-        })
-      );
+      setCost(calculateSessionCost(station, rate, billableMs, isMember));
 
       const durationState = getSessionDurationState(sessionSnapshot);
       if (durationState) {

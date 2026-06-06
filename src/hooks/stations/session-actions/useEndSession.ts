@@ -13,7 +13,7 @@ import {
   resolveSessionForBilling,
 } from '@/utils/sessionTimer.utils';
 import {
-  getPresetSessionBilledMinutes,
+  calculatePresetSessionCheckoutCost,
   usesPresetSessionBilling,
 } from '@/utils/sessionBilling.utils';
 
@@ -161,13 +161,21 @@ export const useEndSession = ({
       
       const stationRate = session.hourlyRate || station.hourlyRate;
       const isMember = customer?.isMember || false;
-      const usesPresetBilling = usesPresetSessionBilling(session.plannedDurationMinutes);
-      const billedMinutes = usesPresetBilling
-        ? getPresetSessionBilledMinutes(durationMinutes)
-        : durationMinutes;
-      const sessionCost = calculateSessionCost(station, stationRate, billableMs, isMember, {
-        plannedDurationMinutes: session.plannedDurationMinutes,
-      });
+      const usesPresetBilling =
+        usesPresetSessionBilling(session.plannedDurationMinutes) &&
+        station.category !== 'nit_event' &&
+        station.type !== 'vr';
+
+      let sessionCost: number;
+      let billedMinutes = durationMinutes;
+
+      if (usesPresetBilling) {
+        const checkout = calculatePresetSessionCheckoutCost(stationRate, billableMs, isMember);
+        sessionCost = checkout.cost;
+        billedMinutes = checkout.billedMinutes;
+      } else {
+        sessionCost = calculateSessionCost(station, stationRate, billableMs, isMember);
+      }
       
       if (isMember) {
         console.log(`Applied 50% member discount to session cost: ${sessionCost}`);

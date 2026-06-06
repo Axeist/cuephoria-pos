@@ -58,3 +58,18 @@ export function getPresetSessionExtensionPlan(
 export function usesPresetSessionBilling(plannedDurationMinutes?: number): boolean {
   return (plannedDurationMinutes ?? 0) > 0;
 }
+
+/** Checkout-only: apply tier rounding, not used for live timer display. */
+export function calculatePresetSessionCheckoutCost(
+  hourlyRate: number,
+  billableMs: number,
+  isMember = false
+): { cost: number; actualMinutes: number; billedMinutes: number } {
+  const actualMinutes = Math.max(0, Math.ceil(billableMs / (1000 * 60)));
+  const billedMinutes = getPresetSessionBilledMinutes(actualMinutes);
+  let cost = Math.ceil((billedMinutes / 60) * hourlyRate);
+  if (isMember) {
+    cost = Math.ceil(cost * 0.5);
+  }
+  return { cost, actualMinutes, billedMinutes };
+}
