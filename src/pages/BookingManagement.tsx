@@ -19,6 +19,7 @@ import { buildPublicBookingUrl } from '@/utils/publicBookingUrl';
 import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
 import { BookingEditDialog } from '@/components/booking/BookingEditDialog';
 import { BookingDeleteDialog } from '@/components/booking/BookingDeleteDialog';
+import { BookingDeleteAllDialog } from '@/components/booking/BookingDeleteAllDialog';
 import PaymentReconciliationTab from '@/components/booking/PaymentReconciliationTab';
 import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -238,6 +239,8 @@ export default function BookingManagement() {
   const [couponOptions, setCouponOptions] = useState<string[]>([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
+  const [bookingsToDeleteAll, setBookingsToDeleteAll] = useState<Booking[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
@@ -1965,6 +1968,23 @@ export default function BookingManagement() {
     setSelectedBooking(booking); 
     setDeleteDialogOpen(true); 
   };
+
+  const handleDeleteAllBookings = (bookingsForGroup: Booking[]) => {
+    setBookingsToDeleteAll(bookingsForGroup);
+    setDeleteAllDialogOpen(true);
+  };
+
+  const invalidateBookingsCacheAndRefetch = useCallback(() => {
+    const analyticsFromDate = filters.datePreset === 'alltime'
+      ? '2020-01-01'
+      : format(subDays(new Date(), 60), 'yyyy-MM-dd');
+    const cacheKey = cacheKeyWithLocation(
+      `${CACHE_KEYS.BOOKINGS}_${filters.datePreset}_${analyticsFromDate}_${branchView}`,
+      activeLocation?.id
+    );
+    invalidateCache(cacheKey);
+    fetchBookings();
+  }, [filters.datePreset, branchView, activeLocation?.id, fetchBookings]);
 
   const toggleDateExpansion = (date: string) => {
     setExpandedDates(prev => {
@@ -3940,23 +3960,24 @@ export default function BookingManagement() {
                                       }
                                     }}
                                   >
-                                    <CollapsibleTrigger 
-                                      className="flex items-center gap-2 w-full p-2 text-left bg-background rounded border hover:bg-muted/50 transition-colors"
-                                    >
+                                    <div className="flex items-center gap-2 w-full">
+                                      <CollapsibleTrigger
+                                        className="flex flex-1 items-center gap-2 p-2 text-left bg-background rounded border hover:bg-muted/50 transition-colors min-w-0"
+                                      >
                                       {isGroupExpanded ? (
-                                        <ChevronDown className="h-3 w-3" />
+                                        <ChevronDown className="h-3 w-3 shrink-0" />
                                       ) : (
-                                        <ChevronRight className="h-3 w-3" />
+                                        <ChevronRight className="h-3 w-3 shrink-0" />
                                       )}
                                       {groupByCustomer ? (
-                                        <Users className="h-3 w-3" />
+                                        <Users className="h-3 w-3 shrink-0" />
                                       ) : (
-                                        <Clock className="h-3 w-3" />
+                                        <Clock className="h-3 w-3 shrink-0" />
                                       )}
-                                      <span className="font-medium">
+                                      <span className="font-medium truncate">
                                         {groupByCustomer ? groupKey : `${groupKey} - ${(parseInt(groupKey.split(':')[0]) + 1).toString().padStart(2, '0')}:00`}
                                       </span>
-                                      <div className="ml-auto flex items-center gap-2 flex-wrap">
+                                      <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
                                         <Badge variant="secondary" className="text-xs">
                                           {bookingsForGroup.length} booking{bookingsForGroup.length !== 1 ? 's' : ''}
                                         </Badge>
@@ -3995,6 +4016,19 @@ export default function BookingManagement() {
                                         })()}
                                       </div>
                                     </CollapsibleTrigger>
+                                    {groupByCustomer && bookingsForGroup.length > 0 && (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="shrink-0 h-8 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                        onClick={() => handleDeleteAllBookings(bookingsForGroup)}
+                                      >
+                                        <Trash2 className="h-3 w-3 mr-1" />
+                                        Delete all
+                                      </Button>
+                                    )}
+                                    </div>
                                     
                                     <CollapsibleContent>
                                       <div key={`${key}-bookings-${bookingsForGroup.map(b => b.id).join('-')}`} className="ml-6 mt-2 space-y-2">
@@ -4186,20 +4220,22 @@ export default function BookingManagement() {
             onOpenChange={setDeleteDialogOpen}
             booking={selectedBooking}
             onBookingDeleted={(deletedBookingId) => {
-              // Optimistically remove deleted booking for immediate UI feedback.
               setBookings(prev => prev.filter(b => b.id !== deletedBookingId));
               setAllBookings(prev => prev.filter(b => b.id !== deletedBookingId));
+              invalidateBookingsCacheAndRefetch();
+            }}
+          />
 
-              // ✅ Invalidate cache and refetch
-              const analyticsFromDate = filters.datePreset === 'alltime' 
-                ? '2020-01-01' 
-                : format(subDays(new Date(), 60), 'yyyy-MM-dd');
-              const cacheKey = cacheKeyWithLocation(
-                `${CACHE_KEYS.BOOKINGS}_${filters.datePreset}_${analyticsFromDate}_${branchView}`,
-                activeLocation?.id
-              );
-              invalidateCache(cacheKey);
-              fetchBookings();
+          <BookingDeleteAllDialog
+            open={deleteAllDialogOpen}
+            onOpenChange={setDeleteAllDialogOpen}
+            bookings={bookingsToDeleteAll}
+            onBookingsDeleted={(deletedIds) => {
+              const deletedSet = new Set(deletedIds);
+              setBookings(prev => prev.filter(b => !deletedSet.has(b.id)));
+              setAllBookings(prev => prev.filter(b => !deletedSet.has(b.id)));
+              setBookingsToDeleteAll([]);
+              invalidateBookingsCacheAndRefetch();
             }}
           />
         </>
