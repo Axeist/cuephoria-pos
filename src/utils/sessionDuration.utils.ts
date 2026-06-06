@@ -246,7 +246,9 @@ export function getSessionMoveBlockWindow(
   const startMin = timeToMinutes(dateToTimeStr(now));
 
   if (state) {
-    const plannedEnd = new Date(session.startTime.getTime() + state.plannedMs);
+    const plannedEnd = new Date(
+      new Date(session.startTime).getTime() + state.plannedMs
+    );
     const blockEnd =
       plannedEnd > now ? plannedEnd : new Date(now.getTime() + 15 * 60 * 1000);
     let endMin = timeToMinutes(dateToTimeStr(blockEnd));

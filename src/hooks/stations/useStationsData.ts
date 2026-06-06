@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
+import { rehydrateStations } from '@/utils/sessionStorage.utils';
 import { useLocation } from '@/context/LocationContext';
 
 /**
@@ -78,8 +79,10 @@ export const useStationsData = () => {
       }
       
       if (allStationsData.length > 0) {
-        const transformedStations: Station[] = allStationsData.map((item) =>
-          transformStationRow(item as Record<string, unknown>)
+        const transformedStations: Station[] = rehydrateStations(
+          allStationsData.map((item) =>
+            transformStationRow(item as Record<string, unknown>)
+          )
         );
         
         setStations(transformedStations);
@@ -118,7 +121,7 @@ export const useStationsData = () => {
     // Silent refresh: use cache if fresh, otherwise hit DB
     const cachedStations = getCachedData<Station[]>(stationsCacheKey);
     if (cachedStations && cachedStations.length > 0) {
-      setStations(cachedStations);
+      setStations(rehydrateStations(cachedStations));
       setStationsLoading(false);
       if (isCacheStale(stationsCacheKey)) {
         refreshStationsFromDB(true).catch(err => {
@@ -372,7 +375,7 @@ export const useStationsData = () => {
 
     const cachedStations = getCachedData<Station[]>(stationsCacheKey);
     if (cachedStations !== null && cachedStations.length > 0) {
-      setStations(cachedStations);
+      setStations(rehydrateStations(cachedStations));
       setStationsLoading(false);
       if (isCacheStale(stationsCacheKey)) {
         refreshStationsFromDB(true).catch(err => {

@@ -4,6 +4,7 @@ import { supabase, handleSupabaseError } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
+import { rehydrateSessions } from '@/utils/sessionStorage.utils';
 import { useLocation } from '@/context/LocationContext';
 
 /**
@@ -59,25 +60,27 @@ export const useSessionsData = () => {
       if (data && data.length > 0) {
         const sessionsData = data as any[];
         
-        const transformedSessions = sessionsData.map(item => ({
-          id: item.id,
-          stationId: item.station_id,
-          customerId: item.customer_id,
-          startTime: new Date(item.start_time),
-          endTime: item.end_time ? new Date(item.end_time) : undefined,
-          duration: item.duration,
-          hourlyRate: item.hourly_rate,
-          originalRate: item.original_rate,
-          couponCode: item.coupon_code,
-          discountAmount: item.discount_amount,
-          isPaused: item.is_paused ?? false,
-          pausedAt: item.paused_at ? new Date(item.paused_at) : undefined,
-          totalPausedMs: item.total_paused_time ?? 0,
-          playerCount: Number(item.player_count) || 1,
-          perPersonRate: Number(item.per_person_rate) || undefined,
-          plannedDurationMinutes: Number(item.planned_duration_minutes) || undefined,
-          sessionGroupId: item.session_group_id ? String(item.session_group_id) : undefined,
-        }));
+        const transformedSessions = rehydrateSessions(
+          sessionsData.map((item) => ({
+            id: item.id,
+            stationId: item.station_id,
+            customerId: item.customer_id,
+            startTime: new Date(item.start_time),
+            endTime: item.end_time ? new Date(item.end_time) : undefined,
+            duration: item.duration,
+            hourlyRate: item.hourly_rate,
+            originalRate: item.original_rate,
+            couponCode: item.coupon_code,
+            discountAmount: item.discount_amount,
+            isPaused: item.is_paused ?? false,
+            pausedAt: item.paused_at ? new Date(item.paused_at) : undefined,
+            totalPausedMs: item.total_paused_time ?? 0,
+            playerCount: Number(item.player_count) || 1,
+            perPersonRate: Number(item.per_person_rate) || undefined,
+            plannedDurationMinutes: Number(item.planned_duration_minutes) || undefined,
+            sessionGroupId: item.session_group_id ? String(item.session_group_id) : undefined,
+          }))
+        );
         
         console.log(`✅ Loaded ${transformedSessions.length} sessions from Supabase (limited to 100)`);
         setSessions(transformedSessions);
@@ -119,7 +122,7 @@ export const useSessionsData = () => {
 
     if (cachedSessions && cachedSessions.length > 0 && !silent) {
       console.log('📦 Using cached sessions');
-      setSessions(cachedSessions);
+      setSessions(rehydrateSessions(cachedSessions));
       setSessionsLoading(false);
 
       if (isCacheStale(sessionsCacheKey)) {
@@ -192,7 +195,7 @@ export const useSessionsData = () => {
 
     const cachedSessions = getCachedData<Session[]>(sessionsCacheKey);
     if (cachedSessions !== null && cachedSessions.length > 0) {
-      setSessions(cachedSessions);
+      setSessions(rehydrateSessions(cachedSessions));
       setSessionsLoading(false);
       refreshSessionsFromDB(true).catch(err => {
         console.error('Error refreshing sessions in background:', err);

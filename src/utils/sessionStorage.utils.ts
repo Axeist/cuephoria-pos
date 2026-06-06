@@ -1,4 +1,40 @@
-import type { Session } from '@/types/pos.types';
+import type { Session, Station } from '@/types/pos.types';
+
+function toSessionDate(value: unknown): Date | undefined {
+  if (value == null) return undefined;
+  if (value instanceof Date) {
+    return Number.isFinite(value.getTime()) ? value : undefined;
+  }
+  const parsed = new Date(value as string | number);
+  return Number.isFinite(parsed.getTime()) ? parsed : undefined;
+}
+
+/** Restore Date fields after JSON cache/localStorage round-trip. */
+export function rehydrateSession(session: Session): Session {
+  const startTime = toSessionDate(session.startTime) ?? new Date();
+  return {
+    ...session,
+    startTime,
+    endTime: toSessionDate(session.endTime),
+    pausedAt: toSessionDate(session.pausedAt),
+  };
+}
+
+export function rehydrateSessions(sessions: Session[]): Session[] {
+  return sessions.map(rehydrateSession);
+}
+
+export function rehydrateStation(station: Station): Station {
+  if (!station.currentSession) return station;
+  return {
+    ...station,
+    currentSession: rehydrateSession(station.currentSession),
+  };
+}
+
+export function rehydrateStations(stations: Station[]): Station[] {
+  return stations.map(rehydrateStation);
+}
 
 /** JSON-safe session payload for stations.currentsession JSONB column */
 export function serializeSessionForDb(session: Session): Record<string, unknown> {

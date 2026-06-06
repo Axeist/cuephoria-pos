@@ -61,7 +61,8 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
     const sessionTimingMatches = (a: Session, b: Session) =>
       new Date(a.startTime).getTime() === new Date(b.startTime).getTime() &&
       a.isPaused === b.isPaused &&
-      (a.pausedAt?.getTime() ?? null) === (b.pausedAt?.getTime() ?? null) &&
+      (a.pausedAt ? new Date(a.pausedAt).getTime() : null) ===
+        (b.pausedAt ? new Date(b.pausedAt).getTime() : null) &&
       (a.totalPausedMs ?? 0) === (b.totalPausedMs ?? 0) &&
       (a.hourlyRate ?? 0) === (b.hourlyRate ?? 0) &&
       (a.plannedDurationMinutes ?? 0) === (b.plannedDurationMinutes ?? 0) &&
