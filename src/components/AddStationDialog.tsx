@@ -39,6 +39,7 @@ import { Label } from '@/components/ui/label';
 import { AccentColorPicker } from '@/components/ui/AccentColorPicker';
 import { getDefaultStationTypeHex } from '@/utils/colorTheme.utils';
 import { isMissingColumnError, parseMissingColumnName } from '@/utils/supabaseColumn.utils';
+import { saveStationAccent } from '@/utils/stationAccentStorage.utils';
 
 const stationSchema = z.object({
   name: z.string().min(2, { message: 'Station name must be at least 2 characters.' }),
@@ -203,6 +204,9 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
       }
 
       setStations([...stations, newStation]);
+      if (activeLocationId && accentColor) {
+        saveStationAccent(activeLocationId, stationId, accentColor);
+      }
       toast({ title: 'Station Added', description: `${values.name} has been added.` });
       onOpenChange(false);
     } catch (error) {

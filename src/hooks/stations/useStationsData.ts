@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
 import { rehydrateStations } from '@/utils/sessionStorage.utils';
+import { mergeStationAccents, saveStationAccent, saveStationAccentsBulk } from '@/utils/stationAccentStorage.utils';
 import { useLocation } from '@/context/LocationContext';
 
 /**
@@ -130,10 +131,13 @@ export const useStationsData = () => {
       }
       
       if (allStationsData.length > 0) {
-        const transformedStations: Station[] = rehydrateStations(
-          allStationsData.map((item) =>
-            transformStationRow(item as Record<string, unknown>)
-          )
+        const transformedStations: Station[] = mergeStationAccents(
+          rehydrateStations(
+            allStationsData.map((item) =>
+              transformStationRow(item as Record<string, unknown>)
+            )
+          ),
+          activeLocationId
         );
         
         setStations(transformedStations);
@@ -172,7 +176,9 @@ export const useStationsData = () => {
     // Silent refresh: use cache if fresh, otherwise hit DB
     const cachedStations = getCachedData<Station[]>(stationsCacheKey);
     if (cachedStations && cachedStations.length > 0) {
-      setStations(rehydrateStations(cachedStations));
+      setStations(
+        mergeStationAccents(rehydrateStations(cachedStations), activeLocationId ?? null)
+      );
       setStationsLoading(false);
       if (isCacheStale(stationsCacheKey)) {
         refreshStationsFromDB(true).catch(err => {
@@ -183,7 +189,7 @@ export const useStationsData = () => {
     }
     
     await refreshStationsFromDB(silent);
-  }, [stationsCacheKey, refreshStationsFromDB]);
+  }, [stationsCacheKey, refreshStationsFromDB, activeLocationId]);
   
   const updateStation = async (
     stationId: string,
@@ -240,14 +246,18 @@ export const useStationsData = () => {
       if (updates.accentColor !== undefined) {
         updateData.accent_color = updates.accentColor;
       }
+      const accentRequested = updates.accentColor !== undefined;
       let { error } = await supabase
         .from('stations')
         .update(updateData)
         .eq('id', stationId);
 
+      let accentSavedToDb = accentRequested && 'accent_color' in updateData;
+
       for (let attempt = 0; attempt < 5 && error && isMissingColumnError(error); attempt++) {
         const missingCol = parseMissingColumnName(error);
         if (!missingCol || !(missingCol in updateData)) break;
+        if (missingCol === 'accent_color') accentSavedToDb = false;
         delete updateData[missingCol];
         ({ error } = await supabase.from('stations').update(updateData).eq('id', stationId));
       }
@@ -262,29 +272,43 @@ export const useStationsData = () => {
         return false;
       }
       
-      setStations(prev => prev.map(s => 
-        s.id === stationId 
-          ? {
-              ...s,
-              name: updates.name,
-              hourlyRate: updates.hourlyRate ?? hourlyRate,
-              maxPlayers,
-              occupancyRates,
-              slotDuration: (updateData.slot_duration as number | null | undefined) ?? s.slotDuration,
-              eventEnabled: (updateData.event_enabled as boolean | null | undefined) ?? s.eventEnabled,
-              category: (updateData.category as string | null | undefined) ?? s.category,
-              type: updates.type ?? s.type,
-              pricingMode: updates.pricingMode ?? s.pricingMode,
-              durationTiers: updates.durationTiers ?? s.durationTiers,
-              accentColor:
-                updates.accentColor !== undefined ? updates.accentColor : s.accentColor,
-            }
-          : s
-      ));
-      
+      const nextAccent =
+        updates.accentColor !== undefined ? updates.accentColor : station.accentColor;
+
+      setStations((prev) => {
+        const next = prev.map((s) =>
+          s.id === stationId
+            ? {
+                ...s,
+                name: updates.name,
+                hourlyRate: updates.hourlyRate ?? hourlyRate,
+                maxPlayers,
+                occupancyRates,
+                slotDuration:
+                  (updateData.slot_duration as number | null | undefined) ?? s.slotDuration,
+                eventEnabled:
+                  (updateData.event_enabled as boolean | null | undefined) ?? s.eventEnabled,
+                category: (updateData.category as string | null | undefined) ?? s.category,
+                type: updates.type ?? s.type,
+                pricingMode: updates.pricingMode ?? s.pricingMode,
+                durationTiers: updates.durationTiers ?? s.durationTiers,
+                accentColor: nextAccent,
+              }
+            : s
+        );
+        saveToCache(stationsCacheKey, next);
+        return next;
+      });
+
+      if (accentRequested && activeLocationId) {
+        saveStationAccent(activeLocationId, stationId, updates.accentColor ?? null);
+      }
+
       toast({
         title: 'Station Updated',
-        description: 'The station has been updated successfully',
+        description: accentRequested && !accentSavedToDb
+          ? 'Station saved. Color stored locally until accent_color migration is applied on Supabase.'
+          : 'The station has been updated successfully',
       });
       
       return true;
@@ -438,7 +462,9 @@ export const useStationsData = () => {
 
     const cachedStations = getCachedData<Station[]>(stationsCacheKey);
     if (cachedStations !== null && cachedStations.length > 0) {
-      setStations(rehydrateStations(cachedStations));
+      setStations(
+        mergeStationAccents(rehydrateStations(cachedStations), activeLocationId)
+      );
       setStationsLoading(false);
       if (isCacheStale(stationsCacheKey)) {
         refreshStationsFromDB(true).catch(err => {
@@ -579,21 +605,27 @@ export const useStationsData = () => {
           title: 'Tint saved locally',
           description: 'Run the accent-color migration on Supabase to persist tints.',
         });
-        setStations((prev) =>
-          prev.map((s) =>
+        saveStationAccentsBulk(activeLocationId, targetIds, accentColor);
+        setStations((prev) => {
+          const next = prev.map((s) =>
             (s.type || '').toLowerCase() === slug ? { ...s, accentColor } : s
-          )
-        );
+          );
+          saveToCache(stationsCacheKey, next);
+          return next;
+        });
         return true;
       }
 
       if (error) throw error;
 
-      setStations((prev) =>
-        prev.map((s) =>
+      saveStationAccentsBulk(activeLocationId, targetIds, accentColor);
+      setStations((prev) => {
+        const next = prev.map((s) =>
           (s.type || '').toLowerCase() === slug ? { ...s, accentColor } : s
-        )
-      );
+        );
+        saveToCache(stationsCacheKey, next);
+        return next;
+      });
       invalidateCache(stationsCacheKey);
 
       toast({

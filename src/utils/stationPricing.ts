@@ -184,6 +184,16 @@ export function getRateSuffix(station: Pick<Station, 'type' | 'slotDuration' | '
   return '/hr';
 }
 
+/** Compact rate for tight stat boxes (amount + suffix on separate lines). */
+export function formatStationRateCompact(
+  station: Pick<Station, 'hourlyRate' | 'type' | 'slotDuration' | 'category'>
+): { amount: string; suffix: string } {
+  return {
+    amount: `₹${station.hourlyRate}`,
+    suffix: getRateSuffix(station),
+  };
+}
+
 /** Active session rate for station card badges (uses locked-in session pricing). */
 export function formatLiveSessionRate(
   station: Pick<Station, 'type' | 'slotDuration' | 'category' | 'pricingMode' | 'occupancyRates'>,

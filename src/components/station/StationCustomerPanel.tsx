@@ -14,9 +14,9 @@ import {
   Users,
   Timer,
 } from 'lucide-react';
-import { stationPricingBadge } from '@/utils/stationTheme';
 import { isMembershipActive, getMembershipBadgeText } from '@/utils/membership.utils';
 import { formatPlayTimeMinutes } from '@/utils/formatPlayTime';
+import { formatStationRateCompact } from '@/utils/stationPricing';
 import { stationTypeLabel } from '@/utils/stationTypeUtils';
 import type { CustomerRecentSession } from '@/hooks/stations/useStationCustomerIntel';
 import type { StationTheme } from '@/utils/stationTheme';
@@ -44,37 +44,44 @@ const StationCustomerPanel: React.FC<StationCustomerPanelProps> = ({
 }) => {
   if (!station.isOccupied || !customer) {
     const statBoxClass =
-      'flex flex-1 flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.06] px-2 py-3 min-h-[72px]';
+      'flex min-w-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.06] px-1.5 py-3 min-h-[72px]';
     const statLabelClass =
-      'mt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground';
-    const statValueClass = 'text-sm font-bold tabular-nums text-foreground/90';
+      'mt-1.5 max-w-full truncate text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground';
+    const statValueClass = 'max-w-full text-sm font-bold tabular-nums text-foreground/90';
+
+    const rateCompact = formatStationRateCompact(station);
 
     return (
       <div
-        className={`rounded-lg border border-white/10 bg-black/35 ${
+        className={`min-w-0 rounded-lg border border-white/10 bg-black/35 ${
           expanded ? 'flex h-full min-h-[130px] flex-col px-3 py-3' : 'px-3 py-2.5'
         }`}
       >
         <p className={`text-center font-semibold uppercase tracking-widest text-muted-foreground shrink-0 ${expanded ? 'text-[10px] mb-3' : 'text-[9px] mb-2'}`}>
           Station ready
         </p>
-        <div className={`grid grid-cols-3 ${expanded ? 'gap-2 flex-1 items-stretch' : 'gap-1.5'}`}>
+        <div className={`grid min-w-0 grid-cols-3 ${expanded ? 'gap-2 flex-1 items-stretch' : 'gap-1.5'}`}>
           <div className={statBoxClass}>
-            <Users className={`text-violet-400 ${expanded ? 'h-5 w-5' : 'h-4 w-4'}`} />
+            <Users className={`shrink-0 text-violet-400 ${expanded ? 'h-5 w-5' : 'h-4 w-4'}`} />
             <p className={statLabelClass}>Max players</p>
             <p className={`${statValueClass} text-violet-200`}>{station.maxPlayers ?? 1}</p>
           </div>
           <div className={statBoxClass}>
-            <Timer className={`text-cyan-400 ${expanded ? 'h-5 w-5' : 'h-4 w-4'}`} />
+            <Timer className={`shrink-0 text-cyan-400 ${expanded ? 'h-5 w-5' : 'h-4 w-4'}`} />
             <p className={statLabelClass}>Slot</p>
             <p className={`${statValueClass} text-cyan-200`}>{station.slotDuration ?? 60}m</p>
           </div>
           <div className={statBoxClass}>
-            <Gamepad2 className={`text-emerald-400 ${expanded ? 'h-5 w-5' : 'h-4 w-4'}`} />
+            <Gamepad2 className={`shrink-0 text-emerald-400 ${expanded ? 'h-5 w-5' : 'h-4 w-4'}`} />
             <p className={statLabelClass}>Rate</p>
-            <p className={`${statValueClass} text-emerald-200 text-[11px] leading-tight text-center px-0.5`}>
-              {stationPricingBadge(station).split('·')[0]?.trim() ?? '—'}
-            </p>
+            <div className="mt-0.5 flex max-w-full flex-col items-center leading-none">
+              <span className={`${statValueClass} text-emerald-200 ${expanded ? 'text-sm' : 'text-xs'}`}>
+                {rateCompact.amount}
+              </span>
+              <span className="mt-0.5 max-w-full truncate text-[9px] font-semibold tabular-nums text-emerald-300/90">
+                {rateCompact.suffix}
+              </span>
+            </div>
           </div>
         </div>
         <p className={`text-center text-muted-foreground/80 shrink-0 ${expanded ? 'mt-3 text-xs' : 'mt-2 text-[11px]'}`}>
