@@ -1,20 +1,23 @@
 import type { CartItem } from '@/types/pos.types';
+import { getCartItemLineKey } from '@/utils/cartItem.utils';
 
 /**
  * Merge cart line items for sticky session checkout.
- * Later groups win on duplicate ids (in-memory cart overrides saved cart).
+ * Later groups win on duplicate line keys (in-memory cart overrides saved cart).
+ * Station-tagged products stay separate per station.
  */
 export function mergeSessionCartItems(...itemGroups: CartItem[][]): CartItem[] {
-  const indexById = new Map<string, number>();
+  const indexByLineKey = new Map<string, number>();
   const merged: CartItem[] = [];
 
   for (const group of itemGroups) {
     for (const item of group) {
-      const existingIdx = indexById.get(item.id);
+      const lineKey = getCartItemLineKey(item);
+      const existingIdx = indexByLineKey.get(lineKey);
       if (existingIdx !== undefined) {
         merged[existingIdx] = item;
       } else {
-        indexById.set(item.id, merged.length);
+        indexByLineKey.set(lineKey, merged.length);
         merged.push(item);
       }
     }

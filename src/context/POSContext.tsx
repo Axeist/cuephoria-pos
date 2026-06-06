@@ -185,14 +185,18 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const updateCartItemWithStock = useCallback(
-    (id: string, quantity: number) => {
-      const cartItem = cart.find((i) => i.id === id);
+    (id: string, quantity: number, stationName?: string) => {
+      const cartItem =
+        cart.find(
+          (i) =>
+            i.id === id && (stationName === undefined || (i.stationName ?? '') === stationName)
+        ) ?? cart.find((i) => i.id === id);
       const product = products.find((p) => p.id === id);
       const stockLimit = getProductStockLimit(product);
       if (cartItem?.type === 'product' && stockLimit !== null) {
-        updateCartItem(id, quantity, stockLimit);
+        updateCartItem(id, quantity, stockLimit, cartItem.stationName);
       } else {
-        updateCartItem(id, quantity);
+        updateCartItem(id, quantity, undefined, cartItem?.stationName);
       }
     },
     [cart, products, updateCartItem]

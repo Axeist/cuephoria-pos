@@ -6,6 +6,7 @@ import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, 
 import { invalidateLocationAnalyticsCache } from '@/hooks/useLocationAnalytics';
 import { useLocation } from '@/context/LocationContext';
 import { usePOSHydration } from '@/context/POSHydrationContext';
+import { getCartItemDisplayName } from '@/utils/cartItem.utils';
 
 export const useBills = (
   updateCustomer: (customer: Customer) => void,
@@ -79,7 +80,7 @@ export const useBills = (
       items: (bill.bill_items || []).map((item) => ({
         id: item.item_id,
         type: item.item_type as 'product' | 'session',
-        name: item.name,
+        name: getCartItemDisplayName(item),
         price: Number(item.price),
         quantity: item.quantity,
         total: Number(item.total)
@@ -409,7 +410,7 @@ export const useBills = (
         bill_id: billData.id,
         location_id: activeLocationId,
         item_id: item.id,
-        name: item.name,
+        name: getCartItemDisplayName(item),
         price: item.price,
         quantity: item.quantity,
         total: item.total,
@@ -610,7 +611,7 @@ export const useBills = (
         bill_id: originalBill.id,
         location_id: activeLocationId,
         item_id: item.id,
-        name: item.name,
+        name: getCartItemDisplayName(item),
         price: item.price,
         quantity: item.quantity,
         total: item.total,

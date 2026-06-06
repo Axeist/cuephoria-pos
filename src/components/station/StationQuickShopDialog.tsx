@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { usePOS, Customer, Station, Product } from '@/context/POSContext';
 import { CurrencyDisplay } from '@/components/ui/currency';
+import { getCartItemDisplayName } from '@/utils/cartItem.utils';
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -91,7 +92,7 @@ const StationQuickShopDialog: React.FC<StationQuickShopDialogProps> = ({
       return;
     }
 
-    addToStationQuickShop(sessionId, product, 1);
+    addToStationQuickShop(sessionId, product, 1, station.name);
     toast({
       title: 'Added',
       description: `${product.name} added to ${station.name} order.`,
@@ -232,7 +233,7 @@ const StationQuickShopDialog: React.FC<StationQuickShopDialogProps> = ({
                       className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-sm truncate">{item.name}</p>
+                        <p className="font-medium text-sm truncate">{getCartItemDisplayName(item)}</p>
                         <CurrencyDisplay amount={item.price} className="text-xs text-muted-foreground" />
                       </div>
                       <div className="flex items-center gap-1.5">

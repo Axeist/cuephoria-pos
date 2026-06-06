@@ -85,6 +85,8 @@ export interface CartItem {
   quantity: number;
   total: number;
   category?: string;
+  /** Set when the item was ordered from a station quick shop. */
+  stationName?: string;
 }
 
 export interface Bill {
@@ -225,7 +227,7 @@ export interface POSContextType {
   
   addToCart: (item: Omit<CartItem, 'total'>) => void;
   removeFromCart: (id: string) => void;
-  updateCartItem: (id: string, quantity: number) => void;
+  updateCartItem: (id: string, quantity: number, stationName?: string) => void;
   clearCart: (options?: { silent?: boolean; skipSavedCartDelete?: boolean }) => void;
 
   savedCarts: SavedCartSummary[];
@@ -236,7 +238,7 @@ export interface POSContextType {
   moveCartToSaved: () => Promise<void>;
 
   getStationQuickShopItems: (sessionId: string) => CartItem[];
-  addToStationQuickShop: (sessionId: string, product: Product, quantity?: number) => void;
+  addToStationQuickShop: (sessionId: string, product: Product, quantity?: number, stationName?: string) => void;
   updateStationQuickShopQuantity: (sessionId: string, productId: string, quantity: number, product?: Product) => void;
   removeFromStationQuickShop: (sessionId: string, productId: string) => void;
   

@@ -27,6 +27,11 @@ import { useViewMode } from '@/context/ViewModeContext';
 import { hapticImpact } from '@/utils/capacitor';
 import { isSessionEndNavigation } from '@/utils/viewTransition';
 import { getProductStockLimit } from '@/utils/cartStock.utils';
+import {
+  getCartItemDisplayName,
+  getCartItemLineKey,
+  totalProductQuantityInCart,
+} from '@/utils/cartItem.utils';
 import type { CartItem } from '@/types/pos.types';
 import { useAuth } from '@/context/AuthContext';
 import { usePinVerification } from '@/hooks/usePinVerification';
@@ -171,20 +176,19 @@ const POS = () => {
     const product = products.find((p) => p.id === item.id);
     const limit = getProductStockLimit(product);
     if (limit === null) return true;
-    return item.quantity < limit;
+    return totalProductQuantityInCart(cart, item.id) < limit;
   };
 
-  const handleUpdateQuantity = (id: string, newQuantity: number) => {
+  const handleUpdateQuantity = (item: CartItem, newQuantity: number) => {
     if (newQuantity < 1) return;
-    const cartItem = cart.find((i) => i.id === id);
-    if (cartItem && newQuantity > cartItem.quantity && !canIncreaseCartQuantity(cartItem)) {
+    if (newQuantity > item.quantity && !canIncreaseCartQuantity(item)) {
       return;
     }
-    updateCartItem(id, newQuantity);
+    updateCartItem(item.id, newQuantity, undefined, item.stationName);
   };
 
-  const handleRemoveItem = (id: string) => {
-    removeFromCart(id);
+  const handleRemoveItem = (item: CartItem) => {
+    removeFromCart(item.id, item.stationName);
   };
 
   const handleMoveToSavedCart = async () => {
@@ -465,12 +469,12 @@ const POS = () => {
                 )}
                 {cart.map((item, index) => (
                   <div 
-                    key={item.id} 
+                    key={getCartItemLineKey(item)} 
                     className={`rounded-lg border border-border/50 bg-card/60 px-3 py-2.5 sm:py-3 shadow-sm ${fromSessionEnd ? 'animate-pos-cart-item-handoff' : 'animate-fade-in'} ${isMobile ? 'grid grid-cols-[2fr_1fr] gap-2' : 'grid grid-cols-[2fr_1fr_1fr] gap-2 items-center'}`} 
                     style={{ animationDelay: `${index * 70}ms` }}
                   >
                     <div className="flex flex-col justify-center">
-                      <p className="font-medium font-quicksand truncate text-sm sm:text-base">{item.name}</p>
+                      <p className="font-medium font-quicksand truncate text-sm sm:text-base">{getCartItemDisplayName(item)}</p>
                       <p className="text-[10px] sm:text-xs text-muted-foreground indian-rupee">
                         {item.price.toLocaleString('en-IN')} each
                       </p>
@@ -481,7 +485,7 @@ const POS = () => {
                           variant="outline"
                           size="sm"
                           className="h-7 w-7 p-0 text-xs"
-                          onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                          onClick={() => handleUpdateQuantity(item, item.quantity - 1)}
                         >
                           -
                         </Button>
@@ -491,7 +495,7 @@ const POS = () => {
                           size="sm"
                           className="h-7 w-7 p-0 text-xs"
                           disabled={!canIncreaseCartQuantity(item)}
-                          onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                          onClick={() => handleUpdateQuantity(item, item.quantity + 1)}
                         >
                           +
                         </Button>
@@ -504,7 +508,7 @@ const POS = () => {
                             variant="outline"
                             size="sm"
                             className="h-6 w-6 p-0 text-[10px]"
-                            onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                            onClick={() => handleUpdateQuantity(item, item.quantity - 1)}
                           >
                             -
                           </Button>
@@ -514,7 +518,7 @@ const POS = () => {
                             size="sm"
                             className="h-6 w-6 p-0 text-[10px]"
                             disabled={!canIncreaseCartQuantity(item)}
-                            onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                            onClick={() => handleUpdateQuantity(item, item.quantity + 1)}
                           >
                             +
                           </Button>
@@ -528,7 +532,7 @@ const POS = () => {
                           variant="ghost"
                           size="sm"
                           className="h-6 w-6 sm:h-7 sm:w-7 p-0 text-destructive hover:bg-red-500/10"
-                          onClick={() => handleRemoveItem(item.id)}
+                          onClick={() => handleRemoveItem(item)}
                         >
                           <X className="h-3 w-3 sm:h-4 sm:w-4" />
                         </Button>
@@ -901,7 +905,7 @@ const POS = () => {
               <div className="space-y-1 max-h-32 overflow-auto">
                 {cart.map(item => (
                   <div key={item.id} className="flex justify-between text-sm">
-                    <span className="font-quicksand">{item.name} x {item.quantity}</span>
+                    <span className="font-quicksand">{getCartItemDisplayName(item)} x {item.quantity}</span>
                     <span className="font-mono font-semibold indian-rupee">
                       {item.total.toLocaleString('en-IN')}
                     </span>

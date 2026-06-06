@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { CartItem } from '@/types/pos.types';
 import { useToast } from '@/hooks/use-toast';
 import { clampQuantityToStock } from '@/utils/cartStock.utils';
+import { cartItemsMatch, findCartItem, totalProductQuantityInCart } from '@/utils/cartItem.utils';
 
 export const useCart = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -18,8 +19,7 @@ export const useCart = () => {
     try {
       // For non-membership products, check available stock
       if (item.type === 'product' && item.category !== 'membership' && typeof availableStock === 'number') {
-        const existingItem = cart.find(i => i.id === item.id && i.type === item.type);
-        const currentCartQuantity = existingItem ? existingItem.quantity : 0;
+        const currentCartQuantity = totalProductQuantityInCart(cart, item.id);
         const totalRequestedQuantity = currentCartQuantity + item.quantity;
         
         // Check if we have enough stock
@@ -47,11 +47,11 @@ export const useCart = () => {
         }
       }
       
-      const existingItem = cart.find(i => i.id === item.id && i.type === item.type);
+      const existingItem = findCartItem(cart, item);
       
       if (existingItem) {
         const updatedCart = cart.map(i => 
-          i.id === item.id && i.type === item.type
+          cartItemsMatch(i, item)
             ? { ...i, quantity: i.quantity + item.quantity, total: (i.quantity + item.quantity) * i.price }
             : i
         );
@@ -78,10 +78,16 @@ export const useCart = () => {
     }
   };
   
-  const removeFromCart = (id: string) => {
+  const removeFromCart = (id: string, stationName?: string) => {
     try {
-      const itemToRemove = cart.find(i => i.id === id);
-      setCart(cart.filter(i => i.id !== id));
+      const itemToRemove =
+        findCartItem(cart, { id, type: 'product', stationName }) ??
+        findCartItem(cart, { id, type: 'session', stationName }) ??
+        cart.find((i) => i.id === id);
+
+      if (!itemToRemove) return;
+
+      setCart(cart.filter((i) => !cartItemsMatch(i, itemToRemove)));
       
       if (itemToRemove) {
         toast({
@@ -99,14 +105,20 @@ export const useCart = () => {
     }
   };
   
-  const updateCartItem = (id: string, quantity: number, stockLimit?: number) => {
+  const updateCartItem = (
+    id: string,
+    quantity: number,
+    stockLimit?: number,
+    stationName?: string
+  ) => {
     try {
       if (quantity <= 0) {
-        removeFromCart(id);
+        removeFromCart(id, stationName);
         return;
       }
 
-      const cartItem = cart.find((i) => i.id === id);
+      const cartItem = findCartItem(cart, { id, type: 'product', stationName })
+        ?? findCartItem(cart, { id, type: 'session', stationName });
       const limit =
         cartItem?.type === 'product' &&
         cartItem.category !== 'membership' &&
@@ -133,8 +145,12 @@ export const useCart = () => {
         });
       }
 
+      if (!cartItem) return;
+
       const updatedCart = cart.map((i) =>
-        i.id === id ? { ...i, quantity: nextQty, total: nextQty * i.price } : i
+        cartItemsMatch(i, cartItem)
+          ? { ...i, quantity: nextQty, total: nextQty * i.price }
+          : i
       );
 
       setCart(updatedCart);

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { CartItem, Product } from '@/types/pos.types';
 import { clampQuantityToStock, getProductStockLimit } from '@/utils/cartStock.utils';
+import { cartItemsMatch } from '@/utils/cartItem.utils';
 import {
   clearStationQuickShop,
   loadStationQuickShop,
@@ -39,10 +40,16 @@ export function useStationQuickShop() {
   );
 
   const addToStationQuickShop = useCallback(
-    (sessionId: string, product: Product, quantity = 1) => {
+    (sessionId: string, product: Product, quantity = 1, stationName?: string) => {
       const current = resolveItems(sessionId);
+      const stationTag = stationName?.trim() || undefined;
       const existing = current.find(
-        (item) => item.id === product.id && item.type === 'product'
+        (item) =>
+          cartItemsMatch(item, {
+            id: product.id,
+            type: 'product',
+            stationName: stationTag,
+          })
       );
 
       const currentQty = existing?.quantity ?? 0;
@@ -56,7 +63,11 @@ export function useStationQuickShop() {
       let updated: CartItem[];
       if (existing) {
         updated = current.map((item) =>
-          item.id === product.id && item.type === 'product'
+          cartItemsMatch(item, {
+            id: product.id,
+            type: 'product',
+            stationName: stationTag,
+          })
             ? {
                 ...item,
                 quantity: nextQty,
@@ -75,6 +86,7 @@ export function useStationQuickShop() {
             quantity: nextQty,
             total: product.price * nextQty,
             category: product.category,
+            stationName: stationTag,
           },
         ];
       }
