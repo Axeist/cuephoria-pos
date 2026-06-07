@@ -43,7 +43,7 @@ const StationMaintenanceTimer: React.FC<StationMaintenanceTimerProps> = ({
   if (prominent) {
     return (
       <div className="flex flex-1 flex-col animate-station-content-in">
-        <div className="relative flex flex-1 flex-col overflow-hidden rounded-xl border border-amber-500/35 bg-gradient-to-br from-amber-950/80 via-orange-950/60 to-black/40 p-4 shadow-[0_0_28px_rgba(245,158,11,0.18)]">
+        <div className="relative flex flex-1 flex-col overflow-hidden rounded-xl border-2 border-amber-400/70 bg-black/85 p-4 shadow-[0_0_36px_rgba(245,158,11,0.28)] backdrop-blur-md">
           <div
             className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-500 via-orange-400 to-amber-600 transition-all duration-1000"
             style={{ width: `${progress}%` }}

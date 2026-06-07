@@ -1,4 +1,5 @@
 import type { Session, Station } from '@/types/pos.types';
+import { rehydrateStationMaintenance } from '@/utils/stationMaintenance.utils';
 
 function toSessionDate(value: unknown): Date | undefined {
   if (value == null) return undefined;
@@ -25,10 +26,11 @@ export function rehydrateSessions(sessions: Session[]): Session[] {
 }
 
 export function rehydrateStation(station: Station): Station {
-  if (!station.currentSession) return station;
+  const withMaintenance = rehydrateStationMaintenance(station);
+  if (!withMaintenance.currentSession) return withMaintenance;
   return {
-    ...station,
-    currentSession: rehydrateSession(station.currentSession),
+    ...withMaintenance,
+    currentSession: rehydrateSession(withMaintenance.currentSession),
   };
 }
 

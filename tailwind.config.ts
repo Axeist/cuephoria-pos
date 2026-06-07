@@ -322,6 +322,10 @@ export default {
             transform: 'translateY(-8px) scale(0.97)',
           },
         },
+        'maintenance-tape-drift': {
+          '0%, 100%': { transform: 'translate3d(0, 0, 0)' },
+          '50%': { transform: 'translate3d(6px, 4px, 0)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -353,6 +357,7 @@ export default {
         'station-bar-shimmer': 'station-bar-shimmer 3s linear infinite',
         'station-content-in': 'station-content-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards',
         'station-content-out': 'station-content-out 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards',
+        'maintenance-tape-drift': 'maintenance-tape-drift 4s ease-in-out infinite',
       }
     }
   },

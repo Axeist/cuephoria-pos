@@ -47,3 +47,55 @@ export function getMaintenanceDurationMinutes(period: Pick<StationMaintenancePer
     : new Date(period.plannedEndAt).getTime();
   return Math.max(1, Math.round((endMs - startMs) / (1000 * 60)));
 }
+
+export type ActiveMaintenanceSnapshot = {
+  stationId: string;
+  startedAt: Date;
+  plannedEndAt: Date;
+  startedByName: string;
+};
+
+function toMaintenanceDate(value: unknown): Date | null {
+  if (value == null) return null;
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : null;
+  const parsed = new Date(value as string | number);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+/** Restore maintenance Date fields after JSON cache round-trip. */
+export function rehydrateStationMaintenance(station: Station): Station {
+  const startedAt = toMaintenanceDate(station.maintenanceStartedAt);
+  const plannedEndAt = toMaintenanceDate(station.maintenancePlannedEndAt);
+  const hasMaintenance =
+    Boolean(station.maintenanceMode) || (startedAt != null && plannedEndAt != null);
+
+  return {
+    ...station,
+    maintenanceMode: hasMaintenance,
+    maintenanceStartedAt: startedAt,
+    maintenancePlannedEndAt: plannedEndAt,
+    maintenanceStartedBy: station.maintenanceStartedBy ?? null,
+  };
+}
+
+/** Open maintenance periods are the source of truth when station row flags lag. */
+export function mergeActiveMaintenanceIntoStations(
+  stations: Station[],
+  activeRows: ActiveMaintenanceSnapshot[]
+): Station[] {
+  const activeByStation = new Map(activeRows.map((row) => [row.stationId, row]));
+
+  return stations.map((station) => {
+    const active = activeByStation.get(station.id);
+    if (active) {
+      return {
+        ...station,
+        maintenanceMode: true,
+        maintenanceStartedAt: active.startedAt,
+        maintenancePlannedEndAt: active.plannedEndAt,
+        maintenanceStartedBy: active.startedByName,
+      };
+    }
+    return rehydrateStationMaintenance(station);
+  });
+}

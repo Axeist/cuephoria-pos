@@ -19,6 +19,10 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
 import { rehydrateStations } from '@/utils/sessionStorage.utils';
 import { mergeStationAccents, saveStationAccent, saveStationAccentsBulk } from '@/utils/stationAccentStorage.utils';
+import {
+  mergeActiveMaintenanceIntoStations,
+  type ActiveMaintenanceSnapshot,
+} from '@/utils/stationMaintenance.utils';
 import { useLocation } from '@/context/LocationContext';
 
 /**
@@ -36,6 +40,29 @@ export const useStationsData = () => {
   );
   const prevLocationIdRef = useRef<string | null>(null);
   const stationSelectFieldsRef = useRef<string>(STATION_SELECT_FIELDS);
+
+  const fetchActiveMaintenanceRows = async (
+    locationId: string
+  ): Promise<ActiveMaintenanceSnapshot[]> => {
+    const { data, error } = await supabase
+      .from('station_maintenance_periods')
+      .select('station_id, started_at, planned_end_at, started_by_name')
+      .eq('location_id', locationId)
+      .is('ended_at', null);
+
+    if (error) {
+      if (isMissingColumnError(error)) return [];
+      console.warn('Failed to load active maintenance periods:', error.message);
+      return [];
+    }
+
+    return (data ?? []).map((row) => ({
+      stationId: String(row.station_id),
+      startedAt: new Date(row.started_at as string),
+      plannedEndAt: new Date(row.planned_end_at as string),
+      startedByName: String(row.started_by_name ?? ''),
+    }));
+  };
 
   const fetchStationsPage = async (
     locationId: string,
@@ -131,11 +158,15 @@ export const useStationsData = () => {
       }
       
       if (allStationsData.length > 0) {
+        const activeMaintenance = await fetchActiveMaintenanceRows(activeLocationId);
         const transformedStations: Station[] = mergeStationAccents(
-          rehydrateStations(
-            allStationsData.map((item) =>
-              transformStationRow(item as Record<string, unknown>)
-            )
+          mergeActiveMaintenanceIntoStations(
+            rehydrateStations(
+              allStationsData.map((item) =>
+                transformStationRow(item as Record<string, unknown>)
+              )
+            ),
+            activeMaintenance
           ),
           activeLocationId
         );
@@ -466,11 +497,10 @@ export const useStationsData = () => {
         mergeStationAccents(rehydrateStations(cachedStations), activeLocationId)
       );
       setStationsLoading(false);
-      if (isCacheStale(stationsCacheKey)) {
-        refreshStationsFromDB(true).catch(err => {
-          console.error('Error refreshing stations in background:', err);
-        });
-      }
+      // Always sync from Supabase on load — cache can miss maintenance started on another tab/device.
+      refreshStationsFromDB(true).catch(err => {
+        console.error('Error refreshing stations in background:', err);
+      });
       return;
     }
 
@@ -647,6 +677,7 @@ export const useStationsData = () => {
   return {
     stations,
     setStations,
+    stationsCacheKey,
     stationsLoading,
     stationsError,
     refreshStations,

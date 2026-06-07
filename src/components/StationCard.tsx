@@ -10,6 +10,7 @@ import { Trash2, Edit2, ShoppingBag, Globe, CheckSquare, Square as SquareIcon, A
 import EditStationDialog from './EditStationDialog';
 import StationQuickShopDialog from '@/components/station/StationQuickShopDialog';
 import StationMaintenanceTimer from '@/components/station/StationMaintenanceTimer';
+import StationMaintenanceTape from '@/components/station/StationMaintenanceTape';
 import { isStationInMaintenance } from '@/utils/stationMaintenance.utils';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { Switch } from '@/components/ui/switch';
@@ -280,6 +281,7 @@ const StationCard: React.FC<StationCardProps> = ({
             isPrepaid && showSessionBlock ? prepaidLiveRing : theme.liveRing
           )}
           ${isPrepaid && showSessionBlock ? 'border-teal-500/50' : ''}
+          ${inMaintenance ? 'border-2 border-amber-500/90 ring-2 ring-amber-500/35 shadow-[0_0_32px_rgba(245,158,11,0.22)]' : ''}
           ${urgencyRing}
           ${isDragOver ? 'ring-2 ring-cuephoria-lightpurple/70 scale-[1.01]' : ''}
           ${isDragging ? 'opacity-50 scale-[0.98]' : ''}
@@ -296,6 +298,8 @@ const StationCard: React.FC<StationCardProps> = ({
         }
         style={theme.accentStyle?.cardStyle}
       >
+        {inMaintenance && phase !== 'ending' && <StationMaintenanceTape />}
+
         <div
           className={`pointer-events-none absolute inset-0 ${theme.accentStyle ? '' : theme.mesh}`}
           style={theme.accentStyle?.meshStyle}
@@ -375,12 +379,12 @@ const StationCard: React.FC<StationCardProps> = ({
         )}
 
         {inMaintenance && phase !== 'ending' && (
-          <div className="relative z-10 mx-3 mt-2 flex items-center justify-center gap-1.5 rounded-md border border-amber-400/40 bg-amber-950/70 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-100 shadow-[0_0_16px_rgba(245,158,11,0.22)]">
+          <div className="relative z-[18] mx-3 mt-2 flex items-center justify-center gap-1.5 rounded-md border border-amber-400/60 bg-black/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-100 shadow-[0_0_16px_rgba(245,158,11,0.25)]">
             <span className="relative flex h-1.5 w-1.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-70" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400" />
             </span>
-            Under maintenance · hidden from booking
+            Closed for maintenance
           </div>
         )}
 
@@ -411,7 +415,7 @@ const StationCard: React.FC<StationCardProps> = ({
           )}
         </div>
 
-        <div className="relative z-10 space-y-3 p-3 sm:p-4">
+        <div className="relative z-[18] space-y-3 p-3 sm:p-4">
           {/* Header: identity + compact controls */}
           <div className="space-y-2">
             <StationInfo
@@ -553,7 +557,9 @@ const StationCard: React.FC<StationCardProps> = ({
                   <span className="text-sm font-medium text-red-200/90">Closing session…</span>
                 </div>
               ) : inMaintenance ? (
-                <StationMaintenanceTimer station={station} prominent />
+                <div className="relative z-[20]">
+                  <StationMaintenanceTimer station={station} prominent />
+                </div>
               ) : (
                 <div className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-white/12 bg-black/25 px-4 py-6 min-h-[130px]">
                   <div

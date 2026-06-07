@@ -5,10 +5,12 @@ import { useLocation } from '@/context/LocationContext';
 import type { Station } from '@/types/pos.types';
 import { isMissingColumnError, parseMissingColumnName } from '@/utils/supabaseColumn.utils';
 import { isMaintenanceExpired } from '@/utils/stationMaintenance.utils';
+import { saveToCache } from '@/utils/dataCache';
 
 type MaintenanceHookProps = {
   stations: Station[];
   setStations: React.Dispatch<React.SetStateAction<Station[]>>;
+  stationsCacheKey: string;
 };
 
 function applyMaintenancePatch(
@@ -29,7 +31,7 @@ function applyMaintenancePatch(
   };
 }
 
-export function useStationMaintenance({ stations, setStations }: MaintenanceHookProps) {
+export function useStationMaintenance({ stations, setStations, stationsCacheKey }: MaintenanceHookProps) {
   const { toast } = useToast();
   const { activeLocationId } = useLocation();
   const endingRef = useRef<Set<string>>(new Set());
@@ -61,19 +63,27 @@ export function useStationMaintenance({ stations, setStations }: MaintenanceHook
           maintenance_started_by: null,
         };
 
-        let { error } = await supabase.from('stations').update(stationUpdate).eq('id', stationId);
+        let { error } = await supabase
+          .from('stations')
+          .update(stationUpdate)
+          .eq('id', stationId)
+          .eq('location_id', activeLocationId!);
 
         for (let attempt = 0; attempt < 5 && error && isMissingColumnError(error); attempt++) {
           const missingCol = parseMissingColumnName(error);
           if (!missingCol || !(missingCol in stationUpdate)) break;
           delete stationUpdate[missingCol];
-          ({ error } = await supabase.from('stations').update(stationUpdate).eq('id', stationId));
+          ({ error } = await supabase
+            .from('stations')
+            .update(stationUpdate)
+            .eq('id', stationId)
+            .eq('location_id', activeLocationId!));
         }
 
         if (error) throw error;
 
-        setStations((prev) =>
-          prev.map((s) =>
+        setStations((prev) => {
+          const next = prev.map((s) =>
             s.id === stationId
               ? applyMaintenancePatch(s, {
                   maintenanceMode: false,
@@ -82,8 +92,10 @@ export function useStationMaintenance({ stations, setStations }: MaintenanceHook
                   maintenanceStartedBy: null,
                 })
               : s
-          )
-        );
+          );
+          saveToCache(stationsCacheKey, next);
+          return next;
+        });
 
         if (!options?.silent) {
           toast({
@@ -104,7 +116,7 @@ export function useStationMaintenance({ stations, setStations }: MaintenanceHook
         endingRef.current.delete(stationId);
       }
     },
-    [stations, setStations, toast]
+    [stations, setStations, toast, activeLocationId, stationsCacheKey]
   );
 
   const startMaintenance = useCallback(
@@ -169,19 +181,24 @@ export function useStationMaintenance({ stations, setStations }: MaintenanceHook
         let { error: stationError } = await supabase
           .from('stations')
           .update(stationUpdate)
-          .eq('id', stationId);
+          .eq('id', stationId)
+          .eq('location_id', activeLocationId);
 
         for (let attempt = 0; attempt < 5 && stationError && isMissingColumnError(stationError); attempt++) {
           const missingCol = parseMissingColumnName(stationError);
           if (!missingCol || !(missingCol in stationUpdate)) break;
           delete stationUpdate[missingCol];
-          ({ error: stationError } = await supabase.from('stations').update(stationUpdate).eq('id', stationId));
+          ({ error: stationError } = await supabase
+            .from('stations')
+            .update(stationUpdate)
+            .eq('id', stationId)
+            .eq('location_id', activeLocationId));
         }
 
         if (stationError) throw stationError;
 
-        setStations((prev) =>
-          prev.map((s) =>
+        setStations((prev) => {
+          const next = prev.map((s) =>
             s.id === stationId
               ? applyMaintenancePatch(s, {
                   maintenanceMode: true,
@@ -190,8 +207,10 @@ export function useStationMaintenance({ stations, setStations }: MaintenanceHook
                   maintenanceStartedBy: trimmedName,
                 })
               : s
-          )
-        );
+          );
+          saveToCache(stationsCacheKey, next);
+          return next;
+        });
 
         toast({
           title: 'Maintenance started',
@@ -210,7 +229,7 @@ export function useStationMaintenance({ stations, setStations }: MaintenanceHook
         return false;
       }
     },
-    [stations, setStations, toast, activeLocationId]
+    [stations, setStations, toast, activeLocationId, stationsCacheKey]
   );
 
   useEffect(() => {

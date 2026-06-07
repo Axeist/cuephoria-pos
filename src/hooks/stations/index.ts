@@ -16,6 +16,7 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
     setStations,
     stationsLoading,
     stationsError,
+    stationsCacheKey,
     refreshStations,
     deleteStation,
     updateStation,
@@ -124,6 +125,7 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
   const { startMaintenance, endMaintenance } = useStationMaintenance({
     stations,
     setStations,
+    stationsCacheKey,
   });
 
   return {
