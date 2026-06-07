@@ -12,6 +12,7 @@ import { hashPassword } from "../../passwordUtils";
 import { resolveOrgContext } from "../../orgContext";
 import {
   createStaffProfileForLoginUser,
+  ensureStaffProfileForLoginUser,
   regenerateStaffPortalPin,
   syncStaffProfileFromAdminUser,
 } from "../../staffProfileSync";
@@ -248,7 +249,7 @@ export default async function handler(req: Request) {
           isAdmin: u.is_admin,
           isSuperAdmin: u.is_super_admin,
           locations: userLocations[u.id] ?? [],
-          portalPin: !u.is_admin && !u.is_super_admin ? staffLink?.portalPin ?? null : null,
+          portalPin: staffLink?.portalPin ?? null,
           staffProfileUserId: staffLink?.staffProfileUserId ?? null,
         };
       });
@@ -459,8 +460,8 @@ export default async function handler(req: Request) {
     if (req.method === "PATCH") {
       const body = await req.json().catch(() => ({}));
 
-      /** Regenerate staff portal PIN (owners/admins only; staff accounts). */
-      if (body.regeneratePortalPin === true) {
+      /** Create or regenerate staff portal PIN (staff accounts only). */
+      if (body.regeneratePortalPin === true || body.ensureStaffProfile === true) {
         const targetId = String(body.id || "").trim();
         if (!targetId) return j({ ok: false, error: "Missing id." }, 400);
 
@@ -472,7 +473,34 @@ export default async function handler(req: Request) {
         if (tErr) return j({ ok: false, error: tErr.message }, 500);
         if (!target) return j({ ok: false, error: "User not found." }, 404);
         if (target.is_admin || target.is_super_admin) {
-          return j({ ok: false, error: "Portal PINs apply to staff accounts only." }, 400);
+          return j(
+            {
+              ok: false,
+              error: "Portal PINs apply to Staff accounts. Edit the user and set role to Staff.",
+            },
+            400,
+          );
+        }
+
+        const ctx = await resolveOrgContext(req);
+        if ("code" in ctx) {
+          return j({ ok: false, error: ctx.message || "Could not resolve workspace." }, ctx.status);
+        }
+
+        const locHint = Array.isArray(body?.locationIds) ? body.locationIds[0] : undefined;
+        const ensured = await ensureStaffProfileForLoginUser(supabase, {
+          adminUserId: targetId,
+          organizationId: ctx.organizationId,
+          locationId: locHint,
+        });
+        if ("error" in ensured) return j({ ok: false, error: ensured.error }, 400);
+
+        if (body.ensureStaffProfile === true && !body.regeneratePortalPin) {
+          return j({ ok: true, portalPin: ensured.portalPin, created: ensured.created }, 200);
+        }
+
+        if (ensured.created) {
+          return j({ ok: true, portalPin: ensured.portalPin, created: true }, 200);
         }
 
         const pinResult = await regenerateStaffPortalPin(supabase, targetId);
@@ -628,6 +656,7 @@ export default async function handler(req: Request) {
 
       const update: Record<string, any> = {};
       let emailChangedForVerification: string | null = null;
+      let portalPinFromUpdate: string | null = null;
 
       if (typeof body?.username === "string" && body.username.trim()) {
         update.username = body.username.trim();
@@ -686,6 +715,27 @@ export default async function handler(req: Request) {
         update.is_super_admin = body.isSuperAdmin;
       }
 
+      if (typeof body?.isAdmin === "boolean") {
+        if (id === sessionUser.id) {
+          return j({ ok: false, error: "You cannot change your own role." }, 400);
+        }
+        const { data: roleTarget, error: rtErr } = await supabase
+          .from("admin_users")
+          .select("id, is_admin, is_super_admin")
+          .eq("id", id)
+          .maybeSingle();
+        if (rtErr || !roleTarget) {
+          return j({ ok: false, error: rtErr?.message ?? "User not found." }, 404);
+        }
+        if (roleTarget.is_super_admin && !sessionUser.isSuperAdmin) {
+          return j({ ok: false, error: "Only a super-admin can change this account's role." }, 403);
+        }
+        if (roleTarget.is_super_admin && body.isAdmin === false) {
+          return j({ ok: false, error: "Super admins always have admin access." }, 400);
+        }
+        update.is_admin = body.isAdmin;
+      }
+
       if (Object.keys(update).length > 0) {
         const { error: updateErr } = await supabase.from("admin_users").update(update).eq("id", id);
         if (updateErr) return j({ ok: false, error: updateErr.message }, 500);
@@ -695,6 +745,48 @@ export default async function handler(req: Request) {
           designation: typeof body?.designation === "string" ? body.designation : undefined,
           email: emailChangedForVerification ?? (typeof update.email === "string" ? update.email : undefined),
         });
+      }
+
+      if (typeof body?.isAdmin === "boolean") {
+        const ctx = await resolveOrgContext(req);
+        if ("code" in ctx) {
+          return j(
+            {
+              ok: false,
+              error:
+                ctx.code === "no_org"
+                  ? "Your session has no workspace — open the correct venue first, then update roles."
+                  : ctx.message || "Could not resolve workspace.",
+            },
+            ctx.status,
+          );
+        }
+
+        const orgRole: "admin" | "staff" =
+          body.isAdmin || (typeof update.is_super_admin === "boolean" && update.is_super_admin)
+            ? "admin"
+            : "staff";
+        const { error: memRoleErr } = await supabase.from("org_memberships").upsert(
+          {
+            organization_id: ctx.organizationId,
+            admin_user_id: id,
+            role: orgRole,
+          },
+          { onConflict: "organization_id,admin_user_id" },
+        );
+        if (memRoleErr) return j({ ok: false, error: memRoleErr.message }, 500);
+
+        if (!body.isAdmin) {
+          const locHint = Array.isArray(body?.locationIds) ? body.locationIds[0] : undefined;
+          const ensured = await ensureStaffProfileForLoginUser(supabase, {
+            adminUserId: id,
+            organizationId: ctx.organizationId,
+            locationId: locHint,
+          });
+          if ("portalPin" in ensured) {
+            portalPinFromUpdate = ensured.portalPin;
+          }
+        }
       }
 
       // Update location assignments if provided
@@ -826,6 +918,7 @@ export default async function handler(req: Request) {
       return j(
         {
           ok: true,
+          ...(portalPinFromUpdate ? { portalPin: portalPinFromUpdate } : {}),
           ...(emailChangedForVerification
             ? {
                 verificationEmailSent,

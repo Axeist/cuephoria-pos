@@ -105,6 +105,85 @@ export async function syncStaffProfileFromAdminUser(
   await supabase.from("staff_profiles").update(update).eq("admin_user_id", adminUserId);
 }
 
+const SIMPLE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normalizeStaffEmail(raw: unknown, username: string): string | null {
+  const explicit = typeof raw === "string" ? raw.trim() : "";
+  const candidate = explicit || username.trim();
+  if (!candidate.includes("@")) return null;
+  const lower = candidate.toLowerCase();
+  return SIMPLE_EMAIL.test(lower) ? lower : null;
+}
+
+/** Creates a staff_profiles row + portal PIN when missing (staff accounts only). */
+export async function ensureStaffProfileForLoginUser(
+  supabase: SupabaseClient,
+  opts: {
+    adminUserId: string;
+    organizationId: string;
+    locationId?: string | null;
+  },
+): Promise<{ portalPin: string; created: boolean } | { error: string }> {
+  const { data: existing } = await supabase
+    .from("staff_profiles")
+    .select("portal_pin")
+    .eq("admin_user_id", opts.adminUserId)
+    .maybeSingle();
+
+  if (existing?.portal_pin) {
+    return { portalPin: String(existing.portal_pin), created: false };
+  }
+
+  const { data: adminUser, error: auErr } = await supabase
+    .from("admin_users")
+    .select("username, email, display_name, designation, is_admin, is_super_admin")
+    .eq("id", opts.adminUserId)
+    .maybeSingle();
+  if (auErr || !adminUser) return { error: auErr?.message ?? "User not found." };
+  if (adminUser.is_admin || adminUser.is_super_admin) {
+    return { error: "Set role to Staff to create a portal PIN." };
+  }
+
+  let locationId = opts.locationId ?? null;
+  if (!locationId) {
+    const { data: link } = await supabase
+      .from("admin_user_locations")
+      .select("location_id")
+      .eq("admin_user_id", opts.adminUserId)
+      .limit(1)
+      .maybeSingle();
+    locationId = link?.location_id ?? null;
+  }
+  if (!locationId) {
+    const { data: loc } = await supabase
+      .from("locations")
+      .select("id")
+      .eq("organization_id", opts.organizationId)
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    locationId = loc?.id ?? null;
+  }
+  if (!locationId) {
+    return { error: "Assign at least one branch before creating a portal PIN." };
+  }
+
+  const email = normalizeStaffEmail(adminUser.email, adminUser.username);
+  if (!email) return { error: "User needs a valid email before creating a portal PIN." };
+
+  const created = await createStaffProfileForLoginUser(supabase, {
+    adminUserId: opts.adminUserId,
+    email,
+    loginUsername: adminUser.username,
+    displayName: String(adminUser.display_name || adminUser.username),
+    designation: String(adminUser.designation || "Staff"),
+    locationId,
+  });
+  if ("error" in created) return created;
+  return { portalPin: created.portalPin, created: true };
+}
+
 export async function regenerateStaffPortalPin(
   supabase: SupabaseClient,
   adminUserId: string,

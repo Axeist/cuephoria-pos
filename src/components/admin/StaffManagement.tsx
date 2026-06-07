@@ -74,6 +74,7 @@ const StaffManagement: React.FC = () => {
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editDesignation, setEditDesignation] = useState('');
   const [editIsSuperAdmin, setEditIsSuperAdmin] = useState(false);
+  const [editUserRole, setEditUserRole] = useState<'admin' | 'staff'>('staff');
   const [editLocationIds, setEditLocationIds] = useState<string[]>([]);
   const [editPassword, setEditPassword] = useState('');
   const [showEditPassword, setShowEditPassword] = useState(false);
@@ -87,6 +88,7 @@ const StaffManagement: React.FC = () => {
     verifyStaffEmailManually,
     resendStaffVerificationEmail,
     regenerateStaffPortalPin,
+    ensureStaffPortalPin,
   } = useAuth();
   const [newPortalPin, setNewPortalPin] = useState<string | null>(null);
   const { toast } = useToast();
@@ -158,6 +160,7 @@ const StaffManagement: React.FC = () => {
     setEditDisplayName(staff.displayName ?? '');
     setEditDesignation(staff.designation ?? '');
     setEditIsSuperAdmin(staff.isSuperAdmin);
+    setEditUserRole(staff.isAdmin ? 'admin' : 'staff');
     setEditLocationIds(staff.locations.map(l => l.id));
     setEditPassword('');
     setShowEditPassword(false);
@@ -177,6 +180,7 @@ const StaffManagement: React.FC = () => {
         displayName: editDisplayName,
         designation: editDesignation,
         isSuperAdmin: editIsSuperAdmin,
+        isAdmin: editIsSuperAdmin || editUserRole === 'admin',
         locationIds: editIsSuperAdmin ? [] : editLocationIds,
         ...(isChangingPassword && editPassword.trim() ? { newPassword: editPassword.trim() } : {}),
       });
@@ -184,6 +188,17 @@ const StaffManagement: React.FC = () => {
         setEditingStaff(null);
         loadStaffMembers();
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreatePortalPin = async (staff: StaffUser) => {
+    if (staff.isAdmin || staff.isSuperAdmin) return;
+    setIsLoading(true);
+    try {
+      const result = await ensureStaffPortalPin(staff.id, staff.locations.map((l) => l.id));
+      if (result.success) loadStaffMembers();
     } finally {
       setIsLoading(false);
     }
@@ -310,7 +325,7 @@ const StaffManagement: React.FC = () => {
           User Management
         </CardTitle>
         <CardDescription>
-          One login for everyone. Staff use a portal PIN (generated here) after signing in to open My Portal.
+          One login for everyone. Staff accounts get a portal PIN for My Portal; admins manage settings without a PIN.
         </CardDescription>
       </CardHeader>
 
@@ -534,14 +549,49 @@ const StaffManagement: React.FC = () => {
 
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Shield className="h-3.5 w-3.5" />
-                  Role: <Badge variant="secondary" className="ml-1">{editingStaff.isAdmin ? 'Admin' : 'Staff'}</Badge>
+                  Role
                 </div>
+                {editingStaff.isSuperAdmin ? (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200/80 text-xs">
+                    <Star className="h-3.5 w-3.5" />
+                    Super admins always have admin access
+                  </div>
+                ) : editingStaff.id === user?.id ? (
+                  <Badge variant="secondary" className="w-fit">
+                    {editingStaff.isAdmin ? 'Admin' : 'Staff'} (your account)
+                  </Badge>
+                ) : (
+                  <RadioGroup
+                    value={editUserRole}
+                    onValueChange={(v) => setEditUserRole(v as 'admin' | 'staff')}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="admin" id="edit-r-admin" />
+                      <Label htmlFor="edit-r-admin" className="flex items-center gap-2 cursor-pointer">
+                        <Shield className="h-4 w-4 text-amber-500" /> Admin
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="staff" id="edit-r-staff" />
+                      <Label htmlFor="edit-r-staff" className="flex items-center gap-2 cursor-pointer">
+                        <User className="h-4 w-4" /> Staff
+                        <span className="text-[10px] text-white/40">(gets My Portal PIN)</span>
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                )}
 
                 {user.isSuperAdmin && (
                   <label className="flex items-center gap-3 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 cursor-pointer">
                     <Checkbox
                       checked={editIsSuperAdmin}
-                      onCheckedChange={(v) => { setEditIsSuperAdmin(!!v); if (v) setEditLocationIds([]); }}
+                      onCheckedChange={(v) => {
+                      setEditIsSuperAdmin(!!v);
+                      if (v) {
+                        setEditUserRole('admin');
+                        setEditLocationIds([]);
+                      }
+                    }}
                       className="border-amber-400/50"
                     />
                     <Star className="h-4 w-4 text-amber-400" />
@@ -669,25 +719,38 @@ const StaffManagement: React.FC = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {!staff.isAdmin && !staff.isSuperAdmin ? (
-                        staff.portalPin ? (
-                          <div className="flex flex-col gap-1">
-                            <span className="font-mono text-sm text-cuephoria-lightpurple tracking-wider">
-                              {staff.portalPin}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleRegeneratePortalPin(staff)}
-                              className="text-[10px] text-white/40 hover:text-white/70 text-left"
-                            >
-                              Regenerate
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-amber-400/80">Not linked</span>
-                        )
+                      {staff.isAdmin || staff.isSuperAdmin ? (
+                        <span
+                          className="text-xs text-white/40 leading-snug"
+                          title="Staff role accounts get a portal PIN for My Portal"
+                        >
+                          Admin — no PIN
+                        </span>
+                      ) : staff.portalPin ? (
+                        <div className="flex flex-col gap-1">
+                          <span className="font-mono text-sm font-semibold text-white tracking-wider">
+                            {staff.portalPin}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRegeneratePortalPin(staff)}
+                            className="text-[10px] text-white/40 hover:text-white/70 text-left"
+                          >
+                            Regenerate
+                          </button>
+                        </div>
                       ) : (
-                        <span className="text-xs text-white/30">—</span>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs text-amber-400/80">Not set up</span>
+                          <button
+                            type="button"
+                            onClick={() => handleCreatePortalPin(staff)}
+                            disabled={isLoading}
+                            className="text-[10px] text-cuephoria-lightpurple hover:text-white text-left"
+                          >
+                            Create PIN
+                          </button>
+                        </div>
                       )}
                     </TableCell>
                     <TableCell>

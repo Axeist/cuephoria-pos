@@ -131,9 +131,10 @@ interface AuthContextType {
   updateStaffMember: (
     id: string,
     data: Partial<
-      AdminUser & { locationIds: string[]; newPassword?: string; displayName?: string | null; designation?: string | null }
+      AdminUser & { locationIds: string[]; newPassword?: string; displayName?: string | null; designation?: string | null; isAdmin?: boolean }
     >,
   ) => Promise<boolean>;
+  ensureStaffPortalPin: (id: string, locationIds?: string[]) => Promise<{ success: boolean; portalPin?: string | null }>;
   verifyStaffEmailManually: (id: string) => Promise<boolean>;
   resendStaffVerificationEmail: (id: string) => Promise<boolean>;
   deleteStaffMember: (id: string) => Promise<boolean>;
@@ -445,10 +446,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.error(json?.error || 'Could not regenerate PIN');
         return { success: false };
       }
-      toast.success(`New portal PIN: ${json.portalPin}`);
+      toast.success(json.created ? `Portal PIN: ${json.portalPin}` : `New portal PIN: ${json.portalPin}`);
       return { success: true, portalPin: json.portalPin ?? null };
     } catch {
       toast.error('Could not regenerate PIN');
+      return { success: false };
+    }
+  };
+
+  const ensureStaffPortalPin = async (
+    id: string,
+    locationIds?: string[],
+  ): Promise<{ success: boolean; portalPin?: string | null }> => {
+    try {
+      if (!user?.isAdmin) {
+        toast.error('Only admins can create portal PINs');
+        return { success: false };
+      }
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, ensureStaffProfile: true, locationIds }),
+      });
+      const json = await res.json();
+      if (!json?.ok) {
+        toast.error(json?.error || 'Could not create portal PIN');
+        return { success: false };
+      }
+      toast.success(`Portal PIN: ${json.portalPin}`);
+      return { success: true, portalPin: json.portalPin ?? null };
+    } catch {
+      toast.error('Could not create portal PIN');
       return { success: false };
     }
   };
@@ -490,7 +519,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateStaffMember = async (
     id: string,
     updatedData: Partial<
-      AdminUser & { locationIds: string[]; newPassword?: string; displayName?: string | null; designation?: string | null }
+      AdminUser & { locationIds: string[]; newPassword?: string; displayName?: string | null; designation?: string | null; isAdmin?: boolean }
     >,
   ): Promise<boolean> => {
     try {
@@ -504,6 +533,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (typeof updatedData.displayName === "string") body.displayName = updatedData.displayName;
       if (typeof updatedData.designation === "string") body.designation = updatedData.designation;
       if (typeof updatedData.isSuperAdmin === 'boolean') body.isSuperAdmin = updatedData.isSuperAdmin;
+      if (typeof updatedData.isAdmin === 'boolean') body.isAdmin = updatedData.isAdmin;
       if (Array.isArray(updatedData.locationIds)) body.locationIds = updatedData.locationIds;
       if (typeof updatedData.newPassword === 'string' && updatedData.newPassword.trim()) {
         body.newPassword = updatedData.newPassword.trim();
@@ -519,6 +549,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!json?.ok) {
         toast.error(json?.error || 'Error updating staff member');
         return false;
+      }
+
+      if (typeof json.portalPin === 'string') {
+        toast.success(`Staff portal PIN: ${json.portalPin}`);
       }
 
       if (id === user?.id) {
@@ -664,7 +698,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLoading, 
       changePassword,
       addStaffMember,
-      regenerateStaffPortalPin, 
+      regenerateStaffPortalPin,
+      ensureStaffPortalPin, 
       getStaffMembers,
       updateStaffMember,
       verifyStaffEmailManually,
