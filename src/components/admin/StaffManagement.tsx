@@ -106,6 +106,12 @@ const StaffManagement: React.FC = () => {
           })),
         );
         setAllLocations(locs.filter(isFranchiseLocation));
+      } else {
+        toast({
+          title: 'Error',
+          description: json?.error ?? 'Failed to load users',
+          variant: 'destructive',
+        });
       }
     } catch (e) {
       toast({ title: 'Error', description: 'Failed to load users', variant: 'destructive' });
@@ -317,7 +323,7 @@ const StaffManagement: React.FC = () => {
               Add New User
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-cuephoria-dark border border-cuephoria-lightpurple/30 max-w-md">
+          <DialogContent className="bg-cuephoria-dark border border-cuephoria-lightpurple/30 max-w-md max-h-[min(90vh,720px)] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-xl">Add New User</DialogTitle>
               <DialogDescription>
@@ -365,15 +371,22 @@ const StaffManagement: React.FC = () => {
               )}
 
               {/* Branch access */}
-              {!newIsSuperAdmin && allLocations.length > 0 && (
+              {!newIsSuperAdmin && (
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
                     <MapPin className="h-4 w-4" /> Branch Access
                   </Label>
-                  <LocationCheckboxes
-                    selected={selectedLocationIds}
-                    onToggle={(id) => toggleLocation(id, selectedLocationIds, setSelectedLocationIds)}
-                  />
+                  {allLocations.length > 0 ? (
+                    <LocationCheckboxes
+                      selected={selectedLocationIds}
+                      onToggle={(id) => toggleLocation(id, selectedLocationIds, setSelectedLocationIds)}
+                    />
+                  ) : (
+                    <div className="flex items-start gap-2 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200/80 text-xs">
+                      <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                      No branches found for this workspace. Add a branch in Settings first, then assign staff here.
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -477,7 +490,7 @@ const StaffManagement: React.FC = () => {
 
         {/* Edit User Dialog */}
         <Dialog open={!!editingStaff} onOpenChange={(open) => { if (!open) setEditingStaff(null); }}>
-          <DialogContent className="bg-cuephoria-dark border border-cuephoria-lightpurple/30 max-w-md">
+          <DialogContent className="bg-cuephoria-dark border border-cuephoria-lightpurple/30 max-w-md max-h-[min(90vh,720px)] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-xl">Edit User</DialogTitle>
               <DialogDescription>Update user details and branch access</DialogDescription>
@@ -536,15 +549,22 @@ const StaffManagement: React.FC = () => {
                   </label>
                 )}
 
-                {!editIsSuperAdmin && allLocations.length > 0 && (
+                {!editIsSuperAdmin && (
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
                       <MapPin className="h-4 w-4" /> Branch Access
                     </Label>
-                    <LocationCheckboxes
-                      selected={editLocationIds}
-                      onToggle={(id) => toggleLocation(id, editLocationIds, setEditLocationIds)}
-                    />
+                    {allLocations.length > 0 ? (
+                      <LocationCheckboxes
+                        selected={editLocationIds}
+                        onToggle={(id) => toggleLocation(id, editLocationIds, setEditLocationIds)}
+                      />
+                    ) : (
+                      <div className="flex items-start gap-2 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200/80 text-xs">
+                        <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                        No branches found for this workspace.
+                      </div>
+                    )}
                   </div>
                 )}
 

@@ -189,6 +189,8 @@ export default async function handler(req: Request) {
         (u) => !(u as { is_sandbox_user?: boolean }).is_sandbox_user,
       );
 
+      const userIds = filteredUsers.map((u) => u.id);
+
       const staffPinByAdminId: Record<
         string,
         { portalPin: string | null; staffProfileUserId: string | null }
