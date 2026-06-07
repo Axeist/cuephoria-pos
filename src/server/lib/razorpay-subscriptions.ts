@@ -286,6 +286,30 @@ export function mapRazorpaySubscriptionToRow(sub: RazorpaySubscription): {
 }
 
 /**
+ * Project a live Razorpay subscription fetch into a DB update payload.
+ * Used when webhooks are missed (hosted checkout) and we pull state on demand.
+ */
+export function subscriptionSnapshotUpdate(sub: RazorpaySubscription): Record<string, unknown> {
+  const update: Record<string, unknown> = {
+    ...mapRazorpaySubscriptionToRow(sub),
+    short_url: sub.short_url ?? null,
+  };
+  const rs = sub.status;
+  if (rs === "authenticated" || rs === "active" || rs === "pending") {
+    update.access_suspended = false;
+    update.access_suspended_at = null;
+    update.checkout_abandoned_at = null;
+  }
+  if (rs === "active") {
+    update.cancel_at_period_end = false;
+  }
+  if (rs === "halted" || rs === "cancelled" || rs === "completed" || rs === "paused") {
+    update.access_suspended = true;
+  }
+  return update;
+}
+
+/**
  * Build the `notes` map persisted on every Razorpay subscription. Used by the
  * webhook handler to resolve the originating organization without an extra
  * DB lookup. Subscriptions are org-scoped (no outlet_id) by product decision.
@@ -314,4 +338,97 @@ export function isTerminalRazorpayStatus(status: string | null | undefined): boo
 /** A non-terminal Razorpay status that means an existing sub is still usable. */
 export function isReusableRazorpayStatus(status: string | null | undefined): boolean {
   return status === "created" || status === "authenticated" || status === "active";
+}
+
+// ---------------------------------------------------------------------------
+// Plan amount sync — checkout reads Razorpay plan.item.amount, not our DB
+// ---------------------------------------------------------------------------
+
+export interface RazorpayPlan {
+  id: string;
+  period: string;
+  interval: number;
+  item: {
+    id?: string;
+    name?: string;
+    amount?: number;
+    currency?: string;
+    description?: string;
+  };
+}
+
+export async function fetchRazorpayPlan(planId: string): Promise<RazorpayPlan> {
+  return rzpFetch<RazorpayPlan>("GET", `/plans/${encodeURIComponent(planId)}`);
+}
+
+export async function createRazorpayPlan(args: {
+  name: string;
+  description?: string;
+  amountInr: number;
+  cycle: "month" | "year";
+  notes?: Record<string, string>;
+}): Promise<RazorpayPlan> {
+  const amountPaise = Math.round(args.amountInr * 100);
+  if (!Number.isFinite(amountPaise) || amountPaise < 100) {
+    throw new Error(`Plan amount must be at least ₹1 (got ₹${args.amountInr})`);
+  }
+
+  return rzpFetch<RazorpayPlan>("POST", "/plans", {
+    period: args.cycle === "year" ? "yearly" : "monthly",
+    interval: 1,
+    item: {
+      name: args.name,
+      amount: amountPaise,
+      currency: "INR",
+      description: args.description ?? args.name,
+    },
+    ...(args.notes ? { notes: args.notes } : {}),
+  });
+}
+
+/**
+ * Resolve a Razorpay plan id whose recurring amount matches `expectedAmountInr`.
+ * Creates a fresh Razorpay plan when the mapped id is missing or the amount
+ * differs (Razorpay plans are immutable once created).
+ */
+export async function ensureRazorpayPlanAmount(args: {
+  existingPlanId: string | null;
+  expectedAmountInr: number;
+  cycle: "month" | "year";
+  planCode: string;
+  planName: string;
+}): Promise<{ planId: string; created: boolean }> {
+  const expectedPaise = Math.round(args.expectedAmountInr * 100);
+  if (!Number.isFinite(expectedPaise) || expectedPaise < 100) {
+    throw new Error(`Expected plan amount must be at least ₹1 (got ₹${args.expectedAmountInr})`);
+  }
+
+  if (args.existingPlanId) {
+    try {
+      const remote = await fetchRazorpayPlan(args.existingPlanId);
+      const remotePaise = remote.item?.amount ?? 0;
+      if (remotePaise === expectedPaise) {
+        return { planId: args.existingPlanId, created: false };
+      }
+      console.warn(
+        `[billing] Razorpay plan ${args.existingPlanId} is ${remotePaise} paise; expected ${expectedPaise} — creating replacement`,
+      );
+    } catch (err) {
+      console.warn(`[billing] Could not fetch Razorpay plan ${args.existingPlanId}:`, err);
+    }
+  }
+
+  const cycleLabel = args.cycle === "year" ? "Yearly" : "Monthly";
+  const created = await createRazorpayPlan({
+    name: `${args.planName} (${cycleLabel})`,
+    description: `Cuephoria POS ${args.planCode} ${cycleLabel}`,
+    amountInr: args.expectedAmountInr,
+    cycle: args.cycle,
+    notes: {
+      cuephoria_plan_code: args.planCode,
+      billing_cycle: args.cycle,
+    },
+  });
+
+  return { planId: created.id, created: true };
 }

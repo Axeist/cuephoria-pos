@@ -25,7 +25,12 @@
  *     does not insert, to avoid double-counting against the same charge).
  */
 
-import { RZP_STATUS_TO_INTERNAL } from "./razorpay-subscriptions.js";
+import {
+  RZP_STATUS_TO_INTERNAL,
+  rzpFetch,
+  subscriptionSnapshotUpdate,
+  type RazorpaySubscription,
+} from "./razorpay-subscriptions.js";
 
 const SUBSCRIPTION_EVENTS = new Set([
   "subscription.authenticated",
@@ -333,6 +338,30 @@ export async function handleSubscriptionWebhookEvent(args: Args): Promise<Outcom
         });
       } catch (mailErr) {
         console.warn("[subscription-webhook] invoice.paid email failed", (mailErr as Error).message);
+      }
+    }
+
+    // invoice.paid often omits subscription.entity — pull live state so hosted
+    // checkout payments unlock access without waiting for a manual refresh.
+    if (
+      subRef &&
+      !subEntity?.id &&
+      localSubId &&
+      (event === "invoice.paid" || event === "invoice.partially_paid")
+    ) {
+      try {
+        const remote = await rzpFetch<RazorpaySubscription>(
+          "GET",
+          `/subscriptions/${encodeURIComponent(subRef)}`,
+        );
+        if (remote?.id) {
+          await supabase
+            .from("subscriptions")
+            .update(subscriptionSnapshotUpdate(remote))
+            .eq("id", localSubId);
+        }
+      } catch (syncErr) {
+        console.warn("[subscription-webhook] invoice subscription sync failed", (syncErr as Error).message);
       }
     }
 

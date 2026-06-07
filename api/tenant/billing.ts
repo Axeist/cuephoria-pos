@@ -37,7 +37,8 @@
  *   - "record-checkout-dismiss"  When Razorpay status is still `created`, stamps
  *                                `checkout_abandoned_at` once (anchors grace).
  *   - "fetch-invoices"          GET /v1/invoices?subscription_id=:id; upserts local
- *                                public.invoices and returns the merged list.
+ *                                public.invoices, syncs subscription status, returns both.
+ *   - "sync-subscription"       Fetches live Razorpay subscription and mirrors locally.
  *
  * Notes payload is org-scoped (no outlet_id) by product decision so the
  * webhook can resolve the originating organization with a single lookup.
@@ -48,11 +49,13 @@ import { withOrgContext, type OrgContext } from "../../src/server/orgContext.js"
 import { getRazorpayCredentials } from "../../src/server/lib/razorpay-credentials.js";
 import {
   buildSubscriptionNotes,
+  ensureRazorpayPlanAmount,
   getRazorpayClient,
   isReusableRazorpayStatus,
   isTerminalRazorpayStatus,
   mapRazorpaySubscriptionToRow,
   rzpFetch,
+  subscriptionSnapshotUpdate,
   unixToIso,
   verifySubscriptionCheckoutSignature,
   type RazorpayApiError,
@@ -426,14 +429,45 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
       `subscription=${subQ.data ? "yes" : "no"}`,
   );
 
+  // Hosted checkout does not hit verify-payment; pull live Razorpay state when
+  // local status looks stale (created / paid invoice but not yet active).
+  let subscriptionData = subQ.data;
+  if (
+    subscriptionData?.id &&
+    subscriptionData.razorpay_subscription_id &&
+    subscriptionNeedsRazorpaySync(
+      subscriptionData as Record<string, unknown>,
+      invQ.data ?? [],
+    )
+  ) {
+    try {
+      await syncSubscriptionFromRazorpay(ctx, {
+        id: subscriptionData.id,
+        razorpay_subscription_id: subscriptionData.razorpay_subscription_id,
+      });
+      const refreshed = await withTimeout(
+        "subscriptions.resync",
+        supabase
+          .from("subscriptions")
+          .select("*, plan:plan_id ( id, code, name )")
+          .eq("id", subscriptionData.id)
+          .maybeSingle(),
+      );
+      if (refreshed.data) subscriptionData = refreshed.data;
+      log("subscription synced from Razorpay");
+    } catch (syncErr) {
+      err("subscription sync failed (non-fatal)", syncErr);
+    }
+  }
+
   let currentPlan: { id: string; code: string; name: string } | null = null;
-  if (subQ.data?.plan_id) {
-    const rawPlan = (subQ.data as { plan?: { id: string; code: string; name: string } | { id: string; code: string; name: string }[] | null }).plan;
+  if (subscriptionData?.plan_id) {
+    const rawPlan = (subscriptionData as { plan?: { id: string; code: string; name: string } | { id: string; code: string; name: string }[] | null }).plan;
     const embedded = Array.isArray(rawPlan) ? rawPlan[0] : rawPlan;
     if (embedded?.id) {
       currentPlan = { id: embedded.id, code: embedded.code, name: embedded.name };
     } else {
-      const match = (plansQ.data ?? []).find((p) => p.id === subQ.data!.plan_id);
+      const match = (plansQ.data ?? []).find((p) => p.id === subscriptionData!.plan_id);
       if (match) {
         currentPlan = { id: match.id, code: match.code, name: match.name };
       }
@@ -457,9 +491,9 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
   log("returning snapshot");
   const billingAccessGraceMinutes =
     typeof graceQ === "number" && Number.isFinite(graceQ) ? graceQ : DEFAULT_BILLING_ACCESS_GRACE_MINUTES;
-  const subscriptionRow = subQ.data
+  const subscriptionRow = subscriptionData
     ? (() => {
-        const { plan: _plan, ...rest } = subQ.data as Record<string, unknown> & {
+        const { plan: _plan, ...rest } = subscriptionData as Record<string, unknown> & {
           plan?: unknown;
         };
         return rest;
@@ -529,6 +563,8 @@ async function postBilling(req: Request, ctx: OrgContext): Promise<Response> {
       return resumeAction(ctx);
     case "fetch-invoices":
       return fetchInvoicesAction(ctx);
+    case "sync-subscription":
+      return syncSubscriptionAction(ctx);
     case "record-checkout-dismiss":
       return recordCheckoutDismissAction(ctx);
     default:
@@ -551,19 +587,22 @@ function normaliseTier(raw: unknown): PlanTier | null {
   return null;
 }
 
-async function resolvePlanRow(
-  ctx: OrgContext,
-  tier: PlanTier,
-): Promise<{
+type ResolvedPlanRow = {
   id: string;
   code: string;
   name: string;
+  price_inr_month: number | null;
+  price_inr_year: number | null;
   razorpay_plan_id_month: string | null;
   razorpay_plan_id_year: string | null;
-} | null> {
+};
+
+async function resolvePlanRow(ctx: OrgContext, tier: PlanTier): Promise<ResolvedPlanRow | null> {
   const { data, error } = await ctx.supabase
     .from("plans")
-    .select("id, code, name, razorpay_plan_id_month, razorpay_plan_id_year, is_active, is_public")
+    .select(
+      "id, code, name, price_inr_month, price_inr_year, razorpay_plan_id_month, razorpay_plan_id_year, is_active, is_public",
+    )
     .eq("code", tier)
     .maybeSingle();
   if (error || !data || !data.is_active || !data.is_public) return null;
@@ -571,9 +610,51 @@ async function resolvePlanRow(
     id: data.id,
     code: data.code,
     name: data.name,
+    price_inr_month: data.price_inr_month != null ? Number(data.price_inr_month) : null,
+    price_inr_year: data.price_inr_year != null ? Number(data.price_inr_year) : null,
     razorpay_plan_id_month: data.razorpay_plan_id_month ?? null,
     razorpay_plan_id_year: data.razorpay_plan_id_year ?? null,
   };
+}
+
+/** Map catalog price → Razorpay plan id (creates/replaces when amount drifts). */
+async function resolveRazorpayPlanIdForCheckout(
+  ctx: OrgContext,
+  plan: ResolvedPlanRow,
+  cycle: BillingCycle,
+): Promise<string | Response> {
+  const expectedAmountInr = cycle === "year" ? plan.price_inr_year : plan.price_inr_month;
+  if (expectedAmountInr == null || !Number.isFinite(expectedAmountInr) || expectedAmountInr <= 0) {
+    return j(
+      {
+        ok: false,
+        error: `Plan "${plan.code}" has no ${cycle === "year" ? "yearly" : "monthly"} price configured. Set it in Platform → Plans.`,
+      },
+      400,
+    );
+  }
+
+  const existingId = cycle === "year" ? plan.razorpay_plan_id_year : plan.razorpay_plan_id_month;
+
+  try {
+    const { planId, created } = await ensureRazorpayPlanAmount({
+      existingPlanId: existingId,
+      expectedAmountInr,
+      cycle,
+      planCode: plan.code,
+      planName: plan.name,
+    });
+
+    if (created && planId !== existingId) {
+      const column = cycle === "year" ? "razorpay_plan_id_year" : "razorpay_plan_id_month";
+      const { error } = await ctx.supabase.from("plans").update({ [column]: planId }).eq("id", plan.id);
+      if (error) console.error("[billing] failed to persist Razorpay plan id", error);
+    }
+
+    return planId;
+  } catch (err) {
+    return billingError(err);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -600,16 +681,9 @@ async function createOrRenewAction(
   const plan = await resolvePlanRow(ctx, tier);
   if (!plan) return j({ ok: false, error: `Plan "${tier}" is not available for subscription.` }, 404);
 
-  const razorpayPlanId = cycle === "year" ? plan.razorpay_plan_id_year : plan.razorpay_plan_id_month;
-  if (!razorpayPlanId) {
-    return j(
-      {
-        ok: false,
-        error: `Missing Razorpay ${cycle}ly plan id for "${plan.code}". Set it in Platform → Plans.`,
-      },
-      400,
-    );
-  }
+  const razorpayPlanResolved = await resolveRazorpayPlanIdForCheckout(ctx, plan, cycle);
+  if (razorpayPlanResolved instanceof Response) return razorpayPlanResolved;
+  const razorpayPlanId = razorpayPlanResolved;
 
   const { data: currentSub, error: subErr } = await ctx.supabase
     .from("subscriptions")
@@ -634,21 +708,23 @@ async function createOrRenewAction(
     try {
       const client = await getRazorpayClient();
       const fresh = await client.subscriptions.fetch(currentSub.razorpay_subscription_id);
-      return j(
-        {
-          ok: true,
-          reused: true,
-          subscriptionId: fresh.id,
-          shortUrl: fresh.short_url ?? null,
-          checkout: {
-            keyId: creds.keyId,
+      if (fresh.plan_id === razorpayPlanId) {
+        return j(
+          {
+            ok: true,
+            reused: true,
             subscriptionId: fresh.id,
-            customerId: fresh.customer_id ?? currentSub.razorpay_customer_id ?? null,
             shortUrl: fresh.short_url ?? null,
+            checkout: {
+              keyId: creds.keyId,
+              subscriptionId: fresh.id,
+              customerId: fresh.customer_id ?? currentSub.razorpay_customer_id ?? null,
+              shortUrl: fresh.short_url ?? null,
+            },
           },
-        },
-        200,
-      );
+          200,
+        );
+      }
     } catch {
       // Fall through to create a fresh subscription.
     }
@@ -830,16 +906,10 @@ async function upgradeAction(ctx: OrgContext, body: Record<string, unknown>): Pr
 
   const plan = await resolvePlanRow(ctx, tier);
   if (!plan) return j({ ok: false, error: `Plan "${tier}" is not available for subscription.` }, 404);
-  const razorpayPlanId = cycle === "year" ? plan.razorpay_plan_id_year : plan.razorpay_plan_id_month;
-  if (!razorpayPlanId) {
-    return j(
-      {
-        ok: false,
-        error: `Missing Razorpay ${cycle}ly plan id for "${plan.code}". Set it in Platform → Plans.`,
-      },
-      400,
-    );
-  }
+
+  const razorpayPlanResolved = await resolveRazorpayPlanIdForCheckout(ctx, plan, cycle);
+  if (razorpayPlanResolved instanceof Response) return razorpayPlanResolved;
+  const razorpayPlanId = razorpayPlanResolved;
 
   const { data: sub, error } = await ctx.supabase
     .from("subscriptions")
@@ -1125,6 +1195,81 @@ async function resumeAction(ctx: OrgContext): Promise<Response> {
 }
 
 // ---------------------------------------------------------------------------
+// Razorpay subscription sync (hosted checkout / missed webhooks)
+// ---------------------------------------------------------------------------
+
+const TERMINAL_RZP_STATUSES = new Set(["cancelled", "completed", "expired"]);
+
+function subscriptionNeedsRazorpaySync(
+  row: Record<string, unknown>,
+  invoices: { status?: string | null }[],
+): boolean {
+  const rs = String(row.razorpay_status ?? "").toLowerCase();
+  if (rs === "created") return true;
+  if (TERMINAL_RZP_STATUSES.has(rs)) return false;
+  const hasPaidInvoice = invoices.some((inv) => String(inv.status ?? "").toLowerCase() === "paid");
+  if (hasPaidInvoice && rs !== "active") return true;
+  return false;
+}
+
+async function syncSubscriptionFromRazorpay(
+  ctx: OrgContext,
+  subRow: { id: string; razorpay_subscription_id: string },
+): Promise<RazorpaySubscription> {
+  const client = await getRazorpayClient();
+  const remote = await client.subscriptions.fetch(subRow.razorpay_subscription_id);
+  const updatePayload = subscriptionSnapshotUpdate(remote);
+  const { error } = await ctx.supabase.from("subscriptions").update(updatePayload).eq("id", subRow.id);
+  if (error) throw error;
+  return remote;
+}
+
+async function loadSubscriptionSnapshot(ctx: OrgContext): Promise<Record<string, unknown> | null> {
+  const { data, error } = await ctx.supabase
+    .from("subscriptions")
+    .select("*")
+    .eq("organization_id", ctx.organizationId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data as Record<string, unknown> | null;
+}
+
+async function syncSubscriptionAction(ctx: OrgContext): Promise<Response> {
+  const { data: sub, error } = await ctx.supabase
+    .from("subscriptions")
+    .select("id, razorpay_subscription_id")
+    .eq("organization_id", ctx.organizationId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return j({ ok: false, error: error.message }, 500);
+  if (!sub?.razorpay_subscription_id) {
+    return j({ ok: true, synced: false, reason: "no_subscription", subscription: null }, 200);
+  }
+
+  try {
+    const remote = await syncSubscriptionFromRazorpay(ctx, {
+      id: sub.id,
+      razorpay_subscription_id: sub.razorpay_subscription_id,
+    });
+    const subscription = await loadSubscriptionSnapshot(ctx);
+    return j(
+      {
+        ok: true,
+        synced: true,
+        razorpayStatus: remote.status ?? null,
+        subscription,
+      },
+      200,
+    );
+  } catch (err) {
+    return billingError(err);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Actions: fetch-invoices
 // ---------------------------------------------------------------------------
 
@@ -1138,7 +1283,18 @@ async function fetchInvoicesAction(ctx: OrgContext): Promise<Response> {
     .maybeSingle();
   if (error) return j({ ok: false, error: error.message }, 500);
   if (!sub?.razorpay_subscription_id) {
-    return j({ ok: true, invoices: [] }, 200);
+    return j({ ok: true, invoices: [], subscription: null, subscriptionSynced: false }, 200);
+  }
+
+  let subscriptionSynced = false;
+  try {
+    await syncSubscriptionFromRazorpay(ctx, {
+      id: sub.id,
+      razorpay_subscription_id: sub.razorpay_subscription_id,
+    });
+    subscriptionSynced = true;
+  } catch (syncErr) {
+    console.error("[billing] fetch-invoices subscription sync failed", syncErr);
   }
 
   let list: { items?: RazorpayInvoice[] };
@@ -1216,7 +1372,17 @@ async function fetchInvoicesAction(ctx: OrgContext): Promise<Response> {
     .order("created_at", { ascending: false })
     .limit(INVOICE_PAGE_SIZE);
 
-  return j({ ok: true, invoices: refreshed ?? [] }, 200);
+  const subscription = await loadSubscriptionSnapshot(ctx);
+
+  return j(
+    {
+      ok: true,
+      invoices: refreshed ?? [],
+      subscription,
+      subscriptionSynced,
+    },
+    200,
+  );
 }
 
 // ---------------------------------------------------------------------------

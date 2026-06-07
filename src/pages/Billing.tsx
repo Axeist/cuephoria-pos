@@ -550,6 +550,34 @@ export default function Billing() {
     );
   }, [billingQ.status, billingQ.fetchStatus, billingQ.isLoading, billingQ.isError, billingQ.data]);
 
+  // Hosted checkout completes in another tab — poll + refetch on return so mandate
+  // state catches up when webhooks are delayed or missed.
+  React.useEffect(() => {
+    if (billingQ.data?.organization.is_internal) return;
+    const rs = billingQ.data?.subscription?.razorpay_status;
+    if (rs !== "created" && rs !== "authenticated") return;
+    const id = window.setInterval(() => {
+      refreshBilling();
+    }, 15_000);
+    return () => window.clearInterval(id);
+  }, [
+    billingQ.data?.organization.is_internal,
+    billingQ.data?.subscription?.razorpay_status,
+    refreshBilling,
+  ]);
+
+  React.useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      const rs = billingQ.data?.subscription?.razorpay_status;
+      if (rs === "created" || rs === "authenticated") {
+        refreshBilling();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [billingQ.data?.subscription?.razorpay_status, refreshBilling]);
+
   // Mutations -------------------------------------------------------------
 
   const createM = useMutation({
@@ -649,15 +677,34 @@ export default function Billing() {
   });
 
   const fetchInvoicesM = useMutation({
-    mutationFn: async () => postBillingAction<{ ok: true; invoices: Invoice[] }>({ action: "fetch-invoices" }),
+    mutationFn: async () =>
+      postBillingAction<{
+        ok: true;
+        invoices: Invoice[];
+        subscription?: Subscription | null;
+        subscriptionSynced?: boolean;
+      }>({ action: "fetch-invoices" }),
     onSuccess: (data) => {
       qc.setQueryData<BillingResponse | undefined>(["tenant-billing"], (prev) =>
-        prev ? { ...prev, invoices: data.invoices } : prev,
+        prev
+          ? {
+              ...prev,
+              invoices: data.invoices,
+              ...(data.subscription ? { subscription: data.subscription as Subscription } : {}),
+            }
+          : prev,
       );
-      toast({ title: "Invoices refreshed from Razorpay" });
+      if (data.subscriptionSynced) {
+        refreshBilling();
+      } else {
+        void orgCtx?.refresh();
+      }
+      toast({
+        title: data.subscriptionSynced ? "Billing synced from Razorpay" : "Invoices refreshed from Razorpay",
+      });
     },
     onError: (err: Error) =>
-      toast({ variant: "destructive", title: "Could not refresh invoices", description: err.message }),
+      toast({ variant: "destructive", title: "Could not refresh from Razorpay", description: err.message }),
   });
 
   // Checkout launcher -----------------------------------------------------
@@ -1510,7 +1557,7 @@ export default function Billing() {
                 <Receipt className="h-3 w-3" /> Payment history
               </div>
               <div className="mt-0.5 text-xs text-white/55">
-                Charges synced from Razorpay invoices. Refresh to pull the latest.
+                Charges and subscription status synced from Razorpay. Refresh after hosted checkout.
               </div>
             </div>
             {!internal && subscription?.razorpay_subscription_id && canEdit && (
