@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { fetchPublicLocation } from '@/utils/publicLocationResolve';
 import { supabase } from '@/integrations/supabase/client';
 import { Monitor, Clock, Timer, Wifi, Gamepad2, RefreshCcw, Headset } from 'lucide-react';
 import { Station, Session } from '@/types/pos.types';
@@ -23,19 +24,19 @@ const PublicStations = ({ branchSlug = 'main' }: { branchSlug?: string }) => {
     (async () => {
       setResolvingVenue(true);
       setLoading(true);
-      const { data } = await supabase
-        .from('locations')
-        .select('id, name, slug')
-        .eq('slug', branchSlug)
-        .eq('is_active', true)
-        .maybeSingle();
-      if (!cancelled) {
-        setPublicVenue(
-          data?.id
-            ? { id: data.id, name: data.name ?? branchSlug, slug: data.slug ?? branchSlug }
-            : null
-        );
-        setResolvingVenue(false);
+      try {
+        const row = await fetchPublicLocation({ branchSlug });
+        if (!cancelled) {
+          setPublicVenue(
+            row?.id
+              ? { id: row.id, name: row.name ?? branchSlug, slug: row.slug ?? branchSlug }
+              : null,
+          );
+        }
+      } catch {
+        if (!cancelled) setPublicVenue(null);
+      } finally {
+        if (!cancelled) setResolvingVenue(false);
       }
     })();
     return () => { cancelled = true; };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { fetchPublicLocation } from '@/utils/publicLocationResolve';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -74,13 +75,12 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
-        .from('locations')
-        .select('id')
-        .eq('slug', branchSlug)
-        .eq('is_active', true)
-        .maybeSingle();
-      if (!cancelled) setPublicLocationId(data?.id ?? null);
+      try {
+        const row = await fetchPublicLocation({ branchSlug });
+        if (!cancelled) setPublicLocationId(row?.id ?? null);
+      } catch {
+        if (!cancelled) setPublicLocationId(null);
+      }
     })();
     return () => { cancelled = true; };
   }, [branchSlug]);

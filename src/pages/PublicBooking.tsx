@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { hapticImpact } from "@/utils/capacitor";
+import { fetchPublicLocation } from "@/utils/publicLocationResolve";
 import { supabase } from "@/integrations/supabase/client";
 import { StationSelector } from "@/components/booking/StationSelector";
 import { BookingStationTypeChips } from "@/components/booking/BookingStationTypeChips";
@@ -296,39 +297,27 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     let cancelled = false;
     (async () => {
       setBranchLocationLoading(true);
-      const locationIdParam = searchParams.get("location")?.trim();
+      const locationIdParam = searchParams.get("location")?.trim() || null;
 
-      if (locationIdParam) {
-        const { data, error } = await supabase
-          .from("locations")
-          .select("id, slug")
-          .eq("id", locationIdParam)
-          .eq("is_active", true)
-          .maybeSingle();
+      try {
+        const row = await fetchPublicLocation({
+          locationId: locationIdParam,
+          branchSlug,
+        });
         if (cancelled) return;
-        if (!error && data?.id) {
-          setPublicLocationId(data.id);
-        } else {
-          console.warn("Location id not found or inactive:", locationIdParam, error);
+        if (row?.id) setPublicLocationId(row.id);
+        else {
+          console.warn("Branch not found or inactive:", branchSlug, locationIdParam);
           setPublicLocationId(null);
         }
-        setBranchLocationLoading(false);
-        return;
+      } catch (err) {
+        if (!cancelled) {
+          console.warn("Failed to resolve public branch:", err);
+          setPublicLocationId(null);
+        }
+      } finally {
+        if (!cancelled) setBranchLocationLoading(false);
       }
-
-      const { data, error } = await supabase
-        .from("locations")
-        .select("id")
-        .eq("slug", branchSlug)
-        .eq("is_active", true)
-        .maybeSingle();
-      if (cancelled) return;
-      if (!error && data?.id) setPublicLocationId(data.id);
-      else {
-        console.warn("Branch slug not found or inactive:", branchSlug, error);
-        setPublicLocationId(null);
-      }
-      setBranchLocationLoading(false);
     })();
     return () => {
       cancelled = true;
