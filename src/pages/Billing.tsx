@@ -202,8 +202,19 @@ interface CreateSuccess {
 // Razorpay branding
 // ---------------------------------------------------------------------------
 
-/** Razorpay official wordmark. Inlined as SVG so it picks up brand colour. */
-function RazorpayWordmark({ className = "h-4 w-auto" }: { className?: string }) {
+const RAZORPAY_NAVY = "#072654";
+const RAZORPAY_BLUE = "#3395FF";
+
+/** Razorpay official wordmark — use `brand` on light backgrounds for readable contrast. */
+function RazorpayWordmark({
+  className = "h-5 w-auto",
+  variant = "brand",
+}: {
+  className?: string;
+  variant?: "brand" | "mono-light";
+}) {
+  const textFill = variant === "brand" ? RAZORPAY_NAVY : "currentColor";
+
   return (
     <svg
       className={className}
@@ -211,16 +222,56 @@ function RazorpayWordmark({ className = "h-4 w-auto" }: { className?: string }) 
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-label="Razorpay"
+      role="img"
     >
+      <path d="M16.7 0 11.2 8.6 8.6 17.2 14.2 0H8.5L0 13.5h3.6L1.5 22l15.2-22Z" fill={RAZORPAY_BLUE} />
       <path
-        d="M16.7 0 11.2 8.6 8.6 17.2 14.2 0H8.5L0 13.5h3.6L1.5 22l15.2-22Z"
-        fill="#3395FF"
-      />
-      <path
-        fill="currentColor"
+        fill={textFill}
         d="M27.7 17.4h-3.1l-2.2-4.6h-1.6v4.6h-2.5V5.7h4.4c2.7 0 4.3 1.4 4.3 3.6 0 1.7-.9 2.9-2.5 3.4l2.7 4.7h.5Zm-4.9-9.5h-2v3h2c1.2 0 1.9-.5 1.9-1.5s-.7-1.5-1.9-1.5Zm7 9.5V5.7h7.7v2.1h-5.2v2.6h4.5V12h-4.5v3.3h5.4v2.1h-7.9Zm12.8 0V5.7h5c2.4 0 3.7 1.1 3.7 3 0 1.2-.6 2.1-1.6 2.6 1.4.4 2.2 1.4 2.2 2.8 0 2.1-1.5 3.3-4.1 3.3h-5.2Zm2.5-7v2.4h2.2c1 0 1.6-.4 1.6-1.2s-.6-1.2-1.6-1.2h-2.2Zm0 4.4v2.5h2.4c1.1 0 1.7-.5 1.7-1.3s-.6-1.2-1.7-1.2h-2.4Zm10 2.6V5.7h2.5v11.7h-2.5Zm5.9 0V5.7h2.5l4.6 7.3V5.7H66v11.7h-2.4l-4.7-7.4v7.4h-2.5Zm12.9 0V5.7h2.5l4.6 7.3V5.7h2.4v11.7h-2.4l-4.7-7.4v7.4H73Z"
       />
     </svg>
+  );
+}
+
+function RazorpayTrustBadge({
+  mode,
+  size = "md",
+}: {
+  mode?: string;
+  size?: "sm" | "md" | "lg";
+}) {
+  const logoClass =
+    size === "lg" ? "h-6 w-auto" : size === "sm" ? "h-4 w-auto" : "h-5 w-auto";
+  const pad = size === "lg" ? "px-4 py-2.5" : size === "sm" ? "px-2.5 py-1.5" : "px-3 py-2";
+
+  return (
+    <div
+      className={`inline-flex items-center gap-2 rounded-xl border border-[#3395FF]/20 bg-white shadow-[0_8px_28px_-12px_rgba(51,149,255,0.55)] ${pad}`}
+    >
+      <ShieldCheck className={`${size === "lg" ? "h-5 w-5" : "h-4 w-4"} text-emerald-600 shrink-0`} />
+      <span className={`${size === "lg" ? "text-sm" : "text-xs"} font-medium text-zinc-600`}>
+        Secured by
+      </span>
+      <RazorpayWordmark variant="brand" className={logoClass} />
+      {mode ? (
+        <span
+          className={`rounded-md bg-[#3395FF]/10 font-bold uppercase tracking-wider text-[#072654] ${
+            size === "lg" ? "px-2 py-1 text-[11px]" : "px-1.5 py-0.5 text-[10px]"
+          }`}
+        >
+          {mode}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function RazorpayPoweredBy({ className = "" }: { className?: string }) {
+  return (
+    <div className={`inline-flex items-center gap-2 text-xs text-white/60 ${className}`}>
+      <span>Payments powered by</span>
+      <RazorpayWordmark variant="mono-light" className="h-4 w-auto text-white" />
+    </div>
   );
 }
 
@@ -1034,7 +1085,7 @@ export default function Billing() {
               </p>
             </div>
 
-            <div className="flex flex-col items-start lg:items-end gap-2">
+              <div className="flex flex-col items-start lg:items-end gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 {statusUi && (
                   <span
@@ -1050,14 +1101,9 @@ export default function Billing() {
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-black/40 backdrop-blur">
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
-                <span className="text-[11px] text-white/70">Secured by</span>
-                <RazorpayWordmark className="h-3.5 w-auto text-white" />
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-white/45">
-                  {razorpay.mode}
-                </span>
-              </div>
+              {!internal && !isSandbox && (
+                <RazorpayTrustBadge mode={razorpay.mode} size="lg" />
+              )}
             </div>
           </div>
         </section>
@@ -1084,7 +1130,15 @@ export default function Billing() {
                 <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-white/45 flex items-center gap-1.5">
                   <Sparkles className="h-3 w-3" /> Current subscription
                 </div>
-                <div className="mt-0.5 text-xs text-white/50">State mirrored from Razorpay webhooks.</div>
+                <div className="mt-0.5 text-xs text-white/50 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>State mirrored from Razorpay webhooks.</span>
+                  {!internal && !isSandbox && (
+                    <>
+                      <span className="text-white/25">·</span>
+                      <RazorpayPoweredBy />
+                    </>
+                  )}
+                </div>
               </div>
               {subscription?.razorpay_subscription_id && (
                 <a
@@ -1422,6 +1476,15 @@ export default function Billing() {
               )}
             </div>
 
+            {!internal && !isSandbox && (
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <RazorpayPoweredBy className="text-white/55" />
+                <span className="text-[11px] text-white/45">
+                  Checkout opens on Razorpay&apos;s hosted page — UPI, cards &amp; netbanking
+                </span>
+              </div>
+            )}
+
             {internal ? (
               <p className="text-white/55 text-sm py-10 text-center">
                 Internal tenancy — no self-serve billing here.
@@ -1726,37 +1789,37 @@ export default function Billing() {
         ) : null}
 
         {/* TRUST STRIP */}
-        {!isSandbox ? (
-        <section className="rounded-2xl border border-white/10 bg-white/[0.02] backdrop-blur px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-3 text-xs text-white/65">
-            <ShieldCheck className="h-4 w-4 text-emerald-300 shrink-0" />
-            <div>
-              <div className="text-white font-semibold text-[13px]">
-                Secured by{" "}
-                <RazorpayWordmark className="inline-block h-3.5 w-auto -mt-0.5 text-white" />
+        {!isSandbox && !internal ? (
+        <section className="rounded-2xl border border-[#3395FF]/25 bg-gradient-to-r from-white via-[#f8fbff] to-[#eef6ff] px-6 py-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5 shadow-[0_12px_40px_-20px_rgba(51,149,255,0.45)]">
+          <div className="flex items-start sm:items-center gap-4">
+            <RazorpayTrustBadge mode={razorpay.mode} size="lg" />
+            <div className="text-sm text-[#072654]/80 max-w-xl">
+              <div className="font-semibold text-[#072654]">
+                Recurring billing &amp; mandates handled by Razorpay
               </div>
-              <div className="text-white/55 text-[11px]">
-                PCI-DSS Level 1 · 256-bit TLS · cards tokenised by Razorpay (your card never touches our servers).
+              <div className="text-xs mt-1 text-[#072654]/70">
+                PCI-DSS Level 1 · 256-bit TLS · cards tokenised by Razorpay (your card never touches our
+                servers).
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3 text-[11px] text-white/45">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-[#072654]/65">
             <a
               href="https://razorpay.com/docs/payments/subscriptions/"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-white transition inline-flex items-center gap-1"
+              className="hover:text-[#3395FF] transition inline-flex items-center gap-1 font-medium"
             >
-              Razorpay Subscriptions <ExternalLink className="h-3 w-3" />
+              Razorpay Subscriptions <ExternalLink className="h-3.5 w-3.5" />
             </a>
-            <span className="text-white/20">·</span>
+            <span className="text-[#072654]/25">·</span>
             <a
               href="https://razorpay.com/docs/api/payments/subscriptions/"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-white transition inline-flex items-center gap-1"
+              className="hover:text-[#3395FF] transition inline-flex items-center gap-1 font-medium"
             >
-              API <ExternalLink className="h-3 w-3" />
+              API docs <ExternalLink className="h-3.5 w-3.5" />
             </a>
           </div>
         </section>
@@ -1915,7 +1978,7 @@ function BillingSkeleton({ orgName, prepend }: { orgName?: string; prepend?: Rea
           Loading plans for{" "}
           <span className="normal-case text-white/70">{orgName ?? "your workspace"}</span>
           <span className="text-white/25">·</span>
-          <RazorpayWordmark className="h-3.5 opacity-70" />
+          <RazorpayWordmark variant="brand" className="h-4 w-auto" />
         </div>
         <Skeleton className="h-44 w-full rounded-3xl bg-white/[0.04]" />
         <div className="grid lg:grid-cols-5 gap-6">
