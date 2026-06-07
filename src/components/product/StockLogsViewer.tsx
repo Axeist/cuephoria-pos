@@ -85,7 +85,12 @@ function countActiveFilters(filters: StockLogFilterOptions): number {
   return count;
 }
 
-const StockLogsViewer: React.FC = () => {
+interface StockLogsViewerProps {
+  /** When provided, logs reload each time the sheet/dialog opens. */
+  isOpen?: boolean;
+}
+
+const StockLogsViewer: React.FC<StockLogsViewerProps> = ({ isOpen = true }) => {
   const [logs, setLogs] = useState<StockLog[]>([]);
   const [filters, setFilters] = useState<StockLogFilterOptions>(DEFAULT_FILTERS);
   const [draftFilters, setDraftFilters] = useState<StockLogFilterOptions>(DEFAULT_FILTERS);
@@ -108,6 +113,12 @@ const StockLogsViewer: React.FC = () => {
     );
     setLogs(sortedLogs);
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      loadLogs();
+    }
+  }, [isOpen]);
 
   const filteredLogs = useMemo(() => applyStockLogFilters(logs, filters), [logs, filters]);
   const activeFilterCount = countActiveFilters(filters);

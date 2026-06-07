@@ -7,6 +7,8 @@ import { invalidateLocationAnalyticsCache } from '@/hooks/useLocationAnalytics';
 import { useLocation } from '@/context/LocationContext';
 import { usePOSHydration } from '@/context/POSHydrationContext';
 import { getCartItemDisplayName } from '@/utils/cartItem.utils';
+import { createStockLog, saveStockLog } from '@/utils/stockLogger';
+import { useAuth } from '@/context/AuthContext';
 
 export const useBills = (
   updateCustomer: (customer: Customer) => void,
@@ -14,7 +16,9 @@ export const useBills = (
 ) => {
   const [bills, setBills] = useState<Bill[]>([]);
   const { toast } = useToast();
+  const { user } = useAuth();
   const { activeLocationId, loading: locationsLoading } = useLocation();
+  const performedByLabel = user?.displayName || user?.username || 'POS Sale';
   const { loadBills: hydrateBills, billsDeepSync } = usePOSHydration();
   const billsCacheKey = useMemo(
     () => cacheKeyWithLocation(CACHE_KEYS.BILLS, activeLocationId),
@@ -478,6 +482,15 @@ export const useBills = (
               console.error('Error updating product stock:', productError);
             } else {
               updateProduct({ ...product, stock: newStock });
+              const stockLog = createStockLog(
+                product,
+                product.stock,
+                newStock,
+                'deduction',
+                performedByLabel,
+                `POS sale (bill ${billData.id.slice(0, 8)})`
+              );
+              saveStockLog(stockLog);
               console.log(`Updated stock for ${product.name}: ${newStock}`);
             }
           }

@@ -45,6 +45,7 @@ const ProductsPage: React.FC = () => {
   const performedByLabel = user?.displayName || user?.username || 'Unknown User';
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
 
+  const [stockLogsOpen, setStockLogsOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -349,7 +350,7 @@ const ProductsPage: React.FC = () => {
           <StockExport />
           
           {/* Stock Logs Viewer Button */}
-          <Sheet>
+          <Sheet open={stockLogsOpen} onOpenChange={setStockLogsOpen}>
             <SheetTrigger asChild>
               <Button variant="outline" className="h-10">
                 <History className="h-4 w-4 mr-2" /> 
@@ -364,7 +365,7 @@ const ProductsPage: React.FC = () => {
                 </SheetDescription>
               </SheetHeader>
               <div className="mt-6">
-                <StockLogsViewer />
+                <StockLogsViewer isOpen={stockLogsOpen} />
               </div>
             </SheetContent>
           </Sheet>
