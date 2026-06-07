@@ -64,6 +64,11 @@ export interface Station {
   accentColor?: string | null;
   /** Grid display order on Station Command (lower = first). */
   sortOrder?: number;
+  /** Temporary maintenance closure — blocks sessions and public booking. */
+  maintenanceMode?: boolean;
+  maintenanceStartedAt?: Date | null;
+  maintenancePlannedEndAt?: Date | null;
+  maintenanceStartedBy?: string | null;
 }
 
 export interface Session {
@@ -226,6 +231,8 @@ export interface POSContextType {
   ) => Promise<void>;
   extendSession: (stationId: string, extraMinutes: number) => Promise<void>;
   moveSession: (fromStationId: string, toStationId: string) => Promise<void>;
+  startMaintenance: (stationId: string, durationMinutes: number, startedByName: string) => Promise<boolean>;
+  endMaintenance: (stationId: string) => Promise<void>;
   endSession: (stationId: string) => Promise<SessionEndCheckoutMode | void>;
   endSessionGroup: (stationId: string) => Promise<SessionEndCheckoutMode | void>;
   pauseSession: (stationId: string) => Promise<void>;

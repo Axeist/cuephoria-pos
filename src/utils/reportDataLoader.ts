@@ -1,5 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Bill, Session } from '@/types/pos.types';
+import type { StationMaintenancePeriod } from '@/types/stationMaintenance.types';
+import { transformMaintenancePeriodRow } from '@/utils/stationMaintenance.utils';
 
 const PARALLEL_PAGES = 4;
 const BILLS_PAGE_SIZE = 100;
@@ -276,12 +278,54 @@ export async function fetchSessionsForDateRange(
   }
 }
 
+const MAINTENANCE_PAGE_SIZE = 500;
+
+/** Fetch maintenance periods overlapping the date range. */
+export async function fetchMaintenanceForDateRange(
+  params: RangeParams,
+  options: SessionFetchOptions
+): Promise<StationMaintenancePeriod[]> {
+  const { from, to, locationId, allLocations } = params;
+  const { signal } = options;
+  const results: StationMaintenancePeriod[] = [];
+  let page = 0;
+  let finished = false;
+
+  while (!finished) {
+    if (signal?.cancelled) break;
+
+    let query = supabase
+      .from('station_maintenance_periods')
+      .select('id, station_id, location_id, started_at, planned_end_at, ended_at, started_by_name')
+      .lte('started_at', to.toISOString())
+      .or(`ended_at.gte.${from.toISOString()},ended_at.is.null`)
+      .order('started_at', { ascending: false })
+      .range(page * MAINTENANCE_PAGE_SIZE, (page + 1) * MAINTENANCE_PAGE_SIZE - 1);
+
+    if (!allLocations && locationId) {
+      query = query.eq('location_id', locationId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const rows = (data ?? []) as Record<string, unknown>[];
+    if (rows.length === 0) break;
+
+    results.push(...rows.map(transformMaintenancePeriodRow));
+    if (rows.length < MAINTENANCE_PAGE_SIZE) finished = true;
+    page += 1;
+  }
+
+  return results;
+}
+
 // Short-lived in-memory cache so tab switches / remounts feel instant.
-const cache = new Map<string, { bills: Bill[]; sessions: Session[]; ts: number }>();
+const cache = new Map<string, { bills: Bill[]; sessions: Session[]; maintenance: StationMaintenancePeriod[]; ts: number }>();
 const CACHE_TTL_MS = 3 * 60 * 1000;
 
 export function reportCacheKey(
-  kind: 'bills' | 'sessions',
+  kind: 'bills' | 'sessions' | 'maintenance',
   from: Date,
   to: Date,
   locationId: string | null,
@@ -290,23 +334,30 @@ export function reportCacheKey(
   return `${kind}|${allLocations ? 'all' : locationId ?? 'none'}|${from.toISOString()}|${to.toISOString()}`;
 }
 
-export function getReportCache(key: string): Bill[] | Session[] | null {
+export function getReportCache(key: string): Bill[] | Session[] | StationMaintenancePeriod[] | null {
   const entry = cache.get(key);
   if (!entry || Date.now() - entry.ts > CACHE_TTL_MS) return null;
-  return key.startsWith('bills|') ? entry.bills : entry.sessions;
+  if (key.startsWith('bills|')) return entry.bills;
+  if (key.startsWith('maintenance|')) return entry.maintenance;
+  return entry.sessions;
 }
 
 export function setReportBillsCache(key: string, bills: Bill[]): void {
   const existing = cache.get(key);
-  cache.set(key, { bills, sessions: existing?.sessions ?? [], ts: Date.now() });
+  cache.set(key, { bills, sessions: existing?.sessions ?? [], maintenance: existing?.maintenance ?? [], ts: Date.now() });
 }
 
 export function setReportSessionsCache(key: string, sessions: Session[]): void {
   const existing = cache.get(key);
-  cache.set(key, { bills: existing?.bills ?? [], sessions, ts: Date.now() });
+  cache.set(key, { bills: existing?.bills ?? [], sessions, maintenance: existing?.maintenance ?? [], ts: Date.now() });
 }
 
-export function invalidateReportCache(prefix: 'bills' | 'sessions'): void {
+export function setReportMaintenanceCache(key: string, maintenance: StationMaintenancePeriod[]): void {
+  const existing = cache.get(key);
+  cache.set(key, { bills: existing?.bills ?? [], sessions: existing?.sessions ?? [], maintenance, ts: Date.now() });
+}
+
+export function invalidateReportCache(prefix: 'bills' | 'sessions' | 'maintenance'): void {
   for (const key of cache.keys()) {
     if (key.startsWith(`${prefix}|`)) cache.delete(key);
   }

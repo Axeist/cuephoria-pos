@@ -46,7 +46,9 @@ function parsePrepaidBookingFromSessionJson(raw: unknown): Session['prepaidBooki
 export function isStationPublicBookable(row: {
   category?: string | null;
   event_enabled?: boolean | null;
+  maintenance_mode?: boolean | null;
 }): boolean {
+  if (row.maintenance_mode) return false;
   if (row.category === 'nit_event') return false;
   return row.event_enabled ?? (row.category ? false : true);
 }
@@ -162,6 +164,14 @@ export function transformStationRow(item: Record<string, unknown>): Station {
     singleRate: item.single_rate != null ? Number(item.single_rate) : null,
     accentColor: (item.accent_color as string | null) ?? null,
     sortOrder: item.sort_order != null ? Number(item.sort_order) : 0,
+    maintenanceMode: Boolean(item.maintenance_mode),
+    maintenanceStartedAt: item.maintenance_started_at
+      ? new Date(item.maintenance_started_at as string)
+      : null,
+    maintenancePlannedEndAt: item.maintenance_planned_end_at
+      ? new Date(item.maintenance_planned_end_at as string)
+      : null,
+    maintenanceStartedBy: (item.maintenance_started_by as string | null) ?? null,
   };
 }
 
@@ -171,7 +181,8 @@ export const STATION_SELECT_FIELDS_LEGACY =
 export const STATION_SELECT_FIELDS_BASE =
   `${STATION_SELECT_FIELDS_LEGACY},pricing_mode,duration_tiers`;
 
-export const STATION_SELECT_FIELDS = `${STATION_SELECT_FIELDS_BASE},accent_color,sort_order`;
+export const STATION_SELECT_FIELDS =
+  `${STATION_SELECT_FIELDS_BASE},accent_color,sort_order,maintenance_mode,maintenance_started_at,maintenance_planned_end_at,maintenance_started_by`;
 
 /** Progressive fallbacks when newer migrations are not applied yet */
 export const STATION_SELECT_TIERS = [

@@ -35,13 +35,18 @@ import { useLocation } from '@/context/LocationContext';
 import {
   fetchBillsForDateRange,
   fetchSessionsForDateRange,
+  fetchMaintenanceForDateRange,
   mergeBillsByIdDesc,
   getReportCache,
   setReportBillsCache,
   setReportSessionsCache,
+  setReportMaintenanceCache,
   reportCacheKey,
   invalidateReportCache,
 } from '@/utils/reportDataLoader';
+import type { ReportStationActivity } from '@/types/stationMaintenance.types';
+import type { StationMaintenancePeriod } from '@/types/stationMaintenance.types';
+import { getMaintenanceDurationMinutes } from '@/utils/stationMaintenance.utils';
 import { useLocationAnalytics } from '@/hooks/useLocationAnalytics';
 import { buildReportSummaryMetrics } from '@/utils/reportSummaryMetrics';
 
@@ -117,8 +122,10 @@ const ReportsPage: React.FC = () => {
   // ============================================================
   const [reportBills, setReportBills] = useState<Bill[] | null>(null);
   const [reportSessions, setReportSessions] = useState<Session[] | null>(null);
+  const [reportMaintenance, setReportMaintenance] = useState<StationMaintenancePeriod[] | null>(null);
   const [reportBillsLoading, setReportBillsLoading] = useState(false);
   const [reportSessionsLoading, setReportSessionsLoading] = useState(false);
+  const [reportMaintenanceLoading, setReportMaintenanceLoading] = useState(false);
   const [reportBillsError, setReportBillsError] = useState<string | null>(null);
   const [reportSessionsError, setReportSessionsError] = useState<string | null>(null);
 
@@ -283,9 +290,60 @@ const ReportsPage: React.FC = () => {
     };
   }, [needsSessions, date?.from, date?.to, reportScope, activeLocationId]);
 
+  useEffect(() => {
+    if (!needsSessions || !date?.from || !date?.to) return;
+
+    const allLocations = reportScope === 'all';
+    const cacheKey = reportCacheKey('maintenance', date.from, date.to, activeLocationId, allLocations);
+    const cached = getReportCache(cacheKey) as StationMaintenancePeriod[] | null;
+
+    if (cached && cached.length >= 0) {
+      setReportMaintenance(cached);
+      setReportMaintenanceLoading(false);
+      return;
+    }
+
+    const signal = { cancelled: false };
+
+    const load = async () => {
+      setReportMaintenanceLoading(true);
+      try {
+        const rows = await fetchMaintenanceForDateRange(
+          {
+            from: date.from!,
+            to: date.to!,
+            locationId: activeLocationId,
+            allLocations,
+          },
+          { signal, onBatch: () => {} }
+        );
+        if (!signal.cancelled) {
+          setReportMaintenance(rows);
+          setReportMaintenanceCache(cacheKey, rows);
+        }
+      } catch (err) {
+        console.error('Error loading maintenance for Reports range:', err);
+        if (!signal.cancelled) setReportMaintenance([]);
+      } finally {
+        if (!signal.cancelled) setReportMaintenanceLoading(false);
+      }
+    };
+
+    void load();
+    return () => {
+      signal.cancelled = true;
+    };
+  }, [needsSessions, date?.from, date?.to, reportScope, activeLocationId]);
+
   // Bills/sessions for this page — date-scoped loaders only (no duplicate POS fetch)
   const billsForReports = reportBills ?? [];
   const sessionsForReports = reportSessions ?? [];
+  const maintenanceForReports = reportMaintenance ?? [];
+
+  const stationNameById = useMemo(
+    () => Object.fromEntries(stations.map((s) => [s.id, s.name])),
+    [stations]
+  );
 
   // Memoize customer lookup functions to prevent expensive recalculations
   const customerLookup = useMemo(() => {
@@ -366,6 +424,7 @@ const ReportsPage: React.FC = () => {
 
     // Sessions are already filtered server-side by start_time range
     let filteredSessions = sessionsForReports;
+    let filteredMaintenance = maintenanceForReports;
 
     // Apply search filtering
     if (searchQuery.trim()) {
@@ -379,14 +438,44 @@ const ReportsPage: React.FC = () => {
           customer.phone.includes(query)
         );
       });
+      filteredMaintenance = filteredMaintenance.filter((period) => {
+        const stationName = (stationNameById[period.stationId] ?? '').toLowerCase();
+        return (
+          period.startedByName.toLowerCase().includes(query) ||
+          stationName.includes(query)
+        );
+      });
     }
+
+    const filteredReportActivities: ReportStationActivity[] = [
+      ...filteredSessions.map((session) => ({
+        kind: 'session' as const,
+        id: session.id,
+        stationId: session.stationId,
+        customerId: session.customerId,
+        startTime: new Date(session.startTime),
+        endTime: session.endTime ? new Date(session.endTime) : undefined,
+        duration: session.duration,
+      })),
+      ...filteredMaintenance.map((period) => ({
+        kind: 'maintenance' as const,
+        id: period.id,
+        stationId: period.stationId,
+        startTime: period.startedAt,
+        endTime: period.endedAt,
+        plannedEndAt: period.plannedEndAt,
+        startedByName: period.startedByName,
+      })),
+    ].sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
 
     return {
       filteredCustomers,
       filteredBills,
-      filteredSessions
+      filteredSessions,
+      filteredMaintenance,
+      filteredReportActivities,
     };
-  }, [billsForReports, customers, sessionsForReports, date, searchQuery, billSearchQuery, paymentTypeFilter]);
+  }, [billsForReports, customers, sessionsForReports, maintenanceForReports, stationNameById, date, searchQuery, billSearchQuery, paymentTypeFilter]);
 
   // Same filters as filteredData but on debounced bills — keeps SalesWidgets/summary stable while loading
   const debouncedFilteredBills = useMemo(() => {
@@ -1091,7 +1180,7 @@ const ReportsPage: React.FC = () => {
     return {
       bills: sortedBills.slice(startIdx, endIdx),
       customers: filteredData.filteredCustomers.slice(startIdx, endIdx),
-      sessions: filteredData.filteredSessions.slice(startIdx, endIdx)
+      sessions: filteredData.filteredReportActivities.slice(startIdx, endIdx)
     };
   }, [currentPage, sortedBills, filteredData, itemsPerPage]);
 
@@ -1615,9 +1704,9 @@ const ReportsPage: React.FC = () => {
   const renderSessionsTab = () => (
     <div className="glass-card border-white/10 rounded-2xl overflow-hidden">
       <div className="p-6">
-        <h2 className="text-2xl font-bold mb-1">Session History</h2>
+        <h2 className="text-2xl font-bold mb-1">Session & Maintenance History</h2>
         <p className="text-gray-400">
-          View all game sessions and their details
+          Game sessions and station maintenance windows
           {date?.from && date?.to ? ` from ${format(date.from, 'MMMM do, yyyy')} to ${format(date.to, 'MMMM do, yyyy')}` : ''}
         </p>
         
@@ -1625,7 +1714,7 @@ const ReportsPage: React.FC = () => {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
             <Input
-              placeholder="Search by customer name, email or phone"
+              placeholder="Search customer, station, or maintenance staff"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 bg-gray-800 border-gray-700 text-white w-full md:w-96"
@@ -1633,15 +1722,15 @@ const ReportsPage: React.FC = () => {
           </div>
           {searchQuery && (
             <p className="text-sm text-gray-400 mt-2">
-              Found {filteredData.filteredSessions.length} matching sessions
+              Found {filteredData.filteredReportActivities.length} matching entries
             </p>
           )}
         </div>
         
-        {filteredData.filteredSessions.length > itemsPerPage && (
+        {filteredData.filteredReportActivities.length > itemsPerPage && (
           <div className="mt-4 flex justify-between items-center">
             <span className="text-sm text-gray-400">
-              Showing {Math.min(paginatedData.sessions.length, itemsPerPage)} of {filteredData.filteredSessions.length} sessions
+              Showing {Math.min(paginatedData.sessions.length, itemsPerPage)} of {filteredData.filteredReportActivities.length} entries
             </span>
             <div className="flex gap-2">
               <Button
@@ -1655,7 +1744,7 @@ const ReportsPage: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={currentPage * itemsPerPage >= filteredData.filteredSessions.length}
+                disabled={currentPage * itemsPerPage >= filteredData.filteredReportActivities.length}
                 onClick={() => setCurrentPage(curr => curr + 1)}
               >
                 Next
@@ -1668,8 +1757,9 @@ const ReportsPage: React.FC = () => {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Type</TableHead>
               <TableHead>Station</TableHead>
-              <TableHead>Customer</TableHead>
+              <TableHead>Customer / Staff</TableHead>
               <TableHead>Contact</TableHead>
               <TableHead>Start Time</TableHead>
               <TableHead>End Time</TableHead>
@@ -1679,7 +1769,64 @@ const ReportsPage: React.FC = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginatedData.sessions.map(session => {
+            {paginatedData.sessions.map((activity) => {
+              if (activity.kind === 'maintenance') {
+                const durationMinutes = getMaintenanceDurationMinutes({
+                  startedAt: activity.startTime,
+                  endedAt: activity.endTime,
+                  plannedEndAt: activity.plannedEndAt,
+                });
+                const hours = Math.floor(durationMinutes / 60);
+                const minutes = durationMinutes % 60;
+                const durationDisplay = `${hours}h ${minutes}m`;
+                const isActive = !activity.endTime;
+
+                return (
+                  <TableRow key={`maint-${activity.id}`} className="bg-amber-950/15">
+                    <TableCell>
+                      <Badge className="bg-amber-900/40 text-amber-300 border-amber-700/50">
+                        Maintenance
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-white font-medium">
+                      {stationNameById[activity.stationId] ?? activity.stationId}
+                    </TableCell>
+                    <TableCell className="text-amber-100">{activity.startedByName}</TableCell>
+                    <TableCell className="text-gray-400 text-sm">—</TableCell>
+                    <TableCell className="text-white">
+                      <div>{format(activity.startTime, 'd MMM yyyy')}</div>
+                      <div className="text-gray-400">{format(activity.startTime, 'HH:mm')}</div>
+                    </TableCell>
+                    <TableCell className="text-white">
+                      {activity.endTime ? (
+                        <>
+                          <div>{format(new Date(activity.endTime), 'd MMM yyyy')}</div>
+                          <div className="text-gray-400">{format(new Date(activity.endTime), 'HH:mm')}</div>
+                        </>
+                      ) : (
+                        <span className="text-amber-300">In progress</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-white">{durationDisplay}</TableCell>
+                    <TableCell>
+                      <Badge
+                        className={
+                          isActive
+                            ? 'bg-amber-900/40 text-amber-300 border-amber-700/50'
+                            : 'bg-gray-700 text-gray-300'
+                        }
+                      >
+                        {isActive ? 'Active' : 'Completed'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell />
+                  </TableRow>
+                );
+              }
+
+              const session = filteredData.filteredSessions.find((s) => s.id === activity.id);
+              if (!session) return null;
+
               let durationDisplay = "0h 1m";
               if (session.endTime) {
                 const startMs = new Date(session.startTime).getTime();
@@ -1696,7 +1843,14 @@ const ReportsPage: React.FC = () => {
 
               return (
                 <TableRow key={session.id}>
-                  <TableCell className="text-white font-medium">{session.stationId}</TableCell>
+                  <TableCell>
+                    <Badge className="bg-purple-900/40 text-purple-300 border-purple-700/50">
+                      Session
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-white font-medium">
+                    {stationNameById[session.stationId] ?? session.stationId}
+                  </TableCell>
                   <TableCell className="text-white">{getCustomerName(session.customerId)}</TableCell>
                   <TableCell className="text-white text-sm">
                     {getCustomerPhone(session.customerId)}
@@ -1735,15 +1889,15 @@ const ReportsPage: React.FC = () => {
             })}
             {paginatedData.sessions.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-gray-400">
-                  {reportSessionsLoading ? (
+                <TableCell colSpan={9} className="text-center py-8 text-gray-400">
+                  {reportSessionsLoading || reportMaintenanceLoading ? (
                     <div className="flex items-center justify-center">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cuephoria-purple"></div>
-                      <span className="ml-3">Loading sessions…</span>
+                      <span className="ml-3">Loading sessions & maintenance…</span>
                     </div>
                   ) : searchQuery ? (
                     <div>
-                      <p>No sessions found matching "{searchQuery}"</p>
+                      <p>No entries found matching "{searchQuery}"</p>
                       <Button
                         variant="link"
                         className="text-cuephoria-purple"
@@ -1753,7 +1907,7 @@ const ReportsPage: React.FC = () => {
                       </Button>
                     </div>
                   ) : (
-                    "No sessions found in the selected date range"
+                    "No sessions or maintenance records in the selected date range"
                   )}
                 </TableCell>
               </TableRow>

@@ -4,11 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Station, Customer } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS } from '@/context/POSContext';
-import { Pause, Play, Square, ShoppingBag, Loader2, Plus, Users, ArrowRightLeft, UserPlus } from 'lucide-react';
+import { Pause, Play, Square, ShoppingBag, Loader2, Plus, Users, ArrowRightLeft, Wrench } from 'lucide-react';
 import StartSessionDialog from '@/components/StartSessionDialog';
-import AddCustomerDialog from '@/components/customers/AddCustomerDialog';
+import StationMaintenanceDialog from '@/components/station/StationMaintenanceDialog';
 import MoveSessionDialog from '@/components/station/MoveSessionDialog';
-import type { Customer, SessionEndCheckoutMode } from '@/types/pos.types';
+import type { SessionEndCheckoutMode } from '@/types/pos.types';
 import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
 import { getRateForPlayerCount, isTimeBasedPricing } from '@/utils/stationPricing';
 import { getDurationPresets, stationsMatchForMove } from '@/utils/sessionDuration.utils';
@@ -18,6 +18,8 @@ import {
 } from '@/utils/timeBasedPricing.utils';
 import type { StationTheme, StationPhase } from '@/utils/stationTheme';
 import { prefetchPOS, navigateToPOS, sleep, SESSION_TRANSITION } from '@/utils/viewTransition';
+import { useAuth } from '@/context/AuthContext';
+import { isStationInMaintenance } from '@/utils/stationMaintenance.utils';
 
 const EMPTY_OCCUPANCY_RATES: Record<string, number> = {};
 const EMPTY_DURATION_TIERS: { minutes: number; price: number }[] = [];
@@ -66,12 +68,14 @@ const StationActions: React.FC<StationActionsProps> = ({
 }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { selectCustomer, stations, moveSession } = usePOS();
+  const { user } = useAuth();
+  const { selectCustomer, stations, moveSession, startMaintenance, endMaintenance } = usePOS();
   const [isLoading, setIsLoading] = useState(false);
   const [isStartDialogOpen, setIsStartDialogOpen] = useState(false);
-  const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
-  const [preselectedCustomerId, setPreselectedCustomerId] = useState<string | null>(null);
+  const [isMaintenanceDialogOpen, setIsMaintenanceDialogOpen] = useState(false);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+  const inMaintenance = isStationInMaintenance(station);
+  const defaultStartedBy = user?.displayName || user?.username || '';
 
   const canMoveSession = useMemo(
     () =>
@@ -81,7 +85,8 @@ const StationActions: React.FC<StationActionsProps> = ({
           s.category !== 'nit_event' &&
           stationsMatchForMove(s, station) &&
           !s.isOccupied &&
-          !s.currentSession
+          !s.currentSession &&
+          !s.maintenanceMode
       ),
     [stations, station]
   );
@@ -329,18 +334,30 @@ const StationActions: React.FC<StationActionsProps> = ({
 
   const defaultPricing = getRateForPlayerCount(station, 1);
 
-  const handleCustomerAdded = (customer: Customer) => {
-    setPreselectedCustomerId(customer.id);
-    setIsStartDialogOpen(true);
-    toast({
-      title: 'Customer added',
-      description: `${customer.name} — pick duration and start the session.`,
-    });
-  };
-
   const idleBtnRow = footerLayout
     ? 'grid grid-cols-2 gap-2 w-full border-t border-white/8 pt-3'
     : 'grid grid-cols-2 gap-2 w-full';
+
+  if (inMaintenance) {
+    return (
+      <div className={footerLayout ? 'w-full border-t border-amber-500/20 pt-3' : 'w-full'}>
+        <Button
+          type="button"
+          size={footerLayout ? 'default' : 'sm'}
+          className={`w-full ${footerLayout ? 'h-11' : 'h-10'} bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-sm font-semibold text-white`}
+          disabled={isLoading}
+          onClick={() => void endMaintenance(station.id)}
+        >
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+          ) : (
+            <Play className="h-3.5 w-3.5 mr-1.5 fill-current" />
+          )}
+          End maintenance
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -351,14 +368,14 @@ const StationActions: React.FC<StationActionsProps> = ({
           variant="outline"
           className={
             footerLayout
-              ? 'h-11 border-white/15 bg-white/5 text-sm font-semibold text-gray-200 hover:bg-white/10'
-              : 'h-10 border-white/15 bg-white/5 text-xs font-semibold text-gray-200'
+              ? 'h-11 border-amber-500/35 bg-amber-500/10 text-sm font-semibold text-amber-100 hover:bg-amber-500/20'
+              : 'h-10 border-amber-500/35 bg-amber-500/10 text-xs font-semibold text-amber-100'
           }
           disabled={isLoading || isTransitioning}
-          onClick={() => setIsAddCustomerOpen(true)}
+          onClick={() => setIsMaintenanceDialogOpen(true)}
         >
-          <UserPlus className={`mr-1.5 ${footerLayout ? 'h-4 w-4' : 'h-3.5 w-3.5'}`} />
-          Add customer
+          <Wrench className={`mr-1.5 ${footerLayout ? 'h-4 w-4' : 'h-3.5 w-3.5'}`} />
+          Maintenance
         </Button>
         <Button
           type="button"
@@ -367,11 +384,8 @@ const StationActions: React.FC<StationActionsProps> = ({
             theme.accentStyle ? '' : theme.startBtn
           }`}
           style={theme.accentStyle?.startBtnStyle}
-          disabled={isLoading || isTransitioning}
-          onClick={() => {
-            setPreselectedCustomerId(null);
-            setIsStartDialogOpen(true);
-          }}
+          disabled={isLoading || isTransitioning || inMaintenance}
+          onClick={() => setIsStartDialogOpen(true)}
         >
           {isLoading ? (
             <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
@@ -382,18 +396,19 @@ const StationActions: React.FC<StationActionsProps> = ({
         </Button>
       </div>
 
-      <AddCustomerDialog
-        open={isAddCustomerOpen}
-        onOpenChange={setIsAddCustomerOpen}
-        onAdded={handleCustomerAdded}
+      <StationMaintenanceDialog
+        open={isMaintenanceDialogOpen}
+        onOpenChange={setIsMaintenanceDialogOpen}
+        stationName={station.name}
+        defaultStartedBy={defaultStartedBy}
+        onConfirm={(durationMinutes, startedByName) =>
+          startMaintenance(station.id, durationMinutes, startedByName)
+        }
       />
 
       <StartSessionDialog
         open={isStartDialogOpen}
-        onOpenChange={(open) => {
-          setIsStartDialogOpen(open);
-          if (!open) setPreselectedCustomerId(null);
-        }}
+        onOpenChange={setIsStartDialogOpen}
         stationId={station.id}
         stationName={station.name}
         baseRate={defaultPricing.totalRate}
@@ -405,7 +420,6 @@ const StationActions: React.FC<StationActionsProps> = ({
         stationType={station.type}
         pricingMode={station.pricingMode}
         durationTiers={station.durationTiers ?? EMPTY_DURATION_TIERS}
-        initialCustomerId={preselectedCustomerId}
         onConfirm={handleStartSession}
       />
     </>

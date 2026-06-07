@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Trash2, Edit2, ShoppingBag, Globe, CheckSquare, Square as SquareIcon, ArrowRight, Play, GripVertical } from 'lucide-react';
 import EditStationDialog from './EditStationDialog';
 import StationQuickShopDialog from '@/components/station/StationQuickShopDialog';
+import StationMaintenanceTimer from '@/components/station/StationMaintenanceTimer';
+import { isStationInMaintenance } from '@/utils/stationMaintenance.utils';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
@@ -129,6 +131,7 @@ const StationCard: React.FC<StationCardProps> = ({
   const quickShopCount = quickShopItems.reduce((sum, item) => sum + item.quantity, 0);
   const quickShopTotal = quickShopItems.reduce((sum, item) => sum + item.total, 0);
   const isPublicLive = station.eventEnabled ?? (station.category ? false : true);
+  const inMaintenance = isStationInMaintenance(station) && !station.isOccupied;
   const isLive = station.isOccupied || phase === 'live' || phase === 'starting';
   const showSessionBlock = station.isOccupied && session && phase !== 'ending';
   void durationTick;
@@ -239,7 +242,7 @@ const StationCard: React.FC<StationCardProps> = ({
     [endSessionGroup]
   );
 
-  const canSelect = selectionMode && !station.isOccupied && phase === 'idle';
+  const canSelect = selectionMode && !station.isOccupied && !inMaintenance && phase === 'idle';
   const sameTypeCount = stations.filter(
     (s) => (s.type || '').toLowerCase() === (station.type || '').toLowerCase()
   ).length;
@@ -351,6 +354,16 @@ const StationCard: React.FC<StationCardProps> = ({
           />
         )}
 
+        {inMaintenance && phase !== 'ending' && (
+          <div
+            className="pointer-events-none absolute inset-0 rounded-xl opacity-35"
+            style={{
+              background: 'radial-gradient(circle at 50% 0%, rgba(245,158,11,0.28), transparent 72%)',
+            }}
+            aria-hidden
+          />
+        )}
+
         {isPrepaid && showSessionBlock && phase !== 'ending' && (
           <div className="relative z-10 mx-3 mt-2 flex items-center justify-center gap-1.5 rounded-md border border-teal-400/40 bg-teal-950/70 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-teal-100 shadow-[0_0_16px_rgba(45,212,191,0.2)]">
             <span className="relative flex h-1.5 w-1.5">
@@ -358,6 +371,16 @@ const StationCard: React.FC<StationCardProps> = ({
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-teal-400" />
             </span>
             Online pre-paid booking
+          </div>
+        )}
+
+        {inMaintenance && phase !== 'ending' && (
+          <div className="relative z-10 mx-3 mt-2 flex items-center justify-center gap-1.5 rounded-md border border-amber-400/40 bg-amber-950/70 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-100 shadow-[0_0_16px_rgba(245,158,11,0.22)]">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-70" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400" />
+            </span>
+            Under maintenance · hidden from booking
           </div>
         )}
 
@@ -398,7 +421,7 @@ const StationCard: React.FC<StationCardProps> = ({
             />
             <div className="flex items-center justify-between gap-2 rounded-lg border border-white/8 bg-black/25 px-2.5 py-1.5">
               <div className="flex items-center gap-2 min-w-0">
-                {dragEnabled && !station.isOccupied && (
+                {dragEnabled && !station.isOccupied && !inMaintenance && (
                   <span
                     className="flex h-8 w-6 shrink-0 cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing"
                     title="Drag to reorder"
@@ -433,8 +456,8 @@ const StationCard: React.FC<StationCardProps> = ({
                   <span className="truncate text-[11px] text-muted-foreground">On booking page</span>
                   <Switch
                     className="ml-1 scale-90 data-[state=checked]:bg-green-600"
-                    checked={!!isPublicLive}
-                    disabled={isTogglingPublic}
+                    checked={!!isPublicLive && !inMaintenance}
+                    disabled={isTogglingPublic || inMaintenance}
                     onCheckedChange={handleTogglePublicBooking}
                   />
                 </div>
@@ -529,6 +552,8 @@ const StationCard: React.FC<StationCardProps> = ({
                 <div className="flex flex-1 items-center justify-center rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-8 animate-station-content-out">
                   <span className="text-sm font-medium text-red-200/90">Closing session…</span>
                 </div>
+              ) : inMaintenance ? (
+                <StationMaintenanceTimer station={station} prominent />
               ) : (
                 <div className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-white/12 bg-black/25 px-4 py-6 min-h-[130px]">
                   <div
@@ -539,7 +564,7 @@ const StationCard: React.FC<StationCardProps> = ({
                   </div>
                   <p className="mt-3 text-sm font-semibold text-foreground/80">Ready for players</p>
                   <p className="mt-1 text-center text-[11px] text-muted-foreground max-w-[180px]">
-                    Use the actions below to add a customer or start a session
+                    Start a session or put the station into maintenance
                   </p>
                 </div>
               )}

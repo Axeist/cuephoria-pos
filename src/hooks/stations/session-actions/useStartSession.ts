@@ -76,6 +76,15 @@ export const useStartSession = ({
         });
         throw new Error("Station already occupied");
       }
+
+      if (station.maintenanceMode) {
+        toast({
+          title: "Station unavailable",
+          description: "This station is under maintenance.",
+          variant: "destructive",
+        });
+        throw new Error("Station under maintenance");
+      }
       
       const startTime = (() => {
         if (!customStartTime) return new Date();

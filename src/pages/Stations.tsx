@@ -191,7 +191,7 @@ const Stations = () => {
   }, []);
 
   const selectedStations = useMemo(
-    () => visibleStations.filter((s) => selectedStationIds.has(s.id) && !s.isOccupied),
+    () => visibleStations.filter((s) => selectedStationIds.has(s.id) && !s.isOccupied && !s.maintenanceMode),
     [visibleStations, selectedStationIds]
   );
 

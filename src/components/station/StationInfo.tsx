@@ -1,7 +1,7 @@
 import React from 'react';
 import { Station } from '@/context/POSContext';
 import { Badge } from '@/components/ui/badge';
-import { Tag, Zap, Users, CreditCard } from 'lucide-react';
+import { Tag, Zap, Users, CreditCard, Wrench } from 'lucide-react';
 import { getStationTheme, stationPricingBadge, themeIconBgProps, themeText, type StationPhase } from '@/utils/stationTheme';
 import SessionRateBadge from '@/components/station/SessionRateBadge';
 import { isPrepaidSession, formatBookingSlotLabel } from '@/utils/prepaidBooking.utils';
@@ -31,11 +31,14 @@ const StationInfo: React.FC<StationInfoProps> = ({
   const isStarting = phase === 'starting';
   const prepaid = station.currentSession?.prepaidBooking;
   const isPrepaid = isPrepaidSession(station.currentSession);
+  const inMaintenance = Boolean(station.maintenanceMode) && !station.isOccupied;
 
   const statusBadge = isPaused
     ? 'bg-amber-500/30 text-amber-100 border-amber-400/50'
     : isPrepaid
       ? 'bg-teal-500/25 text-teal-100 border-teal-400/45'
+      : inMaintenance
+        ? 'bg-orange-500/25 text-orange-100 border-orange-400/45'
       : station.isOccupied || phase === 'live' || isStarting
         ? theme.badgeOccupied
         : theme.textPalette
@@ -45,6 +48,7 @@ const StationInfo: React.FC<StationInfoProps> = ({
   const statusBadgeStyle =
     !isPaused &&
     !isPrepaid &&
+    !inMaintenance &&
     !station.isOccupied &&
     phase !== 'live' &&
     !isStarting &&
@@ -56,6 +60,8 @@ const StationInfo: React.FC<StationInfoProps> = ({
     ? 'Paused'
     : isPrepaid
       ? 'Pre-paid'
+      : inMaintenance
+        ? 'Maintenance'
       : isStarting
         ? 'Booting'
         : station.isOccupied
@@ -103,6 +109,7 @@ const StationInfo: React.FC<StationInfoProps> = ({
               {(station.isOccupied || isStarting) && !isPaused && !isPrepaid && (
                 <Zap className="h-2.5 w-2.5 fill-current" />
               )}
+              {inMaintenance && !isPaused && <Wrench className="h-2.5 w-2.5" />}
               {isPrepaid && !isPaused && <CreditCard className="h-2.5 w-2.5" />}
               {statusLabel}
             </Badge>

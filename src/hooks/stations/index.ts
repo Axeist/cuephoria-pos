@@ -7,6 +7,8 @@ import { useState, useEffect } from 'react';
 import { useLocation } from '@/context/LocationContext';
 import { mergeStationActiveSession } from '@/utils/sessionStorage.utils';
 
+import { useStationMaintenance } from './useStationMaintenance';
+
 export const useStations = (initialStations: Station[] = [], updateCustomer: (customer: Customer) => void) => {
   const { activeLocationId } = useLocation();
   const { 
@@ -119,6 +121,11 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
     updateCustomer
   });
 
+  const { startMaintenance, endMaintenance } = useStationMaintenance({
+    stations,
+    setStations,
+  });
+
   return {
     stations,
     setStations,
@@ -131,6 +138,8 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
     resumeSession,
     extendSession,
     moveSession,
+    startMaintenance,
+    endMaintenance,
     deleteStation,
     updateStation,
     stationsLoading,

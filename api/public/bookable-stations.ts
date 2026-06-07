@@ -42,7 +42,7 @@ export default async function handler(req: Request) {
     const { data: rows, error: stError } = await supabase
       .from("stations")
       .select(
-        "id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate, category, event_enabled, slot_duration, max_players, occupancy_rates, pricing_mode"
+        "id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate, category, event_enabled, slot_duration, max_players, occupancy_rates, pricing_mode, maintenance_mode"
       )
       .eq("location_id", resolved.id)
       .order("name");
