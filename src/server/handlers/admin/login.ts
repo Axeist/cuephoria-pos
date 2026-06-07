@@ -86,6 +86,7 @@ export default async function handler(req: Request) {
       username: string;
       is_admin: boolean | null;
       is_super_admin: boolean | null;
+      is_sandbox_user: boolean | null;
       email: string | null;
       display_name: string | null;
       designation: string | null;
@@ -101,7 +102,7 @@ export default async function handler(req: Request) {
       const r = await supabase
         .from("admin_users")
         .select(
-          "id, username, is_admin, is_super_admin, email, display_name, designation, email_verified_at, password, password_hash, must_change_password, password_version",
+          "id, username, is_admin, is_super_admin, is_sandbox_user, email, display_name, designation, email_verified_at, password, password_hash, must_change_password, password_version",
         )
         .eq("email", emailNorm)
         .eq("is_admin", isAdminLogin)
@@ -112,7 +113,7 @@ export default async function handler(req: Request) {
       const r = await supabase
         .from("admin_users")
         .select(
-          "id, username, is_admin, is_super_admin, email, display_name, designation, email_verified_at, password, password_hash, must_change_password, password_version",
+          "id, username, is_admin, is_super_admin, is_sandbox_user, email, display_name, designation, email_verified_at, password, password_hash, must_change_password, password_version",
         )
         .eq("username", rawIdentifier)
         .eq("is_admin", isAdminLogin)
@@ -180,6 +181,34 @@ export default async function handler(req: Request) {
 
     if (!loginSuccess || !userRow) {
       return j({ ok: true, success: false }, 200);
+    }
+
+    if (userRow.is_sandbox_user) {
+      const { data: grant } = await supabase
+        .from("sandbox_access_grants")
+        .select("expires_at, revoked_at")
+        .eq("admin_user_id", userRow.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const revoked = !!grant?.revoked_at;
+      const expiresMs = grant?.expires_at ? new Date(grant.expires_at).getTime() : NaN;
+      const expired = !grant || revoked || (Number.isFinite(expiresMs) && expiresMs <= Date.now());
+
+      if (expired) {
+        return j(
+          {
+            ok: true,
+            success: false,
+            error: revoked
+              ? "This demo access has been revoked."
+              : "Your demo access has expired. Contact Cuetronix for a new sandbox.",
+            code: "sandbox_expired",
+          },
+          200,
+        );
+      }
     }
 
     if (userRow.email && !userRow.email_verified_at) {

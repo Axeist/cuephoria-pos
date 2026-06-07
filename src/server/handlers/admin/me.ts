@@ -10,7 +10,9 @@ import {
   fetchBillingAccessGraceMinutes,
 } from "../../lib/platformBillingGrace";
 import { resolveOrgContext } from "../../orgContext";
+import { entitlementsToClientPayload, resolveEntitlements } from "../../lib/entitlements.js";
 import { supabaseServiceClient } from "../../supabaseServer";
+import { isInternalOrganization } from "../../../types/tenancy.js";
 
 export const config = { runtime: "edge" };
 
@@ -95,6 +97,7 @@ export default async function handler(req: Request) {
       slug: string;
       name: string | null;
       isInternal: boolean;
+      isSandbox: boolean;
       role: string;
       onboardingCompletedAt: string | null;
       businessType: string | null;
@@ -129,6 +132,8 @@ export default async function handler(req: Request) {
       cancelAtPeriodEnd: boolean;
     } | null = null;
 
+    let entitlements: ReturnType<typeof entitlementsToClientPayload> | null = null;
+
     let billingAccessGraceMinutes: number | null = null;
 
     try {
@@ -150,6 +155,7 @@ export default async function handler(req: Request) {
           branding: Record<string, unknown>;
           trialEndsAt: string | null;
           status: string | null;
+          isSandbox: boolean;
         } = {
           name: null,
           onboardingCompletedAt: null,
@@ -157,11 +163,12 @@ export default async function handler(req: Request) {
           branding: {},
           trialEndsAt: null,
           status: null,
+          isSandbox: ctx.isSandbox,
         };
         try {
           const { data: orgRow } = await ctx.supabase
             .from("organizations")
-            .select("name, onboarding_completed_at, business_type, branding, trial_ends_at, status")
+            .select("name, onboarding_completed_at, business_type, branding, trial_ends_at, status, is_sandbox")
             .eq("id", ctx.organizationId)
             .maybeSingle();
           if (orgRow) {
@@ -172,6 +179,7 @@ export default async function handler(req: Request) {
               branding: (orgRow.branding as Record<string, unknown>) ?? {},
               trialEndsAt: orgRow.trial_ends_at ?? null,
               status: orgRow.status ?? null,
+              isSandbox: !!(orgRow as { is_sandbox?: boolean }).is_sandbox || ctx.isSandbox,
             };
           }
         } catch (extraErr) {
@@ -181,10 +189,21 @@ export default async function handler(req: Request) {
         organization = {
           id: ctx.organizationId,
           slug: ctx.organizationSlug,
-          isInternal: ctx.isInternal,
+          isInternal: isInternalOrganization(ctx.organizationSlug, ctx.isInternal),
+          isSandbox: extras.isSandbox,
           role: ctx.role,
           ...extras,
         };
+
+        try {
+          const resolved = await resolveEntitlements(ctx.supabase, ctx.organizationId, {
+            isInternal: isInternalOrganization(ctx.organizationSlug, ctx.isInternal),
+            isSandbox: extras.isSandbox,
+          });
+          if (resolved) entitlements = entitlementsToClientPayload(resolved);
+        } catch (entErr) {
+          console.warn("me.ts: non-fatal entitlements lookup", entErr);
+        }
 
         // Subscription snapshot — used by the client-side SubscriptionGate.
         // SELECT * so missing lifecycle columns (razorpay_status,
@@ -277,6 +296,7 @@ export default async function handler(req: Request) {
         },
         organization,
         subscription,
+        entitlements,
         billingAccessGraceMinutes:
           billingAccessGraceMinutes ?? DEFAULT_BILLING_ACCESS_GRACE_MINUTES,
         workspaceMemberships,

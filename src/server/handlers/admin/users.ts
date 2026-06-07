@@ -16,6 +16,7 @@ import {
   syncStaffProfileFromAdminUser,
 } from "../../staffProfileSync";
 import { supabaseServiceClient, SupabaseConfigError } from "../../supabaseServer";
+import { assertEntitlement, assertFeatureLimit } from "../../lib/entitlements.js";
 
 export const config = { runtime: "edge" };
 
@@ -165,13 +166,14 @@ export default async function handler(req: Request) {
 
       let usersQuery = await supabase
         .from("admin_users")
-        .select("id, username, email, email_verified_at, display_name, designation, is_admin, is_super_admin, is_platform_backdoor")
+        .select("id, username, email, email_verified_at, display_name, designation, is_admin, is_super_admin, is_platform_backdoor, is_sandbox_user")
         .in("id", allowedIds)
         .eq("is_platform_backdoor", false)
+        .eq("is_sandbox_user", false)
         .order("is_admin", { ascending: false })
         .order("username", { ascending: true });
 
-      if (usersQuery.error?.message?.includes("is_platform_backdoor")) {
+      if (usersQuery.error?.message?.includes("is_platform_backdoor") || usersQuery.error?.message?.includes("is_sandbox_user")) {
         usersQuery = await supabase
           .from("admin_users")
           .select("id, username, email, email_verified_at, display_name, designation, is_admin, is_super_admin")
@@ -183,7 +185,9 @@ export default async function handler(req: Request) {
       const { data: users, error: usersErr } = usersQuery;
       if (usersErr) return j({ ok: false, error: usersErr.message }, 500);
 
-      const userIds = (users ?? []).map((u) => u.id);
+      const filteredUsers = (users ?? []).filter(
+        (u) => !(u as { is_sandbox_user?: boolean }).is_sandbox_user,
+      );
 
       const staffPinByAdminId: Record<
         string,
@@ -230,7 +234,7 @@ export default async function handler(req: Request) {
         if (loc) userLocations[link.admin_user_id]!.push(loc);
       }
 
-      const result = (users ?? []).map((u) => {
+      const result = filteredUsers.map((u) => {
         const staffLink = staffPinByAdminId[u.id];
         return {
           id: u.id,
@@ -338,6 +342,24 @@ export default async function handler(req: Request) {
           },
           403,
         );
+      }
+
+      if (!isAdmin && !isSuperAdmin) {
+        const staffGate = await assertEntitlement(ctx, "staff_hr_enabled");
+        if (staffGate) {
+          await supabase.from("admin_users").delete().eq("id", newUser.id);
+          return staffGate;
+        }
+      }
+
+      const { count: memberCount } = await ctx.supabase
+        .from("org_memberships")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", ctx.organizationId);
+      const seatGate = await assertFeatureLimit(ctx, "max_admin_seats", memberCount ?? 0);
+      if (seatGate) {
+        await supabase.from("admin_users").delete().eq("id", newUser.id);
+        return seatGate;
       }
 
       const orgRole: "admin" | "staff" = isAdmin || isSuperAdmin ? "admin" : "staff";

@@ -21,6 +21,8 @@ import {
   parseCookies,
   verifyAdminSession,
 } from "../../adminApiUtils";
+import { resolveOrgContext } from "../../orgContext";
+import { assertEntitlement } from "../../lib/entitlements.js";
 
 export const config = { runtime: "edge" };
 
@@ -71,6 +73,13 @@ export default async function handler(req: Request): Promise<Response> {
   if (!session) {
     return j({ ok: false, error: "Session expired" }, 401);
   }
+
+  const ctx = await resolveOrgContext(req);
+  if ("code" in ctx) {
+    return j({ ok: false, error: ctx.message || "Could not resolve workspace." }, ctx.status);
+  }
+  const aiGate = await assertEntitlement(ctx, "premium_modules_enabled");
+  if (aiGate) return aiGate;
 
   // --- 2. Config -----------------------------------------------------------
   const apiKey = getEnv("OPENROUTER_API_KEY");

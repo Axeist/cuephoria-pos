@@ -36,6 +36,7 @@ import {
   parseCookies,
   verifyAdminSession,
 } from "./adminApiUtils.js";
+import { isInternalOrganization } from "../types/tenancy.js";
 
 export type OrgMembershipRole = "owner" | "admin" | "manager" | "staff" | "read_only";
 
@@ -48,6 +49,8 @@ export type OrgContext = {
   organizationSlug: string;
   /** Whether this organization is the internal Cuephoria org (bypasses gates). */
   isInternal: boolean;
+  /** Demo/sales sandbox — bypasses Razorpay subscription gate. */
+  isSandbox: boolean;
   /** The caller's role inside the active organization. */
   role: OrgMembershipRole;
   /**
@@ -140,14 +143,14 @@ export async function resolveOrgContext(
   // can lock suspended workspaces without paying for a second SELECT.
   const { data: memberships, error: memErr } = await supabase
     .from("org_memberships")
-    .select("organization_id, role, organizations:organization_id (id, slug, is_internal, status)")
+    .select("organization_id, role, organizations:organization_id (id, slug, is_internal, is_sandbox, status)")
     .eq("admin_user_id", user.id);
 
   if (memErr) {
     return { code: "db", status: 500, message: memErr.message };
   }
 
-  type OrgRow = { id: string; slug: string; is_internal: boolean; status: string | null };
+  type OrgRow = { id: string; slug: string; is_internal: boolean; is_sandbox?: boolean; status: string | null };
   type MembershipRow = {
     organization_id: string;
     role: OrgMembershipRole;
@@ -162,7 +165,8 @@ export async function resolveOrgContext(
     return [{
       id: o.id,
       slug: o.slug,
-      isInternal: !!o.is_internal,
+      isInternal: isInternalOrganization(o.slug, o.is_internal),
+      isSandbox: !!o.is_sandbox,
       status: o.status ?? null,
       role: r.role,
     }];
@@ -180,7 +184,7 @@ export async function resolveOrgContext(
   if (!picked && user.isSuperAdmin) {
     const { data: cue, error: cueErr } = await supabase
       .from("organizations")
-      .select("id, slug, is_internal, status")
+      .select("id, slug, is_internal, is_sandbox, status")
       .eq("slug", "cuephoria")
       .maybeSingle();
     if (cueErr) return { code: "db", status: 500, message: cueErr.message };
@@ -188,7 +192,8 @@ export async function resolveOrgContext(
       picked = {
         id: cue.id,
         slug: cue.slug,
-        isInternal: !!cue.is_internal,
+        isInternal: isInternalOrganization(cue.slug, cue.is_internal),
+        isSandbox: !!cue.is_sandbox,
         status: cue.status ?? null,
         role: "owner",
       };
@@ -208,6 +213,7 @@ export async function resolveOrgContext(
     organizationId: picked.id,
     organizationSlug: picked.slug,
     isInternal: picked.isInternal,
+    isSandbox: picked.isSandbox,
     role: picked.role,
     status: picked.status,
     isSuspended: picked.status === "suspended" && !picked.isInternal,

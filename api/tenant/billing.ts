@@ -46,6 +46,8 @@
 
 import { j } from "../../src/server/adminApiUtils.js";
 import { withOrgContext, type OrgContext } from "../../src/server/orgContext.js";
+import { applyPlanChange } from "../../src/server/lib/planChange.js";
+import { isInternalOrganization } from "../../src/types/tenancy.js";
 import { getRazorpayCredentials } from "../../src/server/lib/razorpay-credentials.js";
 import {
   buildSubscriptionNotes,
@@ -348,7 +350,7 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
         "organizations",
         supabase
           .from("organizations")
-          .select("id, slug, name, currency, country, status, is_internal, trial_ends_at")
+          .select("id, slug, name, currency, country, status, is_internal, is_sandbox, trial_ends_at")
           .eq("id", ctx.organizationId)
           .maybeSingle(),
       ),
@@ -499,6 +501,20 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
         return rest;
       })()
     : null;
+
+  let sandboxExpiresAt: string | null = null;
+  if ((orgQ.data as { is_sandbox?: boolean })?.is_sandbox) {
+    const { data: grant } = await supabase
+      .from("sandbox_access_grants")
+      .select("expires_at")
+      .eq("organization_id", ctx.organizationId)
+      .is("revoked_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    sandboxExpiresAt = grant?.expires_at ?? null;
+  }
+
   return j(
     {
       ok: true,
@@ -513,6 +529,7 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
       billingContactEmail,
       billingPrefillName,
       billingAccessGraceMinutes,
+      sandboxExpiresAt,
     },
     200,
   );
@@ -565,6 +582,8 @@ async function postBilling(req: Request, ctx: OrgContext): Promise<Response> {
       return fetchInvoicesAction(ctx);
     case "sync-subscription":
       return syncSubscriptionAction(ctx);
+    case "sandbox-switch-plan":
+      return sandboxSwitchPlanAction(ctx, body);
     case "record-checkout-dismiss":
       return recordCheckoutDismissAction(ctx);
     default:
@@ -667,7 +686,7 @@ async function createOrRenewAction(
   creds: ReturnType<typeof getRazorpayCredentials>,
   isRenewExplicit: boolean,
 ): Promise<Response> {
-  if (ctx.isInternal) {
+  if (isInternalOrganization(ctx.organizationSlug, ctx.isInternal)) {
     return j(
       { ok: false, error: "This workspace is managed internally and is not billed via Razorpay." },
       400,
@@ -820,7 +839,7 @@ async function createOrRenewAction(
 }
 
 async function recordCheckoutDismissAction(ctx: OrgContext): Promise<Response> {
-  if (ctx.isInternal) return j({ ok: true, skipped: true, reason: "internal" }, 200);
+  if (isInternalOrganization(ctx.organizationSlug, ctx.isInternal)) return j({ ok: true, skipped: true, reason: "internal" }, 200);
 
   const { data: row, error } = await ctx.supabase
     .from("subscriptions")
@@ -897,7 +916,7 @@ async function verifyPaymentAction(
 // ---------------------------------------------------------------------------
 
 async function upgradeAction(ctx: OrgContext, body: Record<string, unknown>): Promise<Response> {
-  if (ctx.isInternal) {
+  if (isInternalOrganization(ctx.organizationSlug, ctx.isInternal)) {
     return j({ ok: false, error: "Internal workspaces have no Razorpay subscription to upgrade." }, 400);
   }
   const tier = normaliseTier(body.planTier ?? body.tier ?? body.planCode);
@@ -1028,7 +1047,7 @@ async function cancelScheduledChangeAction(ctx: OrgContext): Promise<Response> {
 // ---------------------------------------------------------------------------
 
 async function cancelAction(ctx: OrgContext): Promise<Response> {
-  if (ctx.isInternal) {
+  if (isInternalOrganization(ctx.organizationSlug, ctx.isInternal)) {
     return j({ ok: false, error: "Internal workspaces have no Razorpay subscription to cancel." }, 400);
   }
   const { data: sub, error } = await ctx.supabase
@@ -1080,7 +1099,7 @@ async function cancelAction(ctx: OrgContext): Promise<Response> {
 // ---------------------------------------------------------------------------
 
 async function pauseAction(ctx: OrgContext): Promise<Response> {
-  if (ctx.isInternal) {
+  if (isInternalOrganization(ctx.organizationSlug, ctx.isInternal)) {
     return j({ ok: false, error: "Internal workspaces cannot pause billing." }, 400);
   }
   const { data: sub, error } = await ctx.supabase
@@ -1121,7 +1140,7 @@ async function pauseAction(ctx: OrgContext): Promise<Response> {
 }
 
 async function resumeAction(ctx: OrgContext): Promise<Response> {
-  if (ctx.isInternal) {
+  if (isInternalOrganization(ctx.organizationSlug, ctx.isInternal)) {
     return j({ ok: false, error: "Internal workspaces have no billing to resume." }, 400);
   }
   const { data: sub, error } = await ctx.supabase
@@ -1192,6 +1211,45 @@ async function resumeAction(ctx: OrgContext): Promise<Response> {
   });
 
   return j({ ok: true, message: "Subscription resumed." }, 200);
+}
+
+async function sandboxSwitchPlanAction(
+  ctx: OrgContext,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  if (!ctx.isSandbox) {
+    return j({ ok: false, error: "Plan switching without payment is only available in demo workspaces." }, 403);
+  }
+
+  const planCode = String(body.planCode ?? body.planTier ?? "").trim().toLowerCase();
+  if (!planCode) return j({ ok: false, error: "planCode is required." }, 400);
+  if (!["starter", "growth", "pro"].includes(planCode)) {
+    return j({ ok: false, error: "Demo workspaces can switch between Starter, Growth, and Pro." }, 400);
+  }
+
+  const result = await applyPlanChange(ctx.supabase, ctx.organizationId, planCode, {
+    confirm: body.confirm === true,
+  });
+
+  if (!result.ok) {
+    return j(
+      { ok: false, error: result.error, warnings: result.warnings },
+      result.status,
+    );
+  }
+
+  await ctx.supabase.from("audit_log").insert({
+    actor_type: "admin_user",
+    actor_id: ctx.user.id,
+    actor_label: ctx.user.username,
+    organization_id: ctx.organizationId,
+    action: "sandbox.plan_switched",
+    target_type: "subscription",
+    target_id: String(result.subscription.id ?? ctx.organizationId),
+    meta: { planCode, warnings: result.warnings },
+  });
+
+  return j({ ok: true, subscription: result.subscription, warnings: result.warnings }, 200);
 }
 
 // ---------------------------------------------------------------------------

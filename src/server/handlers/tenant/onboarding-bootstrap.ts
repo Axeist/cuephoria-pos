@@ -1,5 +1,6 @@
 import { j } from "../../adminApiUtils";
 import { withOrgContext, type OrgContext } from "../../orgContext";
+import { assertFeatureLimit } from "../../lib/entitlements.js";
 
 export const config = { runtime: "edge" };
 
@@ -153,6 +154,13 @@ async function handler(req: Request, ctx: OrgContext): Promise<Response> {
   }
 
   if (stations.length) {
+    const { count: stationCount } = await ctx.supabase
+      .from("stations")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", ctx.organizationId);
+    const stationGate = await assertFeatureLimit(ctx, "max_stations", stationCount ?? 0);
+    if (stationGate) return stationGate;
+
     const { data: existingStations } = await ctx.supabase
       .from("stations")
       .select("name")

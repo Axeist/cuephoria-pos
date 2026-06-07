@@ -6,6 +6,8 @@ import {
   parseCookies,
   verifyAdminSession,
 } from "../../adminApiUtils";
+import { resolveOrgContext } from "../../orgContext";
+import { assertEntitlement } from "../../lib/entitlements.js";
 
 export const config = { runtime: "edge" };
 
@@ -32,6 +34,14 @@ export default async function handler(req: Request) {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { "x-application-name": "cuephoria-admin-api" } },
     });
+
+    const ctx = await resolveOrgContext(req);
+    if ("code" in ctx) {
+      return j({ ok: false, error: ctx.message || "Could not resolve workspace." }, ctx.status);
+    }
+
+    const bookingGate = await assertEntitlement(ctx, "bookings_enabled");
+    if (bookingGate) return bookingGate;
 
     // GET: fetch booking settings for a branch (?location_id=uuid)
     if (req.method === "GET") {

@@ -6,6 +6,8 @@ import {
 } from "../../adminApiUtils";
 import { portalPinsMatch } from "../../staffPortalPin";
 import { supabaseServiceClient } from "../../supabaseServer";
+import { resolveOrgContext } from "../../orgContext";
+import { assertEntitlement } from "../../lib/entitlements.js";
 
 export const config = { runtime: "edge" };
 
@@ -33,6 +35,13 @@ export default async function handler(req: Request) {
     if (!sessionUser) return j({ ok: false, error: "Unauthorized" }, 401);
 
     const supabase = supabaseServiceClient("cuephoria-staff-portal");
+
+    const ctx = await resolveOrgContext(req);
+    if ("code" in ctx) {
+      return j({ ok: false, error: ctx.message || "Could not resolve workspace." }, ctx.status);
+    }
+    const staffGate = await assertEntitlement(ctx, "staff_hr_enabled");
+    if (staffGate) return staffGate;
 
     if (req.method === "GET") {
       const { data: profile, error } = await supabase

@@ -22,6 +22,7 @@ const PlatformAdmins = lazy(() => import("@/pages/platform/PlatformAdmins"));
 const PlatformOrgDetail = lazy(() => import("@/pages/platform/PlatformOrgDetail"));
 const PlatformPlans = lazy(() => import("@/pages/platform/PlatformPlans"));
 const PlatformBroadcasts = lazy(() => import("@/pages/platform/PlatformBroadcasts"));
+const PlatformSandbox = lazy(() => import("@/pages/platform/PlatformSandbox"));
 import { flags } from "@/config/featureFlags";
 import { AppHeader } from "@/components/AppHeader";
 import { POSProvider } from "@/context/POSContext";
@@ -31,6 +32,8 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/AppSidebar";
 import SidebarTourOverlay from "@/components/onboarding/SidebarTourOverlay";
 import SubscriptionGate from "@/components/SubscriptionGate";
+import { PlanFeatureGate } from "@/components/PlanFeatureGate";
+import { isInternalOrganization } from "@/types/tenancy";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { initializeMobileApp, isNativePlatform } from "@/utils/capacitor";
 import SplashScreen from "@/components/SplashScreen";
@@ -263,7 +266,7 @@ const OnboardingGate: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (status === "loading") return <>{children}</>;
   if (!organization) return <>{children}</>;
-  if (organization.isInternal) return <>{children}</>;
+  if (isInternalOrganization(organization.slug, organization.isInternal)) return <>{children}</>;
   if (organization.onboardingCompletedAt) return <>{children}</>;
 
   // Owners + admins get redirected to the wizard; lower roles just see the
@@ -491,6 +494,16 @@ const App = () => {
                               <PlatformProtectedRoute>
                                 <LazyPage>
                                   <PlatformBroadcasts />
+                                </LazyPage>
+                              </PlatformProtectedRoute>
+                            }
+                          />
+                          <Route
+                            path="sandbox"
+                            element={
+                              <PlatformProtectedRoute>
+                                <LazyPage>
+                                  <PlatformSandbox />
                                 </LazyPage>
                               </PlatformProtectedRoute>
                             }
@@ -819,7 +832,9 @@ const App = () => {
                     path="/booking-management"
                     element={
                       <LazyPage>
-                        <BookingManagement />
+                        <PlanFeatureGate feature="bookings_enabled">
+                          <BookingManagement />
+                        </PlanFeatureGate>
                       </LazyPage>
                     }
                   />
@@ -835,7 +850,9 @@ const App = () => {
                     path="/chat-ai"
                     element={
                       <LazyPage>
-                        <ChatAI />
+                        <PlanFeatureGate feature="premium_modules_enabled">
+                          <ChatAI />
+                        </PlanFeatureGate>
                       </LazyPage>
                     }
                   />
@@ -886,7 +903,9 @@ const App = () => {
                     path="/staff"
                     element={
                       <LazyPage>
-                        <StaffManagement />
+                        <PlanFeatureGate feature="staff_hr_enabled">
+                          <StaffManagement />
+                        </PlanFeatureGate>
                       </LazyPage>
                     }
                   />
@@ -897,7 +916,9 @@ const App = () => {
                     path="/staff-portal"
                     element={
                       <LazyPage>
-                        <StaffPortal />
+                        <PlanFeatureGate feature="staff_hr_enabled">
+                          <StaffPortal />
+                        </PlanFeatureGate>
                       </LazyPage>
                     }
                   />

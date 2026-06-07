@@ -23,12 +23,14 @@ import React, {
 } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { type WorkspaceMembershipBrief, parseWorkspaceMembershipsPayload } from "@/lib/tenantPortalLabels";
+import { isInternalOrganization } from "@/types/tenancy";
 
 export type ActiveOrganization = {
   id: string;
   slug: string;
   name?: string | null;
   isInternal: boolean;
+  isSandbox?: boolean;
   role: "owner" | "admin" | "manager" | "staff" | "read_only" | string;
   onboardingCompletedAt?: string | null;
   businessType?: string | null;
@@ -71,11 +73,20 @@ export type ActiveSubscription = {
   cancelAtPeriodEnd: boolean;
 };
 
+export type ClientEntitlements = {
+  planCode: string;
+  planTier: string;
+  isInternal: boolean;
+  isSandbox: boolean;
+  features: Record<string, boolean | number>;
+};
+
 export type OrganizationStatus = "loading" | "ready" | "no_org" | "error";
 
 type OrganizationContextValue = {
   organization: ActiveOrganization | null;
   subscription: ActiveSubscription | null;
+  entitlements: ClientEntitlements | null;
   /** Fleet-wide minutes; used by SubscriptionGate grace windows */
   billingAccessGraceMinutes: number;
   /** All workspaces this account belongs to (sign-in clarity for multi-org operators). */
@@ -91,6 +102,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const { user } = useAuth();
   const [organization, setOrganization] = useState<ActiveOrganization | null>(null);
   const [subscription, setSubscription] = useState<ActiveSubscription | null>(null);
+  const [entitlements, setEntitlements] = useState<ClientEntitlements | null>(null);
   const [workspaceMemberships, setWorkspaceMemberships] = useState<WorkspaceMembershipBrief[]>([]);
   const [billingAccessGraceMinutes, setBillingAccessGraceMinutes] = useState(60);
   const [status, setStatus] = useState<OrganizationStatus>("loading");
@@ -101,6 +113,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (!user) {
       setOrganization(null);
       setSubscription(null);
+      setEntitlements(null);
       setWorkspaceMemberships([]);
       setBillingAccessGraceMinutes(60);
       setStatus("no_org");
@@ -127,6 +140,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         if (!org) {
           setOrganization(null);
           setSubscription(null);
+      setEntitlements(null);
           setWorkspaceMemberships(parseWorkspaceMembershipsPayload(json.workspaceMemberships));
           setBillingAccessGraceMinutes(60);
           setStatus("no_org");
@@ -136,7 +150,8 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           id: String(org.id),
           slug: String(org.slug),
           name: org.name ?? null,
-          isInternal: !!org.isInternal,
+          isInternal: isInternalOrganization(String(org.slug), org.isInternal),
+          isSandbox: !!org.isSandbox,
           role: org.role || "staff",
           onboardingCompletedAt: org.onboardingCompletedAt ?? null,
           businessType: org.businessType ?? null,
@@ -145,6 +160,33 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           status: org.status ?? null,
         });
         setWorkspaceMemberships(parseWorkspaceMembershipsPayload(json.workspaceMemberships));
+        const ent = json.entitlements;
+        const orgIsInternal = isInternalOrganization(String(org.slug), org.isInternal);
+        if (ent && typeof ent === "object" && ent.features) {
+          setEntitlements({
+            planCode: String(ent.planCode ?? "starter"),
+            planTier: String(ent.planTier ?? "starter"),
+            isInternal: orgIsInternal || !!ent.isInternal,
+            isSandbox: !!ent.isSandbox,
+            features: ent.features as Record<string, boolean | number>,
+          });
+        } else if (orgIsInternal) {
+          const features = Object.fromEntries(
+            ["bookings_enabled", "staff_hr_enabled", "premium_modules_enabled", "max_branches", "max_stations", "max_admin_seats"].map((k) => [
+              k,
+              k.startsWith("max_") ? 999 : true,
+            ]),
+          );
+          setEntitlements({
+            planCode: "internal",
+            planTier: "internal",
+            isInternal: true,
+            isSandbox: false,
+            features,
+          });
+        } else {
+          setEntitlements(null);
+        }
         const sub = json.subscription;
         if (sub && typeof sub === "object") {
           setSubscription({
@@ -187,6 +229,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       } catch (e) {
         setOrganization(null);
         setSubscription(null);
+      setEntitlements(null);
         setWorkspaceMemberships([]);
         setBillingAccessGraceMinutes(60);
         setStatus("error");
@@ -223,13 +266,14 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     () => ({
       organization,
       subscription,
+      entitlements,
       billingAccessGraceMinutes,
       workspaceMemberships,
       status,
       error,
       refresh: load,
     }),
-    [organization, subscription, billingAccessGraceMinutes, workspaceMemberships, status, error, load],
+    [organization, subscription, entitlements, billingAccessGraceMinutes, workspaceMemberships, status, error, load],
   );
 
   return <OrganizationContext.Provider value={value}>{children}</OrganizationContext.Provider>;

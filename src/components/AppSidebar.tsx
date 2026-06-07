@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { useEntitlements } from '@/hooks/useEntitlements';
 import {
   Home,
   ShoppingCart,
@@ -131,6 +132,8 @@ const AppSidebar: React.FC = () => {
 
   if (!user || shouldHide) return null;
 
+  const { can } = useEntitlements();
+
   const baseMenuItems = [
     { icon: Home, label: 'Dashboard', path: '/dashboard' },
     { icon: ShoppingCart, label: 'POS', path: '/pos' },
@@ -138,14 +141,14 @@ const AppSidebar: React.FC = () => {
     { icon: Package, label: 'Products', path: '/products' },
     { icon: Users, label: 'Customers', path: '/customers' },
     { icon: BarChart2, label: 'Reports', path: '/reports' },
-    { icon: Calendar, label: 'Bookings', path: '/booking-management' },
+    ...(can('bookings_enabled') ? [{ icon: Calendar, label: 'Bookings', path: '/booking-management' }] : []),
   ];
 
   const menuItems = [
     ...baseMenuItems,
-    ...(isAdmin ? [{ icon: Users2, label: 'Staff Management', path: '/staff' }] : []),
-    ...(!isAdmin ? [{ icon: UserCircle, label: 'My Portal', path: '/staff-portal' }] : []),
-    { icon: Bot, label: 'Cuephoria AI', path: '/chat-ai' },
+    ...(isAdmin && can('staff_hr_enabled') ? [{ icon: Users2, label: 'Staff Management', path: '/staff' }] : []),
+    ...(!isAdmin && can('staff_hr_enabled') ? [{ icon: UserCircle, label: 'My Portal', path: '/staff-portal' }] : []),
+    ...(can('premium_modules_enabled') ? [{ icon: Bot, label: 'Cuephoria AI', path: '/chat-ai' }] : []),
     ...(isAdmin ? [{ icon: CreditCard, label: 'Subscription', path: '/subscription' }] : []),
     { icon: Settings, label: 'Settings', path: '/settings' },
     { icon: BookOpen, label: 'How to Use', path: '/how-to-use' },

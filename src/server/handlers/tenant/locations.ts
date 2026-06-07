@@ -7,6 +7,7 @@
 import { j } from "../../adminApiUtils";
 import { getPlanFeature, withOrgContext, type OrgContext } from "../../orgContext";
 import { slugifyBranch } from "../../../utils/publicBookingPopups";
+import { isInternalOrganization } from "../../../types/tenancy.js";
 
 export const config = { runtime: "edge" };
 
@@ -35,7 +36,7 @@ async function resolveMaxBranchesFromPlanId(
 }
 
 async function resolvePlanMaxBranches(ctx: OrgContext): Promise<number> {
-  if (ctx.isInternal) return INTERNAL_MAX_BRANCHES;
+  if (isInternalOrganization(ctx.organizationSlug, ctx.isInternal)) return INTERNAL_MAX_BRANCHES;
   const raw = await getPlanFeature<number | string>(ctx, "max_branches");
   const n = Number(raw ?? 0);
   return Number.isFinite(n) && n > 0 ? n : 0;
@@ -100,7 +101,7 @@ async function resolveBranchLimits(
   const { isActiveTrial, trialEnded } = resolveTrialState(org, sub);
   const planMax = await resolvePlanMaxBranches(ctx);
 
-  if (ctx.isInternal) {
+  if (isInternalOrganization(ctx.organizationSlug, ctx.isInternal)) {
     return {
       max_branches: INTERNAL_MAX_BRANCHES,
       plan_max_branches: INTERNAL_MAX_BRANCHES,

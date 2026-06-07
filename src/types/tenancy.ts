@@ -144,6 +144,8 @@ export const PLAN_FEATURE_KEYS = [
   "max_branches",
   "max_stations",
   "max_admin_seats",
+  "bookings_enabled",
+  "staff_hr_enabled",
   "tournaments_enabled",
   "loyalty_enabled",
   "happy_hours_enabled",
@@ -156,6 +158,23 @@ export const PLAN_FEATURE_KEYS = [
   "hide_powered_by",
   "custom_sms_sender",
   "priority_support",
+  "advanced_analytics_enabled",
+  "premium_modules_enabled",
 ] as const;
 
 export type PlanFeatureKey = (typeof PLAN_FEATURE_KEYS)[number];
+
+/**
+ * Parent org slugs that bypass all SaaS plan gates (Cuephoria ops).
+ * Cuephoria Lite is a branch (`locations.slug = 'lite'`) under `cuephoria`, not a separate org.
+ */
+export const INTERNAL_ORGANIZATION_SLUGS = ["cuephoria"] as const;
+
+export function isInternalOrganization(
+  slug?: string | null,
+  isInternalFlag?: boolean | null,
+): boolean {
+  if (isInternalFlag) return true;
+  const normalized = (slug ?? "").trim().toLowerCase();
+  return (INTERNAL_ORGANIZATION_SLUGS as readonly string[]).includes(normalized);
+}

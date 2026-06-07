@@ -71,6 +71,7 @@ import {
   type ActiveOrganization,
   type ActiveSubscription,
 } from "@/context/OrganizationContext";
+import { isInternalOrganization } from "@/types/tenancy";
 
 // ---------------------------------------------------------------------------
 // Policy
@@ -261,7 +262,8 @@ export function evaluateSubscriptionAccess(
   const graceMs = graceMinutes * 60 * 1000;
 
   if (!organization) return { allowed: true, reason: "internal" }; // no org loaded yet, fail open
-  if (organization.isInternal) return { allowed: true, reason: "internal" };
+  if (isInternalOrganization(organization.slug, organization.isInternal)) return { allowed: true, reason: "internal" };
+  if (organization.isSandbox) return { allowed: true, reason: "internal" };
 
   if (organization.status === "suspended") {
     return { allowed: false, reason: "platform-suspended" };

@@ -171,6 +171,7 @@ interface BillingResponse {
     country: string;
     status: string;
     is_internal: boolean;
+    is_sandbox?: boolean;
     trial_ends_at: string | null;
   };
   subscription: Subscription | null;
@@ -181,6 +182,7 @@ interface BillingResponse {
   billingContactEmail: string | null;
   billingPrefillName: string | null;
   billingAccessGraceMinutes?: number;
+  sandboxExpiresAt?: string | null;
 }
 
 interface CreateSuccess {
@@ -632,6 +634,28 @@ export default function Billing() {
     },
   });
 
+  const sandboxSwitchM = useMutation({
+    mutationFn: async (args: { planCode: PlanTier; confirm?: boolean }) =>
+      postBillingAction<{ ok: true; warnings?: string[] }>({
+        action: "sandbox-switch-plan",
+        planCode: args.planCode,
+        planTier: args.planCode,
+        confirm: args.confirm,
+      }),
+    onSuccess: (_d, args) => {
+      refreshBilling();
+      toast({
+        title: "Demo plan switched",
+        description: `You're now previewing ${tierLabel(args.planCode)} restrictions.`,
+      });
+      setPendingTier(null);
+    },
+    onError: (err: Error) => {
+      toast({ variant: "destructive", title: "Plan switch failed", description: err.message });
+      setPendingTier(null);
+    },
+  });
+
   const cancelScheduledM = useMutation({
     mutationFn: async () => postBillingAction({ action: "cancel-scheduled-change" }),
     onSuccess: () => {
@@ -868,6 +892,7 @@ export default function Billing() {
   const data = billingQ.data;
   const { subscription, currentPlan, plans, invoices, organization, canEdit, razorpay } = data;
   const internal = organization.is_internal;
+  const isSandbox = !!organization.is_sandbox;
 
   const razorpayStatus = (subscription?.razorpay_status ?? null) as RazorpayStatus | null;
   const statusUi = razorpayStatus ? STATUS_META[razorpayStatus] : null;
@@ -876,7 +901,7 @@ export default function Billing() {
   const isPaused = razorpayStatus === "paused";
   const isActive = razorpayStatus === "active";
 
-  const visiblePlans = plans.filter((p) => p.is_public && p.is_active);
+  const visiblePlans = plans.filter((p) => p.is_public && p.is_active && (isSandbox ? ["starter", "growth", "pro"].includes(p.code) : true));
 
   const billingGraceMinutes =
     typeof data.billingAccessGraceMinutes === "number" &&
@@ -917,6 +942,10 @@ export default function Billing() {
 
   const handlePlanClick = (planCode: PlanTier) => {
     setPendingTier(planCode);
+    if (isSandbox) {
+      sandboxSwitchM.mutate({ planCode });
+      return;
+    }
     if (!subscription?.razorpay_subscription_id || isTerminal) {
       createM.mutate({
         planTier: planCode,
@@ -944,6 +973,20 @@ export default function Billing() {
             banner={subscriptionGateBanner}
             onDismiss={dismissSubscriptionGateBanner}
           />
+        ) : null}
+        {isSandbox ? (
+          <div className="rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+            <div className="flex items-start gap-2 text-amber-100">
+              <FlaskConical className="h-5 w-5 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-sm">Demo workspace</p>
+                <p className="text-xs text-amber-200/80">
+                  Switch plans below to preview tier restrictions live — no payment required.
+                  {data.sandboxExpiresAt ? ` Access expires ${new Date(data.sandboxExpiresAt).toLocaleString()}.` : null}
+                </p>
+              </div>
+            </div>
+          </div>
         ) : null}
         {/* HERO */}
         <section className="relative overflow-hidden rounded-3xl border border-white/10 p-6 sm:p-9"
@@ -985,7 +1028,9 @@ export default function Billing() {
               <p className="text-sm sm:text-base text-white/65 max-w-xl">
                 {internal
                   ? "This workspace is invoiced internally — no Razorpay charges happen here."
-                  : "Manage your Cuephoria POS plan, payment cycle, and invoices. Secure recurring mandates are powered by Razorpay; your card stays on file across cycles."}
+                  : isSandbox
+                    ? "Demo workspace — switch Starter, Growth, or Pro to preview what each tier unlocks."
+                    : "Manage your Cuephoria POS plan, payment cycle, and invoices. Secure recurring mandates are powered by Razorpay; your card stays on file across cycles."}
               </p>
             </div>
 
@@ -1346,7 +1391,7 @@ export default function Billing() {
                       : "Pick the plan that fits your venue."}
                 </div>
               </div>
-              {!internal && (
+              {!internal && !isSandbox && (
                 <div className="flex rounded-full border border-white/10 bg-black/40 backdrop-blur p-0.5 w-fit">
                   <button
                     type="button"
@@ -1389,16 +1434,20 @@ export default function Billing() {
                   const rzpId =
                     cycle === "year" ? plan.razorpay_plan_id_year : plan.razorpay_plan_id_month;
                   const mapped = !!rzpId;
-                  const isCurrent =
-                    subscription?.plan_tier === planTier &&
-                    (subscription?.billing_cycle ?? subscription?.interval) === cycle &&
-                    isReusable;
+                  const isCurrent = isSandbox
+                    ? subscription?.plan_tier === planTier
+                    : subscription?.plan_tier === planTier &&
+                      (subscription?.billing_cycle ?? subscription?.interval) === cycle &&
+                      isReusable;
                   const isPending =
-                    (createM.isPending || upgradeM.isPending) && pendingTier === planTier;
+                    (createM.isPending || upgradeM.isPending || sandboxSwitchM.isPending) && pendingTier === planTier;
                   const isMostPopular = plan.code === "growth";
 
-                  const buttonLabel =
-                    !subscription?.razorpay_subscription_id || isTerminal
+                  const buttonLabel = isSandbox
+                    ? isCurrent
+                      ? "Current demo plan"
+                      : "Switch demo plan"
+                    : !subscription?.razorpay_subscription_id || isTerminal
                       ? subscription?.razorpay_subscription_id
                         ? "Renew"
                         : "Subscribe"
@@ -1550,6 +1599,7 @@ export default function Billing() {
         </div>
 
         {/* INVOICES */}
+        {!isSandbox ? (
         <section className="glass-card p-6 space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
@@ -1673,8 +1723,10 @@ export default function Billing() {
             </>
           )}
         </section>
+        ) : null}
 
         {/* TRUST STRIP */}
+        {!isSandbox ? (
         <section className="rounded-2xl border border-white/10 bg-white/[0.02] backdrop-blur px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3 text-xs text-white/65">
             <ShieldCheck className="h-4 w-4 text-emerald-300 shrink-0" />
@@ -1708,6 +1760,7 @@ export default function Billing() {
             </a>
           </div>
         </section>
+        ) : null}
       </div>
 
       {/* Cancel dialog */}

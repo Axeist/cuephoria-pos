@@ -31,6 +31,7 @@ import plans from "../../src/server/handlers/platform/plans";
 import settings from "../../src/server/handlers/platform/settings";
 import stats from "../../src/server/handlers/platform/stats";
 import broadcasts from "../../src/server/handlers/platform/broadcasts";
+import sandbox from "../../src/server/handlers/platform/sandbox";
 
 export const config = { runtime: "edge" };
 
@@ -59,6 +60,7 @@ const routes: Record<string, Handler> = {
   "settings": settings,
   "stats": stats,
   "broadcasts": broadcasts,
+  "sandbox": sandbox,
 };
 
 export default async function dispatcher(req: Request): Promise<Response> {
