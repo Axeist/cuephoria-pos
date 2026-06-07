@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,6 +32,7 @@ import {
   getCartItemLineKey,
   getCartItemPrimaryLabel,
   getCartItemSecondaryLabel,
+  groupCartItemsByBillType,
   totalProductQuantityInCart,
 } from '@/utils/cartItem.utils';
 import type { CartItem } from '@/types/pos.types';
@@ -396,6 +397,7 @@ const POS = () => {
   };
 
   const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
+  const cartSections = useMemo(() => groupCartItemsByBillType(cart), [cart]);
   let discountValue = 0;
   if (discountType === 'percentage') {
     discountValue = subtotal * (discount / 100);
@@ -469,7 +471,21 @@ const POS = () => {
                     <span className="text-right">Total</span>
                   </div>
                 )}
-                {cart.map((item, index) => (
+                {(() => {
+                  let rowIndex = 0;
+                  return cartSections.map((section) => (
+                    <div key={section.type} className="space-y-2 sm:space-y-2.5">
+                      <div className="sticky top-9 z-[5] flex items-center justify-between px-1 py-1.5 -mx-1 rounded-md bg-background/80 backdrop-blur-sm border-b border-border/40">
+                        <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-cuephoria-lightpurple">
+                          {section.label}
+                        </span>
+                        <span className="text-[10px] sm:text-xs text-muted-foreground indian-rupee">
+                          {section.items.reduce((sum, item) => sum + item.total, 0).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                      {section.items.map((item) => {
+                        const index = rowIndex++;
+                        return (
                   <div 
                     key={getCartItemLineKey(item)} 
                     className={`rounded-lg border border-border/50 bg-card/60 px-3 py-2.5 sm:py-3 shadow-sm ${fromSessionEnd ? 'animate-pos-cart-item-handoff' : 'animate-fade-in'} ${isMobile ? 'flex gap-2' : 'grid grid-cols-[minmax(0,1fr)_auto_auto] gap-3 items-center'}`} 
@@ -548,7 +564,11 @@ const POS = () => {
                       </div>
                     </div>
                   </div>
-                ))}
+                        );
+                      })}
+                    </div>
+                  ));
+                })()}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-full animate-fade-in py-8">
@@ -911,13 +931,22 @@ const POS = () => {
 
             <div className="border rounded-md p-3 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-orange/10 animate-slide-up delay-300">
               <h4 className="font-medium mb-2 font-heading">Items</h4>
-              <div className="space-y-1 max-h-32 overflow-auto">
-                {cart.map(item => (
-                  <div key={item.id} className="flex justify-between text-sm">
-                    <span className="font-quicksand">{getCartItemDisplayName(item)} x {item.quantity}</span>
-                    <span className="font-mono font-semibold indian-rupee">
-                      {item.total.toLocaleString('en-IN')}
-                    </span>
+              <div className="space-y-3 max-h-32 overflow-auto">
+                {cartSections.map((section) => (
+                  <div key={section.type}>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-cuephoria-lightpurple mb-1">
+                      {section.label}
+                    </p>
+                    <div className="space-y-1">
+                      {section.items.map((item) => (
+                        <div key={getCartItemLineKey(item)} className="flex justify-between text-sm">
+                          <span className="font-quicksand">{getCartItemDisplayName(item)} x {item.quantity}</span>
+                          <span className="font-mono font-semibold indian-rupee">
+                            {item.total.toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>

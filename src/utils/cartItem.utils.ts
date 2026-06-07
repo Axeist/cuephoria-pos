@@ -66,3 +66,25 @@ export function totalProductQuantityInCart(items: CartItem[], productId: string)
     .filter((item) => item.id === productId && item.type === 'product')
     .reduce((sum, item) => sum + item.quantity, 0);
 }
+
+export type CartBillSection = {
+  type: 'session' | 'product';
+  label: string;
+  items: CartItem[];
+};
+
+/** Group cart lines for display — sessions first, then products. */
+export function groupCartItemsByBillType(cart: CartItem[]): CartBillSection[] {
+  const sessions = cart.filter((item) => item.type === 'session');
+  const products = cart.filter((item) => item.type === 'product');
+  const sections: CartBillSection[] = [];
+
+  if (sessions.length > 0) {
+    sections.push({ type: 'session', label: 'Sessions', items: sessions });
+  }
+  if (products.length > 0) {
+    sections.push({ type: 'product', label: 'Products', items: products });
+  }
+
+  return sections;
+}
