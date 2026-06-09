@@ -1,6 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { CUETRONIX_ASSETS } from "@/branding/assets";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { lazyWithRetry as lazy } from "@/utils/lazyWithRetry";
+
+const HeroScene3D = lazy(() => import("@/components/landing/HeroScene3D"));
 
 export type SplashVariant = "boot" | "login_success";
 
@@ -41,79 +45,9 @@ const LOGIN_STATUS = [
   "Opening command surface",
 ] as const;
 
-/** Sparse particle field — refined, not arcade starfield */
-function ParticleField({ enabled }: { enabled: boolean }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const rafRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !enabled) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    let w = 0;
-    let h = 0;
-    let dpr = 1;
-    const particles: Array<{ x: number; y: number; vx: number; vy: number; a: number; s: number }> = [];
-
-    const resize = () => {
-      dpr = Math.min(2, window.devicePixelRatio || 1);
-      w = canvas.clientWidth;
-      h = canvas.clientHeight;
-      canvas.width = Math.floor(w * dpr);
-      canvas.height = Math.floor(h * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-      const count = Math.min(48, Math.floor((w * h) / 28000));
-      particles.length = 0;
-      for (let i = 0; i < count; i++) {
-        particles.push({
-          x: Math.random() * w,
-          y: Math.random() * h,
-          vx: (Math.random() - 0.5) * 0.12,
-          vy: (Math.random() - 0.5) * 0.08,
-          a: Math.random() * 0.35 + 0.08,
-          s: Math.random() * 1.2 + 0.4,
-        });
-      }
-    };
-
-    resize();
-    const ro = new ResizeObserver(resize);
-    ro.observe(canvas);
-
-    const draw = () => {
-      ctx.clearRect(0, 0, w, h);
-      for (const p of particles) {
-        p.x += p.vx;
-        p.y += p.vy;
-        if (p.x < 0) p.x = w;
-        if (p.x > w) p.x = 0;
-        if (p.y < 0) p.y = h;
-        if (p.y > h) p.y = 0;
-
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(167,139,250,${p.a})`;
-        ctx.arc(p.x, p.y, p.s, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      rafRef.current = requestAnimationFrame(draw);
-    };
-
-    rafRef.current = requestAnimationFrame(draw);
-    return () => {
-      ro.disconnect();
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [enabled]);
-
-  return <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden />;
-}
-
 export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
   const prefersReducedMotion = usePrefersReducedMotion();
+  const isMobile = useIsMobile();
   const isSuccess = variant === "login_success";
 
   const [progress, setProgress] = useState(0);
@@ -208,7 +142,7 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
   return (
     <div
       className={[
-        "fixed inset-0 z-[99999] flex items-center justify-center overflow-hidden bg-[#050508] px-5 sm:px-6",
+        "fixed inset-0 z-[99999] flex items-center justify-center overflow-hidden bg-[#07030f] px-5 sm:px-6",
         "transition-opacity ease-out",
         exiting ? "opacity-0" : "opacity-100",
       ].join(" ")}
@@ -216,54 +150,75 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
       aria-live="polite"
       aria-label={isSuccess ? "Loading workspace" : "Starting application"}
     >
-      {/* Aurora base */}
+      {/* Hero galaxy + wireframe scene (same as landing hero) */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
+        {motion ? (
+          <Suspense
+            fallback={
+              <div
+                className="absolute inset-0"
+                style={{
+                  background:
+                    "radial-gradient(1200px 800px at 15% 0%, rgba(124,58,237,0.35), transparent 60%)," +
+                    "radial-gradient(900px 700px at 85% 15%, rgba(236,72,153,0.22), transparent 60%)," +
+                    "linear-gradient(180deg, #07030f 0%, #0a0414 55%, #07030f 100%)",
+                }}
+              />
+            }
+          >
+            <HeroScene3D mobile={isMobile} />
+          </Suspense>
+        ) : (
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(1200px 800px at 15% 0%, rgba(124,58,237,0.35), transparent 60%)," +
+                "radial-gradient(900px 700px at 85% 15%, rgba(236,72,153,0.22), transparent 60%)," +
+                "radial-gradient(1200px 900px at 50% 100%, rgba(59,130,246,0.18), transparent 60%)," +
+                "linear-gradient(180deg, #07030f 0%, #0a0414 55%, #07030f 100%)",
+            }}
+          />
+        )}
+      </div>
+
+      {/* Film grain */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 80% 55% at 50% -10%, rgba(139,92,246,0.22), transparent 55%)," +
-            "radial-gradient(ellipse 60% 45% at 85% 85%, rgba(34,211,238,0.08), transparent 50%)," +
-            "radial-gradient(ellipse 50% 40% at 10% 70%, rgba(192,132,252,0.1), transparent 45%)," +
-            "linear-gradient(180deg, #050508 0%, #080812 50%, #050508 100%)",
-        }}
-      />
-
-      <ParticleField enabled={motion} />
-
-      {/* Perspective grid floor */}
-      <div
-        aria-hidden
-        className={[
-          "pointer-events-none absolute inset-x-0 bottom-0 h-[55%]",
-          motion ? "splash-grid-drift" : "",
-        ].join(" ")}
+        className="pointer-events-none absolute inset-0 z-[1] opacity-[0.04] mix-blend-overlay"
         style={{
           backgroundImage:
-            "linear-gradient(rgba(139,92,246,0.14) 1px, transparent 1px)," +
-            "linear-gradient(90deg, rgba(139,92,246,0.14) 1px, transparent 1px)",
-          backgroundSize: "56px 56px",
-          transform: "perspective(520px) rotateX(68deg)",
-          transformOrigin: "50% 100%",
-          maskImage: "linear-gradient(to top, black 0%, black 35%, transparent 92%)",
-          WebkitMaskImage: "linear-gradient(to top, black 0%, black 35%, transparent 92%)",
-          opacity: 0.55,
+            "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+          backgroundSize: "220px",
         }}
       />
 
-      {/* Horizontal scan sweep */}
-      {motion ? (
-        <div aria-hidden className="splash-scan pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/50 to-transparent" />
-      ) : null}
-
-      {/* Vignette */}
+      {/* Center scrim — keeps card readable while galaxy stays visible around it */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0"
+        className="pointer-events-none absolute inset-0 z-[1]"
         style={{
-          background: "radial-gradient(ellipse 75% 65% at 50% 45%, transparent 35%, rgba(5,5,8,0.75) 100%)",
+          background:
+            "radial-gradient(ellipse 85% 75% at 50% 48%, rgba(7,3,15,0.42) 0%, rgba(7,3,15,0.72) 62%, rgba(7,3,15,0.92) 100%)",
         }}
       />
+
+      {/* Edge vignette */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-[1]"
+        style={{
+          background:
+            "radial-gradient(ellipse 90% 100% at 50% 50%, transparent 42%, rgba(7,3,15,0.55) 100%)",
+        }}
+      />
+
+      {motion ? (
+        <div
+          aria-hidden
+          className="splash-scan pointer-events-none absolute inset-x-0 top-0 z-[1] h-px bg-gradient-to-r from-transparent via-violet-300/40 to-transparent"
+        />
+      ) : null}
 
       {/* Holo panel */}
       <div
@@ -449,19 +404,11 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
         </div>
       </div>
 
-      <p className="pointer-events-none absolute bottom-6 text-[10px] tracking-[0.18em] text-zinc-700">
+      <p className="pointer-events-none absolute bottom-6 z-10 text-[10px] tracking-[0.18em] text-zinc-500/80">
         ENTER TO SKIP
       </p>
 
       <style>{`
-        @keyframes splashGridDrift {
-          0%   { background-position: 0 0, 0 0; }
-          100% { background-position: 0 56px, 56px 0; }
-        }
-        .splash-grid-drift {
-          animation: splashGridDrift 4s linear infinite;
-        }
-
         @keyframes splashScan {
           0%   { top: -2px; opacity: 0; }
           8%   { opacity: 0.7; }
@@ -527,7 +474,6 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .splash-grid-drift,
           .splash-scan,
           .splash-border-spin,
           .splash-orbit-a,
