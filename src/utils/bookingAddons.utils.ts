@@ -16,13 +16,20 @@ export function mergePoolBookingAddons(raw: unknown): PoolBookingAddon[] {
     const base = byId.get(id);
     if (!base) continue;
     const row = item as Partial<PoolBookingAddon>;
+    let name = typeof row.name === 'string' && row.name.trim() ? row.name.trim() : base.name;
+    let description =
+      typeof row.description === 'string' && row.description.trim()
+        ? row.description.trim()
+        : base.description;
+    // Migrate legacy default copy that incorrectly said "free" for a paid add-on
+    if (id === 'coaching' && /^free coaching/i.test(name)) {
+      name = base.name;
+      description = base.description;
+    }
     byId.set(id, {
       ...base,
-      name: typeof row.name === 'string' && row.name.trim() ? row.name.trim() : base.name,
-      description:
-        typeof row.description === 'string' && row.description.trim()
-          ? row.description.trim()
-          : base.description,
+      name,
+      description,
       price: typeof row.price === 'number' && Number.isFinite(row.price) ? row.price : base.price,
       enabled: row.enabled !== false,
       default_selected: row.default_selected === true,

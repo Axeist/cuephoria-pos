@@ -33,9 +33,9 @@ export const POOL_BOOKING_ADDONS_SETTING_KEY = 'pool_booking_addons';
 export const DEFAULT_POOL_BOOKING_ADDONS: PoolBookingAddon[] = [
   {
     id: 'coaching',
-    name: 'Free coaching session',
+    name: 'Coaching intro with our trainer',
     description:
-      'A quick intro with our trainer — break technique, stance & table positioning. Just ₹5 to reserve your slot.',
+      'A quick intro on break technique, stance & table positioning with our trainer — add it for just ₹5.',
     price: 5,
     enabled: true,
     default_selected: true,
