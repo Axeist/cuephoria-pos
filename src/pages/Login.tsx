@@ -19,6 +19,7 @@ import {
   Zap,
 } from "lucide-react";
 import { CUETRONIX_ASSETS } from "@/branding/assets";
+import CuephoriaTechAttribution from "@/components/branding/CuephoriaTechAttribution";
 import { appToast } from "@/lib/appToast";
 import { summarizeWorkspaceMemberships } from "@/lib/tenantPortalLabels";
 import GoogleButton from "@/components/auth/GoogleButton";
@@ -326,6 +327,7 @@ const Login = () => {
               <FileText size={12} className="text-fuchsia-300" />
               Full audit logs
             </span>
+            <CuephoriaTechAttribution variant="compact" className="w-full basis-full" />
             <span className="inline-flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.9)]" />
               All systems operational
@@ -545,15 +547,8 @@ const Login = () => {
                 </p>
               </div>
 
-              <div className="mt-6 flex items-center justify-center gap-3 border-t border-white/[0.06] pt-4">
-                {["Admin portal", "POS v2.0", "Multi-location"].map((badge) => (
-                  <span
-                    key={badge}
-                    className="rounded-full border border-violet-300/15 bg-violet-500/8 px-2.5 py-0.5 text-[10px] font-medium text-violet-200"
-                  >
-                    {badge}
-                  </span>
-                ))}
+              <div className="mt-6 border-t border-white/[0.06] pt-4">
+                <CuephoriaTechAttribution variant="compact" className="text-center" />
               </div>
             </div>
           </div>

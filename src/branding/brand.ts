@@ -16,12 +16,16 @@ export const PARENT_BRAND = {
   name: "Cuephoria Tech",
   legalName: "Cuephoria Tech Pvt. Ltd.",
   domain: "cuephoriatech.in",
+  websiteUrl: "https://cuephoriatech.in",
   supportEmail: "hello@cuephoriatech.in",
+  tagline: "Engineering studio behind Cuetronix",
 } as const;
 
 export const PRODUCT_BRAND = {
   name: "Cuetronix",
   tagline: "Operating system for gaming cafés.",
+  /** Public marketing site for the SaaS product. */
+  websiteUrl: "https://www.cuetronix.com",
   marketingUrl: "https://cuephoriatech.in/cuetronix",
   docsUrl: "https://cuephoriatech.in/docs",
   statusUrl: "https://cuephoriatech.in/status",

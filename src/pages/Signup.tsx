@@ -10,6 +10,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, CheckCircle2, Globe, ShieldCheck, Sparkles } from "lucide-react";
 import { CUETRONIX_ASSETS } from "@/branding/assets";
+import CuephoriaTechAttribution from "@/components/branding/CuephoriaTechAttribution";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -175,8 +176,9 @@ export default function Signup() {
         </motion.div>
       </main>
 
-      <footer className="relative z-10 border-t border-white/5 px-5 py-6 text-center text-[11px] text-gray-600 sm:px-8">
-        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+      <footer className="relative z-10 border-t border-white/5 px-5 py-6 text-center sm:px-8">
+        <CuephoriaTechAttribution variant="compact" className="mb-3" />
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[11px] text-gray-600">
           <Link to="/privacy" className="hover:text-gray-400">
             Privacy
           </Link>

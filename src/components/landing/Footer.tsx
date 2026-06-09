@@ -10,6 +10,7 @@ import {
   Youtube,
 } from "lucide-react";
 import { CUETRONIX_ASSETS } from "@/branding/assets";
+import CuephoriaTechAttribution from "@/components/branding/CuephoriaTechAttribution";
 
 const Footer: React.FC = () => {
   const navigate = useNavigate();
@@ -303,18 +304,7 @@ const Footer: React.FC = () => {
 
             {/* Legal strip */}
             <div className="flex flex-col items-start justify-between gap-3 py-5 text-sm md:flex-row md:items-center md:py-6">
-              <p className="text-gray-500">
-                © {new Date().getFullYear()} Cuetronix · A{" "}
-                <a
-                  href="https://cuephoriatech.in"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-gray-400 transition-colors hover:text-white"
-                >
-                  Cuephoria Tech
-                </a>{" "}
-                product · Made in India
-              </p>
+              <CuephoriaTechAttribution variant="footer" />
               <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
                 <span className="relative flex h-1.5 w-1.5 items-center justify-center">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />

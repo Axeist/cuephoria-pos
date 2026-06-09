@@ -688,7 +688,7 @@ const CafeCustomerOrder: React.FC = () => {
           </button>
 
           <p className="text-[10px] text-zinc-600 font-quicksand flex items-center gap-1.5">
-            <Shield className="h-3 w-3" /> Powered by Cuephoria · Secure ordering
+            <Shield className="h-3 w-3" /> Built by Cuephoria Tech · Secure ordering
           </p>
         </div>
       </div>
@@ -1455,7 +1455,7 @@ const CafeCustomerOrder: React.FC = () => {
           )}
 
           <p className="text-[10px] text-zinc-600 text-center font-quicksand flex items-center justify-center gap-1.5">
-            <Shield className="h-3 w-3" /> Powered by Cuephoria
+            <Shield className="h-3 w-3" /> Built by Cuephoria Tech
           </p>
         </div>
       )}

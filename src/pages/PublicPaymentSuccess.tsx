@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, Loader2, AlertCircle, Sparkles } from "lucide-react";
 import { CUETRONIX_ASSETS } from "@/branding/assets";
+import CuephoriaTechAttribution from "@/components/branding/CuephoriaTechAttribution";
 
 type PendingBooking = {
   selectedStations: string[];
@@ -560,10 +561,7 @@ export default function PublicPaymentSuccess() {
 
           {/* Decorative Elements */}
           <div className="mt-8 pt-6 border-t border-white/10">
-            <p className="text-xs text-gray-500 flex items-center justify-center gap-2">
-              <Sparkles className="h-3 w-3 text-cuephoria-lightpurple/50" />
-              Powered by Cuephoria Gaming Lounge
-            </p>
+            <CuephoriaTechAttribution variant="powered-by" className="text-xs" />
           </div>
         </div>
       </div>

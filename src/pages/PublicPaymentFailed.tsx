@@ -2,6 +2,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { AlertCircle, XCircle, RefreshCw, Sparkles } from 'lucide-react';
 import { CUETRONIX_ASSETS } from '@/branding/assets';
+import CuephoriaTechAttribution from '@/components/branding/CuephoriaTechAttribution';
 
 export default function PublicPaymentFailed() {
   const [searchParams] = useSearchParams();
@@ -96,10 +97,7 @@ export default function PublicPaymentFailed() {
 
           {/* Decorative Elements */}
           <div className="mt-6 pt-4 border-t border-white/10">
-            <p className="text-xs text-gray-500 flex items-center justify-center gap-2">
-              <Sparkles className="h-3 w-3 text-cuephoria-lightpurple/50" />
-              Powered by Cuephoria Gaming Lounge
-            </p>
+            <CuephoriaTechAttribution variant="powered-by" className="text-xs" />
           </div>
         </div>
       </div>

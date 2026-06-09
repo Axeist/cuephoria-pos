@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, Loader2, AlertCircle, Sparkles, Trophy, Zap } from "lucide-react";
 import { generateId } from '@/utils/pos.utils';
 import { CUETRONIX_ASSETS } from '@/branding/assets';
+import CuephoriaTechAttribution from '@/components/branding/CuephoriaTechAttribution';
 
 type PendingTournamentRegistration = {
   tournamentId: string;
@@ -486,10 +487,7 @@ export default function PublicTournamentPaymentSuccess() {
 
           {/* Decorative Elements */}
           <div className="mt-8 pt-6 border-t border-white/10">
-            <p className="text-xs text-gray-500 flex items-center justify-center gap-2">
-              <Sparkles className="h-3 w-3 text-cuephoria-lightpurple/50" />
-              Powered by Cuephoria Gaming Lounge
-            </p>
+            <CuephoriaTechAttribution variant="powered-by" className="text-xs" />
           </div>
         </div>
       </div>

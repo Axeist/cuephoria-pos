@@ -7,7 +7,7 @@
 import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { LogOut, LayoutDashboard, Building2, Activity, Sparkles, Shield, Menu, Megaphone, FlaskConical } from "lucide-react";
-import { PRODUCT_BRAND } from "@/branding/brand";
+import { PARENT_BRAND, PRODUCT_BRAND } from "@/branding/brand";
 import { usePlatformAuth } from "@/context/PlatformAuthContext";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -192,7 +192,7 @@ export const PlatformShell: React.FC<{ children: React.ReactNode }> = ({ childre
         </main>
 
         <footer className="border-t border-white/5 py-4 text-center text-[11px] text-zinc-600">
-          {PRODUCT_BRAND.name} operator console · internal use only
+          {PRODUCT_BRAND.name} operator console · {PARENT_BRAND.name} · internal use only
         </footer>
       </div>
     </div>

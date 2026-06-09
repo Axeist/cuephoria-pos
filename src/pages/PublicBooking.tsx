@@ -36,6 +36,7 @@ import {
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import CouponPromotionalPopup from "@/components/CouponPromotionalPopup";
 import BookingConfirmationDialog from "@/components/BookingConfirmationDialog";
+import CuephoriaTechAttribution from "@/components/branding/CuephoriaTechAttribution";
 import LegalDialog from "@/components/dialog/LegalDialog";
 import OnlinePaymentPromoDialog from "@/components/OnlinePaymentPromoDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -3422,16 +3423,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           </div>
 
           {!hidePoweredBy ? (
-            <div className="pt-4 border-t border-white/5 text-center text-[11px] text-gray-500 flex items-center justify-center gap-2">
-              <span>Powered by</span>
-              <a
-                href="https://cuephoriatech.in/cuetronix"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-gray-300 hover:text-white transition-colors font-semibold"
-              >
-                Cuetronix
-              </a>
+            <div className="pt-4 border-t border-white/5">
+              <CuephoriaTechAttribution variant="powered-by" />
             </div>
           ) : null}
         </div>

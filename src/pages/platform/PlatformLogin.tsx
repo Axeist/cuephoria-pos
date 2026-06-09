@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PRODUCT_BRAND, PARENT_BRAND } from "@/branding/brand";
+import CuephoriaTechAttribution from "@/components/branding/CuephoriaTechAttribution";
 import { usePlatformAuth } from "@/context/PlatformAuthContext";
 import AuthSceneBackground from "@/components/auth/AuthSceneBackground";
 
@@ -355,6 +356,7 @@ const PlatformLogin: React.FC = () => {
                 Open the venue login →
               </Link>
             </p>
+            <CuephoriaTechAttribution variant="compact" className="mt-4 text-center" />
           </div>
         </motion.div>
       </div>

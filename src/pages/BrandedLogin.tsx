@@ -25,6 +25,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { Lock, ShieldCheck, Sparkles, Users } from "lucide-react";
 import GoogleButton from "@/components/auth/GoogleButton";
+import CuephoriaTechAttribution from "@/components/branding/CuephoriaTechAttribution";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
@@ -314,23 +315,7 @@ const BrandMark: React.FC<{
 
 const PoweredBy: React.FC<{ hide: boolean }> = ({ hide }) => {
   if (hide) return <div className="relative z-10 text-[10px] text-zinc-700">&nbsp;</div>;
-  return (
-    <div className="relative z-10 text-[11px] text-zinc-500 flex items-center gap-2">
-      <span>Powered by</span>
-      <a
-        href="https://cuephoriatech.in/cuetronix"
-        target="_blank"
-        rel="noreferrer"
-        className="inline-flex items-center gap-1 text-zinc-300 hover:text-white transition-colors"
-      >
-        <span
-          className="inline-block h-2 w-2 rounded-full"
-          style={{ background: "linear-gradient(135deg, #818cf8, #e879f9)" }}
-        />
-        <span className="font-semibold">Cuetronix</span>
-      </a>
-    </div>
-  );
+  return <CuephoriaTechAttribution variant="powered-by" className="relative z-10" />;
 };
 
 export default BrandedLogin;

@@ -1,6 +1,7 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { CUETRONIX_ASSETS } from "@/branding/assets";
+import CuephoriaTechAttribution from "@/components/branding/CuephoriaTechAttribution";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { lazyWithRetry as lazy } from "@/utils/lazyWithRetry";
 
@@ -376,9 +377,7 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
               draggable={false}
             />
 
-            <p className="mt-4 text-center font-mono text-[9px] uppercase tracking-[0.32em] text-violet-300/40">
-              Cuetronix · secure runtime
-            </p>
+            <CuephoriaTechAttribution variant="built-by" className="mt-4 text-center" />
 
             <div className="mt-5 flex items-center justify-center gap-2.5">
               <span
@@ -440,7 +439,7 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
                     Encrypted · multi-tenant RLS
                   </p>
                   <p className="mt-1 truncate font-mono text-[9px] text-zinc-700">
-                    {isSuccess ? "session://verified" : "boot://cuetronix-core"}
+                    {isSuccess ? "session://verified" : "boot://cuephoriatech.in"}
                   </p>
                 </div>
                 <button
