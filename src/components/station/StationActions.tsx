@@ -340,11 +340,12 @@ const StationActions: React.FC<StationActionsProps> = ({
 
   if (inMaintenance) {
     return (
-      <div className={footerLayout ? 'w-full border-t border-amber-500/20 pt-3' : 'w-full'}>
+      <div className={footerLayout ? 'w-full border-t border-white/8 pt-3' : 'w-full'}>
         <Button
           type="button"
           size={footerLayout ? 'default' : 'sm'}
-          className={`w-full ${footerLayout ? 'h-11' : 'h-10'} bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-sm font-semibold text-white`}
+          variant="outline"
+          className={`w-full ${footerLayout ? 'h-11' : 'h-10'} border-emerald-500/35 bg-emerald-500/10 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/20`}
           disabled={isLoading}
           onClick={() => void endMaintenance(station.id)}
         >

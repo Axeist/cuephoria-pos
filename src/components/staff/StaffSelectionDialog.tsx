@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Search, User } from 'lucide-react';
+import { useLocation } from '@/context/LocationContext';
 
 interface StaffSelectionDialogProps {
   open: boolean;
@@ -25,19 +26,28 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
   onClose
 }) => {
   const { toast } = useToast();
+  const { activeLocationId } = useLocation();
   const [staffList, setStaffList] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetchStaffList();
-  }, []);
+    if (open) void fetchStaffList();
+  }, [open, activeLocationId]);
 
   const fetchStaffList = async () => {
+    if (!activeLocationId) {
+      setStaffList([]);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('staff_profiles')
         .select('*')
+        .eq('location_id', activeLocationId)
         .eq('is_active', true)
         .order('username');
 

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Link } from 'react-router-dom';
-import { Users, UserPlus, Calendar, FileText, DollarSign, Activity, User, Settings } from 'lucide-react';
+import { Users, UserPlus, Calendar, FileText, DollarSign, Activity, User, Settings, MapPin } from 'lucide-react';
 import StaffOverview from '@/components/staff/StaffOverview';
 import StaffDirectory from '@/components/staff/StaffDirectory';
 import AttendanceManagement from '@/components/staff/AttendanceManagement';
@@ -14,8 +14,11 @@ import AttendanceCalendarView from '@/components/staff/AttendanceCalendarView';
 import AdminRegularizationDialog from '@/components/staff/AdminRegularizationDialog';
 import StaffRequestsManagement from '@/components/staff/StaffRequestsManagement';
 import CreateStaffDialog from '@/components/staff/CreateStaffDialog';
+import { useLocation } from '@/context/LocationContext';
+
 const StaffManagement = () => {
   const { toast } = useToast();
+  const { activeLocationId, activeLocation, locationResolved } = useLocation();
   const [staffProfiles, setStaffProfiles] = useState<any[]>([]);
   const [activeShifts, setActiveShifts] = useState<any[]>([]);
   const [pendingLeaves, setPendingLeaves] = useState<any[]>([]);
@@ -26,15 +29,26 @@ const StaffManagement = () => {
   const [activeStaffTab, setActiveStaffTab] = useState<'overview'|'directory'|'attendance'|'calendar'|'requests'|'payroll'>('overview');
 
   useEffect(() => {
-    fetchStaffData();
-  }, []);
+    if (!locationResolved) return;
+    void fetchStaffData();
+  }, [activeLocationId, locationResolved]);
 
   const fetchStaffData = async () => {
+    if (!activeLocationId) {
+      setStaffProfiles([]);
+      setActiveShifts([]);
+      setPendingLeaves([]);
+      setMonthlyPayroll(0);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const { data: profiles, error: profilesError } = await supabase
         .from('staff_profiles')
         .select('*')
+        .eq('location_id', activeLocationId)
         .order('created_at', { ascending: false });
 
       if (profilesError) throw profilesError;
@@ -113,8 +127,12 @@ const StaffManagement = () => {
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-2.5 rounded-xl border bg-purple-500/8 border-purple-400/25 text-purple-200">
         <Users className="h-4 w-4 flex-shrink-0 text-purple-300" />
         <span className="text-sm">
-          Staff are shared across all branches. Add new team members in{' '}
-          <strong>Settings → Team</strong> (login + portal PIN created together).
+          Showing staff for{' '}
+          <strong className="inline-flex items-center gap-1">
+            <MapPin className="h-3.5 w-3.5" />
+            {activeLocation?.name ?? 'this branch'}
+          </strong>
+          . Add logins in <strong>Settings → Team</strong> and assign branch access there.
         </span>
         <Link
           to="/settings?tab=team"
