@@ -96,6 +96,10 @@ type BookingPayload = {
   /** Compact parallel array aligned with `s` / selectedStations (Razorpay notes fallback). */
   pc?: number[];
   spc?: Record<string, number>;
+  bookingAddons?: { items?: Array<{ id: string; name: string; price: number }>; total?: number };
+  ba?: { items?: Array<{ id: string; name: string; price: number }>; total?: number; t?: number };
+  booking_group_id?: string;
+  bg?: string;
 };
 
 export type NormalizedPayload = {
@@ -107,6 +111,8 @@ export type NormalizedPayload = {
   pricing: { original: number; discount: number; final: number; coupons: string };
   locationId: string | null;
   stationPlayerCounts: Record<string, number>;
+  bookingAddons: { items: Array<{ id: string; name: string; price: number }>; total: number } | null;
+  bookingGroupId: string | null;
 };
 
 type PaymentOrderRow = {
@@ -363,6 +369,32 @@ export function normalizeBookingPayload(raw: BookingPayload | string): Normalize
     });
   }
 
+  const addonSrc = data.bookingAddons || data.ba;
+  let bookingAddons: NormalizedPayload["bookingAddons"] = null;
+  if (addonSrc && typeof addonSrc === "object" && Array.isArray(addonSrc.items) && addonSrc.items.length > 0) {
+    const items = addonSrc.items
+      .map((row) => {
+        const price = Number(row.price);
+        if (!row.id || !row.name || !Number.isFinite(price)) return null;
+        return { id: String(row.id), name: String(row.name), price };
+      })
+      .filter((x): x is { id: string; name: string; price: number } => Boolean(x));
+    if (items.length > 0) {
+      const totalRaw = Number((addonSrc as { total?: number; t?: number }).total ?? (addonSrc as { t?: number }).t);
+      bookingAddons = {
+        items,
+        total: Number.isFinite(totalRaw) ? totalRaw : items.reduce((s, i) => s + i.price, 0),
+      };
+    }
+  }
+
+  const bookingGroupId =
+    typeof data.booking_group_id === "string" && data.booking_group_id.length > 0
+      ? data.booking_group_id
+      : typeof data.bg === "string" && data.bg.length > 0
+        ? data.bg
+        : null;
+
   return {
     selectedStations,
     selectedDateISO,
@@ -372,6 +404,8 @@ export function normalizeBookingPayload(raw: BookingPayload | string): Normalize
     pricing,
     locationId,
     stationPlayerCounts,
+    bookingAddons,
+    bookingGroupId,
   };
 }
 
@@ -526,6 +560,10 @@ async function createBookingsRows(
     return payload.duration;
   };
 
+  const addonTotal = payload.bookingAddons?.total ?? 0;
+  const bookingGroupId = payload.bookingGroupId || crypto.randomUUID();
+  const addonPerRow = totalBookings > 0 ? addonTotal / totalBookings : 0;
+
   const rows: Array<Record<string, unknown>> = [];
   payload.selectedStations.forEach((station_id) => {
     payload.slots.forEach((slot) => {
@@ -543,11 +581,13 @@ async function createBookingsRows(
           payload.pricing.discount > 0 && payload.pricing.original > 0
             ? (payload.pricing.discount / payload.pricing.original) * 100
             : null,
-        final_price: payload.pricing.final / totalBookings,
+        final_price: payload.pricing.final / totalBookings + addonPerRow,
         coupon_code: payload.pricing.coupons || null,
         payment_mode: "razorpay",
         payment_txn_id: paymentId,
         player_count: payload.stationPlayerCounts[station_id] ?? 1,
+        booking_group_id: bookingGroupId,
+        booking_addons: payload.bookingAddons,
         notes: orderTag,
       });
     });

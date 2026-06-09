@@ -11,7 +11,17 @@ type PendingBooking = {
   duration: number;
   customer: { id?: string; name: string; phone: string; email?: string };
   locationId?: string | null;
-  pricing: { original: number; discount: number; final: number; transactionFee?: number; totalWithFee?: number; coupons: string };
+  pricing: {
+    original: number;
+    discount: number;
+    final: number;
+    transactionFee?: number;
+    totalWithFee?: number;
+    coupons: string;
+    addonTotal?: number;
+  };
+  bookingAddons?: { items: Array<{ id: string; name: string; price: number }>; total: number } | null;
+  booking_group_id?: string;
 };
 
 // Phone number normalization (matches PublicBooking.tsx)
@@ -349,6 +359,9 @@ export default function PublicPaymentSuccess() {
       // 5) Insert booking rows directly (one per station per slot) — backup only
       const uniqueStations = [...new Set(pb.selectedStations)];
       const totalBookings = uniqueStations.length * pb.slots.length;
+      const addonTotal = pb.bookingAddons?.total ?? pb.pricing.addonTotal ?? 0;
+      const addonPerRow = totalBookings > 0 ? addonTotal / totalBookings : 0;
+      const bookingGroupId = pb.booking_group_id || crypto.randomUUID();
       const rows: Array<Record<string, unknown>> = [];
       uniqueStations.forEach((station_id) => {
         pb.slots.forEach((slot) => {
@@ -363,12 +376,16 @@ export default function PublicPaymentSuccess() {
             status: "confirmed",
             original_price: pb.pricing.original / totalBookings,
             discount_percentage:
-              pb.pricing.discount > 0 ? (pb.pricing.discount / pb.pricing.original) * 100 : null,
-            final_price: pb.pricing.final / totalBookings,
+              pb.pricing.discount > 0 && pb.pricing.original > 0
+                ? (pb.pricing.discount / pb.pricing.original) * 100
+                : null,
+            final_price: pb.pricing.final / totalBookings + addonPerRow,
             coupon_code: pb.pricing.coupons || null,
             payment_mode: "razorpay",
             payment_txn_id: paymentId,
             player_count: pb.stationPlayerCounts?.[station_id] ?? 1,
+            booking_group_id: bookingGroupId,
+            booking_addons: pb.bookingAddons ?? null,
             notes: razorpayOrderTag(orderId),
           });
         });

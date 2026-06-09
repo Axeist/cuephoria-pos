@@ -22,6 +22,7 @@ import { BookingDeleteDialog } from '@/components/booking/BookingDeleteDialog';
 import { BookingDeleteAllDialog } from '@/components/booking/BookingDeleteAllDialog';
 import PaymentReconciliationTab from '@/components/booking/PaymentReconciliationTab';
 import { BookingCalendarDayView } from '@/components/booking/calendar/BookingCalendarDayView';
+import BookingAddonsDisplay from '@/components/booking/BookingAddonsDisplay';
 import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -64,6 +65,7 @@ interface Booking {
   payment_mode?: string | null;
   payment_txn_id?: string | null;
   player_count?: number;
+  booking_addons?: unknown;
   station: {
     name: string;
     type: string;
@@ -581,6 +583,7 @@ export default function BookingManagement() {
             station_id,
             customer_id,
             player_count,
+            booking_addons,
             created_at
           `)
           .gte('booking_date', analyticsFromDate)
@@ -595,7 +598,7 @@ export default function BookingManagement() {
 
         let { data: bookingsData, error } = await q;
 
-        if (error?.code === '42703' && String(error.message || '').includes('player_count')) {
+        if (error?.code === '42703') {
           let qFallback = supabase
             .from('bookings')
             .select(`
@@ -790,6 +793,7 @@ export default function BookingManagement() {
           payment_mode: b.payment_mode ?? null,
           payment_txn_id: b.payment_txn_id ?? null,
           player_count: Number(b.player_count) > 0 ? Number(b.player_count) : 1,
+          booking_addons: b.booking_addons ?? null,
           created_at: b.created_at,
           booking_views: [], // ✅ Lazy load booking_views only when needed
           station: stationObj,
@@ -3782,6 +3786,10 @@ export default function BookingManagement() {
                                                             {booking.coupon_code}
                                                           </Badge>
                                                         )}
+                                                        <BookingAddonsDisplay
+                                                          bookingAddons={booking.booking_addons}
+                                                          className="mt-2"
+                                                        />
                                                         <div className="mt-1 pt-1 border-t border-border">
                                                           {booking.payment_mode && booking.payment_mode !== 'venue' ? (
                                                             <div className="text-xs text-green-600 font-medium">

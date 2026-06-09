@@ -29,6 +29,7 @@ export interface CalendarBookingInput {
   payment_mode?: string | null;
   payment_txn_id?: string | null;
   player_count?: number;
+  booking_addons?: unknown;
   station: {
     name: string;
     type: string;

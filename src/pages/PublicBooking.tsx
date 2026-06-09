@@ -77,6 +77,16 @@ import {
   BOOKING_ACCESS_KEYS,
   parseBookingSettingBool,
 } from "@/utils/bookingAccessSettings";
+import PoolBookingAddonsPanel from "@/components/booking/PoolBookingAddonsPanel";
+import {
+  POOL_BOOKING_ADDONS_SETTING_KEY,
+  type PoolBookingAddon,
+} from "@/types/bookingAddons";
+import {
+  buildBookingAddonsSnapshot,
+  calculatePoolAddonTotal,
+  mergePoolBookingAddons,
+} from "@/utils/bookingAddons.utils";
 
 /* =========================
    Types
@@ -477,6 +487,12 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   const [eventName, setEventName] = useState("IIM Event");
   const [eventDescription, setEventDescription] = useState("Choose VR (15m) or PS5 Gaming (30m)");
   const [bookingCouponsFromDB, setBookingCouponsFromDB] = useState<BookingCouponMeta[]>([]);
+  const [poolAddonsConfig, setPoolAddonsConfig] = useState<PoolBookingAddon[]>(
+    mergePoolBookingAddons(null),
+  );
+  const [selectedPoolAddonIds, setSelectedPoolAddonIds] = useState<Set<string>>(new Set());
+  const hadPoolTableSelectedRef = useRef(false);
+  const bookingGroupIdRef = useRef<string>(crypto.randomUUID());
 
   // Check if customer info is complete (using useMemo to avoid initialization issues)
   const isCustomerInfoComplete = useMemo(() => 
@@ -555,6 +571,17 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
             .filter((c) => !PUBLIC_BOOKING_EXCLUDED_COUPON_CODES.has(c.code));
           setBookingCouponsFromDB(enabled);
         }
+
+        const { data: addonsData, error: addonsError } = await supabase
+          .from('booking_settings')
+          .select('setting_value')
+          .eq('setting_key', POOL_BOOKING_ADDONS_SETTING_KEY)
+          .eq('location_id', publicLocationId)
+          .maybeSingle();
+
+        if (!addonsError) {
+          setPoolAddonsConfig(mergePoolBookingAddons(addonsData?.setting_value ?? null));
+        }
       } catch (error) {
         console.error('Error fetching booking settings:', error);
         // Fallback to default values already set in state
@@ -563,6 +590,38 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
     fetchBookingSettings();
   }, [publicLocationId]);
+
+  const hasPoolTableSelected = useMemo(
+    () =>
+      selectedStations.some((id) => {
+        const s = stations.find((st) => st.id === id);
+        const t = String(s?.type ?? '').toLowerCase();
+        return t === '8ball' || t === 'snooker' || t === '8-ball' || t === '8_ball';
+      }),
+    [selectedStations, stations],
+  );
+
+  useEffect(() => {
+    if (hasPoolTableSelected && !hadPoolTableSelectedRef.current) {
+      const defaults = poolAddonsConfig
+        .filter((a) => a.enabled && a.default_selected)
+        .map((a) => a.id);
+      setSelectedPoolAddonIds(new Set(defaults));
+    }
+    if (!hasPoolTableSelected) {
+      setSelectedPoolAddonIds(new Set());
+    }
+    hadPoolTableSelectedRef.current = hasPoolTableSelected;
+  }, [hasPoolTableSelected, poolAddonsConfig]);
+
+  const togglePoolAddon = (id: string) => {
+    setSelectedPoolAddonIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
 
   // Check if customer info is complete (using useMemo to avoid initialization issues)
@@ -1439,6 +1498,12 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   const discount = discountObj.total;
   const discountBreakdown = discountObj.breakdown;
   const finalPrice = Math.max(originalPrice - discount, 0);
+  const poolAddonTotal = hasPoolTableSelected
+    ? calculatePoolAddonTotal(poolAddonsConfig, selectedPoolAddonIds)
+    : 0;
+  const bookingAddonsSnapshot = hasPoolTableSelected
+    ? buildBookingAddonsSnapshot(poolAddonsConfig, selectedPoolAddonIds)
+    : null;
 
   const isStationSelectionAvailable = () => isCustomerInfoComplete;
   const isTimeSelectionAvailable = () =>
@@ -1469,7 +1534,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       const slotsCount = slotsToBook.length;
       const totalOriginalPrice = originalPrice * slotsCount;
       const totalDiscountAmount = discount * slotsCount;
-      const totalFinalPrice = finalPrice * slotsCount;
+      const totalFinalPrice = finalPrice * slotsCount + poolAddonTotal;
 
       if (!publicLocationId) {
         toast.error("Branch not ready. Please refresh the page.");
@@ -1496,6 +1561,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           sessionId,
           location_id: publicLocationId,
           stationPlayerCounts,
+          bookingAddons: bookingAddonsSnapshot,
+          booking_group_id: bookingGroupIdRef.current,
         }),
       });
 
@@ -1558,6 +1625,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       setHasSearched(false);
       setCouponCode("");
       setAppliedCoupons({});
+      setSelectedPoolAddonIds(new Set());
+      bookingGroupIdRef.current = crypto.randomUUID();
       setAvailableSlots([]);
     } catch (e) {
       console.error(e);
@@ -1597,7 +1666,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       return null;
     }
 
-    const totalPrice = finalPrice * slotsToBook.length;
+    const totalPrice = finalPrice * slotsToBook.length + poolAddonTotal;
 
     if (totalPrice <= 0) {
       toast.error("Amount must be greater than 0 for online payment.");
@@ -1631,7 +1700,10 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         transactionFee,
         totalWithFee,
         coupons: Object.values(appliedCoupons).join(","),
+        addonTotal: poolAddonTotal,
       },
+      bookingAddons: bookingAddonsSnapshot,
+      booking_group_id: bookingGroupIdRef.current,
     };
     localStorage.setItem("pendingBooking", JSON.stringify(pendingBooking));
 
@@ -1655,6 +1727,15 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         twf: totalWithFee,
       },
       cp: Object.values(appliedCoupons).join(","),
+      ...(bookingAddonsSnapshot
+        ? {
+            ba: {
+              items: bookingAddonsSnapshot.items,
+              t: bookingAddonsSnapshot.total,
+            },
+            bg: bookingGroupIdRef.current,
+          }
+        : {}),
     });
 
     const notes: Record<string, string> = {
@@ -2688,6 +2769,17 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                   </div>
                 )}
 
+                {hasPoolTableSelected && (
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                    <PoolBookingAddonsPanel
+                      addons={poolAddonsConfig}
+                      selectedIds={selectedPoolAddonIds}
+                      onToggle={togglePoolAddon}
+                      formatPrice={(amount) => INR(amount)}
+                    />
+                  </div>
+                )}
+
                 <div>
                     <Label className="text-xs font-semibold text-gray-400 uppercase">
                       Coupon Code
@@ -2914,7 +3006,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                         const slotsCount = selectedSlots.length > 0 ? selectedSlots.length : (selectedSlot ? 1 : 0);
                         const totalOriginal = originalPrice * slotsCount;
                         const totalDiscount = discount * slotsCount;
-                        const totalFinal = finalPrice * slotsCount;
+                        const stationFinal = finalPrice * slotsCount;
+                        const totalFinal = stationFinal + poolAddonTotal;
                         
                         return (
                           <>
@@ -2944,7 +3037,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                         const slotsCount = selectedSlots.length > 0 ? selectedSlots.length : (selectedSlot ? 1 : 0);
                         const totalOriginal = originalPrice * slotsCount;
                         const totalDiscount = discount * slotsCount;
-                        const totalFinal = finalPrice * slotsCount;
+                        const stationFinal = finalPrice * slotsCount;
+                        const totalFinal = stationFinal + poolAddonTotal;
                         
                         return (
                           <>
@@ -2973,6 +3067,29 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                                     Total Discount
                                   </Label>
                                   <span className="text-sm text-green-400">-{INR(totalDiscount)}</span>
+                                </div>
+                              </>
+                            )}
+
+                            {poolAddonTotal > 0 && bookingAddonsSnapshot && (
+                              <>
+                                <div className="space-y-1 pt-1">
+                                  <Label className="text-xs font-semibold text-emerald-300/90 uppercase">
+                                    Session add-ons
+                                  </Label>
+                                  {bookingAddonsSnapshot.items.map((item) => (
+                                    <div
+                                      key={item.id}
+                                      className="flex justify-between items-center text-sm text-gray-300"
+                                    >
+                                      <span>{item.name}</span>
+                                      <span>{INR(item.price)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                  <Label className="text-gray-300">Add-ons subtotal</Label>
+                                  <span className="text-emerald-300">{INR(poolAddonTotal)}</span>
                                 </div>
                               </>
                             )}
@@ -3639,7 +3756,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           without scrolling past the entire form to the summary card. */}
       {(() => {
         const slotsCount = selectedSlots.length > 0 ? selectedSlots.length : (selectedSlot ? 1 : 0);
-        const totalFinal = finalPrice * slotsCount;
+        const totalFinal = finalPrice * slotsCount + poolAddonTotal;
         const hasProgress = selectedStations.length > 0 && slotsCount > 0;
         if (!viewIsMobile || !hasProgress) return null;
         return (

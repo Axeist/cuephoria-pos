@@ -83,6 +83,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       payment_mode = "venue",
       location_id: locationIdRaw,
       stationPlayerCounts = {},
+      bookingAddons = null,
+      booking_group_id: bookingGroupIdRaw,
     } = payload;
 
     const location_id = typeof locationIdRaw === "string" && locationIdRaw.length > 0 ? locationIdRaw : null;
@@ -244,7 +246,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const couponCodes = appliedCoupons ? Object.values(appliedCoupons).join(",") : "";
-    const rows = (slotsToBook as any[]).flatMap((slot) =>
+    const addonSnapshot =
+      bookingAddons &&
+      typeof bookingAddons === "object" &&
+      Array.isArray((bookingAddons as { items?: unknown }).items) &&
+      (bookingAddons as { items: unknown[] }).items.length > 0
+        ? bookingAddons
+        : null;
+    const addonTotal = addonSnapshot
+      ? Number((addonSnapshot as { total?: number }).total) || 0
+      : 0;
+    const booking_group_id =
+      typeof bookingGroupIdRaw === "string" && bookingGroupIdRaw.length > 0
+        ? bookingGroupIdRaw
+        : crypto.randomUUID();
+
+    const rowTemplates = (slotsToBook as any[]).flatMap((slot) =>
       selectedStations.map((stationId: string) => ({
         station_id: stationId,
         customer_id: customerId,
@@ -255,14 +272,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         duration: 60,
         status: "confirmed",
         original_price: originalPrice || 0,
-        discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
+        discount_percentage: discount > 0 && originalPrice > 0 ? (discount / originalPrice) * 100 : null,
         final_price: finalPrice || 0,
         coupon_code: couponCodes || null,
         payment_mode: payment_mode || null,
         payment_txn_id: orderId || null,
         player_count: Number(stationPlayerCounts?.[stationId]) || 1,
+        booking_group_id,
+        booking_addons: addonSnapshot,
       })),
     );
+    const rowCount = rowTemplates.length || 1;
+    const addonPerRow = addonTotal / rowCount;
+    const rows = rowTemplates.map((row) => ({
+      ...row,
+      final_price: (Number(row.final_price) || 0) + addonPerRow,
+    }));
 
     const { data: inserted, error: bookingError } = await supabase.from("bookings").insert(rows).select("id");
     if (bookingError) {

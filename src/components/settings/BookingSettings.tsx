@@ -14,7 +14,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useLocation } from '@/context/LocationContext';
 import { useAuth } from '@/context/AuthContext';
 import PublicBookingPopupsSettings from '@/components/settings/PublicBookingPopupsSettings';
-import { Separator } from '@/components/ui/separator';
+import PoolBookingAddonsSettings from '@/components/settings/PoolBookingAddonsSettings';
 
 interface Coupon {
   code: string;
@@ -507,6 +507,10 @@ const BookingSettings = () => {
           </Button>
         </CardContent>
       </Card>
+
+      <Separator />
+
+      <PoolBookingAddonsSettings />
 
       {isAdmin && (
         <>

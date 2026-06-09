@@ -29,6 +29,7 @@ import {
   formatCalendarTime,
   getStationAccent,
 } from './bookingCalendar.utils';
+import BookingAddonsDisplay from '@/components/booking/BookingAddonsDisplay';
 
 interface BookingCalendarDetailDialogProps {
   booking: CalendarBookingInput | null;
@@ -179,6 +180,8 @@ export const BookingCalendarDetailDialog: React.FC<BookingCalendarDetailDialogPr
               <DetailRow icon={CreditCard} label="Transaction ID" value={booking.payment_txn_id} mono />
             )}
           </div>
+
+          <BookingAddonsDisplay bookingAddons={booking.booking_addons} />
 
           {booking.notes && (
             <div className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3">
