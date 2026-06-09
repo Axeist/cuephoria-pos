@@ -173,7 +173,7 @@ const AppSidebar: React.FC = () => {
         <img
           src={CUETRONIX_ASSETS.iconUrl}
           alt={CUETRONIX_ASSETS.logoAlt}
-          className="h-full w-full object-cover"
+          className="h-full w-full object-contain"
           draggable={false}
         />
       )}

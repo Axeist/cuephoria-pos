@@ -17,6 +17,7 @@ import {
 import { toast } from 'sonner';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { normalizeIndianMobile10, phoneMatchVariants } from '@/lib/cafeCustomerLookup';
+import { CUETRONIX_ASSETS } from '@/branding/assets';
 
 type Step = 'landing' | 'identify' | 'menu' | 'cart' | 'checkout' | 'tracking' | 'history';
 type DietFilter = 'all' | 'veg' | 'nonveg';
@@ -260,7 +261,7 @@ const CafeCustomerOrder: React.FC = () => {
               audio.play().catch(() => {});
             } catch {}
             if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification('Your order is ready!', { body: `Order ${orderNumber} — collect from the counter`, icon: '/branding/cuetronix-icon-192.png' });
+              new Notification('Your order is ready!', { body: `Order ${orderNumber} — collect from the counter`, icon: CUETRONIX_ASSETS.icon192Url });
             }
           }
         }
@@ -656,7 +657,7 @@ const CafeCustomerOrder: React.FC = () => {
           <div className="flex items-center gap-4">
               <img src="/choco-loca-logo.png" alt="Choco Loca" className="h-20 w-20 rounded-2xl object-contain bg-white/5 p-1.5 shadow-xl shadow-orange-500/15 ring-1 ring-white/10" />
               <span className="text-3xl text-zinc-600 font-thin select-none">×</span>
-              <img src="/branding/cuetronix-logo.png" alt="Cuetronix" className="h-20 w-20 rounded-2xl object-contain bg-white/5 p-1.5 shadow-xl shadow-purple-500/15 ring-1 ring-white/10" />
+              <img src={CUETRONIX_ASSETS.iconUrl} alt="Cuetronix" className="h-20 w-20 rounded-2xl object-contain bg-white/5 p-1.5 shadow-xl shadow-purple-500/15 ring-1 ring-white/10" />
           </div>
 
           <div className="text-center space-y-2">

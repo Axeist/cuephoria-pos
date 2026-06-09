@@ -20,20 +20,19 @@ const Logo: React.FC<LogoProps> = ({ size = 'md', className, iconOnly = false })
   const isMobile = useIsMobile();
   const height = isMobile ? 36 : heightMap[size] || 52;
   const src = iconOnly ? CUETRONIX_ASSETS.iconUrl : CUETRONIX_ASSETS.logoUrl;
-  const aspect = iconOnly ? 1 : CUETRONIX_ASSETS.logoAspectRatio;
-  const width = height * aspect;
 
   return (
     <img
       src={src}
       alt={CUETRONIX_ASSETS.logoAlt}
       height={height}
-      width={width}
       style={{
         objectFit: 'contain',
         background: 'transparent',
+        height,
+        width: iconOnly ? height : 'auto',
         maxHeight: height,
-        maxWidth: width,
+        maxWidth: iconOnly ? height : 'min(100%, 240px)',
       }}
       className={`select-none ${className || ''}`}
       draggable={false}

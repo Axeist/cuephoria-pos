@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck, ChevronDown, TrendingUp, History, CalendarDays, Globe, Activity, Zap, ImageIcon, CheckCircle2, Ticket, X } from 'lucide-react';
+import { CUETRONIX_ASSETS } from '@/branding/assets';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import PublicTournamentHistory from '@/components/tournaments/PublicTournamentHistory';
@@ -1451,7 +1452,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
           <div className="w-32 h-32 mb-8 flex items-center justify-center relative">
             <div className="absolute inset-0 rounded-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue opacity-20 animate-ping"></div>
             <img 
-              src="/branding/cuetronix-logo.png" 
+              src={CUETRONIX_ASSETS.iconUrl} 
               alt="Cuetronix" 
               className="animate-float z-10 relative"
             />
@@ -1501,7 +1502,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
             <div className="mb-8 animate-float relative">
               <div className="absolute inset-0 rounded-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue opacity-30 blur-xl animate-pulse"></div>
               <img 
-                src="/branding/cuetronix-logo.png" 
+                src={CUETRONIX_ASSETS.iconUrl} 
                 alt="Cuetronix" 
                 className="h-32 relative z-10 shadow-2xl shadow-cuephoria-lightpurple/40"
               />
@@ -1745,9 +1746,9 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
             {/* Logo and description */}
             <div className="text-center md:text-left">
               <img 
-                src="/branding/cuetronix-logo.png"
+                src={CUETRONIX_ASSETS.logoUrl}
                 alt="Cuetronix" 
-                className="h-12 mb-4 mx-auto md:mx-0" 
+                className="h-8 w-auto max-w-[200px] mb-4 mx-auto md:mx-0 object-contain" 
               />
               <p className="text-cuephoria-grey text-sm leading-relaxed mb-4">
                 The ultimate gaming destination offering premium PlayStation 5 gaming and professional pool tables with tournament-level competition.

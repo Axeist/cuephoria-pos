@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Monitor, Clock, Timer, Wifi, Gamepad2, RefreshCcw, Headset } from 'lucide-react';
 import { Station, Session } from '@/types/pos.types';
 import Logo from '@/components/Logo';
+import { CUETRONIX_ASSETS } from '@/branding/assets';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 type PublicVenue = { id: string; name: string; slug: string };
@@ -260,7 +261,7 @@ const PublicStations = ({ branchSlug = 'main' }: { branchSlug?: string }) => {
           <div className="flex flex-col items-center mb-8">
             <div className="mb-6 animate-float">
               <img 
-                src="/branding/cuetronix-logo.png" 
+                src={CUETRONIX_ASSETS.iconUrl} 
                 alt="Cuetronix" 
                 className="h-24 shadow-lg shadow-cuephoria-purple/30"
               />
@@ -431,9 +432,9 @@ const PublicStations = ({ branchSlug = 'main' }: { branchSlug?: string }) => {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center mb-4 md:mb-0">
             <img 
-              src="/branding/cuetronix-logo.png"
+              src={CUETRONIX_ASSETS.logoUrl}
               alt="Cuetronix" 
-              className="h-8 mr-3" 
+              className="h-8 w-auto max-w-[160px] mr-3 object-contain" 
             />
             <p className="text-gray-400 text-sm">
               © {new Date().getFullYear()} Cuephoria. All rights reserved.
@@ -473,7 +474,7 @@ const ImprovedLoadingView = ({ error }: { error: string | null }) => {
       <div className="w-full max-w-md flex flex-col items-center justify-center animate-fade-in">
         <div className="w-32 h-32 mb-8 flex items-center justify-center">
           <img 
-            src="/branding/cuetronix-logo.png" 
+            src={CUETRONIX_ASSETS.iconUrl} 
             alt="Cuetronix" 
             className="animate-flip-in"
           />
@@ -500,7 +501,7 @@ const ImprovedLoadingView = ({ error }: { error: string | null }) => {
               <div className="w-16 h-16 border-t-4 border-r-4 border-transparent border-solid rounded-full border-r-cuephoria-purple absolute animate-spin-slow"></div>
               <div className="absolute">
                 <img 
-                  src="/branding/cuetronix-logo.png" 
+                  src={CUETRONIX_ASSETS.iconUrl} 
                   alt="Cuetronix" 
                   className="h-10 w-12 animate-pulse-soft"
                 />
@@ -525,7 +526,7 @@ const NoStationsView = ({ error, venueName }: { error: string | null; venueName?
       <div className="w-full max-w-md py-12 px-6 flex flex-col items-center justify-center animate-fade-in">
         <div className="w-32 h-32 mb-8 flex items-center justify-center">
           <img 
-            src="/branding/cuetronix-logo.png" 
+            src={CUETRONIX_ASSETS.iconUrl} 
             alt="Cuetronix"
             className="animate-float" 
           />

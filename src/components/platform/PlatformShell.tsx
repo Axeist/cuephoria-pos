@@ -68,8 +68,8 @@ export const PlatformShell: React.FC<{ children: React.ReactNode }> = ({ childre
                 <div className="flex h-full flex-col">
                   <div className="px-4 py-4 border-b border-white/5">
                     <div className="flex items-center gap-3">
-                      <div className="relative h-9 w-9 rounded-lg bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-cyan-400 grid place-items-center shadow-lg shadow-indigo-500/30">
-                        <span className="font-black text-white text-sm tracking-tight">CX</span>
+                      <div className="relative h-9 w-9 rounded-lg overflow-hidden bg-black grid place-items-center shadow-lg shadow-indigo-500/30 ring-1 ring-white/10">
+                        <img src={PRODUCT_BRAND.iconUrl} alt={PRODUCT_BRAND.name} className="h-full w-full object-contain" />
                       </div>
                       <div className="leading-tight">
                         <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">
@@ -129,8 +129,8 @@ export const PlatformShell: React.FC<{ children: React.ReactNode }> = ({ childre
             </Sheet>
 
             <div className="flex items-center gap-3 min-w-0">
-              <div className="hidden md:flex relative h-9 w-9 rounded-lg bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-cyan-400 place-items-center shadow-lg shadow-indigo-500/30">
-                <span className="font-black text-white text-sm tracking-tight">CX</span>
+              <div className="hidden md:flex relative h-9 w-9 rounded-lg overflow-hidden bg-black place-items-center shadow-lg shadow-indigo-500/30 ring-1 ring-white/10">
+                <img src={PRODUCT_BRAND.iconUrl} alt={PRODUCT_BRAND.name} className="h-full w-full object-contain" />
               </div>
               <div className="leading-tight min-w-0">
                 <div className="text-[10px] sm:text-[11px] uppercase tracking-[0.18em] text-zinc-500 truncate">

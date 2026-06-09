@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, Loader2, AlertCircle, Sparkles, Trophy, Zap } from "lucide-react";
 import { generateId } from '@/utils/pos.utils';
+import { CUETRONIX_ASSETS } from '@/branding/assets';
 
 type PendingTournamentRegistration = {
   tournamentId: string;
@@ -353,7 +354,7 @@ export default function PublicTournamentPaymentSuccess() {
           <div className="relative">
             <div className="absolute -inset-4 rounded-full bg-gradient-to-r from-cuephoria-purple/30 to-cuephoria-lightpurple/30 blur-xl animate-pulse"></div>
             <img
-              src="/branding/cuetronix-logo.png"
+              src={CUETRONIX_ASSETS.iconUrl}
               alt="Cuetronix"
               className="h-20 md:h-24 relative z-10 drop-shadow-[0_0_25px_rgba(155,135,245,0.5)] animate-float"
             />

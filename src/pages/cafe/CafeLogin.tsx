@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { CUETRONIX_ASSETS } from "@/branding/assets";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -154,7 +155,7 @@ const CafeLogin: React.FC = () => {
               />
               <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 p-1 ring-2 ring-violet-500/30">
                 <img
-                  src="/branding/cuetronix-logo.png"
+                  src={CUETRONIX_ASSETS.iconUrl}
                   alt="Cuetronix"
                   className="h-full w-full rounded-xl object-contain"
                 />
@@ -300,7 +301,7 @@ const CafeLogin: React.FC = () => {
                   <span className="text-sm font-heading text-gray-500">&times;</span>
                   <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br from-gray-900 to-gray-800 p-1 ring-1 ring-violet-500/30">
                     <img
-                      src="/branding/cuetronix-logo.png"
+                      src={CUETRONIX_ASSETS.iconUrl}
                       alt="Cuetronix"
                       className="h-full w-full rounded-md object-contain"
                     />

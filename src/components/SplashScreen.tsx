@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ShieldCheck, Sparkles } from "lucide-react";
+import { Check } from "lucide-react";
 import { CUETRONIX_ASSETS } from "@/branding/assets";
 
 export type SplashVariant = "boot" | "login_success";
@@ -22,173 +22,102 @@ function usePrefersReducedMotion() {
 
     const onChange = () => setReduced(mq.matches);
     onChange();
-
-    // Safari < 14
-    // eslint-disable-next-line deprecation/deprecation
-    mq.addEventListener ? mq.addEventListener("change", onChange) : mq.addListener(onChange);
-    return () => {
-      // eslint-disable-next-line deprecation/deprecation
-      mq.removeEventListener ? mq.removeEventListener("change", onChange) : mq.removeListener(onChange);
-    };
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
   }, []);
 
   return reduced;
 }
 
-// ─── Log lines ────────────────────────────────────────────────────────────────
-const BOOT_LINES: string[] = [
-  "› initializing cuetronix runtime",
-  "› mounting secure session vault",
-  "› establishing tenant channel",
-  "› synchronising branding manifest",
-  "› compositor ready",
-  "› realtime sockets online",
-  "› hello, operator",
-];
+const BOOT_STATUS = [
+  "Initializing secure runtime",
+  "Syncing venue configuration",
+  "Compositing live dashboard",
+] as const;
 
-const LOGIN_SUCCESS_LINES: string[] = [
-  "› credentials verified",
-  "› session hardened · 2FA ok",
-  "› loading workspace manifest",
-  "› restoring last view",
-  "› welcome back",
-];
+const LOGIN_STATUS = [
+  "Credentials verified",
+  "Hydrating workspace state",
+  "Opening command surface",
+] as const;
 
-// ─── Lightweight starfield canvas ─────────────────────────────────────────────
-// Self-contained (no three.js), fits the 3-second splash budget without
-// bringing in the heavy galaxy scene from the landing page.
-type StarfieldCanvasProps = {
-  enabled: boolean;
-  className?: string;
-};
-
-function StarfieldCanvas({ enabled, className }: StarfieldCanvasProps) {
+/** Sparse particle field — refined, not arcade starfield */
+function ParticleField({ enabled }: { enabled: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
-  const sizeRef = useRef({ w: 0, h: 0, dpr: 1 });
-  const starsRef = useRef<
-    Array<{ x: number; y: number; z: number; r: number; hue: number; tw: number }>
-  >([]);
-
-  // Resize + star regeneration
-  useEffect(() => {
-    const el = wrapperRef.current;
-    const canvas = canvasRef.current;
-    if (!el || !canvas) return;
-
-    const ro = new ResizeObserver((entries) => {
-      const rect = entries[0]?.contentRect;
-      if (!rect) return;
-
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
-      const w = Math.max(1, Math.floor(rect.width));
-      const h = Math.max(1, Math.floor(rect.height));
-      sizeRef.current = { w, h, dpr };
-
-      canvas.width = Math.floor(w * dpr);
-      canvas.height = Math.floor(h * dpr);
-      canvas.style.width = `${w}px`;
-      canvas.style.height = `${h}px`;
-
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-      const count = Math.max(90, Math.min(260, Math.floor((w * h) / 9000)));
-      const stars = [];
-      for (let i = 0; i < count; i++) {
-        stars.push({
-          x: Math.random() * w,
-          y: Math.random() * h,
-          z: Math.random() * 0.85 + 0.15,
-          r: Math.random() * 1.4 + 0.2,
-          hue: Math.random(),
-          tw: Math.random() * Math.PI * 2,
-        });
-      }
-      starsRef.current = stars;
-    });
-
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !enabled) return;
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    if (!enabled) {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-      return;
-    }
+    let w = 0;
+    let h = 0;
+    let dpr = 1;
+    const particles: Array<{ x: number; y: number; vx: number; vy: number; a: number; s: number }> = [];
 
-    let last = performance.now();
+    const resize = () => {
+      dpr = Math.min(2, window.devicePixelRatio || 1);
+      w = canvas.clientWidth;
+      h = canvas.clientHeight;
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const draw = (now: number) => {
-      const { w, h } = sizeRef.current;
-      const dt = Math.min(64, now - last);
-      last = now;
+      const count = Math.min(48, Math.floor((w * h) / 28000));
+      particles.length = 0;
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          vx: (Math.random() - 0.5) * 0.12,
+          vy: (Math.random() - 0.5) * 0.08,
+          a: Math.random() * 0.35 + 0.08,
+          s: Math.random() * 1.2 + 0.4,
+        });
+      }
+    };
 
-      // Clear to fully transparent so layer underneath (gradient) shows through
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
+
+    const draw = () => {
       ctx.clearRect(0, 0, w, h);
-
-      const stars = starsRef.current;
-      for (let i = 0; i < stars.length; i++) {
-        const s = stars[i];
-
-        // Gentle rightward / downward drift in parallax to the star's depth
-        s.x += (0.015 + s.z * 0.035) * dt;
-        s.y += (0.008 + s.z * 0.02) * dt;
-        s.tw += 0.002 * dt;
-
-        if (s.x > w + 8) s.x = -8;
-        if (s.y > h + 8) s.y = -8;
-
-        // Twinkle + colour wheel across violet / fuchsia / blue
-        const twinkle = 0.55 + Math.sin(s.tw) * 0.45;
-        const alpha = clamp01(0.25 + s.z * 0.7) * twinkle;
-
-        // Pick a warm violet / fuchsia / cool indigo hue based on `hue` slot
-        let color: string;
-        if (s.hue < 0.45) color = `rgba(167,139,250,${alpha.toFixed(3)})`; // violet
-        else if (s.hue < 0.8) color = `rgba(240,171,252,${alpha.toFixed(3)})`; // fuchsia
-        else color = `rgba(147,197,253,${alpha.toFixed(3)})`; // blue
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0) p.x = w;
+        if (p.x > w) p.x = 0;
+        if (p.y < 0) p.y = h;
+        if (p.y > h) p.y = 0;
 
         ctx.beginPath();
-        ctx.fillStyle = color;
-        ctx.shadowBlur = 6 * s.z;
-        ctx.shadowColor = color;
-        ctx.arc(s.x, s.y, s.r * (0.8 + s.z * 1.1), 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(167,139,250,${p.a})`;
+        ctx.arc(p.x, p.y, p.s, 0, Math.PI * 2);
         ctx.fill();
       }
-
       rafRef.current = requestAnimationFrame(draw);
     };
 
     rafRef.current = requestAnimationFrame(draw);
     return () => {
+      ro.disconnect();
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
     };
   }, [enabled]);
 
-  return (
-    <div ref={wrapperRef} className={className}>
-      <canvas ref={canvasRef} className="h-full w-full" />
-    </div>
-  );
+  return <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden />;
 }
 
-// ─── Main component ──────────────────────────────────────────────────────────
 export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
   const prefersReducedMotion = usePrefersReducedMotion();
+  const isSuccess = variant === "login_success";
 
   const [progress, setProgress] = useState(0);
-  const [lines, setLines] = useState<string[]>([]);
+  const [statusIndex, setStatusIndex] = useState(0);
   const [exiting, setExiting] = useState(false);
   const [exitSource, setExitSource] = useState<"auto" | "click" | null>(null);
 
@@ -196,45 +125,42 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
   const exitingRef = useRef(false);
   exitingRef.current = exiting;
 
-  const allLines = useMemo(
-    () => (variant === "boot" ? BOOT_LINES : LOGIN_SUCCESS_LINES),
-    [variant],
+  const statusLines = useMemo(
+    () => (isSuccess ? LOGIN_STATUS : BOOT_STATUS),
+    [isSuccess],
   );
 
-  const isSuccess = variant === "login_success";
+  const accent = isSuccess
+    ? { from: "#34d399", mid: "#6ee7b7", to: "#a78bfa" }
+    : { from: "#8b5cf6", mid: "#c084fc", to: "#22d3ee" };
 
   const beginExit = (source: "auto" | "click") => {
     if (exitingRef.current) return;
     setExitSource(source);
     setExiting(true);
 
-    const delayMs = source === "click" ? 500 : 650;
+    const delayMs = source === "click" ? 380 : 480;
     if (exitTimerRef.current) window.clearTimeout(exitTimerRef.current);
-    exitTimerRef.current = window.setTimeout(() => {
-      onDone();
-    }, delayMs);
+    exitTimerRef.current = window.setTimeout(() => onDone(), delayMs);
   };
 
-  // Progress timer
   useEffect(() => {
     setProgress(0);
-    setLines([]);
+    setStatusIndex(0);
     setExiting(false);
     setExitSource(null);
     exitingRef.current = false;
     if (exitTimerRef.current) window.clearTimeout(exitTimerRef.current);
     exitTimerRef.current = null;
 
-    // Success variant finishes faster — user has already authenticated and is
-    // just waiting. Boot takes a beat longer because we want the brand moment.
-    const durationMs = isSuccess ? 2400 : 3200;
+    const durationMs = isSuccess ? 2400 : 3000;
     const start = performance.now();
     let raf = 0;
 
     const tick = (now: number) => {
       if (exitingRef.current) return;
       const p = clamp01((now - start) / durationMs);
-      const eased = 1 - Math.pow(1 - p, 3);
+      const eased = 1 - Math.pow(1 - p, 2.35);
       setProgress(eased);
       if (p >= 1) {
         beginExit("auto");
@@ -248,17 +174,13 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variant]);
 
-  // Stream log lines in, one at a time
   useEffect(() => {
-    let idx = 0;
-    const cadence = isSuccess ? 220 : 300;
+    const cadence = isSuccess ? 560 : 720;
     const timer = window.setInterval(() => {
-      idx += 1;
-      setLines(allLines.slice(0, idx));
-      if (idx >= allLines.length) window.clearInterval(timer);
+      setStatusIndex((i) => (i + 1) % statusLines.length);
     }, cadence);
     return () => window.clearInterval(timer);
-  }, [allLines, isSuccess]);
+  }, [statusLines, isSuccess]);
 
   useEffect(() => {
     return () => {
@@ -266,7 +188,6 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
     };
   }, []);
 
-  // Listen for Enter to skip
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Enter" || e.key === " ") {
@@ -280,360 +201,343 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
   }, []);
 
   const pct = Math.round(progress * 100);
-  const exitDurationClass =
-    exitSource === "click"
-      ? "[transition-duration:500ms]"
-      : "[transition-duration:650ms]";
+  const status = statusLines[statusIndex];
+  const exitMs = exitSource === "click" ? 380 : 480;
+  const motion = !prefersReducedMotion && !exiting;
 
   return (
     <div
       className={[
-        "fixed inset-0 z-[99999] select-none overflow-hidden",
-        "flex items-center justify-center p-4 sm:p-6",
+        "fixed inset-0 z-[99999] flex items-center justify-center overflow-hidden bg-[#050508] px-5 sm:px-6",
         "transition-opacity ease-out",
-        exitDurationClass,
         exiting ? "opacity-0" : "opacity-100",
       ].join(" ")}
+      style={{ transitionDuration: `${exitMs}ms` }}
       aria-live="polite"
-      aria-label={isSuccess ? "Access granted splash screen" : "Boot splash screen"}
+      aria-label={isSuccess ? "Loading workspace" : "Starting application"}
     >
-      {/* ── Deep gradient base ── */}
+      {/* Aurora base */}
       <div
-        className="absolute inset-0"
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(1200px 800px at 15% 0%, rgba(124,58,237,0.35), transparent 60%)," +
-            "radial-gradient(900px 700px at 85% 15%, rgba(236,72,153,0.22), transparent 60%)," +
-            "radial-gradient(1200px 900px at 50% 100%, rgba(59,130,246,0.18), transparent 60%)," +
-            "linear-gradient(180deg, #07030f 0%, #0a0414 55%, #07030f 100%)",
+            "radial-gradient(ellipse 80% 55% at 50% -10%, rgba(139,92,246,0.22), transparent 55%)," +
+            "radial-gradient(ellipse 60% 45% at 85% 85%, rgba(34,211,238,0.08), transparent 50%)," +
+            "radial-gradient(ellipse 50% 40% at 10% 70%, rgba(192,132,252,0.1), transparent 45%)," +
+            "linear-gradient(180deg, #050508 0%, #080812 50%, #050508 100%)",
         }}
       />
 
-      {/* ── Starfield (violet/fuchsia) ── */}
-      <StarfieldCanvas
-        enabled={!prefersReducedMotion}
-        className="absolute inset-0 opacity-90"
-      />
+      <ParticleField enabled={motion} />
 
-      {/* ── Film-grain noise ── */}
+      {/* Perspective grid floor */}
       <div
-        className="absolute inset-0 opacity-[0.05] mix-blend-overlay"
+        aria-hidden
+        className={[
+          "pointer-events-none absolute inset-x-0 bottom-0 h-[55%]",
+          motion ? "splash-grid-drift" : "",
+        ].join(" ")}
         style={{
           backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
-          backgroundSize: "220px",
+            "linear-gradient(rgba(139,92,246,0.14) 1px, transparent 1px)," +
+            "linear-gradient(90deg, rgba(139,92,246,0.14) 1px, transparent 1px)",
+          backgroundSize: "56px 56px",
+          transform: "perspective(520px) rotateX(68deg)",
+          transformOrigin: "50% 100%",
+          maskImage: "linear-gradient(to top, black 0%, black 35%, transparent 92%)",
+          WebkitMaskImage: "linear-gradient(to top, black 0%, black 35%, transparent 92%)",
+          opacity: 0.55,
         }}
       />
 
-      {/* ── Vignette ── */}
+      {/* Horizontal scan sweep */}
+      {motion ? (
+        <div aria-hidden className="splash-scan pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/50 to-transparent" />
+      ) : null}
+
+      {/* Vignette */}
       <div
-        className="absolute inset-0"
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
         style={{
-          background:
-            "radial-gradient(ellipse at center, transparent 30%, rgba(7,3,15,0.65) 100%)",
+          background: "radial-gradient(ellipse 75% 65% at 50% 45%, transparent 35%, rgba(5,5,8,0.75) 100%)",
         }}
       />
 
-      {/* ── Floating ambient glows ── */}
-      <div className="gh-splash-float pointer-events-none absolute -top-32 -left-32 h-[420px] w-[420px] rounded-full bg-violet-500/20 blur-[100px]" />
-      <div className="gh-splash-float2 pointer-events-none absolute -bottom-32 -right-24 h-[460px] w-[460px] rounded-full bg-fuchsia-500/18 blur-[110px]" />
-
-      {/* ── Glass card ── */}
+      {/* Holo panel */}
       <div
         className={[
-          "relative z-10 w-full max-w-[720px]",
-          "transform-gpu transition-all [transition-timing-function:cubic-bezier(.2,.8,.2,1)]",
-          exitDurationClass,
-          exiting
-            ? "translate-y-2 scale-[0.985] opacity-0 blur-[1px]"
-            : "translate-y-0 scale-100 opacity-100 blur-0",
+          "relative z-10 w-full max-w-[440px] transform-gpu transition-all ease-out",
+          exiting ? "translate-y-2 scale-[0.985] opacity-0 blur-[2px]" : "translate-y-0 scale-100 opacity-100 blur-0",
         ].join(" ")}
+        style={{ transitionDuration: `${exitMs}ms` }}
       >
-        {/* Blurred gradient halo behind card */}
+        {/* Animated border glow */}
         <div
-          className="absolute -inset-px rounded-[30px] opacity-70 blur-2xl"
+          aria-hidden
+          className={[
+            "absolute -inset-[1px] rounded-[26px] opacity-80 blur-sm",
+            motion ? "splash-border-spin" : "",
+          ].join(" ")}
           style={{
-            background: isSuccess
-              ? "linear-gradient(135deg, rgba(124,58,237,0.45), rgba(236,72,153,0.35), rgba(52,211,153,0.28))"
-              : "linear-gradient(135deg, rgba(124,58,237,0.5), rgba(236,72,153,0.35), rgba(59,130,246,0.28))",
+            background: `conic-gradient(from 0deg, ${accent.from}, ${accent.mid}, ${accent.to}, ${accent.from})`,
           }}
         />
 
         <div
-          className="relative overflow-hidden rounded-[28px] border border-white/10"
+          className="relative overflow-hidden rounded-[25px] border border-white/[0.09]"
           style={{
             background:
-              "linear-gradient(180deg, rgba(20,12,38,0.8) 0%, rgba(12,7,24,0.82) 100%)",
-            backdropFilter: "blur(32px) saturate(170%)",
-            WebkitBackdropFilter: "blur(32px) saturate(170%)",
+              "linear-gradient(165deg, rgba(14,10,28,0.92) 0%, rgba(8,6,18,0.96) 55%, rgba(6,5,14,0.98) 100%)",
+            backdropFilter: "blur(40px) saturate(160%)",
+            WebkitBackdropFilter: "blur(40px) saturate(160%)",
             boxShadow:
-              "0 30px 80px -30px rgba(124,58,237,0.5), 0 10px 30px -10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)",
+              "0 40px 100px -40px rgba(139,92,246,0.45), 0 0 0 1px rgba(255,255,255,0.04) inset, 0 1px 0 rgba(255,255,255,0.06) inset",
           }}
         >
-          {/* Top accent shine line */}
+          {/* HUD corners */}
+          <span aria-hidden className="absolute left-4 top-4 h-3 w-3 border-l border-t border-violet-400/40" />
+          <span aria-hidden className="absolute right-4 top-4 h-3 w-3 border-r border-t border-cyan-400/35" />
+          <span aria-hidden className="absolute bottom-4 left-4 h-3 w-3 border-b border-l border-violet-400/30" />
+          <span aria-hidden className="absolute bottom-4 right-4 h-3 w-3 border-b border-r border-cyan-400/30" />
+
+          {/* Inner sheen */}
           <div
-            className="pointer-events-none absolute inset-x-8 top-0 h-px"
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-60"
             style={{
               background:
-                "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%)",
+                "radial-gradient(600px 220px at 50% 0%, rgba(167,139,250,0.12), transparent 70%)," +
+                "linear-gradient(180deg, rgba(255,255,255,0.04) 0%, transparent 28%)",
             }}
           />
 
-          {/* Inner radial tints */}
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                "radial-gradient(800px 300px at 15% 0%, rgba(167,139,250,0.18), transparent 60%)," +
-                (isSuccess
-                  ? "radial-gradient(700px 280px at 85% 100%, rgba(52,211,153,0.12), transparent 65%)"
-                  : "radial-gradient(700px 280px at 85% 100%, rgba(236,72,153,0.12), transparent 65%)"),
-            }}
-          />
-
-          <div className="relative p-6 sm:p-9">
-            {/* ── Header row ── */}
-            <div className="flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-center gap-4">
-                {/* Logo chip */}
-                <div className="relative">
-                  <div
-                    className={`absolute inset-0 rounded-2xl blur-xl ${
-                      isSuccess ? "bg-emerald-400/25" : "bg-violet-500/30"
-                    }`}
-                  />
-                  {isSuccess ? (
-                    <div
-                      className={[
-                        "gh-splash-pop relative flex h-14 w-14 items-center justify-center rounded-2xl",
-                        "border border-white/15 shadow-lg shadow-emerald-500/30",
-                      ].join(" ")}
-                      style={{
-                        background:
-                          "linear-gradient(135deg, #10b981 0%, #8b5cf6 55%, #ec4899 100%)",
-                      }}
-                    >
-                      {/* Checkmark */}
-                      <svg
-                        viewBox="0 0 24 24"
-                        className="h-7 w-7 text-white drop-shadow-[0_0_10px_rgba(16,185,129,0.6)]"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M5 12.5l4.5 4.5L19 7.5" />
-                      </svg>
-                    </div>
-                  ) : (
-                    <div
-                      className={[
-                        "gh-splash-pop relative flex h-14 w-14 items-center justify-center rounded-2xl",
-                        "border border-white/15 shadow-lg shadow-violet-600/40 overflow-hidden",
-                      ].join(" ")}
-                      style={{
-                        background: "#000",
-                      }}
-                    >
-                      <img
-                        src={CUETRONIX_ASSETS.iconUrl}
-                        alt={CUETRONIX_ASSETS.logoAlt}
-                        className="h-full w-full object-cover"
-                        draggable={false}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="text-xl font-extrabold tracking-tight text-white sm:text-2xl"
-                      style={{ letterSpacing: "-0.01em" }}
-                    >
-                      Cue
-                      <span className="bg-gradient-to-r from-violet-300 via-fuchsia-300 to-pink-300 bg-clip-text text-transparent">
-                        tronix
-                      </span>
-                    </span>
-                    <span
-                      className={[
-                        "ml-1 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em]",
-                        isSuccess
-                          ? "border border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
-                          : "border border-violet-400/30 bg-violet-400/10 text-violet-200",
-                      ].join(" ")}
-                    >
-                      {isSuccess ? "Access Granted" : "OS v2.0"}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-[11px] uppercase tracking-[0.22em] text-white/55 sm:text-xs">
-                    {isSuccess ? "Session ready" : "Premium lounge OS"}
-                  </div>
-                  <div className="mt-2 max-w-[360px] text-xs text-white/60 sm:text-sm">
-                    {isSuccess
-                      ? "Session verified and hardened. Spinning up your workspace…"
-                      : "Booting secure runtime — compositing dashboards and station data…"}
-                  </div>
-                </div>
-              </div>
-
-              {/* Progress + Enter */}
-              <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
-                <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-[0.22em] text-white/50 sm:text-xs">
-                    Progress
-                  </div>
-                  <div
-                    className={[
-                      "font-mono text-sm tabular-nums sm:text-base",
-                      isSuccess ? "text-emerald-200/90" : "text-fuchsia-200/90",
-                    ].join(" ")}
-                  >
-                    {pct.toString().padStart(3, "0")}%
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => beginExit("click")}
-                  className={[
-                    "group relative inline-flex items-center gap-1.5 overflow-hidden rounded-xl",
-                    "border border-white/15 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white",
-                    "transition hover:bg-white/[0.08] active:scale-[0.98]",
-                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400/70",
-                  ].join(" ")}
-                >
-                  <Sparkles
-                    size={12}
-                    className={isSuccess ? "text-emerald-300" : "text-fuchsia-300"}
-                  />
-                  Enter
-                </button>
-              </div>
-            </div>
-
-            {/* ── Terminal block ── */}
-            <div
-              className="relative mt-6 overflow-hidden rounded-2xl border border-white/10"
-              style={{
-                background: "rgba(5,2,12,0.72)",
-                backdropFilter: "blur(10px)",
-              }}
-            >
-              <div className="flex items-center justify-between border-b border-white/5 px-4 py-2">
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-rose-400/60" />
-                    <span className="h-2 w-2 rounded-full bg-amber-300/60" />
-                    <span className="h-2 w-2 rounded-full bg-emerald-400/60" />
-                  </div>
-                  <span className="ml-2 text-[10px] uppercase tracking-[0.22em] text-white/40">
-                    {isSuccess ? "Session log" : "Boot log"}
-                  </span>
-                </div>
-                <span className="font-mono text-[10px] text-white/35">
-                  cuetronix://os/{variant}
-                </span>
-              </div>
-
-              <div className="px-4 py-4 font-mono text-xs leading-relaxed text-white/80 sm:text-[13px]">
-                {lines.map((l, i) => (
-                  <div
-                    key={`${i}-${l}`}
-                    className={[
-                      "flex gap-2 transition-opacity",
-                      isSuccess ? "text-emerald-100/90" : "text-violet-100/90",
-                    ].join(" ")}
-                  >
-                    <span className="break-words">{l}</span>
-                  </div>
-                ))}
-                <div className="flex items-center gap-2">
-                  <span
-                    className={[
-                      "inline-block h-[14px] w-[8px] align-[-2px]",
-                      isSuccess ? "bg-emerald-200/80" : "bg-fuchsia-200/80",
-                      "gh-blink-cursor",
-                    ].join(" ")}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* ── Progress bar ── */}
-            <div className="mt-6">
-              <div
-                className="h-2 w-full overflow-hidden rounded-full border border-white/10"
-                style={{ background: "rgba(255,255,255,0.06)" }}
+          <div className="relative px-8 py-10 sm:px-10 sm:py-11">
+            {/* Logo + orbital rings */}
+            <div className="mx-auto mb-8 flex h-[88px] w-[88px] items-center justify-center">
+              <svg
+                aria-hidden
+                className={[
+                  "absolute h-[88px] w-[88px] text-violet-400/25",
+                  motion ? "splash-orbit-a" : "",
+                ].join(" ")}
+                viewBox="0 0 88 88"
+                fill="none"
               >
+                <circle cx="44" cy="44" r="40" stroke="currentColor" strokeWidth="0.75" strokeDasharray="4 8" />
+              </svg>
+              <svg
+                aria-hidden
+                className={[
+                  "absolute h-[72px] w-[72px] text-cyan-400/20",
+                  motion ? "splash-orbit-b" : "",
+                ].join(" ")}
+                viewBox="0 0 72 72"
+                fill="none"
+              >
+                <circle cx="36" cy="36" r="32" stroke="currentColor" strokeWidth="0.5" />
+                <circle cx="36" cy="4" r="1.5" fill="rgba(34,211,238,0.7)" />
+              </svg>
+
+              <div
+                className={[
+                  "relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl",
+                  "border border-white/10 bg-black/60",
+                  motion ? "splash-mark-in" : "",
+                ].join(" ")}
+                style={{
+                  boxShadow: `0 0 32px -8px ${accent.from}88, inset 0 1px 0 rgba(255,255,255,0.08)`,
+                }}
+              >
+                <img
+                  src={CUETRONIX_ASSETS.iconUrl}
+                  alt=""
+                  className="h-11 w-11 object-contain"
+                  draggable={false}
+                />
+                {isSuccess ? (
+                  <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-[#0a0814] bg-emerald-400 text-[#04120d] shadow-[0_0_12px_rgba(52,211,153,0.5)]">
+                    <Check className="h-3 w-3" strokeWidth={3} />
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <img
+              src={CUETRONIX_ASSETS.logoUrl}
+              alt={CUETRONIX_ASSETS.logoAlt}
+              className="mx-auto h-7 w-auto max-w-[240px] object-contain opacity-95"
+              draggable={false}
+            />
+
+            <div className="mt-6 flex items-center justify-center gap-2">
+              <span
+                className={[
+                  "inline-flex h-1.5 w-1.5 rounded-full",
+                  isSuccess ? "bg-emerald-400" : "bg-violet-400",
+                  motion ? "splash-pulse-dot" : "",
+                ].join(" ")}
+                style={{ boxShadow: `0 0 10px ${isSuccess ? "#34d399" : "#a78bfa"}` }}
+              />
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-zinc-400">
+                {isSuccess ? "Access granted" : "System boot"}
+              </p>
+            </div>
+
+            <p
+              key={status}
+              className={[
+                "mt-3 min-h-[22px] text-center font-mono text-[13px] tracking-wide text-zinc-300",
+                motion ? "splash-status-in" : "",
+              ].join(" ")}
+            >
+              {status}
+              <span className="splash-ellipsis text-violet-300/80" />
+            </p>
+
+            {/* Progress rail */}
+            <div className="mt-9">
+              <div className="mb-2 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+                <span>Load sequence</span>
+                <span className="tabular-nums text-zinc-400">{pct.toString().padStart(3, "0")}%</span>
+              </div>
+
+              <div className="relative h-[3px] overflow-hidden rounded-full bg-white/[0.06]">
                 <div
                   className="relative h-full rounded-full transition-[width] duration-150 ease-out"
                   style={{
                     width: `${pct}%`,
-                    background: isSuccess
-                      ? "linear-gradient(90deg, #34d399 0%, #a78bfa 50%, #f0abfc 100%)"
-                      : "linear-gradient(90deg, #a78bfa 0%, #f0abfc 50%, #60a5fa 100%)",
-                    boxShadow: isSuccess
-                      ? "0 0 16px rgba(52,211,153,0.45)"
-                      : "0 0 16px rgba(167,139,250,0.55)",
+                    background: `linear-gradient(90deg, ${accent.from}, ${accent.mid}, ${accent.to})`,
+                    boxShadow: `0 0 18px ${accent.from}66`,
                   }}
                 >
-                  <span className="pointer-events-none absolute inset-0 gh-splash-shimmer" />
+                  {motion ? <span aria-hidden className="splash-bar-shimmer absolute inset-0" /> : null}
+                </div>
+                {/* Segment ticks */}
+                <div aria-hidden className="pointer-events-none absolute inset-0 flex justify-between px-0">
+                  {Array.from({ length: 9 }).map((_, i) => (
+                    <span key={i} className="h-full w-px bg-white/[0.04]" />
+                  ))}
                 </div>
               </div>
 
-              <div className="mt-3 flex items-center justify-between text-[11px] text-white/55">
-                <span className="inline-flex items-center gap-1.5">
-                  <ShieldCheck
-                    size={11}
-                    className={isSuccess ? "text-emerald-300" : "text-violet-300"}
-                  />
-                  {isSuccess
-                    ? "Multi-tenant isolation · audited"
-                    : "PBKDF2 · RLS · TOTP ready"}
+              <div className="mt-5 flex items-center justify-between">
+                <span className="text-[10px] tracking-wide text-zinc-600">
+                  Encrypted session · multi-tenant RLS
                 </span>
-                <span className="hidden sm:inline">Press Enter to skip</span>
+                <button
+                  type="button"
+                  onClick={() => beginExit("click")}
+                  className={[
+                    "group relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.03]",
+                    "px-3.5 py-1.5 text-[11px] font-medium tracking-wide text-zinc-300",
+                    "transition hover:border-violet-400/30 hover:bg-white/[0.06] hover:text-white",
+                  ].join(" ")}
+                >
+                  <span className="relative z-10">Enter workspace</span>
+                  {motion ? (
+                    <span
+                      aria-hidden
+                      className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full"
+                    />
+                  ) : null}
+                </button>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Local keyframes */}
+      <p className="pointer-events-none absolute bottom-6 text-[10px] tracking-[0.18em] text-zinc-700">
+        ENTER TO SKIP
+      </p>
+
       <style>{`
-        @keyframes ghSplashFloatA {
-          0%, 100% { transform: translate(0px, 0px) scale(1); }
-          50%      { transform: translate(20px, -12px) scale(1.05); }
+        @keyframes splashGridDrift {
+          0%   { background-position: 0 0, 0 0; }
+          100% { background-position: 0 56px, 56px 0; }
         }
-        @keyframes ghSplashFloatB {
-          0%, 100% { transform: translate(0px, 0px) scale(1); }
-          50%      { transform: translate(-16px, 10px) scale(1.04); }
+        .splash-grid-drift {
+          animation: splashGridDrift 4s linear infinite;
         }
-        .gh-splash-float  { animation: ghSplashFloatA 7s ease-in-out infinite; }
-        .gh-splash-float2 { animation: ghSplashFloatB 9s ease-in-out infinite; }
 
-        @keyframes ghSplashPop {
-          0%   { transform: scale(0.88); opacity: 0; }
-          60%  { transform: scale(1.06); opacity: 1; }
-          100% { transform: scale(1); opacity: 1; }
+        @keyframes splashScan {
+          0%   { top: -2px; opacity: 0; }
+          8%   { opacity: 0.7; }
+          92%  { opacity: 0.5; }
+          100% { top: 100%; opacity: 0; }
         }
-        .gh-splash-pop { animation: ghSplashPop 0.75s cubic-bezier(.2,.8,.2,1) both; }
-
-        @keyframes ghBlinkCursor {
-          0%, 48%   { opacity: 1; }
-          50%, 100% { opacity: 0; }
+        .splash-scan {
+          animation: splashScan 5.5s ease-in-out infinite;
         }
-        .gh-blink-cursor { animation: ghBlinkCursor 1.1s steps(2, end) infinite; }
 
-        @keyframes ghSplashShimmer {
+        @keyframes splashBorderSpin {
+          to { transform: rotate(360deg); }
+        }
+        .splash-border-spin {
+          animation: splashBorderSpin 8s linear infinite;
+        }
+
+        @keyframes splashOrbitA {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes splashOrbitB {
+          to { transform: rotate(-360deg); }
+        }
+        .splash-orbit-a { animation: splashOrbitA 14s linear infinite; }
+        .splash-orbit-b { animation: splashOrbitB 9s linear infinite; }
+
+        @keyframes splashMarkIn {
+          from { opacity: 0; transform: scale(0.9); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        .splash-mark-in { animation: splashMarkIn 0.7s cubic-bezier(.2,.8,.2,1) both; }
+
+        @keyframes splashStatusIn {
+          from { opacity: 0; transform: translateY(4px); filter: blur(2px); }
+          to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+        }
+        .splash-status-in { animation: splashStatusIn 0.4s ease-out both; }
+
+        @keyframes splashPulseDot {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50%      { opacity: 0.55; transform: scale(0.85); }
+        }
+        .splash-pulse-dot { animation: splashPulseDot 1.6s ease-in-out infinite; }
+
+        @keyframes splashBarShimmer {
           0%   { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
+          100% { transform: translateX(200%); }
         }
-        .gh-splash-shimmer {
-          background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
-          animation: ghSplashShimmer 1.8s linear infinite;
+        .splash-bar-shimmer {
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+          animation: splashBarShimmer 1.4s ease-in-out infinite;
+        }
+
+        .splash-ellipsis::after {
+          content: '';
+          animation: splashEllipsis 1.2s steps(4, end) infinite;
+        }
+        @keyframes splashEllipsis {
+          0%  { content: ''; }
+          25% { content: '.'; }
+          50% { content: '..'; }
+          75% { content: '...'; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .splash-grid-drift,
+          .splash-scan,
+          .splash-border-spin,
+          .splash-orbit-a,
+          .splash-orbit-b,
+          .splash-mark-in,
+          .splash-status-in,
+          .splash-pulse-dot,
+          .splash-bar-shimmer {
+            animation: none !important;
+          }
         }
       `}</style>
     </div>
