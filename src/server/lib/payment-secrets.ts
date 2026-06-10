@@ -46,7 +46,7 @@ async function getEncryptionKey(): Promise<CryptoKey> {
       "PAYMENT_SECRETS_ENCRYPTION_KEY is not configured. Contact support to enable payment credential storage.",
     );
   }
-  const keyMaterial = base64ToBytes(raw.trim());
+  const keyMaterial = new Uint8Array(base64ToBytes(raw.trim()));
   cachedKey = await crypto.subtle.importKey("raw", keyMaterial, { name: "AES-GCM" }, false, [
     "encrypt",
     "decrypt",

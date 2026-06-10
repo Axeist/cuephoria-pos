@@ -1,13 +1,28 @@
 /**
  * Server-side guards for public Razorpay checkout (create-order).
+ * Edge-safe — no imports from src/utils.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  BOOKING_ACCESS_KEYS,
-  parseBookingSettingBool,
-} from "../../utils/bookingAccessSettings.ts";
-import type { PaymentMode } from "./payment-provider.ts";
+import type { PaymentMode } from "./payment-provider.js";
+
+const ONLINE_PAYMENT_SETTING_KEY = "online_payment_enabled";
+
+function parseBookingSettingBool(raw: unknown, defaultTrue = true): boolean {
+  if (raw === null || raw === undefined) return defaultTrue;
+  if (typeof raw === "boolean") return raw;
+  if (typeof raw === "number") return raw !== 0;
+  if (typeof raw === "string") {
+    const s = raw.trim().toLowerCase();
+    if (s === "false" || s === "0" || s === "no") return false;
+    if (s === "true" || s === "1" || s === "yes") return true;
+    return defaultTrue;
+  }
+  if (typeof raw === "object" && raw !== null && "enabled" in raw) {
+    return Boolean((raw as { enabled?: boolean }).enabled);
+  }
+  return defaultTrue;
+}
 
 export async function resolveOrganizationIdFromLocation(
   supabase: SupabaseClient,
@@ -33,7 +48,7 @@ export async function isOnlinePaymentEnabledForLocation(
     .from("booking_settings")
     .select("setting_value")
     .eq("location_id", locationId)
-    .eq("setting_key", BOOKING_ACCESS_KEYS.onlinePayment)
+    .eq("setting_key", ONLINE_PAYMENT_SETTING_KEY)
     .maybeSingle();
   if (error) {
     console.error("[payment-checkout-guards] online_payment setting lookup failed:", error.message);

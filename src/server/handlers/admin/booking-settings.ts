@@ -75,7 +75,7 @@ export default async function handler(req: Request) {
       if (!location_id) return j({ ok: false, error: "Missing location_id" }, 400);
 
       const owned = await assertLocationOwnedByOrg(supabase, location_id, ctx.organizationId);
-      if (!owned.ok) return j({ ok: false, error: owned.message }, 404);
+      if (owned.ok === false) return j({ ok: false, error: owned.message }, 404);
 
       const { error } = await supabase
         .from("booking_settings")

@@ -4,7 +4,7 @@ import {
   verifyRazorpayPaymentSignature,
   type RazorpayProfile,
 } from "./credentials.js";
-import { lookupPaymentOrderOrganizationId } from "../../src/server/lib/payment-gateway-config.ts";
+import { lookupPaymentOrderOrganizationId } from "../../src/server/lib/payment-gateway-config.js";
 
 type VercelRequest = {
   method?: string;

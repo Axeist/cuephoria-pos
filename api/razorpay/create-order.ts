@@ -3,7 +3,7 @@ import {
   resolveRazorpayCredentials,
   type RazorpayProfile,
 } from "./credentials.js";
-import { PAYMENT_ORDER_PENDING_TTL_MS } from "../../src/server/lib/payment-order-ttl.ts";
+import { PAYMENT_ORDER_PENDING_TTL_MS } from "../../src/server/lib/payment-order-ttl.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   assertNoConfirmedBookingOverlap,
@@ -13,11 +13,11 @@ import {
   normalizePayloadFromBody,
   reassignHoldSessionToProviderOrderId,
   resolveLocationIdForCheckout,
-} from "../../src/server/lib/checkout-slot-hold.ts";
+} from "../../src/server/lib/checkout-slot-hold.js";
 import {
   isOnlinePaymentEnabledForLocation,
   resolveOrganizationIdFromLocation,
-} from "../../src/server/lib/payment-checkout-guards.ts";
+} from "../../src/server/lib/payment-checkout-guards.js";
 
 export const config = {
   maxDuration: 30,
@@ -183,7 +183,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const overlap = await assertNoConfirmedBookingOverlap(supabase, normalized, canonicalLocationId);
-        if (!overlap.ok) {
+        if (overlap.ok === false) {
           return j(res, { ok: false, conflict: true, error: overlap.message }, 409);
         }
         holdSessionId = newCheckoutHoldSessionId();
@@ -194,7 +194,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           holdSessionId,
           expiresAtIso,
         });
-        if (!ins.ok) {
+        if (ins.ok === false) {
           if (ins.code === "duplicate") {
             return j(res, { ok: false, conflict: true, error: ins.message }, 409);
           }
