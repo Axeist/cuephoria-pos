@@ -36,11 +36,7 @@
   ],
   "functions": {
     "api/**/*.ts": {
-      "includeFiles": [
-        "src/server/**",
-        "src/types/**",
-        "src/utils/**"
-      ]
+      "includeFiles": "src/{server,types,utils}/**"
     }
   }
 }
