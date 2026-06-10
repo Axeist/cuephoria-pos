@@ -164,20 +164,14 @@ const GeneralSettings = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="w-full">
-        <CardHeader>
-          <div className="flex items-center gap-2 mb-2">
-            <Settings className="h-5 w-5 text-cuephoria-lightpurple" />
-            <CardTitle>General Settings</CardTitle>
-          </div>
-          <CardDescription>
-            {isLiteBranch
-              ? 'Business profile for Cuephoria Lite. Default contact: 7550025155 — used on receipts and customer-facing text when this branch is active.'
-              : 'Manage your application preferences and business settings.'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="space-y-6 -mt-2">
+      {isLiteBranch && (
+        <p className="text-sm text-muted-foreground rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-4 py-3">
+          Cuephoria Lite branch — default contact <strong>7550025155</strong> is used on receipts and customer-facing text when this branch is active.
+        </p>
+      )}
+      <Card className="border-border/60 bg-background/40">
+        <CardContent className="pt-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
               {/* Business Information */}
