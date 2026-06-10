@@ -1573,10 +1573,16 @@ export default function Billing() {
                     (createM.isPending || upgradeM.isPending || sandboxSwitchM.isPending) &&
                     pendingTier === planTier;
                   const isFeatured = marketing?.highlight === true;
-                  const savings =
-                    cycle === "year"
-                      ? yearlySavingsPercent(plan.price_inr_month, plan.price_inr_year)
-                      : null;
+                  const savings = yearlySavingsPercent(plan.price_inr_month, plan.price_inr_year);
+                  const discountedMonthly =
+                    cycle === "year" &&
+                    plan.price_inr_month != null &&
+                    plan.price_inr_month > 0 &&
+                    savings != null
+                      ? Math.max(0, Math.round(plan.price_inr_month * (1 - savings / 100)))
+                      : cycle === "year" && price != null && price > 0
+                        ? Math.round(price / 12)
+                        : null;
 
                   const defaultButtonLabel = isSandbox
                     ? isCurrent
@@ -1703,7 +1709,7 @@ export default function Billing() {
                       </div>
 
                       <div className="mt-5">
-                        <div className="flex items-baseline gap-1">
+                        <div className="flex items-baseline gap-1 flex-wrap">
                           <span className="text-3xl sm:text-4xl font-extrabold tracking-tight">
                             {formatINR(price)}
                           </span>
@@ -1711,6 +1717,30 @@ export default function Billing() {
                             /{cycle === "month" ? "mo" : "yr"}
                           </span>
                         </div>
+                        {cycle === "year" && discountedMonthly != null && (
+                          <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                            {plan.price_inr_month != null && savings != null && (
+                              <span className="text-sm text-white/35 line-through">
+                                {formatINR(plan.price_inr_month)}/mo
+                              </span>
+                            )}
+                            <span className="text-lg font-bold text-emerald-300">
+                              {formatINR(discountedMonthly)}
+                              <span className="text-xs font-semibold text-emerald-300/80">/mo</span>
+                            </span>
+                            {savings != null && (
+                              <span className="text-xs text-white/55">after {savings}% off</span>
+                            )}
+                          </div>
+                        )}
+                        {cycle === "month" && plan.price_inr_year != null && plan.price_inr_year > 0 && (
+                          <p className="text-xs text-white/45 mt-1.5">
+                            {formatINR(plan.price_inr_year)}/yr on yearly billing
+                            {savings != null && (
+                              <span className="text-emerald-300/90 font-medium"> · save {savings}%</span>
+                            )}
+                          </p>
+                        )}
                         <div className="text-[11px] text-white/45 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
                           <span>GST as applicable</span>
                           {savings != null && cycle === "year" && (
