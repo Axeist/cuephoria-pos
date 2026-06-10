@@ -1,5 +1,25 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generatePortalPin } from "./staffPortalPin";
+import { shiftHoursFromTimes } from "../utils/staffEarnings.js";
+
+export type StaffProfileCreateFields = {
+  phone?: string | null;
+  monthlySalary?: number;
+  shiftStartTime?: string;
+  shiftEndTime?: string;
+};
+
+function toDbShiftTime(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "11:00:00";
+  return trimmed.length === 5 ? `${trimmed}:00` : trimmed;
+}
+
+function computeHourlyRate(monthlySalary: number, shiftHours: number): number {
+  if (monthlySalary <= 0 || shiftHours <= 0) return 0;
+  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  return monthlySalary / daysInMonth / shiftHours;
+}
 
 export type StaffProfileRow = Record<string, unknown> & {
   user_id: string;
@@ -44,12 +64,20 @@ export async function createStaffProfileForLoginUser(
     designation: string;
     locationId: string;
     portalPin?: string;
-  },
+  } & StaffProfileCreateFields,
 ): Promise<{ profile: StaffProfileRow; portalPin: string } | { error: string }> {
   const portalPin = opts.portalPin ?? generatePortalPin();
   const fullName = opts.displayName.trim() || opts.loginUsername.trim();
   const designation = opts.designation.trim() || "Staff";
   const usernameBase = opts.loginUsername.trim() || opts.email.split("@")[0] || "staff";
+  const shiftStartRaw = opts.shiftStartTime?.trim() || "11:00";
+  const shiftEndRaw = opts.shiftEndTime?.trim() || "23:00";
+  const shift_start_time = toDbShiftTime(shiftStartRaw);
+  const shift_end_time = toDbShiftTime(shiftEndRaw);
+  const default_shift_hours = shiftHoursFromTimes(shift_start_time, shift_end_time);
+  const monthly_salary = Math.max(0, Number(opts.monthlySalary) || 0);
+  const hourly_rate = computeHourlyRate(monthly_salary, default_shift_hours);
+  const phone = opts.phone?.trim() || null;
   let organizationId: string | null = null;
   const { data: locRow } = await supabase
     .from("locations")
@@ -67,12 +95,12 @@ export async function createStaffProfileForLoginUser(
     full_name: fullName,
     designation,
     email: opts.email.trim().toLowerCase(),
-    phone: null,
-    monthly_salary: 0,
-    hourly_rate: 0,
-    default_shift_hours: 12,
-    shift_start_time: "11:00:00",
-    shift_end_time: "23:00:00",
+    phone,
+    monthly_salary,
+    hourly_rate,
+    default_shift_hours,
+    shift_start_time,
+    shift_end_time,
     joining_date: new Date().toISOString().slice(0, 10),
     role: "staff",
     is_active: true,

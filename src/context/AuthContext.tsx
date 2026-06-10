@@ -124,7 +124,14 @@ interface AuthContextType {
     isAdmin?: boolean,
     isSuperAdmin?: boolean,
     locationIds?: string[],
-    profile?: { displayName?: string; designation?: string },
+    profile?: {
+      displayName?: string;
+      designation?: string;
+      phone?: string;
+      monthlySalary?: number;
+      shiftStartTime?: string;
+      shiftEndTime?: string;
+    },
   ) => Promise<{ success: boolean; portalPin?: string | null }>;
   regenerateStaffPortalPin: (id: string) => Promise<{ success: boolean; portalPin?: string | null }>;
   getStaffMembers: () => Promise<(AdminUser & { locations: { id: string; name: string; slug: string; short_code: string }[]; email?: string | null; emailVerifiedAt?: string | null })[]>;
@@ -368,7 +375,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAdmin: boolean = false,
     isSuperAdmin: boolean = false,
     locationIds: string[] = [],
-    profile?: { displayName?: string; designation?: string },
+    profile?: {
+      displayName?: string;
+      designation?: string;
+      phone?: string;
+      monthlySalary?: number;
+      shiftStartTime?: string;
+      shiftEndTime?: string;
+    },
   ): Promise<{ success: boolean; portalPin?: string | null }> => {
     try {
       if (!user?.isAdmin) {
@@ -389,6 +403,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           locationIds,
           displayName: profile?.displayName?.trim() || undefined,
           designation: profile?.designation?.trim() || undefined,
+          phone: profile?.phone?.trim() || undefined,
+          monthlySalary: profile?.monthlySalary,
+          shiftStartTime: profile?.shiftStartTime,
+          shiftEndTime: profile?.shiftEndTime,
         }),
       });
       const json = await res.json();

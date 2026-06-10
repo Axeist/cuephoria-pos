@@ -298,6 +298,22 @@ export default async function handler(req: Request) {
 
       const staffDisplayName = typeof body?.displayName === "string" ? body.displayName.trim() : "";
       const staffDesignation = typeof body?.designation === "string" ? body.designation.trim() : "";
+      const staffPhone = typeof body?.phone === "string" ? body.phone.trim() : "";
+      const staffMonthlySalary =
+        body?.monthlySalary != null && body?.monthlySalary !== ""
+          ? Number(body.monthlySalary)
+          : 0;
+      const staffShiftStart =
+        typeof body?.shiftStartTime === "string" ? body.shiftStartTime.trim() : "11:00";
+      const staffShiftEnd =
+        typeof body?.shiftEndTime === "string" ? body.shiftEndTime.trim() : "23:00";
+
+      if (!isAdmin && !isSuperAdmin && (!staffMonthlySalary || staffMonthlySalary <= 0)) {
+        return j(
+          { ok: false, error: "Monthly salary is required when creating a staff account." },
+          400,
+        );
+      }
 
       const passwordHash = await hashPassword(password);
 
@@ -426,6 +442,10 @@ export default async function handler(req: Request) {
           displayName: staffDisplayName || username,
           designation: staffDesignation || "Staff",
           locationId: locs[0],
+          phone: staffPhone || null,
+          monthlySalary: staffMonthlySalary,
+          shiftStartTime: staffShiftStart,
+          shiftEndTime: staffShiftEnd,
         });
         if ("error" in profileResult) {
           console.warn("[admin/users] staff profile create failed:", profileResult.error);

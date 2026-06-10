@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, UserPlus, Trash2, Users, User, Edit, Globe, MapPin, Star, Lock, Eye, EyeOff, KeyRound, MailCheck, Send, Briefcase, IdCard } from 'lucide-react';
+import { Shield, UserPlus, Trash2, Users, User, Edit, Globe, MapPin, Star, Lock, Eye, EyeOff, KeyRound, MailCheck, Send, Briefcase, IdCard, Phone, Clock } from 'lucide-react';
+import { shiftHoursFromTimes } from '@/utils/staffEarnings';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -71,6 +72,10 @@ const StaffManagement: React.FC = () => {
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newDesignation, setNewDesignation] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newMonthlySalary, setNewMonthlySalary] = useState('');
+  const [newShiftStart, setNewShiftStart] = useState('11:00');
+  const [newShiftEnd, setNewShiftEnd] = useState('23:00');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [userRole, setUserRole] = useState<'admin' | 'staff'>('staff');
   const [newIsSuperAdmin, setNewIsSuperAdmin] = useState(false);
@@ -143,11 +148,29 @@ const StaffManagement: React.FC = () => {
       toast({ title: 'Error', description: 'Assign at least one branch', variant: 'destructive' });
       return;
     }
+    if (userRole === 'staff' && !newIsSuperAdmin) {
+      if (!newDisplayName.trim()) {
+        toast({ title: 'Error', description: 'Full name is required for staff', variant: 'destructive' });
+        return;
+      }
+      if (!newDesignation.trim()) {
+        toast({ title: 'Error', description: 'Designation is required for staff', variant: 'destructive' });
+        return;
+      }
+      if (!newMonthlySalary || parseFloat(newMonthlySalary) <= 0) {
+        toast({ title: 'Error', description: 'Monthly salary is required for staff', variant: 'destructive' });
+        return;
+      }
+    }
     setIsLoading(true);
     try {
       const result = await addStaffMember(newUsername, newPassword, userRole === 'admin', newIsSuperAdmin, selectedLocationIds, {
         displayName: newDisplayName.trim(),
         designation: newDesignation.trim(),
+        phone: newPhone.trim() || undefined,
+        monthlySalary: userRole === 'staff' ? parseFloat(newMonthlySalary) : undefined,
+        shiftStartTime: newShiftStart,
+        shiftEndTime: newShiftEnd,
       });
       if (result.success) {
         if (result.portalPin && userRole === 'staff') {
@@ -271,11 +294,24 @@ const StaffManagement: React.FC = () => {
     setNewDisplayName('');
     setNewDesignation('');
     setNewPassword('');
+    setNewPhone('');
+    setNewMonthlySalary('');
+    setNewShiftStart('11:00');
+    setNewShiftEnd('23:00');
     setShowNewPassword(false);
     setUserRole('staff');
     setNewIsSuperAdmin(false);
     setSelectedLocationIds([]);
   };
+
+  const newShiftHours = shiftHoursFromTimes(newShiftStart, newShiftEnd);
+  const newHourlyPreview =
+    newMonthlySalary && parseFloat(newMonthlySalary) > 0
+      ? (
+          parseFloat(newMonthlySalary) /
+          (new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() * newShiftHours)
+        ).toFixed(2)
+      : '0.00';
 
   if (!user?.isAdmin) {
     return (
@@ -338,12 +374,15 @@ const StaffManagement: React.FC = () => {
               Add member
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-cuephoria-dark border border-cuephoria-lightpurple/30 max-w-md max-h-[min(90vh,720px)] overflow-y-auto">
+          <DialogContent className="bg-cuephoria-dark border border-cuephoria-lightpurple/30 max-w-lg max-h-[min(90vh,820px)] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-xl">Add New User</DialogTitle>
+              <DialogTitle className="text-xl">
+                {userRole === 'staff' && !newIsSuperAdmin ? 'Add Staff Member' : 'Add New User'}
+              </DialogTitle>
               <DialogDescription>
-                Create login email and a temporary password. Staff accounts also get a portal PIN for My Portal.
-                We email a verification link — after they open it, they can sign in with Google using the same email.
+                {userRole === 'staff' && !newIsSuperAdmin
+                  ? 'Create login, HR profile, portal PIN, and weekly shift roster in one step. A verification email is sent for Google sign-in.'
+                  : 'Create login email and a temporary password. We email a verification link — after they open it, they can sign in with Google using the same email.'}
               </DialogDescription>
             </DialogHeader>
 
@@ -414,7 +453,7 @@ const StaffManagement: React.FC = () => {
 
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
-                  <IdCard className="h-4 w-4" /> Full name
+                  <IdCard className="h-4 w-4" /> Full name{userRole === 'staff' && !newIsSuperAdmin ? ' *' : ''}
                 </Label>
                 <Input
                   value={newDisplayName}
@@ -422,12 +461,12 @@ const StaffManagement: React.FC = () => {
                   placeholder="e.g. Priya Sharma"
                   className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
                 />
-                <p className="text-[11px] text-white/40">Shown in the app sidebar and staff list. Optional.</p>
+                <p className="text-[11px] text-white/40">Shown in the portal, staff directory, and sidebar.</p>
               </div>
 
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
-                  <Briefcase className="h-4 w-4" /> Designation
+                  <Briefcase className="h-4 w-4" /> Designation{userRole === 'staff' && !newIsSuperAdmin ? ' *' : ''}
                 </Label>
                 <Input
                   value={newDesignation}
@@ -443,6 +482,69 @@ const StaffManagement: React.FC = () => {
                 </Label>
                 <Input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="staff@yourbusiness.com" className="bg-cuephoria-darker border-cuephoria-lightpurple/30" />
               </div>
+
+              {userRole === 'staff' && !newIsSuperAdmin && (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                      <Phone className="h-4 w-4" /> Phone
+                    </Label>
+                    <Input
+                      value={newPhone}
+                      onChange={(e) => setNewPhone(e.target.value)}
+                      placeholder="+91 9876543210"
+                      className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-cuephoria-lightpurple">Monthly Salary (₹) *</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={newMonthlySalary}
+                      onChange={(e) => setNewMonthlySalary(e.target.value)}
+                      placeholder="7000.00"
+                      className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                      <Clock className="h-4 w-4" /> Shift timing *
+                    </Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-white/50">Start</Label>
+                        <Input
+                          type="time"
+                          value={newShiftStart}
+                          onChange={(e) => setNewShiftStart(e.target.value)}
+                          className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-white/50">End</Label>
+                        <Input
+                          type="time"
+                          value={newShiftEnd}
+                          onChange={(e) => setNewShiftEnd(e.target.value)}
+                          className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
+                        />
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-lg border border-cuephoria-lightpurple/20 bg-cuephoria-darker/80 text-sm">
+                      <p className="text-white/90">
+                        Shift: <span className="font-semibold text-cuephoria-lightpurple">{newShiftHours.toFixed(1)} hrs/day</span>
+                      </p>
+                      <p className="text-white/60 mt-1">
+                        Hourly rate: ₹{newHourlyPreview}/hr · weekly roster auto-created
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
