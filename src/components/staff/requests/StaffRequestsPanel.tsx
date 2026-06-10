@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { format } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 import {
   Calendar, FileText, TrendingUp, User, Clock, DollarSign, AlertCircle,
   CheckCircle, XCircle, Check, X, Filter, RefreshCw, TrendingDown,

@@ -3,7 +3,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import {
-  format, differenceInDays, startOfWeek, endOfWeek, subWeeks,
+  format, differenceInDays, differenceInHours, startOfWeek, endOfWeek, subWeeks,
   startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears,
 } from 'date-fns';
 import type { StaffProfile } from '@/types/staff.types';

@@ -179,6 +179,11 @@ export function usePayroll({ staffProfiles, onRefresh }: UsePayrollOptions) {
     }
   };
 
+  const resolveStaffLocationId = (staffId: string): string | null => {
+    const profile = staffProfiles.find((p) => p.user_id === staffId);
+    return profile?.location_id ?? null;
+  };
+
   const handleAddDeduction = async () => {
     if (!selectedStaff || !deductionForm.amount || !deductionForm.reason) {
       toast({
@@ -190,10 +195,21 @@ export function usePayroll({ staffProfiles, onRefresh }: UsePayrollOptions) {
     }
 
     try {
+      const locationId = resolveStaffLocationId(selectedStaff.staff_id);
+      if (!locationId) {
+        toast({
+          title: 'Validation Error',
+          description: 'Staff member has no branch assigned. Update their profile in Settings.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from('staff_deductions')
         .insert({
           staff_id: selectedStaff.staff_id,
+          location_id: locationId,
           deduction_type: deductionForm.type,
           amount: parseFloat(deductionForm.amount),
           reason: deductionForm.reason,
@@ -235,10 +251,21 @@ export function usePayroll({ staffProfiles, onRefresh }: UsePayrollOptions) {
     }
 
     try {
+      const locationId = resolveStaffLocationId(selectedStaff.staff_id);
+      if (!locationId) {
+        toast({
+          title: 'Validation Error',
+          description: 'Staff member has no branch assigned. Update their profile in Settings.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from('staff_allowances')
         .insert({
           staff_id: selectedStaff.staff_id,
+          location_id: locationId,
           allowance_type: allowanceForm.type,
           amount: parseFloat(allowanceForm.amount),
           reason: allowanceForm.reason,
