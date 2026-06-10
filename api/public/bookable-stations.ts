@@ -8,6 +8,7 @@
 import { j } from "../../src/server/adminApiUtils";
 import { resolvePublicLocation, DEFAULT_PUBLIC_ORG_SLUG } from "../../src/server/lib/resolvePublicLocation";
 import { resolveBookingSlotConfigForLocation } from "../../src/server/lib/resolveBookingSlotConfigForLocation";
+import { resolvePublicBookingPopupsForLocation } from "../../src/server/lib/resolvePublicBookingPopupsForLocation";
 import { supabaseServiceClient, SupabaseConfigError } from "../../src/server/supabaseServer";
 import { bookingSlotConfigLabel } from "../../src/utils/bookingSlotConfig";
 import { isStationPublicBookable } from "../../src/utils/stationTransform";
@@ -52,7 +53,10 @@ export default async function handler(req: Request) {
     if (stError) throw stError;
 
     const stations = (rows || []).filter((s) => isStationPublicBookable(s));
-    const slotConfig = await resolveBookingSlotConfigForLocation(supabase, resolved.id);
+    const [slotConfig, popupConfig] = await Promise.all([
+      resolveBookingSlotConfigForLocation(supabase, resolved.id),
+      resolvePublicBookingPopupsForLocation(supabase, resolved.id),
+    ]);
 
     return j(
       {
@@ -62,6 +66,7 @@ export default async function handler(req: Request) {
         count: stations.length,
         slot_config: slotConfig,
         slot_config_label: bookingSlotConfigLabel(slotConfig),
+        popup_config: popupConfig,
       },
       200,
       { "cache-control": "public, max-age=30" }

@@ -2,17 +2,19 @@ import { useQuery } from "@tanstack/react-query";
 import type { PublicBookingPopupConfig } from "@/types/publicBookingPopups";
 import { EMPTY_PUBLIC_BOOKING_POPUP_CONFIG } from "@/utils/publicBookingPopups";
 
-type PopupResp = { ok: true; config: PublicBookingPopupConfig | null };
-
 async function fetchPopups(locationId: string): Promise<PublicBookingPopupConfig> {
   const res = await fetch(
-    `/api/public/booking-popups?location=${encodeURIComponent(locationId)}`,
+    `/api/public/bookable-stations?location=${encodeURIComponent(locationId)}`,
   );
-  const json = (await res.json()) as PopupResp & { ok?: false; error?: string };
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    popup_config?: PublicBookingPopupConfig | null;
+    error?: string;
+  };
   if (!res.ok || json.ok === false) {
-    throw new Error(json.error || `Failed to load popups (${res.status})`);
+    return EMPTY_PUBLIC_BOOKING_POPUP_CONFIG;
   }
-  return json.config ?? EMPTY_PUBLIC_BOOKING_POPUP_CONFIG;
+  return json.popup_config ?? EMPTY_PUBLIC_BOOKING_POPUP_CONFIG;
 }
 
 export function usePublicBookingPopups(publicLocationId: string | null) {
@@ -21,6 +23,7 @@ export function usePublicBookingPopups(publicLocationId: string | null) {
     queryFn: () => fetchPopups(publicLocationId!),
     enabled: Boolean(publicLocationId),
     staleTime: 60_000,
+    retry: 1,
   });
 
   return {
