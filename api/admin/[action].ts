@@ -21,6 +21,7 @@ import aiChat from "../../src/server/handlers/admin/ai-chat";
 import emailHealth from "../../src/server/handlers/admin/email-health";
 import emailTestSend from "../../src/server/handlers/admin/email-test-send";
 import bookingSettings from "../../src/server/handlers/admin/booking-settings";
+import locationSettings from "../../src/server/handlers/admin/location-settings";
 import paymentConfig from "../../src/server/handlers/admin/payment-config";
 import changePassword from "../../src/server/handlers/admin/change-password";
 import forgotPassword from "../../src/server/handlers/admin/forgot-password";
@@ -45,6 +46,7 @@ const routes: Record<string, Handler> = {
   "email-health": emailHealth,
   "email-test-send": emailTestSend,
   "booking-settings": bookingSettings,
+  "location-settings": locationSettings,
   "payment-config": paymentConfig,
   "change-password": changePassword,
   "forgot-password": forgotPassword,

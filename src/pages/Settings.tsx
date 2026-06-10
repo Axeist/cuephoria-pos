@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
 import {
-  Settings as SettingsIcon,
+  Store,
   Users,
   Trophy,
   Plus,
@@ -10,10 +10,10 @@ import {
   Award,
   RotateCcw,
   Lock,
-  Calendar,
-  Building2,
+  CalendarCheck,
   CreditCard,
   MapPin,
+  Palette,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import BranchManagementSettings from '@/components/settings/BranchManagementSettings';
@@ -64,51 +64,56 @@ const SETTINGS_TABS: SettingsTabId[] = [
 
 const NAV_GROUPS: SettingsNavGroup[] = [
   {
-    label: 'Workspace',
+    label: 'Your venue',
     items: [
       {
         id: 'general',
-        label: 'General',
-        description: 'Business info, tax, receipts',
-        icon: SettingsIcon,
-      },
-      {
-        id: 'workspace',
-        label: 'Workspace',
-        description: 'Org name, branding, domain',
-        icon: Building2,
-        adminOnly: true,
+        label: 'Business & POS',
+        description: 'Receipts, tax, loyalty, in-store',
+        icon: Store,
       },
       {
         id: 'branches',
-        label: 'Branches',
-        description: 'Locations and short codes',
+        label: 'Locations',
+        description: 'Branches and short codes',
         icon: MapPin,
         adminOnly: true,
       },
       {
-        id: 'team',
-        label: 'Team',
-        description: 'Staff and permissions',
-        icon: Users,
+        id: 'booking',
+        label: 'Online booking',
+        description: 'Coupons, add-ons, popups',
+        icon: CalendarCheck,
+      },
+    ],
+  },
+  {
+    label: 'Account & billing',
+    items: [
+      {
+        id: 'workspace',
+        label: 'Company profile',
+        description: 'Name, logo, brand colors',
+        icon: Palette,
+        adminOnly: true,
+      },
+      {
+        id: 'payments',
+        label: 'Payments',
+        description: 'Razorpay for online checkout',
+        icon: CreditCard,
         adminOnly: true,
       },
     ],
   },
   {
-    label: 'Operations',
+    label: 'People',
     items: [
       {
-        id: 'booking',
-        label: 'Booking',
-        description: 'Coupons, add-ons, popups',
-        icon: Calendar,
-      },
-      {
-        id: 'payments',
-        label: 'Payments',
-        description: 'Razorpay and checkout',
-        icon: CreditCard,
+        id: 'team',
+        label: 'Team members',
+        description: 'Staff logins and access',
+        icon: Users,
         adminOnly: true,
       },
     ],
@@ -134,28 +139,28 @@ const NAV_GROUPS: SettingsNavGroup[] = [
 
 const SECTION_META: Record<SettingsTabId, { title: string; description: string }> = {
   general: {
-    title: 'General',
-    description: 'Core venue configuration — business details, loyalty, tax, receipts, and POS defaults.',
+    title: 'Business & POS',
+    description: 'Branch-specific settings for receipts, tax, loyalty points, and in-store payment options.',
   },
   workspace: {
-    title: 'Workspace',
-    description: 'Organization identity, public URLs, and workspace-level preferences.',
+    title: 'Company profile',
+    description: 'Workspace name, branding, and subscription — shared across all locations.',
   },
   branches: {
-    title: 'Branches',
-    description: 'Manage locations, slugs, and branch-specific setup.',
+    title: 'Locations',
+    description: 'Add and manage physical branches. Each location has its own booking link and settings.',
   },
   booking: {
-    title: 'Booking',
-    description: 'Public booking page — coupons, pool add-ons, and promotional popups.',
+    title: 'Online booking',
+    description: 'Coupons, pool add-ons, and promotional popups on your public booking page.',
   },
   payments: {
     title: 'Payments',
     description: 'Connect Razorpay so online bookings pay out to your account.',
   },
   team: {
-    title: 'Team',
-    description: 'Invite staff, assign roles, and control admin access.',
+    title: 'Team members',
+    description: 'Invite staff, assign branches, and manage admin access.',
   },
   tournaments: {
     title: 'Tournaments',
@@ -169,9 +174,9 @@ const SECTION_META: Record<SettingsTabId, { title: string; description: string }
 
 function SettingsSectionHeader({ title, description }: { title: string; description: string }) {
   return (
-    <header className="mb-8">
-      <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
-      <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl leading-relaxed">{description}</p>
+    <header className="mb-6">
+      <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+      <p className="text-sm text-muted-foreground mt-1 max-w-2xl leading-relaxed">{description}</p>
     </header>
   );
 }
@@ -575,7 +580,7 @@ const Settings = () => {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
             <p className="text-muted-foreground mt-1 max-w-lg">
-              Configure your venue, booking flow, payments, and team in one place.
+              Everything for your venue, team, and online checkout — organized by what you need to do.
             </p>
           </div>
           {activeLocation && (

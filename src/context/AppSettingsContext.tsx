@@ -25,10 +25,7 @@ export type {
   TaxSettings,
 } from "@/hooks/useAppSettings.types";
 
-import {
-  defaultAppSettings,
-  type AppSettings,
-} from "@/hooks/useAppSettings.types";
+import { defaultAppSettings, type AppSettings } from "@/hooks/useAppSettings.types";
 
 type AppSettingsContextValue = {
   settings: AppSettings;
@@ -72,14 +69,14 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
       setLoading(true);
 
       if (activeLocationId) {
-        const { data, error } = await (supabase as any)
-          .from("location_settings")
-          .select("key, value")
-          .eq("location_id", activeLocationId);
-
-        if (!error && data && data.length > 0) {
+        const res = await fetch(
+          `/api/admin/location-settings?location_id=${encodeURIComponent(activeLocationId)}`,
+          { credentials: "same-origin" },
+        );
+        const json = await res.json().catch(() => ({}));
+        if (json?.ok && Array.isArray(json.settings)) {
           const partial: Partial<AppSettings> = {};
-          data.forEach((item: { key: string; value: unknown }) => {
+          json.settings.forEach((item: { key: string; value: unknown }) => {
             const key = item.key as keyof AppSettings;
             if (key in defaultAppSettings) {
               (partial as Record<string, unknown>)[key] = item.value;
@@ -87,6 +84,9 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
           });
           setSettings(mergeLoadedSettings(partial));
           return;
+        }
+        if (!json?.ok) {
+          throw new Error(json?.error || "Failed to load branch settings");
         }
       }
 
@@ -119,28 +119,31 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const persistSettings = useCallback(
     async (updates: Partial<AppSettings>) => {
-      const updatesArray = Object.entries(updates).map(([key, value]) => ({
-        key,
-        value: value as unknown,
-      }));
+      const updatesRecord = Object.fromEntries(
+        Object.entries(updates).filter(([key]) => key in defaultAppSettings),
+      ) as Partial<AppSettings>;
 
       if (activeLocationId) {
-        for (const update of updatesArray) {
-          const { error } = await (supabase as any)
-            .from("location_settings")
-            .upsert(
-              {
-                location_id: activeLocationId,
-                key: update.key,
-                value: update.value,
-                updated_at: new Date().toISOString(),
-              },
-              { onConflict: "location_id,key" },
-            );
-          if (error) throw error;
+        const res = await fetch("/api/admin/location-settings", {
+          method: "PUT",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            location_id: activeLocationId,
+            updates: updatesRecord,
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!json?.ok) {
+          throw new Error(json?.error || "Failed to save branch settings");
         }
         return;
       }
+
+      const updatesArray = Object.entries(updatesRecord).map(([key, value]) => ({
+        key,
+        value: value as unknown,
+      }));
 
       for (const update of updatesArray) {
         const { error } = await supabase.from("app_settings").upsert(

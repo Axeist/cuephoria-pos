@@ -4,6 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { MoreHorizontal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Shield, UserPlus, Trash2, Users, User, Edit, Globe, MapPin, Star, Lock, Eye, EyeOff, KeyRound, MailCheck, Send, Briefcase, IdCard } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -318,24 +326,16 @@ const StaffManagement: React.FC = () => {
   );
 
   return (
-    <Card className="border border-cuephoria-lightpurple/30 shadow-md">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-xl flex items-center gap-2">
-          <Users className="h-5 w-5 text-cuephoria-lightpurple" />
-          User Management
-        </CardTitle>
-        <CardDescription>
-          One login for everyone. Staff accounts get a portal PIN for My Portal; admins manage settings without a PIN.
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="space-y-4">
-        {/* Add User Dialog */}
+    <div className="space-y-4 -mt-2">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {staffMembers.length} member{staffMembers.length === 1 ? '' : 's'}
+        </p>
         <Dialog open={isAddingStaff} onOpenChange={(open) => { setIsAddingStaff(open); if (!open) resetAddForm(); }}>
           <DialogTrigger asChild>
-            <Button className="w-full bg-gradient-to-r from-cuephoria-lightpurple to-accent hover:shadow-lg hover:shadow-cuephoria-lightpurple/20">
-              <UserPlus className="mr-2 h-4 w-4" />
-              Add New User
+            <Button size="sm" className="gap-1.5">
+              <UserPlus className="h-4 w-4" />
+              Add member
             </Button>
           </DialogTrigger>
           <DialogContent className="bg-cuephoria-dark border border-cuephoria-lightpurple/30 max-w-md max-h-[min(90vh,720px)] overflow-y-auto">
@@ -476,6 +476,7 @@ const StaffManagement: React.FC = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      </div>
 
         {/* Portal PIN shown once after staff creation */}
         <Dialog open={!!newPortalPin} onOpenChange={(open) => { if (!open) setNewPortalPin(null); }}>
@@ -665,169 +666,130 @@ const StaffManagement: React.FC = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Users Table */}
-        <ScrollArea className="h-[360px] rounded-md border border-cuephoria-lightpurple/20">
-          {staffMembers.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Login</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Designation</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Portal PIN</TableHead>
-                  <TableHead>Branch Access</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {staffMembers.map((staff) => (
-                  <TableRow key={staff.id}>
-                    <TableCell className="font-medium">{staff.username}</TableCell>
-                    <TableCell className="text-sm text-white/75 max-w-[140px] truncate">
-                      {staff.displayName?.trim() || '—'}
-                    </TableCell>
-                    <TableCell className="text-sm text-white/60 max-w-[120px] truncate">
-                      {staff.designation?.trim() || '—'}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1.5">
-                        <span className="text-sm text-white/80">{staff.email ?? '—'}</span>
-                        {staff.email && !staff.emailVerifiedAt && (
-                          <Badge variant="outline" className="w-fit border-amber-500/40 bg-amber-500/10 text-amber-200 text-[10px]">
-                            Awaiting verification
-                          </Badge>
-                        )}
-                        {staff.email && staff.emailVerifiedAt && (
-                          <Badge variant="outline" className="w-fit border-emerald-500/30 bg-emerald-500/10 text-emerald-200 text-[10px]">
-                            Verified
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <Badge variant="secondary" className={staff.isAdmin ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : ''}>
-                          {staff.isAdmin ? <><Shield className="h-3 w-3 mr-1" />Admin</> : <><User className="h-3 w-3 mr-1" />Staff</>}
+        {/* Member list */}
+        {staffMembers.length > 0 ? (
+          <div className="space-y-2">
+            {staffMembers.map((staff) => {
+              const displayName = staff.displayName?.trim() || staff.email || staff.username;
+              const subtitle = staff.email && staff.email !== staff.username ? staff.email : staff.username;
+              return (
+                <div
+                  key={staff.id}
+                  className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5 sm:px-4"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    {staff.isAdmin ? <Shield className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                  </div>
+                  <div className="min-w-0 flex-1 grid grid-cols-1 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto] gap-1 sm:gap-3 sm:items-center">
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm truncate">{displayName}</div>
+                      <div className="text-xs text-muted-foreground truncate">{subtitle}</div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge
+                        variant="secondary"
+                        className={`text-[10px] h-5 ${staff.isAdmin ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : ''}`}
+                      >
+                        {staff.isAdmin ? 'Admin' : 'Staff'}
+                      </Badge>
+                      {staff.isSuperAdmin && (
+                        <Badge className="text-[10px] h-5 bg-amber-400/10 text-amber-300 border-amber-400/30">
+                          Super
                         </Badge>
-                        {staff.isSuperAdmin && (
-                          <Badge className="bg-amber-400/10 text-amber-300 border-amber-400/30 text-[10px] px-1.5">
-                            <Star className="h-2.5 w-2.5 mr-1" />Super
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {staff.isAdmin || staff.isSuperAdmin ? (
-                        <span
-                          className="text-xs text-white/40 leading-snug"
-                          title="Staff role accounts get a portal PIN for My Portal"
-                        >
-                          Admin — no PIN
-                        </span>
-                      ) : staff.portalPin ? (
-                        <div className="flex flex-col gap-1">
-                          <span className="font-mono text-sm font-semibold text-white tracking-wider">
-                            {staff.portalPin}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleRegeneratePortalPin(staff)}
-                            className="text-[10px] text-white/40 hover:text-white/70 text-left"
-                          >
-                            Regenerate
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-xs text-amber-400/80">Not set up</span>
-                          <button
-                            type="button"
-                            onClick={() => handleCreatePortalPin(staff)}
-                            disabled={isLoading}
-                            className="text-[10px] text-cuephoria-lightpurple hover:text-white text-left"
-                          >
-                            Create PIN
-                          </button>
-                        </div>
                       )}
-                    </TableCell>
-                    <TableCell>
+                      {staff.designation?.trim() && (
+                        <span className="text-xs text-muted-foreground truncate max-w-[120px]">
+                          {staff.designation}
+                        </span>
+                      )}
+                      {staff.email && !staff.emailVerifiedAt && (
+                        <Badge variant="outline" className="text-[10px] h-5 border-amber-500/40 text-amber-200">
+                          Unverified
+                        </Badge>
+                      )}
+                      {staff.email && staff.emailVerifiedAt && (
+                        <Badge variant="outline" className="text-[10px] h-5 border-emerald-500/30 text-emerald-200">
+                          Verified
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 sm:justify-end">
+                      {!staff.isAdmin && !staff.isSuperAdmin && staff.portalPin && (
+                        <span className="hidden md:inline font-mono text-xs text-muted-foreground">
+                          PIN {staff.portalPin}
+                        </span>
+                      )}
                       {staff.isSuperAdmin ? (
-                        <span className="flex items-center gap-1.5 text-xs text-white/40">
-                          <Globe className="h-3 w-3" /> All branches
-                        </span>
+                        <span className="text-[10px] text-muted-foreground">All branches</span>
                       ) : staff.locations.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {staff.locations.map((loc) => <BranchBadge key={loc.id} loc={loc} />)}
+                        <div className="hidden lg:flex flex-wrap gap-1 max-w-[140px]">
+                          {staff.locations.slice(0, 2).map((loc) => (
+                            <BranchBadge key={loc.id} loc={loc} />
+                          ))}
+                          {staff.locations.length > 2 && (
+                            <span className="text-[10px] text-muted-foreground">+{staff.locations.length - 2}</span>
+                          )}
                         </div>
                       ) : (
-                        <span className="text-xs text-red-400/70">No branch assigned</span>
+                        <span className="text-[10px] text-red-400/80">No branch</span>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openEdit(staff)}
-                          className="h-8 w-8 p-0"
-                          title="Edit user"
-                        >
-                          <Edit className="h-3.5 w-3.5" />
-                        </Button>
-                        {staff.email && !staff.emailVerifiedAt && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleResendVerificationEmail(staff)}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem onClick={() => openEdit(staff)}>
+                            <Edit className="h-3.5 w-3.5 mr-2" />
+                            Edit member
+                          </DropdownMenuItem>
+                          {staff.email && !staff.emailVerifiedAt && (
+                            <>
+                              <DropdownMenuItem onClick={() => handleResendVerificationEmail(staff)} disabled={isLoading}>
+                                <Send className="h-3.5 w-3.5 mr-2" />
+                                Resend verify email
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleManualVerifyEmail(staff)} disabled={isLoading}>
+                                <MailCheck className="h-3.5 w-3.5 mr-2" />
+                                Mark verified
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {!staff.isAdmin && !staff.isSuperAdmin && (
+                            <DropdownMenuItem
+                              onClick={() => (staff.portalPin ? handleRegeneratePortalPin(staff) : handleCreatePortalPin(staff))}
                               disabled={isLoading}
-                              className="h-8 gap-1 px-2 border-violet-500/30 text-violet-200 hover:bg-violet-500/10"
-                              title="Send a fresh verification link to their inbox"
                             >
-                              <Send className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline text-[11px]">Resend link</span>
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleManualVerifyEmail(staff)}
-                              disabled={isLoading}
-                              className="h-8 gap-1 px-2 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
-                              title="Mark email as verified without the link (only if you confirmed the inbox yourself)"
-                            >
-                              <MailCheck className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline text-[11px]">Verify email</span>
-                            </Button>
-                          </>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDeleteStaff(staff.id, staff.username)}
-                          className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
-                          disabled={staff.id === user?.id}
-                          title={staff.id === user?.id ? 'Cannot delete yourself' : 'Delete user'}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-40 text-center">
-              <Users className="h-8 w-8 text-muted-foreground mb-2 opacity-50" />
-              <p className="text-muted-foreground text-sm">No users yet</p>
-            </div>
-          )}
-        </ScrollArea>
-      </CardContent>
-    </Card>
+                              <KeyRound className="h-3.5 w-3.5 mr-2" />
+                              {staff.portalPin ? 'Regenerate PIN' : 'Create portal PIN'}
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            disabled={staff.id === user?.id}
+                            onClick={() => handleDeleteStaff(staff.id, staff.username)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-2" />
+                            Remove member
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-border/60 py-10 text-center">
+            <Users className="h-7 w-7 text-muted-foreground mx-auto mb-2 opacity-50" />
+            <p className="text-sm text-muted-foreground">No team members yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Add staff so they can log in and use My Portal.</p>
+          </div>
+        )}
+    </div>
   );
 };
 

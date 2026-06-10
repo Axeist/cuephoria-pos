@@ -31,9 +31,9 @@ import {
   Shield,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { useAppSettings, AppSettings } from '@/hooks/useAppSettings';
-import { Separator } from '@/components/ui/separator';
+import { useAppSettings, type AppSettings } from '@/hooks/useAppSettings';
 import { useLocation } from '@/context/LocationContext';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 const formSchema = z.object({
   businessInfo: z.object({
@@ -173,18 +173,23 @@ const GeneralSettings = () => {
       <Card className="border-border/60 bg-background/40">
         <CardContent className="pt-6">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <Accordion type="multiple" defaultValue={['business', 'tax', 'receipts']} className="space-y-2">
               {/* Business Information */}
+              <AccordionItem value="business" className="rounded-xl border border-border/60 bg-muted/5 px-1">
+                <AccordionTrigger className="px-3 py-3 hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <Building2 className="h-4 w-4 text-primary" />
+                    Business profile
+                    {isLiteBranch && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                        Lite · 7550025155
+                      </span>
+                    )}
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="px-3 pb-4">
               <div className="space-y-4">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Building2 className="h-5 w-5 text-cuephoria-lightpurple" />
-                  <h3 className="text-lg font-semibold">Business Information</h3>
-                  {isLiteBranch && (
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-700 border border-cyan-500/30">
-                      Cuephoria Lite · 7550025155
-                    </span>
-                  )}
-                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -259,15 +264,19 @@ const GeneralSettings = () => {
                   />
                 </div>
               </div>
+                </AccordionContent>
+              </AccordionItem>
 
-              <Separator />
-
+              <AccordionItem value="loyalty" className="rounded-xl border border-border/60 bg-muted/5 px-1">
+                <AccordionTrigger className="px-3 py-3 hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <Award className="h-4 w-4 text-primary" />
+                    Loyalty points
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="px-3 pb-4">
               {/* Loyalty Points Configuration */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Award className="h-5 w-5 text-cuephoria-lightpurple" />
-                  <h3 className="text-lg font-semibold">Loyalty Points</h3>
-                </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <FormField
                     control={form.control}
@@ -328,15 +337,19 @@ const GeneralSettings = () => {
                   />
                 </div>
               </div>
+                </AccordionContent>
+              </AccordionItem>
 
-              <Separator />
-
+              <AccordionItem value="tax" className="rounded-xl border border-border/60 bg-muted/5 px-1">
+                <AccordionTrigger className="px-3 py-3 hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <Receipt className="h-4 w-4 text-primary" />
+                    Tax & GST
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="px-3 pb-4">
               {/* Tax Settings */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Receipt className="h-5 w-5 text-cuephoria-lightpurple" />
-                  <h3 className="text-lg font-semibold">Tax Configuration</h3>
-                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -420,15 +433,18 @@ const GeneralSettings = () => {
                   )}
                 </div>
               </div>
+                </AccordionContent>
+              </AccordionItem>
 
-              <Separator />
-
-              {/* Receipt Settings */}
+              <AccordionItem value="receipts" className="rounded-xl border border-border/60 bg-muted/5 px-1">
+                <AccordionTrigger className="px-3 py-3 hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <Receipt className="h-4 w-4 text-primary" />
+                    Receipts
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="px-3 pb-4">
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Receipt className="h-5 w-5 text-cuephoria-lightpurple" />
-                  <h3 className="text-lg font-semibold">Receipt Settings</h3>
-                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -504,15 +520,20 @@ const GeneralSettings = () => {
                   />
                 </div>
               </div>
+                </AccordionContent>
+              </AccordionItem>
 
-              <Separator />
-
+              <AccordionItem value="operations" className="rounded-xl border border-border/60 bg-muted/5 px-1">
+                <AccordionTrigger className="px-3 py-3 hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <Clock className="h-4 w-4 text-primary" />
+                    Sessions, inventory & POS
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="px-3 pb-4 space-y-6">
               {/* Session Settings */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-cuephoria-lightpurple" />
-                  <h3 className="text-lg font-semibold">Session Settings</h3>
-                </div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Station sessions</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -575,14 +596,9 @@ const GeneralSettings = () => {
                 </div>
               </div>
 
-              <Separator />
-
               {/* Inventory Settings */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Package className="h-5 w-5 text-cuephoria-lightpurple" />
-                  <h3 className="text-lg font-semibold">Inventory Settings</h3>
-                </div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Inventory alerts</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -624,14 +640,9 @@ const GeneralSettings = () => {
                 </div>
               </div>
 
-              <Separator />
-
               {/* Payment Settings */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-cuephoria-lightpurple" />
-                  <h3 className="text-lg font-semibold">Payment Methods</h3>
-                </div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">In-store payment methods</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -708,14 +719,9 @@ const GeneralSettings = () => {
                 </div>
               </div>
 
-              <Separator />
-
               {/* Notification Settings */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Bell className="h-5 w-5 text-cuephoria-lightpurple" />
-                  <h3 className="text-lg font-semibold">Notifications</h3>
-                </div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Notifications</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -775,22 +781,25 @@ const GeneralSettings = () => {
                   />
                 </div>
               </div>
+                </AccordionContent>
+              </AccordionItem>
 
-              <Separator />
+              <AccordionItem value="regional" className="rounded-xl border border-border/60 bg-muted/5 px-1">
+                <AccordionTrigger className="px-3 py-3 hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <Globe className="h-4 w-4 text-primary" />
+                    Locale & security
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="px-3 pb-4 space-y-6">
 
               {/* Security — admin PIN for restricted actions */}
               {isAdmin ? (
                 <>
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <Shield className="h-5 w-5 text-cuephoria-lightpurple" />
-                      <h3 className="text-lg font-semibold">Security</h3>
-                    </div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Admin PIN</p>
                     <p className="text-sm text-muted-foreground">
-                      When enabled, staff must enter the PIN below for sensitive actions (add stations, delete
-                      bills/sessions/products, reset leaderboard, POS discount unlock, late-night rates, cafe stock
-                      reductions, and more). Venue admins skip PIN unless the action requires everyone (e.g. add
-                      station). Applies to{' '}
+                      When enabled, staff must enter the PIN below for sensitive actions. Applies to{' '}
                       <span className="font-medium text-foreground">
                         {activeLocation?.name ?? 'the active branch'}
                       </span>
@@ -860,16 +869,11 @@ const GeneralSettings = () => {
                       )}
                     />
                   </div>
-                  <Separator />
                 </>
               ) : null}
 
-              {/* General Settings */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Globe className="h-5 w-5 text-cuephoria-lightpurple" />
-                  <h3 className="text-lg font-semibold">General</h3>
-                </div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Currency & timezone</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -955,8 +959,11 @@ const GeneralSettings = () => {
                   />
                 </div>
               </div>
+                </AccordionContent>
+              </AccordionItem>
+              </Accordion>
 
-              <div className="flex justify-end pt-4">
+              <div className="flex justify-end pt-2 sticky bottom-0 bg-card/80 backdrop-blur-sm py-3 -mx-1 px-1 border-t border-border/40">
                 <Button type="submit" disabled={isSaving || saving} className="min-w-[120px]">
                   {isSaving || saving ? (
                     <>

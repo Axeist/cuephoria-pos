@@ -93,7 +93,7 @@ const statusStyles: Record<string, string> = {
   suspended: "bg-rose-500/10 text-rose-700 border-rose-500/40 dark:text-rose-300",
 };
 
-const OrganizationSettings: React.FC = () => {
+const OrganizationSettings: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -150,6 +150,14 @@ const OrganizationSettings: React.FC = () => {
   });
 
   if (query.isLoading) {
+    if (embedded) {
+      return (
+        <div className="space-y-4">
+          <Skeleton className="h-40 w-full rounded-xl" />
+          <Skeleton className="h-48 w-full rounded-xl" />
+        </div>
+      );
+    }
     return (
       <div className="container p-4 mx-auto max-w-4xl space-y-4">
         <Skeleton className="h-8 w-64" />
@@ -159,6 +167,17 @@ const OrganizationSettings: React.FC = () => {
   }
 
   if (query.isError) {
+    if (embedded) {
+      return (
+        <Card className="border-border/60">
+          <CardContent className="py-8 text-center">
+            <AlertCircle className="h-7 w-7 mx-auto text-rose-500" />
+            <p className="mt-2 text-sm font-medium">Couldn&apos;t load company profile</p>
+            <p className="text-xs text-muted-foreground mt-1">{(query.error as Error).message}</p>
+          </CardContent>
+        </Card>
+      );
+    }
     return (
       <div className="container p-4 mx-auto max-w-4xl">
         <Card>
@@ -184,53 +203,8 @@ const OrganizationSettings: React.FC = () => {
   const data = query.data!;
   const { organization: org, subscription, plan, role, canEdit } = data;
 
-  return (
-    <div className="container p-4 mx-auto max-w-5xl space-y-6">
-      <div className="relative overflow-hidden rounded-3xl border border-white/10 p-5 sm:p-8">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-80"
-          style={{
-            background:
-              "radial-gradient(600px circle at 10% 0%, color-mix(in oklab, var(--brand-primary-hex) 30%, transparent), transparent 55%), radial-gradient(500px circle at 90% 100%, color-mix(in oklab, var(--brand-accent-hex) 22%, transparent), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.025), rgba(0,0,0,0.25))",
-          }}
-        />
-        <div className="relative z-10">
-          <Link
-            to="/settings"
-            className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Back to settings
-          </Link>
-          <div className="mt-3 flex items-start justify-between flex-wrap gap-4">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full brand-soft text-[11px] font-semibold uppercase tracking-[0.18em]">
-                <Sparkles className="h-3 w-3" />
-                Workspace settings
-              </div>
-              <h1 className="mt-3 text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
-                Your <span className="gradient-text-hero">workspace</span>, beautifully tuned
-              </h1>
-              <p className="text-sm text-white/65 mt-2 max-w-xl">
-                Identity, branding and subscription — the way your lounge shows up on
-                receipts, the login page, and public bookings.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className={statusStyles[org.status]}>
-                {org.status.replace("_", " ")}
-              </Badge>
-              {org.is_internal && (
-                <Badge variant="outline" className="border-zinc-500/30 bg-zinc-500/10 text-zinc-300">
-                  internal
-                </Badge>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
+  const settingsBody = (
+    <>
       {!canEdit && (
         <Card className="border-amber-500/30 bg-amber-500/5">
           <CardContent className="py-3 flex items-start gap-2 text-sm">
@@ -238,7 +212,7 @@ const OrganizationSettings: React.FC = () => {
             <div>
               <div className="font-medium text-amber-700 dark:text-amber-300">Read-only view</div>
               <div className="text-xs text-amber-700/80 dark:text-amber-300/80">
-                Ask an owner or admin to update these fields. Your current role is
+                Ask an owner or admin to update these fields. Your role is
                 <span className="mx-1 font-mono rounded bg-amber-500/20 px-1.5 py-0.5">{role}</span>.
               </div>
             </div>
@@ -247,7 +221,7 @@ const OrganizationSettings: React.FC = () => {
       )}
 
       {/* Identity card */}
-      <Card>
+      <Card className={embedded ? "border-border/60 bg-background/40" : undefined}>
         <CardHeader className="flex flex-row items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2">
@@ -329,7 +303,7 @@ const OrganizationSettings: React.FC = () => {
       <BrandingCard canEdit={canEdit} />
 
       {/* Plan card */}
-      <Card className="relative overflow-hidden">
+      <Card className={cn("relative overflow-hidden", embedded && "border-border/60 bg-background/40")}>
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-60"
@@ -406,6 +380,59 @@ const OrganizationSettings: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="space-y-6 -mt-2">{settingsBody}</div>;
+  }
+
+  return (
+    <div className="container p-4 mx-auto max-w-5xl space-y-6">
+      <div className="relative overflow-hidden rounded-3xl border border-white/10 p-5 sm:p-8">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-80"
+          style={{
+            background:
+              "radial-gradient(600px circle at 10% 0%, color-mix(in oklab, var(--brand-primary-hex) 30%, transparent), transparent 55%), radial-gradient(500px circle at 90% 100%, color-mix(in oklab, var(--brand-accent-hex) 22%, transparent), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.025), rgba(0,0,0,0.25))",
+          }}
+        />
+        <div className="relative z-10">
+          <Link
+            to="/settings?tab=workspace"
+            className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to settings
+          </Link>
+          <div className="mt-3 flex items-start justify-between flex-wrap gap-4">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full brand-soft text-[11px] font-semibold uppercase tracking-[0.18em]">
+                <Sparkles className="h-3 w-3" />
+                Company profile
+              </div>
+              <h1 className="mt-3 text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
+                Your <span className="gradient-text-hero">company</span>, beautifully tuned
+              </h1>
+              <p className="text-sm text-white/65 mt-2 max-w-xl">
+                Identity, branding and subscription — how your lounge shows up on login and public booking.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={statusStyles[org.status]}>
+                {org.status.replace("_", " ")}
+              </Badge>
+              {org.is_internal && (
+                <Badge variant="outline" className="border-zinc-500/30 bg-zinc-500/10 text-zinc-300">
+                  internal
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+      {settingsBody}
     </div>
   );
 };
