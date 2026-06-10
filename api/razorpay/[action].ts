@@ -13,8 +13,9 @@
  *
  * This dispatcher is responsible only for actions WITHOUT a concrete file:
  *
- *   GET      /api/razorpay/test-credentials  → handlers/razorpay/test-credentials (Edge)
- *   GET/POST /api/razorpay/reconcile         → handlers/razorpay/reconcile (Node, cron)
+ *   GET      /api/razorpay/test-credentials      → handlers/razorpay/test-credentials (Edge)
+ *   POST     /api/razorpay/test-org-credentials  → handlers/razorpay/test-org-credentials (Node)
+ *   GET/POST /api/razorpay/reconcile              → handlers/razorpay/reconcile (Node, cron)
  *
  * IMPORTANT:
  *   1. All handler imports are STATIC so Vercel's Node File Trace bundles
