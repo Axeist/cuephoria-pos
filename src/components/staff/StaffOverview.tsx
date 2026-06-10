@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, Calendar, TrendingUp, AlertCircle } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { format } from 'date-fns';
+import StaffProfileLabel from '@/components/staff/shared/StaffProfileLabel';
+import { staffInitials } from '@/services/staff/staffMappers';
 
 interface StaffOverviewProps {
   staffProfiles: any[];
@@ -67,13 +69,15 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full bg-primary/15 flex items-center justify-center">
                       <span className="text-lg font-bold text-primary">
-                        {shift.staff_name?.charAt(0)?.toUpperCase() || '?'}
+                        {staffInitials(shift)}
                       </span>
                     </div>
-                    <div>
-                      <p className="font-medium text-white">{shift.staff_name}</p>
-                      <p className="text-sm text-muted-foreground">{shift.designation}</p>
-                    </div>
+                    <StaffProfileLabel
+                      staff={shift}
+                      nameClassName="font-medium text-white"
+                      showDesignation
+                      designationClassName="text-sm text-muted-foreground"
+                    />
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-white">
@@ -117,8 +121,12 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
                   className="flex items-center justify-between p-4 theme-inset"
                 >
                   <div>
-                    <p className="font-medium text-white">{leave.staff_name}</p>
-                    <p className="text-sm text-muted-foreground">{leave.designation}</p>
+                    <StaffProfileLabel
+                      staff={leave}
+                      nameClassName="font-medium text-white"
+                      showDesignation
+                      designationClassName="text-sm text-muted-foreground"
+                    />
                     <p className="text-sm text-muted-foreground mt-1">
                       {format(new Date(leave.start_date), 'MMM dd')} - {format(new Date(leave.end_date), 'MMM dd, yyyy')}
                     </p>
@@ -160,13 +168,15 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
                   <div className="flex items-center gap-3 mb-2">
                     <div className="h-10 w-10 rounded-full bg-primary/15 flex items-center justify-center">
                       <span className="text-lg font-bold text-primary">
-                        {staff.username?.charAt(0)?.toUpperCase() || '?'}
+                        {staffInitials(staff)}
                       </span>
                     </div>
-                    <div>
-                      <p className="font-medium text-white">{staff.username}</p>
-                      <p className="text-xs text-muted-foreground">{staff.designation}</p>
-                    </div>
+                    <StaffProfileLabel
+                      staff={staff}
+                      nameClassName="font-medium text-white"
+                      showDesignation
+                      designationClassName="text-xs text-muted-foreground"
+                    />
                   </div>
                   <div className="text-sm text-muted-foreground">
                     <p>Salary: ₹{staff.monthly_salary?.toLocaleString()}/mo</p>

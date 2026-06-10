@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { staffDisplayName, staffSecondaryUsername } from '@/services/staff/staffMappers';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -161,11 +162,21 @@ const StaffRequestsPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefre
       );
     } else if (type === 'double-shift') {
       const allowance = getDoubleShiftAllowanceAmount(data);
+      const coveredStaff = {
+        staff_name: data.covered_staff_name,
+        username: data.covered_staff_username,
+      };
+      const coveredUser = staffSecondaryUsername(coveredStaff);
       return (
         <div className="space-y-2 mt-3">
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground text-sm">Covering for:</span>
-            <span className="text-white font-semibold">{data.covered_staff_name}</span>
+            <div>
+              <span className="text-white font-semibold">{staffDisplayName(coveredStaff)}</span>
+              {coveredUser && (
+                <p className="text-xs text-muted-foreground">{coveredUser}</p>
+              )}
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
@@ -409,7 +420,12 @@ const StaffRequestsPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefre
                         
                         <div className="flex-1 space-y-2">
                           <div className="flex items-center gap-2">
-                            <p className="font-semibold text-white text-lg">{request.staffName}</p>
+                            <div>
+                              <p className="font-semibold text-white text-lg">{request.staffName}</p>
+                              {request.staffLogin && (
+                                <p className="text-xs text-muted-foreground">{request.staffLogin}</p>
+                              )}
+                            </div>
                             <Badge variant="outline" className={getRequestTypeColor(request.type)}>
                               {getRequestTypeIcon(request.type)}
                               <span className="ml-1">{getRequestTypeLabel(request.type)}</span>

@@ -3,9 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { useStaffHR } from '@/context/StaffHRContext';
 import StaffEmptyState from '@/components/staff/shared/StaffEmptyState';
+import StaffProfileLabel from '@/components/staff/shared/StaffProfileLabel';
 import StatsCard from '@/components/dashboard/StatsCard';
 import { fetchAttendanceForMonth, fetchAuditLog } from '@/services/staff/staffApi';
-import { staffProfileIds } from '@/services/staff/staffMappers';
+import { staffProfileIds, staffDisplayName, staffSecondaryUsername } from '@/services/staff/staffMappers';
 import { BarChart3, Download, TrendingUp, Clock, Users } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -53,12 +54,15 @@ const StaffReportsPanel: React.FC = () => {
 
   const exportCsv = () => {
     const headers = ['Staff', 'Designation', 'Salary', 'Active'];
-    const rows = profiles.map((p) => [
-      p.full_name || p.username,
-      p.designation,
-      String(p.monthly_salary),
-      p.is_active ? 'Yes' : 'No',
-    ]);
+    const rows = profiles.map((p) => {
+      const user = staffSecondaryUsername(p);
+      return [
+        user ? `${staffDisplayName(p)} (${user})` : staffDisplayName(p),
+        p.designation,
+        String(p.monthly_salary),
+        p.is_active ? 'Yes' : 'No',
+      ];
+    });
     const csv = [headers, ...rows].map((r) => r.map((c) => `"${c}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -138,7 +142,11 @@ const StaffReportsPanel: React.FC = () => {
                 key={p.user_id}
                 className="flex items-center justify-between theme-inset px-3 py-2 rounded-lg text-sm"
               >
-                <span className="text-white">{p.full_name || p.username}</span>
+                <StaffProfileLabel
+                  staff={p}
+                  nameClassName="text-white text-sm"
+                  subClassName="text-xs text-muted-foreground"
+                />
                 <span className="text-muted-foreground">{p.designation}</span>
                 <span className="font-medium text-white">₹{Number(p.monthly_salary).toLocaleString()}</span>
               </div>

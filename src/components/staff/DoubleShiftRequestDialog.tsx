@@ -13,6 +13,8 @@ import { Calendar as CalendarIcon, Clock, User } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { staffOptionLabel } from '@/services/staff/staffMappers';
+import StaffProfileLabel from '@/components/staff/shared/StaffProfileLabel';
 
 interface DoubleShiftRequestDialogProps {
   open: boolean;
@@ -195,7 +197,7 @@ const DoubleShiftRequestDialog: React.FC<DoubleShiftRequestDialogProps> = ({
               <SelectContent className="glass-card border-border/50">
                 {availableStaff.map(staff => (
                   <SelectItem key={staff.user_id} value={staff.user_id}>
-                    {staff.username} - {staff.designation}
+                    {staffOptionLabel(staff, { withDesignation: true })}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -233,7 +235,7 @@ const DoubleShiftRequestDialog: React.FC<DoubleShiftRequestDialogProps> = ({
             <div className="p-3 glass-card border-border/50 rounded-lg border border-border/50 space-y-2">
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-primary" />
-                <span className="font-semibold text-white">{coveredStaff.username}</span>
+                <StaffProfileLabel staff={coveredStaff} nameClassName="font-semibold text-white" />
               </div>
               <div className="text-sm text-muted-foreground space-y-1">
                 <p>Shift: {coveredStaff.shift_start_time?.substring(0, 5)} - {coveredStaff.shift_end_time?.substring(0, 5)}</p>

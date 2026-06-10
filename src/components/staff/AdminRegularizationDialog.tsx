@@ -18,6 +18,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from 'date-fns';
 import { cn } from "@/lib/utils";
+import { staffDisplayName, staffOptionLabel } from '@/services/staff/staffMappers';
+import StaffProfileLabel from '@/components/staff/shared/StaffProfileLabel';
 import {
   Select,
   SelectContent,
@@ -249,7 +251,7 @@ const AdminRegularizationDialog: React.FC<AdminRegularizationDialogProps> = ({
               <SelectContent className="glass-card border-border/50">
                 {staffProfiles.filter(s => s.is_active).map(staff => (
                   <SelectItem key={staff.user_id} value={staff.user_id}>
-                    {staff.username} - {staff.designation}
+                    {staffOptionLabel(staff, { withDesignation: true })}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -287,7 +289,7 @@ const AdminRegularizationDialog: React.FC<AdminRegularizationDialogProps> = ({
             <div className="p-3 glass-card border-border/50 rounded-lg border border-border/50">
               <div className="flex items-center gap-2 mb-2">
                 <User className="h-4 w-4 text-primary" />
-                <span className="font-semibold text-white">{selectedStaffData.username}</span>
+                <StaffProfileLabel staff={selectedStaffData} nameClassName="font-semibold text-white" />
               </div>
               <div className="text-sm text-muted-foreground space-y-1">
                 <p>Shift: {selectedStaffData.shift_start_time?.substring(0, 5)} - {selectedStaffData.shift_end_time?.substring(0, 5)}</p>

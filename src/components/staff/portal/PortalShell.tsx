@@ -22,6 +22,9 @@ const PortalShell: React.FC<Props> = ({ displayName, username, designation, onLo
           {designation && (
             <p className="text-sm text-muted-foreground mt-1">{designation}</p>
           )}
+          {username && username !== displayName && (
+            <p className="text-xs text-muted-foreground/80">{username}</p>
+          )}
         </div>
       </div>
       <Button

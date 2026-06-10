@@ -20,6 +20,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { StaffProfile } from '@/types/staff.types';
 import { usePayroll } from '@/hooks/staff/usePayroll';
+import StaffProfileLabel from '@/components/staff/shared/StaffProfileLabel';
+import { staffDisplayName, staffInitials } from '@/services/staff/staffMappers';
 
 type Props = {
   staffProfiles: StaffProfile[];
@@ -318,12 +320,16 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                           <div className="flex items-center gap-4">
                             <div className="h-12 w-12 rounded-full bg-primary/15 flex items-center justify-center">
                               <span className="text-xl font-bold text-primary">
-                                {staff.username?.charAt(0).toUpperCase()}
+                                {staffInitials(staff)}
                               </span>
                             </div>
                             <div>
-                              <p className="font-semibold text-white">{staff.username}</p>
-                              <p className="text-sm text-muted-foreground">{staff.designation}</p>
+                              <StaffProfileLabel
+                                staff={staff}
+                                nameClassName="font-semibold text-white"
+                                showDesignation
+                                designationClassName="text-sm text-muted-foreground"
+                              />
                               {payroll && (
                                 <div className="flex items-center gap-3 mt-2">
                                   <Badge variant="outline" className="text-green-500 border-green-500">
@@ -437,7 +443,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
           <DialogHeader>
             <DialogTitle>Add Deduction</DialogTitle>
             <DialogDescription>
-              Add a deduction for {selectedStaff?.username || selectedStaff?.staff_name}
+              Add a deduction for {selectedStaff ? staffDisplayName(selectedStaff) : 'staff'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -507,7 +513,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
           <DialogHeader>
             <DialogTitle>Add Allowance</DialogTitle>
             <DialogDescription>
-              Add an allowance for {selectedStaff?.username || selectedStaff?.staff_name}
+              Add an allowance for {selectedStaff ? staffDisplayName(selectedStaff) : 'staff'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

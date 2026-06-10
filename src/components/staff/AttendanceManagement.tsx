@@ -35,6 +35,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import StaffSubTabNav from '@/components/staff/layout/StaffSubTabNav';
+import { staffDisplayName, staffInitials } from '@/services/staff/staffMappers';
+import StaffProfileLabel from '@/components/staff/shared/StaffProfileLabel';
 
 interface AttendanceManagementProps {
   staffProfiles: any[];
@@ -80,7 +82,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
       return 'Unknown Staff';
     }
     const staff = staffProfiles.find(s => s.user_id === staffId);
-    return staff?.username || 'Unknown Staff';
+    return staff ? staffDisplayName(staff) : 'Unknown Staff';
   };
 
   const fetchAttendanceRecords = async () => {
@@ -255,13 +257,15 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 rounded-full bg-primary/15 flex items-center justify-center">
                             <span className="font-bold text-primary">
-                              {shift.staff_name?.charAt(0)?.toUpperCase() || '?'}
+                              {staffInitials(shift)}
                             </span>
                           </div>
-                          <div>
-                            <p className="font-semibold text-white">{shift.staff_name}</p>
-                            <p className="text-sm text-muted-foreground">{shift.designation}</p>
-                          </div>
+                          <StaffProfileLabel
+                            staff={shift}
+                            nameClassName="font-semibold text-white"
+                            showDesignation
+                            designationClassName="text-sm text-muted-foreground"
+                          />
                         </div>
                         <div className="text-right">
                           <p className="text-sm text-muted-foreground">Clocked in at</p>

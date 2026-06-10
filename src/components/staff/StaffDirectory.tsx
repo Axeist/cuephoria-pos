@@ -18,6 +18,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import StaffProfileLabel from '@/components/staff/shared/StaffProfileLabel';
+import { staffInitials } from '@/services/staff/staffMappers';
 import { format } from 'date-fns';
 
 interface StaffDirectoryProps {
@@ -118,10 +120,7 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {staffProfiles.map((staff) => {
-                const displayName = staff.full_name?.trim() || staff.username;
-                const avatarInitial = displayName.charAt(0).toUpperCase() || '?';
-                return (
+              {staffProfiles.map((staff) => (
                 <Card
                   key={staff.user_id}
                   className={`glass-card border-white/10 ${!staff.is_active && 'opacity-60'}`}
@@ -131,16 +130,15 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
                       <div className="flex items-center gap-3">
                         <div className="h-12 w-12 rounded-full bg-primary/15 flex items-center justify-center">
                           <span className="text-xl font-bold text-primary">
-                            {avatarInitial}
+                            {staffInitials(staff)}
                           </span>
                         </div>
-                        <div>
-                          <p className="font-semibold text-white">{displayName}</p>
-                          <p className="text-sm text-muted-foreground">{staff.designation}</p>
-                          {staff.username && staff.username !== displayName && (
-                            <p className="text-xs text-muted-foreground/80 mt-0.5">{staff.username}</p>
-                          )}
-                        </div>
+                        <StaffProfileLabel
+                          staff={staff}
+                          nameClassName="font-semibold text-white"
+                          showDesignation
+                          designationClassName="text-sm text-muted-foreground"
+                        />
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <Badge
@@ -258,8 +256,7 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
                     </div>
                   </CardContent>
                 </Card>
-                );
-              })}
+              ))}
             </div>
           )}
         </CardContent>

@@ -7,7 +7,18 @@ import {
   startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears,
 } from 'date-fns';
 import type { StaffProfile } from '@/types/staff.types';
-import { staffProfileIds } from '@/services/staff/staffMappers';
+import { staffProfileIds, staffDisplayName, staffSecondaryUsername } from '@/services/staff/staffMappers';
+
+function staffRequestNames(profile: StaffProfile | undefined, fallbackId?: string) {
+  if (!profile) {
+    const fallback = fallbackId ? `Staff ${fallbackId.substring(0, 8)}` : 'Unknown';
+    return { staffName: fallback, staffLogin: null as string | null };
+  }
+  return {
+    staffName: staffDisplayName(profile),
+    staffLogin: staffSecondaryUsername(profile),
+  };
+}
 
 type RequestType = 'leave' | 'regularization' | 'overtime' | 'double-shift';
 type RequestStatus = 'pending' | 'approved' | 'rejected';
@@ -18,6 +29,7 @@ interface UnifiedRequest {
   type: RequestType;
   staffId: string;
   staffName: string;
+  staffLogin?: string | null;
   designation: string;
   date: Date;
   createdAt: Date;
@@ -145,18 +157,20 @@ export function useStaffRequests({ staffProfiles, onRefresh }: Options) {
               (sp.id && sp.id === leave.staff_id)
             );
             
+            const { staffName, staffLogin } = staffRequestNames(profile, leave.staff_id);
                         unifiedRequests.push({
               id: leave.id,
               type: 'leave',
               staffId: leave.staff_id,
-              staffName: profile?.full_name || profile?.username || `Staff ${leave.staff_id?.substring(0, 8) || 'Unknown'}`,
+              staffName,
+              staffLogin,
               designation: profile?.designation || 'N/A',
               date: new Date(leave.start_date),
               createdAt,
               status: (leave.status || 'pending') as RequestStatus,
               data: { 
                 ...leave, 
-                staff_name: profile?.full_name || profile?.username || `Staff ${leave.staff_id?.substring(0, 8) || 'Unknown'}`,
+                staff_name: staffName,
                 leave_type: leave.leave_type,
                 total_days: leave.total_days,
                 start_date: leave.start_date,
@@ -192,11 +206,13 @@ export function useStaffRequests({ staffProfiles, onRefresh }: Options) {
           const daysOld = differenceInDays(new Date(), createdAt);
           // Find staff profile
           const profile = staffProfiles.find(sp => sp.user_id === reg.staff_id);
+          const { staffName, staffLogin } = staffRequestNames(profile, reg.staff_id);
           unifiedRequests.push({
             id: reg.id,
             type: 'regularization',
             staffId: reg.staff_id,
-            staffName: profile?.full_name || profile?.username || 'Unknown',
+            staffName,
+            staffLogin,
             designation: profile?.designation || 'N/A',
             date: new Date(reg.date),
             createdAt,
@@ -225,11 +241,13 @@ export function useStaffRequests({ staffProfiles, onRefresh }: Options) {
           const daysOld = differenceInDays(new Date(), createdAt);
           // Find staff profile
           const profile = staffProfiles.find(sp => sp.user_id === ot.staff_id);
+          const { staffName, staffLogin } = staffRequestNames(profile, ot.staff_id);
           unifiedRequests.push({
             id: ot.id,
             type: 'overtime',
             staffId: ot.staff_id,
-            staffName: profile?.full_name || profile?.username || 'Unknown',
+            staffName,
+            staffLogin,
             designation: profile?.designation || 'N/A',
             date: new Date(ot.date),
             createdAt,
@@ -265,19 +283,22 @@ export function useStaffRequests({ staffProfiles, onRefresh }: Options) {
           // Find staff profile
           const profile = staffProfiles.find(sp => sp.user_id === ds.staff_id);
           const coveredProfile = staffProfiles.find(sp => sp.user_id === ds.covered_staff_id);
+          const { staffName, staffLogin } = staffRequestNames(profile, ds.staff_id);
           unifiedRequests.push({
             id: ds.id,
             type: 'double-shift',
             staffId: ds.staff_id,
-            staffName: profile?.full_name || profile?.username || 'Unknown',
+            staffName,
+            staffLogin,
             designation: profile?.designation || 'N/A',
             date: new Date(ds.date),
             createdAt,
             status: ds.status as RequestStatus,
             data: {
               ...ds,
-              staff_name: profile?.full_name || profile?.username,
-              covered_staff_name: coveredProfile?.full_name || coveredProfile?.username || ds.covered_staff_name,
+              staff_name: staffName,
+              covered_staff_name: coveredProfile ? staffDisplayName(coveredProfile) : ds.covered_staff_name,
+              covered_staff_username: coveredProfile?.username ?? ds.covered_staff_username,
             },
             priority: daysOld > 3 ? 'high' : daysOld > 1 ? 'medium' : 'low'
           });

@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { staffDisplayName, staffOptionLabel, staffSecondaryUsername } from '@/services/staff/staffMappers';
 
 interface AttendanceCalendarViewProps {
   staffProfiles: any[];
@@ -291,7 +292,8 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
 
         return {
           user_id: staffId,
-          username: staff.username,
+          displayName: staffDisplayName(staff),
+          loginUsername: staffSecondaryUsername(staff),
           designation: staff.designation,
           workingDays,
           absentDays,
@@ -431,7 +433,7 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
                 <SelectItem value="all">All Staff</SelectItem>
                 {staffProfiles.filter(s => s.is_active).map(staff => (
                   <SelectItem key={staff.user_id} value={staff.user_id}>
-                    {staff.username}
+                    {staffOptionLabel(staff)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -537,7 +539,7 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
                               const status = attendance?.status || null;
                               const isLate = attendance?.isLate;
                               const hasOvertime = attendance?.hasOvertime;
-                              let tooltip = `${staff.username}: ${getStatusLabel(status)}`;
+                              let tooltip = `${staffDisplayName(staff)}: ${getStatusLabel(status)}`;
                               if (attendance?.clockIn) tooltip += ` (${attendance.clockIn})`;
                               if (isLate) tooltip += ` - Late: ${attendance.lateMinutes} min`;
                               if (hasOvertime) tooltip += ` - OT: ${attendance.overtimeHours?.toFixed(1)} hrs`;
@@ -569,7 +571,7 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
                               const status = attendance?.status || null;
                               const isLate = attendance?.isLate;
                               const hasOvertime = attendance?.hasOvertime;
-                              let tooltip = `${staff.username}: ${getStatusLabel(status)}`;
+                              let tooltip = `${staffDisplayName(staff)}: ${getStatusLabel(status)}`;
                               if (attendance?.clockIn) tooltip += ` (${attendance.clockIn})`;
                               if (isLate) tooltip += ` - Late: ${attendance.lateMinutes} min`;
                               if (hasOvertime) tooltip += ` - OT: ${attendance.overtimeHours?.toFixed(1)} hrs`;
@@ -584,7 +586,7 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
                                   title={tooltip}
                                 >
                                   {getStatusIcon(status)}
-                                  <span className="truncate font-medium">{staff.username.split(' ')[0]}</span>
+                                  <span className="truncate font-medium">{staffDisplayName(staff).split(' ')[0]}</span>
                                   {isLate && (
                                     <AlertTriangle className="h-3 w-3 text-orange-400 shrink-0" />
                                   )}
@@ -631,7 +633,12 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
                           className="border-border/40 hover:bg-muted/30"
                         >
                           <TableCell className="text-sm font-medium text-foreground py-2">
-                            {summary.username}
+                            <div className="min-w-0">
+                              <p className="truncate">{summary.displayName}</p>
+                              {summary.loginUsername && (
+                                <p className="text-xs text-muted-foreground truncate">{summary.loginUsername}</p>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground py-2">
                             {summary.designation}

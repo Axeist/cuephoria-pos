@@ -20,6 +20,7 @@ import RealTimeTimer from '@/components/staff/RealTimeTimer';
 import PortalShell from '@/components/staff/portal/PortalShell';
 import PortalTabNav from '@/components/staff/portal/PortalTabNav';
 import { useStaffPortal } from '@/hooks/staff/useStaffPortal';
+import { staffDisplayName, staffSecondaryUsername } from '@/services/staff/staffMappers';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -81,8 +82,8 @@ const StaffPortalContent: React.FC = () => {
 
   return (
     <PortalShell
-      displayName={selectedStaff.full_name?.trim() || selectedStaff.username}
-      username={selectedStaff.username}
+      displayName={staffDisplayName(selectedStaff)}
+      username={staffSecondaryUsername(selectedStaff) ?? selectedStaff.username}
       designation={selectedStaff.designation}
       onLock={() => {
         clearStaffPortalUnlock();
@@ -686,7 +687,11 @@ const StaffPortalContent: React.FC = () => {
                             {format(new Date(ds.date), 'MMM dd, yyyy')}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            Covering for: <span className="text-white">{coveredStaff?.username || 'Unknown'}</span>
+                            Covering for:{' '}
+                            <span className="text-white">{coveredStaff ? staffDisplayName(coveredStaff) : 'Unknown'}</span>
+                            {coveredStaff && staffSecondaryUsername(coveredStaff) && (
+                              <span className="block text-xs">{staffSecondaryUsername(coveredStaff)}</span>
+                            )}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             {ds.total_hours} hours • ₹{ds.allowance_amount?.toFixed(2) || '0.00'}

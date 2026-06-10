@@ -16,6 +16,8 @@ import {
   type RosterScheduleRow,
 } from '@/utils/staffRoster';
 import { CalendarDays, RefreshCw, Save } from 'lucide-react';
+import StaffProfileLabel from '@/components/staff/shared/StaffProfileLabel';
+import { staffDisplayName } from '@/services/staff/staffMappers';
 
 const ShiftRosterPanel: React.FC = () => {
   const { toast } = useToast();
@@ -221,10 +223,12 @@ const ShiftRosterPanel: React.FC = () => {
               {activeProfiles.map((staff) => (
                 <tr key={staff.user_id} className="border-b border-border/30">
                   <td className="py-2 pr-3 sticky left-0 bg-card/80 backdrop-blur-sm">
-                    <p className="text-sm font-medium text-foreground truncate max-w-[130px]">
-                      {staff.full_name || staff.username}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
+                    <StaffProfileLabel
+                      staff={staff}
+                      nameClassName="text-sm font-medium text-foreground"
+                      subClassName="text-xs text-muted-foreground"
+                    />
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">
                       {formatShiftRange(staff.shift_start_time, staff.shift_end_time)}
                     </p>
                   </td>
@@ -237,14 +241,14 @@ const ShiftRosterPanel: React.FC = () => {
                         <div className="flex flex-col gap-0.5">
                           <input
                             type="time"
-                            aria-label={`${staff.username} ${ROSTER_WEEK_DAYS[day]} start`}
+                            aria-label={`${staffDisplayName(staff)} ${ROSTER_WEEK_DAYS[day]} start`}
                             className="theme-menu-trigger w-full text-xs px-1.5 py-1 rounded-md h-8"
                             value={start}
                             onChange={(e) => updateLocal(staff.user_id, day, 'shift_start', e.target.value)}
                           />
                           <input
                             type="time"
-                            aria-label={`${staff.username} ${ROSTER_WEEK_DAYS[day]} end`}
+                            aria-label={`${staffDisplayName(staff)} ${ROSTER_WEEK_DAYS[day]} end`}
                             className="theme-menu-trigger w-full text-xs px-1.5 py-1 rounded-md h-8"
                             value={end}
                             onChange={(e) => updateLocal(staff.user_id, day, 'shift_end', e.target.value)}
