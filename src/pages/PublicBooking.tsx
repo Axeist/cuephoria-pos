@@ -12,6 +12,7 @@ import { hapticImpact } from "@/utils/capacitor";
 import { fetchPublicLocation } from "@/utils/publicLocationResolve";
 import { supabase } from "@/integrations/supabase/client";
 import { StationSelector } from "@/components/booking/StationSelector";
+import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import { BookingStationTypeChips } from "@/components/booking/BookingStationTypeChips";
 import { getRateForPlayerCount } from "@/utils/stationPricing";
 import { isStationPublicBookable } from "@/utils/stationTransform";
