@@ -17,6 +17,8 @@ import { validateRazorpayKeyIdPrefix } from "../../lib/payment-checkout-guards";
 import { getPaymentGatewayConfig } from "../../lib/payment-gateway-config";
 import { isPaymentSecretsEncryptionConfigured } from "../../lib/payment-secrets";
 import { testRazorpayCredentials, normalizePaymentCredential } from "../../lib/razorpay-auth";
+import { findStoredCredentialSlot } from "../../lib/payment-gateway-config";
+import { inferPaymentModeFromKeyId } from "../../lib/payment-provider";
 
 export const config = { runtime: "edge" };
 
@@ -37,39 +39,26 @@ async function verifyOrgRazorpayCredentials(
     const inlineKeyId = inline?.key_id ? normalizePaymentCredential(inline.key_id) : undefined;
     const inlineSecret = inline?.key_secret ? normalizePaymentCredential(inline.key_secret) : undefined;
 
-    // Prefer saved credentials (same path as checkout) when available for the requested mode.
-    const configRow = await getPaymentGatewayConfig(organizationId, "razorpay");
-    const settings = (configRow?.settings ?? {}) as {
-      credentials?: Partial<Record<PaymentMode, { key_id?: string; key_secret_enc?: string }>>;
-    };
-    const savedForMode = settings.credentials?.[mode];
-    const hasSavedForMode = !!(savedForMode?.key_id && savedForMode?.key_secret_enc);
-
-    if (hasSavedForMode) {
-      const creds = await resolveRazorpayCredentials({
-        organizationId,
-        mode,
-        purpose: "booking",
-        requireEnabled: false,
-      });
-      if (creds.source === "org") {
-        const result = await testRazorpayCredentials({
-          keyId: creds.keyId,
-          keySecret: creds.keySecret,
-          mode,
-        });
-        if (result.ok) {
-          await markCredentialTestPassed(organizationId, "razorpay");
-          return result;
-        }
-        // Saved creds failed — if user pasted fresh keys, try those next.
-        if (!inlineKeyId || !inlineSecret) {
-          return {
-            ...result,
-            message: `${result.message} Go back to Step 3, re-paste both keys, save, then test again.`,
-          };
-        }
+    if (inlineKeyId && inlineSecret) {
+      const effectiveMode = inferPaymentModeFromKeyId(inlineKeyId) ?? mode;
+      if (!validateRazorpayKeyIdPrefix(inlineKeyId, effectiveMode)) {
+        return {
+          ok: false,
+          message:
+            effectiveMode === "live"
+              ? "Live mode requires a Key ID starting with rzp_live_"
+              : "Test mode requires a Key ID starting with rzp_test_",
+        };
       }
+      const result = await testRazorpayCredentials({
+        keyId: inlineKeyId,
+        keySecret: inlineSecret,
+        mode: effectiveMode,
+      });
+      if (result.ok) {
+        await markCredentialTestPassed(organizationId, "razorpay");
+      }
+      return result;
     }
 
     if (inlineKeyId && !inlineSecret) {
@@ -80,39 +69,43 @@ async function verifyOrgRazorpayCredentials(
       };
     }
 
-    if (inlineKeyId && inlineSecret) {
-      if (!validateRazorpayKeyIdPrefix(inlineKeyId, mode)) {
-        return {
-          ok: false,
-          message:
-            mode === "live"
-              ? "Live mode requires a Key ID starting with rzp_live_"
-              : "Test mode requires a Key ID starting with rzp_test_",
-        };
-      }
-      const result = await testRazorpayCredentials({
-        keyId: inlineKeyId,
-        keySecret: inlineSecret,
-        mode,
-      });
-      if (result.ok) {
-        await markCredentialTestPassed(organizationId, "razorpay");
-      }
-      return result;
-    }
+    const configRow = await getPaymentGatewayConfig(organizationId, "razorpay");
+    const settings = (configRow?.settings ?? {}) as {
+      credentials?: Partial<Record<PaymentMode, { key_id?: string; key_secret_enc?: string }>>;
+    };
+    const stored = findStoredCredentialSlot(settings, mode);
 
-    if (!configRow?.credentials_configured) {
+    if (!stored) {
       return {
         ok: false,
         message: "No saved workspace credentials found. Paste your API keys in Step 3 first.",
       };
     }
 
-    return {
-      ok: false,
-      message:
-        "Could not read saved credentials. Re-enter your API keys in Step 3 and save again.",
-    };
+    const effectiveMode = inferPaymentModeFromKeyId(stored.creds.key_id ?? "") ?? stored.mode;
+    const creds = await resolveRazorpayCredentials({
+      organizationId,
+      mode: effectiveMode,
+      purpose: "booking",
+      requireEnabled: false,
+    });
+    if (creds.source !== "org") {
+      return {
+        ok: false,
+        message:
+          "Could not read saved credentials. Re-enter your API keys in Step 3 and save again.",
+      };
+    }
+
+    const result = await testRazorpayCredentials({
+      keyId: creds.keyId,
+      keySecret: creds.keySecret,
+      mode: effectiveMode,
+    });
+    if (result.ok) {
+      await markCredentialTestPassed(organizationId, "razorpay");
+    }
+    return result;
   } catch (err) {
     return {
       ok: false,
@@ -136,9 +129,9 @@ function parseCredentials(raw: unknown, mode: PaymentMode) {
   const keySecret = typeof c.key_secret === "string" ? normalizePaymentCredential(c.key_secret) : undefined;
   const webhookSecret =
     typeof c.webhook_secret === "string" ? normalizePaymentCredential(c.webhook_secret) : undefined;
-  if (keyId && !validateRazorpayKeyIdPrefix(keyId, mode)) {
+  if (keyId && !validateRazorpayKeyIdPrefix(keyId, inferPaymentModeFromKeyId(keyId) ?? mode)) {
     throw new Error(
-      mode === "live"
+      inferPaymentModeFromKeyId(keyId) === "live"
         ? "Live mode requires a key ID starting with rzp_live_"
         : "Test mode requires a key ID starting with rzp_test_",
     );

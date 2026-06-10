@@ -73,12 +73,24 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return json as T;
 }
 
+function inferModeFromKeyId(keyId: string): Mode | null {
+  const v = keyId.trim();
+  if (v.startsWith("rzp_live_")) return "live";
+  if (v.startsWith("rzp_test_")) return "test";
+  return null;
+}
+
 export default function RazorpaySetupWizard({ config, onComplete }: WizardProps) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [stepIdx, setStepIdx] = React.useState(0);
   const [accountConfirmed, setAccountConfirmed] = React.useState(false);
-  const [mode, setMode] = React.useState<Mode>(config.mode || "test");
+  const [mode, setMode] = React.useState<Mode>(() => {
+    const masked = config.public_key_masked ?? "";
+    if (masked.startsWith("rzp_live")) return "live";
+    if (masked.startsWith("rzp_test")) return "test";
+    return config.mode || "test";
+  });
   const [keyId, setKeyId] = React.useState("");
   const [keySecret, setKeySecret] = React.useState("");
   const [webhookSecret, setWebhookSecret] = React.useState("");
@@ -129,11 +141,16 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
   });
 
   const testMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (args: { keyId: string; keySecret: string; effectiveMode: Mode }) =>
       fetchJson<{ ok: true; result: { ok: boolean; message: string } }>("/api/admin/payment-config", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "test-credentials", provider: "razorpay", mode }),
+        body: JSON.stringify({
+          action: "test-credentials",
+          provider: "razorpay",
+          mode: args.effectiveMode,
+          credentials: { key_id: args.keyId, key_secret: args.keySecret },
+        }),
       }),
     onSuccess: (data) => {
       setTestResult(data.result);
@@ -171,17 +188,11 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
       toast({ variant: "destructive", title: "Key ID and Secret are required" });
       return false;
     }
-    const prefix = mode === "live" ? "rzp_live_" : "rzp_test_";
-    if (!keyId.trim().startsWith(prefix)) {
-      toast({
-        variant: "destructive",
-        title: `Key ID must start with ${prefix}`,
-      });
-      return false;
-    }
+    const effectiveMode = inferModeFromKeyId(keyId) ?? mode;
+    if (effectiveMode !== mode) setMode(effectiveMode);
     try {
       await saveCredentialsMutation.mutateAsync({
-        mode,
+        mode: effectiveMode,
         is_enabled: config.is_enabled,
         credentials: { key_id: keyId.trim(), key_secret: keySecret.trim() },
       });
@@ -221,23 +232,21 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
       });
       return false;
     }
-    const prefix = mode === "live" ? "rzp_live_" : "rzp_test_";
-    if (!testKeyId.startsWith(prefix)) {
-      toast({
-        variant: "destructive",
-        title: `Key ID must start with ${prefix}`,
-      });
-      return false;
-    }
+    const effectiveMode = inferModeFromKeyId(testKeyId) ?? mode;
+    if (effectiveMode !== mode) setMode(effectiveMode);
     try {
       await saveCredentialsMutation.mutateAsync({
-        mode,
+        mode: effectiveMode,
         is_enabled: config.is_enabled,
         credentials: { key_id: testKeyId, key_secret: testKeySecret },
       });
       setKeyId(testKeyId);
       setKeySecret(testKeySecret);
-      const data = await testMutation.mutateAsync();
+      const data = await testMutation.mutateAsync({
+        keyId: testKeyId,
+        keySecret: testKeySecret,
+        effectiveMode,
+      });
       if (!data.result.ok) {
         toast({ variant: "destructive", title: "Connection failed", description: data.result.message });
         return false;
@@ -417,7 +426,12 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
                   <Label>Key ID</Label>
                   <Input
                     value={keyId}
-                    onChange={(e) => setKeyId(e.target.value)}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setKeyId(next);
+                      const inferred = inferModeFromKeyId(next);
+                      if (inferred) setMode(inferred);
+                    }}
                     autoComplete="off"
                     spellCheck={false}
                     placeholder={mode === "live" ? "rzp_live_..." : "rzp_test_..."}
@@ -474,9 +488,14 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
 
             {step.id === "test" && (
               <>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{mode === "test" ? "Test mode" : "Live mode"}</Badge>
+                  <span className="text-xs text-muted-foreground">
+                    Detected from Key ID prefix (rzp_test_ / rzp_live_)
+                  </span>
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  We save your keys, then verify them against Razorpay in <strong>{mode}</strong> mode (same as
-                  checkout).
+                  We save your keys under the correct mode, then verify them with Razorpay.
                 </p>
                 <form
                   ref={testFormRef}

@@ -11,6 +11,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decryptSecret } from "./payment-secrets.js";
 import { normalizePaymentCredential } from "./razorpay-auth.js";
+import { findStoredCredentialSlot } from "./payment-gateway-config.js";
 import type { PaymentMode } from "./payment-provider.js";
 import { supabaseServiceClient } from "../supabaseServer.js";
 
@@ -156,9 +157,11 @@ async function resolveOrgCredentials(
   const row = data as { mode: PaymentMode; is_enabled: boolean; settings: GatewaySettings };
   if (options?.requireEnabled && !row.is_enabled) return null;
 
-  const activeMode = modeOverride ?? row.mode;
-  const creds = row.settings?.credentials?.[activeMode];
-  if (!creds?.key_id || !creds.key_secret_enc) return null;
+  const stored = findStoredCredentialSlot(row.settings ?? {}, modeOverride ?? row.mode);
+  if (!stored) return null;
+
+  const { mode: activeMode, creds } = stored;
+  if (!creds.key_id || !creds.key_secret_enc) return null;
 
   try {
     const keySecret = normalizePaymentCredential(await decryptSecret(creds.key_secret_enc));
@@ -254,8 +257,9 @@ export async function resolveRazorpayKeyIdOnly(input: {
         .maybeSingle();
       const row = data as { mode: PaymentMode; is_enabled: boolean; settings: GatewaySettings } | null;
       if (row?.is_enabled) {
-        const keyId = row.settings?.credentials?.[row.mode]?.key_id;
-        if (keyId) return keyId.trim();
+        const stored = findStoredCredentialSlot(row.settings ?? {}, row.mode);
+        const keyId = stored?.creds.key_id;
+        if (keyId) return normalizePaymentCredential(keyId);
       }
     }
   }

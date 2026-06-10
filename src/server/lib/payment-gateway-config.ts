@@ -2,7 +2,7 @@ import { getEnv } from "../adminApiUtils";
 import { supabaseServiceClient } from "../supabaseServer";
 import { encryptSecret, isPaymentSecretsEncryptionConfigured } from "./payment-secrets";
 import { normalizePaymentCredential } from "./razorpay-auth";
-import { parsePaymentMode, parsePaymentProvider, type PaymentMode, type PaymentProvider } from "./payment-provider";
+import { parsePaymentMode, parsePaymentProvider, inferPaymentModeFromKeyId, type PaymentMode, type PaymentProvider } from "./payment-provider";
 
 export type PaymentGatewayConfigRow = {
   id: string;
@@ -42,7 +42,9 @@ type ModeCredentials = {
   webhook_secret_enc?: string;
 };
 
-type GatewaySettings = {
+export type StoredModeCredentials = ModeCredentials;
+
+export type GatewaySettings = {
   credentials?: Partial<Record<PaymentMode, ModeCredentials>>;
   last_credential_test_at?: string;
   last_webhook_event?: string;
@@ -70,6 +72,23 @@ function getModeCredentials(settings: GatewaySettings, mode: PaymentMode): ModeC
   return settings.credentials?.[mode] ?? null;
 }
 
+/** Find stored credentials even when row.mode disagrees with the key slot (test vs live mismatch). */
+export function findStoredCredentialSlot(
+  settings: GatewaySettings,
+  preferredMode?: PaymentMode,
+): { mode: PaymentMode; creds: ModeCredentials } | null {
+  const modes: PaymentMode[] = preferredMode
+    ? [preferredMode, preferredMode === "test" ? "live" : "test"]
+    : ["test", "live"];
+  for (const m of modes) {
+    const creds = settings.credentials?.[m];
+    if (creds?.key_id && creds.key_secret_enc) {
+      return { mode: m, creds };
+    }
+  }
+  return null;
+}
+
 function buildSetupSteps(row: PaymentGatewayConfigRow, creds: ModeCredentials | null): PaymentSetupSteps {
   const hasKeys = !!(creds?.key_id && creds.key_secret_enc);
   const hasWebhook = !!creds?.webhook_secret_enc;
@@ -86,8 +105,10 @@ function buildSetupSteps(row: PaymentGatewayConfigRow, creds: ModeCredentials | 
 
 function buildConfigView(row: PaymentGatewayConfigRow): PaymentGatewayConfigView {
   const settings = (row.settings ?? {}) as GatewaySettings;
-  const creds = getModeCredentials(settings, parsePaymentMode(row.mode));
-  const env = resolveEnvPresence(parsePaymentProvider(row.provider), parsePaymentMode(row.mode));
+  const stored = findStoredCredentialSlot(settings, parsePaymentMode(row.mode));
+  const creds = stored?.creds ?? null;
+  const effectiveMode = stored?.mode ?? parsePaymentMode(row.mode);
+  const env = resolveEnvPresence(parsePaymentProvider(row.provider), effectiveMode);
 
   const orgKeyId = creds?.key_id ?? null;
   const orgHasSecret = !!creds?.key_secret_enc;
@@ -162,7 +183,12 @@ export async function mergeGatewayCredentials(
     );
   }
 
-  const prev = existingSettings.credentials?.[mode] ?? {};
+  const storageMode =
+    (input.key_id ? inferPaymentModeFromKeyId(normalizePaymentCredential(input.key_id)) : null) ??
+    findStoredCredentialSlot(existingSettings, mode)?.mode ??
+    mode;
+
+  const prev = existingSettings.credentials?.[storageMode] ?? {};
   const next: ModeCredentials = { ...prev };
 
   if (input.key_id !== undefined) {
@@ -179,7 +205,7 @@ export async function mergeGatewayCredentials(
     ...existingSettings,
     credentials: {
       ...existingSettings.credentials,
-      [mode]: next,
+      [storageMode]: next,
     },
   };
 }
@@ -199,7 +225,7 @@ export async function upsertPaymentGatewayConfig(input: {
   const supabase = supabaseServiceClient("cuetronix-payment-config-upsert");
 
   let settings = (input.settings ?? {}) as GatewaySettings;
-  const mode = input.mode ?? "test";
+  let mode = input.mode ?? "test";
 
   if (input.credentials) {
     const { data: existing } = await supabase
@@ -213,6 +239,13 @@ export async function upsertPaymentGatewayConfig(input: {
     settings = await mergeGatewayCredentials(prevSettings, mode, input.credentials);
     if (input.settings) {
       settings = { ...settings, ...input.settings };
+    }
+    const slot = findStoredCredentialSlot(settings, mode);
+    if (slot) {
+      mode = slot.mode;
+    } else if (input.credentials.key_id) {
+      const inferred = inferPaymentModeFromKeyId(normalizePaymentCredential(input.credentials.key_id));
+      if (inferred) mode = inferred;
     }
   }
 

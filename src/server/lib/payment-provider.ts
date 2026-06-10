@@ -34,6 +34,14 @@ export function parsePaymentMode(raw: unknown, fallback: PaymentMode = "test"): 
   return String(raw ?? "").trim().toLowerCase() === "live" ? "live" : fallback;
 }
 
+/** Razorpay key IDs encode environment — use this as source of truth over row.mode. */
+export function inferPaymentModeFromKeyId(keyId: string | null | undefined): PaymentMode | null {
+  const v = String(keyId ?? "").trim();
+  if (v.startsWith("rzp_live_")) return "live";
+  if (v.startsWith("rzp_test_")) return "test";
+  return null;
+}
+
 export function parseCurrency(raw: unknown, fallback = "INR"): string {
   const value = String(raw ?? "").trim().toUpperCase();
   if (!/^[A-Z]{3}$/.test(value)) return fallback;

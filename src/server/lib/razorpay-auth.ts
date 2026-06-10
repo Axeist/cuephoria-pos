@@ -1,4 +1,5 @@
 import type { PaymentMode } from "./payment-provider.js";
+import { inferPaymentModeFromKeyId } from "./payment-provider.js";
 
 /** Strip invisible chars / whitespace from pasted API keys. */
 export function normalizePaymentCredential(value: string): string {
@@ -47,14 +48,15 @@ export async function testRazorpayCredentials(args: {
     return { ok: false, message: "Key ID and Secret are required." };
   }
 
-  const expectedPrefix = args.mode === "live" ? "rzp_live_" : "rzp_test_";
+  const inferredMode = inferPaymentModeFromKeyId(keyId) ?? args.mode;
+  const expectedPrefix = inferredMode === "live" ? "rzp_live_" : "rzp_test_";
   if (!keyId.startsWith(expectedPrefix)) {
     return {
       ok: false,
       message:
-        args.mode === "live"
-          ? "Live mode requires a Key ID starting with rzp_live_. Switch to Test mode or paste live keys."
-          : "Test mode requires a Key ID starting with rzp_test_. Switch to Live mode or paste test keys.",
+        inferredMode === "live"
+          ? "Live keys must use a Key ID starting with rzp_live_."
+          : "Test keys must use a Key ID starting with rzp_test_.",
     };
   }
 
@@ -74,7 +76,7 @@ export async function testRazorpayCredentials(args: {
   });
 
   if (response.ok) {
-    return { ok: true, message: `Razorpay credentials are valid in ${args.mode} mode.` };
+    return { ok: true, message: `Razorpay credentials are valid in ${inferredMode} mode.` };
   }
 
   const text = await response.text();
@@ -84,11 +86,11 @@ export async function testRazorpayCredentials(args: {
     response.status === 406 ||
     (response.status === 400 && /auth|invalid|api key|secret/i.test(detail));
   if (authFailure) {
-    detail = `${detail} Re-copy both Key ID and Secret from Razorpay Dashboard → Settings → API Keys (${args.mode} mode). If you regenerated the secret, paste the new one and save again.`;
+    detail = `${detail} Re-copy both Key ID and Secret from Razorpay Dashboard → Settings → API Keys (${inferredMode} mode). If you regenerated the secret, paste the new one and save again.`;
   }
 
   return {
     ok: false,
-    message: `Razorpay auth failed (${response.status}, ${args.mode}): ${detail}`,
+    message: `Razorpay auth failed (${response.status}, ${inferredMode}): ${detail}`,
   };
 }
