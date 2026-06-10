@@ -227,18 +227,33 @@ function RazorpayTrustBadge({
 
   return (
     <div
-      className={`inline-flex items-center gap-2.5 rounded-xl border border-[#3395FF]/20 bg-white shadow-[0_8px_28px_-12px_rgba(51,149,255,0.55)] ${pad}`}
+      className={cn(
+        "inline-flex items-center gap-2.5 rounded-xl border border-[#3395FF]/25",
+        "bg-white/[0.04] backdrop-blur-sm shadow-[0_8px_28px_-12px_rgba(51,149,255,0.35)]",
+        pad,
+      )}
     >
-      <ShieldCheck className={`${size === "lg" ? "h-5 w-5" : "h-4 w-4"} text-emerald-600 shrink-0`} />
-      <span className={`${size === "lg" ? "text-sm" : "text-xs"} font-medium text-zinc-600`}>
+      <ShieldCheck
+        className={cn(
+          "shrink-0 text-emerald-400",
+          size === "lg" ? "h-5 w-5" : "h-4 w-4",
+        )}
+      />
+      <span
+        className={cn(
+          "font-medium text-white/60",
+          size === "lg" ? "text-sm" : "text-xs",
+        )}
+      >
         Secured by
       </span>
-      <PaymentProviderBrand provider="razorpay" size={brandSize} variant="logo" padded={false} />
+      <PaymentProviderBrand provider="razorpay" size={brandSize} variant="logo" padded />
       {mode ? (
         <span
-          className={`rounded-md bg-[#3395FF]/10 font-bold uppercase tracking-wider text-[#072654] ${
-            size === "lg" ? "px-2 py-1 text-[11px]" : "px-1.5 py-0.5 text-[10px]"
-          }`}
+          className={cn(
+            "rounded-md bg-[#3395FF]/15 font-bold uppercase tracking-wider text-sky-200 border border-[#3395FF]/30",
+            size === "lg" ? "px-2 py-1 text-[11px]" : "px-1.5 py-0.5 text-[10px]",
+          )}
         >
           {mode}
         </span>
@@ -1909,34 +1924,41 @@ export default function Billing() {
 
         {/* TRUST STRIP */}
         {!isSandbox && !internal ? (
-        <section className="rounded-2xl border border-[#3395FF]/25 bg-gradient-to-r from-white via-[#f8fbff] to-[#eef6ff] px-6 py-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5 shadow-[0_12px_40px_-20px_rgba(51,149,255,0.45)]">
+        <section
+          className="rounded-2xl border border-[#3395FF]/20 px-6 py-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5"
+          style={{
+            background:
+              "linear-gradient(135deg, color-mix(in oklab, #3395FF 10%, rgba(255,255,255,0.03)) 0%, rgba(255,255,255,0.02) 50%, color-mix(in oklab, var(--brand-primary-hex) 8%, rgba(255,255,255,0.02)) 100%)",
+            boxShadow: "0 12px 40px -20px rgba(51,149,255,0.25), inset 0 1px 0 rgba(255,255,255,0.06)",
+          }}
+        >
           <div className="flex items-start sm:items-center gap-4">
             <RazorpayTrustBadge mode={razorpay.mode} size="lg" />
-            <div className="text-sm text-[#072654]/80 max-w-xl">
-              <div className="font-semibold text-[#072654]">
+            <div className="text-sm text-white/70 max-w-xl">
+              <div className="font-semibold text-white/90">
                 Recurring billing &amp; mandates handled by Razorpay
               </div>
-              <div className="text-xs mt-1 text-[#072654]/70">
+              <div className="text-xs mt-1 text-white/55">
                 PCI-DSS Level 1 · 256-bit TLS · cards tokenised by Razorpay (your card never touches our
                 servers).
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-xs text-[#072654]/65">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-white/50">
             <a
               href="https://razorpay.com/docs/payments/subscriptions/"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-[#3395FF] transition inline-flex items-center gap-1 font-medium"
+              className="hover:text-[#3395FF] transition inline-flex items-center gap-1 font-medium text-white/65"
             >
               Razorpay Subscriptions <ExternalLink className="h-3.5 w-3.5" />
             </a>
-            <span className="text-[#072654]/25">·</span>
+            <span className="text-white/20">·</span>
             <a
               href="https://razorpay.com/docs/api/payments/subscriptions/"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-[#3395FF] transition inline-flex items-center gap-1 font-medium"
+              className="hover:text-[#3395FF] transition inline-flex items-center gap-1 font-medium text-white/65"
             >
               API docs <ExternalLink className="h-3.5 w-3.5" />
             </a>
