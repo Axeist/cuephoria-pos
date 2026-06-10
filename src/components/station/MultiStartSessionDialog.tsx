@@ -36,9 +36,9 @@ import { PrepaidBookingNotice } from '@/components/station/PrepaidBookingNotice'
 import { fetchTodayBookingsForStationCustomer, pickDefaultPrepaidBooking } from '@/utils/prepaidBooking.utils';
 import {
   applyCouponToRate,
-  COUPON_OPTIONS,
   isHappyHour,
 } from '@/utils/sessionCoupon.utils';
+import { useBranchCoupons } from '@/hooks/useBranchCoupons';
 import { getStationTheme } from '@/utils/stationTheme';
 import type { Station } from '@/types/pos.types';
 
@@ -73,6 +73,10 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
 }) => {
   const { customers } = usePOS();
   const { activeLocationId } = useLocation();
+  const { coupons: branchCoupons, options: couponOptions, loading: couponsLoading } = useBranchCoupons(
+    activeLocationId,
+    open,
+  );
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.isAdmin || false;
@@ -182,6 +186,12 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
 
   const lateNightLocked = isLateNight() && !lateNightPinUnlocked && !isAdmin;
 
+  useEffect(() => {
+    if (selectedCoupon === 'none' || couponsLoading) return;
+    const valid = branchCoupons.some((c) => c.code === selectedCoupon) || selectedCoupon === 'HH99';
+    if (!valid) setSelectedCoupon('none');
+  }, [branchCoupons, couponsLoading, selectedCoupon]);
+
   const handleLateNightUnlock = () => {
     requestPinVerification(() => setLateNightPinUnlocked(true));
   };
@@ -195,7 +205,8 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
       const { finalRate, perPersonRate, invalidCoupon } = applyCouponToRate(
         undiscounted.totalRate,
         couponCode,
-        playerCount
+        playerCount,
+        branchCoupons,
       );
       const suffix = pricingRateSuffix({
         type: station.type ?? 'ps5',
@@ -214,7 +225,7 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
         showPlayerCount: isPerPlayerPricing(station) && (station.maxPlayers ?? 1) > 1,
       };
     });
-  }, [stations, playerCounts, couponCode]);
+  }, [stations, playerCounts, couponCode, branchCoupons]);
 
   const grandTotal = stationPricing.reduce((sum, row) => sum + row.finalRate, 0);
   const undiscountedGrandTotal = stationPricing.reduce((sum, row) => sum + row.undiscountedTotal, 0);
@@ -479,7 +490,7 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
           )}
 
           {/* Coupon */}
-          {selectedCustomer && stationPricing.some((row) => !prepaidByStation[row.station.id]) && (
+          {selectedCustomer && stationPricing.some((row) => !prepaidByStation[row.station.id]) && (couponsLoading || branchCoupons.length > 0) && (
             <div className="space-y-3">
               <Label className="text-base font-medium flex items-center gap-2">
                 <Tag className="h-4 w-4" />
@@ -496,12 +507,12 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
                   </Button>
                 </div>
               )}
-              <Select value={selectedCoupon} onValueChange={setSelectedCoupon} disabled={lateNightLocked}>
+              <Select value={selectedCoupon} onValueChange={setSelectedCoupon} disabled={lateNightLocked || couponsLoading}>
                 <SelectTrigger>
-                  <SelectValue placeholder="No coupon" />
+                  <SelectValue placeholder={couponsLoading ? 'Loading coupons…' : 'No coupon'} />
                 </SelectTrigger>
                 <SelectContent className="z-[10000]">
-                  {COUPON_OPTIONS.map((opt) => (
+                  {couponOptions.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </SelectItem>

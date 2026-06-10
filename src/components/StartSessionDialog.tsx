@@ -37,6 +37,8 @@ import {
   parseCustomSessionStartTime,
   toDatetimeLocalInputValue,
 } from '@/utils/sessionStartTime.utils';
+import { useBranchCoupons } from '@/hooks/useBranchCoupons';
+import { applyCouponToRate, isHappyHour } from '@/utils/sessionCoupon.utils';
 
 const isLateNight = () => new Date().getHours() < 6;
 
@@ -95,6 +97,10 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   const isTimeBased = pricingMode === 'time_based';
   const { customers } = usePOS();
   const { activeLocationId } = useLocation();
+  const { coupons: branchCoupons, options: couponOptions, loading: couponsLoading } = useBranchCoupons(
+    activeLocationId,
+    open,
+  );
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.isAdmin || false;
@@ -215,6 +221,14 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
 
   const lateNightLocked = isLateNight() && !lateNightPinUnlocked && !isAdmin;
 
+  const selectedCouponMeta = branchCoupons.find((c) => c.code === selectedCoupon);
+
+  useEffect(() => {
+    if (selectedCoupon === 'none' || couponsLoading) return;
+    const valid = branchCoupons.some((c) => c.code === selectedCoupon) || selectedCoupon === 'HH99';
+    if (!valid) setSelectedCoupon('none');
+  }, [branchCoupons, couponsLoading, selectedCoupon]);
+
   const handleLateNightUnlock = () => {
     requestPinVerification(() => setLateNightPinUnlocked(true));
   };
@@ -273,69 +287,29 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
         customer.phone.includes(customerSearchQuery)
       ).slice(0, 10);
 
-  // Validate Happy Hour timing
-  const isHappyHour = () => {
-    const now = new Date();
-    const dayOfWeek = now.getDay();
-    const currentHour = now.getHours();
-    return (dayOfWeek >= 1 && dayOfWeek <= 5) && (currentHour >= 11 && currentHour < 16);
-  };
-
-  // Calculate final rate based on coupon
+  // Calculate final rate based on branch coupon
   useEffect(() => {
-    if (!selectedCoupon || selectedCoupon === 'none') {
-      setFinalRate(undiscountedRate);
-      setPerPersonRate(undiscountedPerPerson);
+    const couponCode = selectedCoupon !== 'none' ? selectedCoupon : undefined;
+    const { finalRate: nextRate, perPersonRate: nextPerPerson, invalidCoupon } = applyCouponToRate(
+      undiscountedRate,
+      couponCode,
+      playerCount,
+      branchCoupons,
+    );
+
+    if (invalidCoupon === 'HH99') {
+      toast({
+        title: 'Invalid Timing',
+        description: 'HH99 is only valid Mon-Fri, 11 AM - 4 PM',
+        variant: 'destructive',
+      });
+      setSelectedCoupon('none');
       return;
     }
 
-    let newRate = undiscountedRate;
-
-    switch (selectedCoupon) {
-      case 'HH99':
-        if (!isHappyHour()) {
-          toast({
-            title: 'Invalid Timing',
-            description: 'HH99 is only valid Mon-Fri, 11 AM - 4 PM',
-            variant: 'destructive',
-          });
-          setSelectedCoupon('none');
-          return;
-        }
-        newRate = 99;
-        break;
-      
-      case 'CUEPHORIA20':
-        newRate = undiscountedRate * 0.80;
-        break;
-      
-      case 'CUEPHORIA35':
-        newRate = undiscountedRate * 0.65;
-        break;
-      
-      case 'NIT35':
-        newRate = undiscountedRate * 0.65;
-        break;
-      
-      case 'AAVEG50':
-        newRate = undiscountedRate * 0.50;
-        break;
-      
-      case 'GAMEINSIDER50':
-        newRate = undiscountedRate * 0.50;
-        break;
-      
-      case 'AXEIST':
-        newRate = 0;
-        break;
-      
-      default:
-        newRate = undiscountedRate;
-    }
-
-    setFinalRate(Math.round(newRate));
-    setPerPersonRate(playerCount > 0 ? Math.round(newRate / playerCount) : newRate);
-  }, [selectedCoupon, undiscountedRate, undiscountedPerPerson, playerCount, toast]);
+    setFinalRate(nextRate);
+    setPerPersonRate(nextPerPerson);
+  }, [selectedCoupon, undiscountedRate, undiscountedPerPerson, playerCount, branchCoupons, toast]);
 
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
@@ -642,7 +616,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
           )}
 
           {/* Coupon Selection */}
-          {selectedCustomer && !prepaidLink && (
+          {selectedCustomer && !prepaidLink && (couponsLoading || branchCoupons.length > 0) && (
             <div className="space-y-3">
               <Label className="text-base font-medium flex items-center gap-2">
                 <Tag className="h-4 w-4" />
@@ -675,34 +649,17 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
               <Select
                 value={selectedCoupon}
                 onValueChange={setSelectedCoupon}
-                disabled={lateNightLocked}
+                disabled={lateNightLocked || couponsLoading}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="No coupon (regular price)" />
+                  <SelectValue placeholder={couponsLoading ? 'Loading coupons…' : 'No coupon (regular price)'} />
                 </SelectTrigger>
                 <SelectContent className="z-[10000]">
-                  <SelectItem value="none">No coupon - Regular Price</SelectItem>
-                  <SelectItem value="HH99">
-                    🎮 HH99 - ₹99/hour (Mon-Fri 11AM-4PM)
-                  </SelectItem>
-                  <SelectItem value="CUEPHORIA20">
-                    🎉 CUEPHORIA20 - 20% OFF
-                  </SelectItem>
-                  <SelectItem value="CUEPHORIA35">
-                    🎓 CUEPHORIA35 - 35% OFF (Student ID Required)
-                  </SelectItem>
-                  <SelectItem value="NIT35">
-                    🏫 NIT35 - 35% OFF (NIT Students)
-                  </SelectItem>
-                  <SelectItem value="AAVEG50">
-                    🎓 AAVEG50 - 50% OFF (NIT College Freshers)
-                  </SelectItem>
-                  <SelectItem value="GAMEINSIDER50">
-                    🎮 GAMEINSIDER50 - 50% OFF (GameInsider Enrollment Required)
-                  </SelectItem>
-                  <SelectItem value="AXEIST">
-                    👑 AXEIST - 100% OFF (VIP)
-                  </SelectItem>
+                  {couponOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
@@ -715,21 +672,10 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                 </div>
               )}
 
-              {selectedCoupon !== 'none' && selectedCoupon === 'CUEPHORIA35' && (
+              {selectedCoupon !== 'none' && selectedCouponMeta?.description && selectedCoupon !== 'HH99' && (
                 <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md p-3 flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-blue-900 dark:text-blue-100">
-                    Student ID verification required at checkout
-                  </p>
-                </div>
-              )}
-
-              {selectedCoupon !== 'none' && selectedCoupon === 'GAMEINSIDER50' && (
-                <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md p-3 flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-amber-900 dark:text-amber-100">
-                    <strong>Enrollment Verification Required:</strong> Verify customer's name/email against GameInsider enrollment list before applying discount.
-                  </p>
+                  <p className="text-sm text-blue-900 dark:text-blue-100">{selectedCouponMeta.description}</p>
                 </div>
               )}
             </div>
