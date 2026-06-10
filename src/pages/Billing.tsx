@@ -39,7 +39,9 @@ import {
   Download,
   ExternalLink,
   FlaskConical,
+  HelpCircle,
   Hourglass,
+  ListChecks,
   Lock,
   Loader2,
   Pause,
@@ -57,6 +59,13 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
@@ -70,6 +79,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import PaymentProviderBrand from "@/components/settings/PaymentProviderBrand";
+import PlanRecommendationQuizDialog from "@/components/billing/PlanRecommendationQuizDialog";
 import { PLAN_MARKETING, PLAN_FEATURE_MATRIX, yearlySavingsPercent } from "@/billing/planCatalog";
 import { cn } from "@/lib/utils";
 
@@ -472,6 +482,10 @@ export default function Billing() {
   const [cancelOpen, setCancelOpen] = React.useState(false);
   const [pendingTier, setPendingTier] = React.useState<PlanTier | null>(null);
   const [billingNow, setBillingNow] = React.useState(Date.now());
+  const [planQuizOpen, setPlanQuizOpen] = React.useState(false);
+  const [comparePlansOpen, setComparePlansOpen] = React.useState(false);
+  const [highlightedPlan, setHighlightedPlan] = React.useState<PlanTier | null>(null);
+  const planQuizAutoOpened = React.useRef(false);
 
   React.useEffect(() => {
     const id = window.setInterval(() => setBillingNow(Date.now()), 1000);
@@ -573,6 +587,21 @@ export default function Billing() {
         `isLoading=${billingQ.isLoading} isError=${billingQ.isError} hasData=${!!billingQ.data}`,
     );
   }, [billingQ.status, billingQ.fetchStatus, billingQ.isLoading, billingQ.isError, billingQ.data]);
+
+  React.useEffect(() => {
+    if (!billingQ.data || billingQ.data.organization.is_internal || planQuizAutoOpened.current) return;
+    planQuizAutoOpened.current = true;
+    const t = window.setTimeout(() => setPlanQuizOpen(true), 700);
+    return () => window.clearTimeout(t);
+  }, [billingQ.data]);
+
+  const focusRecommendedPlan = React.useCallback((tier: PlanTier) => {
+    setHighlightedPlan(tier);
+    window.setTimeout(() => {
+      document.getElementById(`billing-plan-${tier}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 150);
+    window.setTimeout(() => setHighlightedPlan(null), 4000);
+  }, []);
 
   // Hosted checkout completes in another tab — poll + refetch on return so mandate
   // state catches up when webhooks are delayed or missed.
@@ -987,9 +1016,12 @@ export default function Billing() {
 
   // Render ----------------------------------------------------------------
 
+  const showSubscriptionSidebar =
+    !internal && !!subscription?.razorpay_subscription_id;
+
   return (
     <div className="min-h-screen app-ambient text-white">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-8 space-y-8">
         {subscriptionGateBanner ? (
           <SubscriptionGateRecapBanner
             banner={subscriptionGateBanner}
@@ -1054,6 +1086,18 @@ export default function Billing() {
                     ? "Demo workspace — switch Starter, Growth, or Pro to preview tier restrictions live."
                     : "Pick the plan that matches your venue. Pro unlocks multi-branch, HR, and advanced analytics — most scaling lounges choose it."}
               </p>
+              {!internal && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPlanQuizOpen(true)}
+                  className="mt-1 border-white/20 bg-white/[0.04] text-white/90 hover:bg-white/[0.08] gap-1.5"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Help me choose a plan
+                </Button>
+              )}
             </div>
 
               <div className="flex flex-col items-start lg:items-end gap-2">
@@ -1094,9 +1138,19 @@ export default function Billing() {
 
         {/* CURRENT SUB + PLAN PICKER */}
         <div className="space-y-8">
-          <div className="grid gap-6 lg:grid-cols-5">
+          <div
+            className={cn(
+              "grid gap-6 lg:gap-8",
+              showSubscriptionSidebar && "xl:grid-cols-12",
+            )}
+          >
           {/* Current subscription */}
-          <section className="glass-card lg:col-span-2 p-6 space-y-5">
+          <section
+            className={cn(
+              "glass-card p-6 space-y-5",
+              showSubscriptionSidebar && "xl:col-span-4 2xl:col-span-3",
+            )}
+          >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-white/45 flex items-center gap-1.5">
@@ -1136,7 +1190,7 @@ export default function Billing() {
                   No active subscription
                 </div>
                 <p className="text-xs text-white/60">
-                  Choose a plan on the right to activate POS, bookings, and AI features.
+                  Choose a plan below to activate POS, bookings, and AI features.
                 </p>
               </div>
             ) : (
@@ -1402,7 +1456,12 @@ export default function Billing() {
           </section>
 
           {/* Plan picker */}
-          <section className="glass-card lg:col-span-3 p-6 space-y-5">
+          <section
+            className={cn(
+              "glass-card p-6 space-y-5 min-w-0",
+              showSubscriptionSidebar && "xl:col-span-8 2xl:col-span-9",
+            )}
+          >
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-white/45 flex items-center gap-1.5">
@@ -1417,8 +1476,20 @@ export default function Billing() {
                       : "Pick the plan that fits your venue."}
                 </div>
               </div>
-              {!internal && !isSandbox && (
-                <div className="flex rounded-full border border-white/10 bg-black/40 backdrop-blur p-0.5 w-fit">
+              {!internal && (
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPlanQuizOpen(true)}
+                    className="border-white/15 bg-white/[0.03] hover:bg-white/[0.07] text-white gap-1.5"
+                  >
+                    <HelpCircle className="h-3.5 w-3.5" />
+                    Plan quiz
+                  </Button>
+                  {!isSandbox && (
+                  <div className="flex rounded-full border border-white/10 bg-black/40 backdrop-blur p-0.5 w-fit">
                   <button
                     type="button"
                     onClick={() => setCycle("month")}
@@ -1445,6 +1516,8 @@ export default function Billing() {
                     </span>
                   </button>
                 </div>
+                  )}
+                </div>
               )}
             </div>
 
@@ -1462,7 +1535,7 @@ export default function Billing() {
                 Internal tenancy — no self-serve billing here.
               </p>
             ) : (
-              <div className="grid gap-4 lg:grid-cols-3 lg:items-stretch">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:items-stretch">
                 {visiblePlans
                   .filter((p) => p.code === "starter" || p.code === "growth" || p.code === "pro")
                   .sort((a, b) => a.sort_order - b.sort_order)
@@ -1528,9 +1601,12 @@ export default function Billing() {
                   return (
                     <div
                       key={plan.id}
+                      id={`billing-plan-${planTier}`}
                       className={cn(
-                        "relative rounded-2xl border p-5 sm:p-6 flex flex-col transition-all duration-300",
-                        isFeatured && "lg:scale-[1.04] lg:-my-1 z-10 shadow-[0_28px_80px_-32px_color-mix(in_oklab,var(--brand-accent-hex)_55%,transparent)]",
+                        "relative rounded-2xl border p-5 sm:p-6 flex flex-col transition-all duration-300 scroll-mt-24",
+                        highlightedPlan === planTier &&
+                          "ring-2 ring-[color:var(--brand-accent-hex)] shadow-[0_0_0_4px_color-mix(in_oklab,var(--brand-accent-hex)_25%,transparent)]",
+                        isFeatured && "z-10 shadow-[0_28px_80px_-32px_color-mix(in_oklab,var(--brand-accent-hex)_55%,transparent)] ring-1 ring-[color:var(--brand-accent-hex)]/30",
                         isCurrent
                           ? "ring-1"
                           : isFeatured
@@ -1603,7 +1679,7 @@ export default function Billing() {
                           <div>
                             <div className="font-bold text-lg text-white leading-tight">{plan.name}</div>
                             {marketing?.tagline && (
-                              <p className="text-[11px] text-white/55 mt-0.5 max-w-[14rem] leading-snug">
+                              <p className="text-[11px] text-white/55 mt-0.5 leading-snug">
                                 {marketing.tagline}
                               </p>
                             )}
@@ -1689,7 +1765,18 @@ export default function Billing() {
           </div>
 
           {!internal && !isSandbox && visiblePlans.some((p) => ["starter", "growth", "pro"].includes(p.code)) && (
-            <PlanFeatureComparison />
+            <div className="flex justify-center pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setComparePlansOpen(true)}
+                className="border-white/15 bg-white/[0.03] hover:bg-white/[0.07] text-white/85 gap-1.5"
+              >
+                <ListChecks className="h-3.5 w-3.5" />
+                Compare plans in detail
+              </Button>
+            </div>
           )}
         </div>
 
@@ -1858,6 +1945,18 @@ export default function Billing() {
         ) : null}
       </div>
 
+      {!internal && (
+        <>
+          <PlanRecommendationQuizDialog
+            open={planQuizOpen}
+            onOpenChange={setPlanQuizOpen}
+            organizationName={organization.name}
+            onSelectPlan={(tier) => focusRecommendedPlan(tier as PlanTier)}
+          />
+          <PlanFeatureComparisonDialog open={comparePlansOpen} onOpenChange={setComparePlansOpen} />
+        </>
+      )}
+
       {/* Cancel dialog */}
       <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
         <AlertDialogContent
@@ -1907,18 +2006,30 @@ export default function Billing() {
 // Small subcomponents
 // ---------------------------------------------------------------------------
 
-function PlanFeatureComparison() {
+function PlanFeatureComparisonDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   return (
-    <section className="glass-card overflow-hidden">
-      <div className="px-5 sm:px-6 py-4 border-b border-white/10">
-        <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-white/45">
-          Compare plans
-        </div>
-        <p className="text-xs text-white/55 mt-1">
-          Full feature breakdown — Pro is built for venues scaling beyond a single floor.
-        </p>
-      </div>
-      <div className="overflow-x-auto">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="border-white/10 text-white sm:max-w-3xl p-0 gap-0 overflow-hidden"
+        style={{
+          background:
+            "linear-gradient(165deg, color-mix(in oklab, var(--brand-primary-hex) 14%, rgba(255,255,255,0.04)) 0%, rgba(8,5,18,0.98) 100%)",
+          backdropFilter: "blur(20px) saturate(140%)",
+        }}
+      >
+        <DialogHeader className="px-5 sm:px-6 py-4 border-b border-white/10 text-left pr-12">
+          <DialogTitle className="text-lg text-white">Compare plans</DialogTitle>
+          <DialogDescription className="text-white/55 text-xs">
+            Full feature breakdown — Pro is built for venues scaling beyond a single floor.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="overflow-x-auto max-h-[min(70vh,640px)] overflow-y-auto">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-white/10 bg-white/[0.02]">
@@ -1970,8 +2081,9 @@ function PlanFeatureComparison() {
             ))}
           </tbody>
         </table>
-      </div>
-    </section>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -2071,7 +2183,7 @@ function SubscriptionGateRecapBanner({
 function BillingSkeleton({ orgName, prepend }: { orgName?: string; prepend?: React.ReactNode }) {
   return (
     <div className="min-h-screen app-ambient text-white">
-      <div className="max-w-6xl mx-auto p-6 space-y-6">
+      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-8 space-y-6">
         {prepend}
         <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.18em] font-semibold text-white/40">
           <Loader2 className="h-3 w-3 animate-spin" />
@@ -2081,10 +2193,7 @@ function BillingSkeleton({ orgName, prepend }: { orgName?: string; prepend?: Rea
           <PaymentProviderBrand provider="razorpay" size="sm" variant="logo" padded={false} />
         </div>
         <Skeleton className="h-44 w-full rounded-3xl bg-white/[0.04]" />
-        <div className="grid lg:grid-cols-5 gap-6">
-          <Skeleton className="h-96 lg:col-span-2 rounded-2xl bg-white/[0.04]" />
-          <Skeleton className="h-96 lg:col-span-3 rounded-2xl bg-white/[0.04]" />
-        </div>
+        <Skeleton className="h-96 w-full rounded-2xl bg-white/[0.04]" />
         <Skeleton className="h-56 rounded-2xl bg-white/[0.04]" />
       </div>
     </div>
