@@ -14,6 +14,8 @@ import {
 } from "../../lib/payment-provider";
 import { resolveRazorpayCredentials } from "../../lib/razorpay-credentials";
 import { validateRazorpayKeyIdPrefix } from "../../lib/payment-checkout-guards";
+import { getPaymentGatewayConfig } from "../../lib/payment-gateway-config";
+import { isPaymentSecretsEncryptionConfigured } from "../../lib/payment-secrets";
 
 export const config = { runtime: "edge" };
 
@@ -22,15 +24,33 @@ async function verifyOrgRazorpayCredentials(
   mode: PaymentMode,
 ): Promise<{ ok: boolean; message: string }> {
   try {
+    if (!isPaymentSecretsEncryptionConfigured()) {
+      return {
+        ok: false,
+        message:
+          "Payment encryption is not configured on the server (PAYMENT_SECRETS_ENCRYPTION_KEY). Contact support.",
+      };
+    }
+
+    const configRow = await getPaymentGatewayConfig(organizationId, "razorpay");
+    if (!configRow?.credentials_configured) {
+      return {
+        ok: false,
+        message: "No saved workspace credentials found. Paste your API keys in Step 3 first.",
+      };
+    }
+
     const creds = await resolveRazorpayCredentials({
       organizationId,
       mode,
       purpose: "booking",
+      requireEnabled: false,
     });
     if (creds.source !== "org") {
       return {
         ok: false,
-        message: "No saved workspace credentials found. Paste your API keys in Step 3 first.",
+        message:
+          "Could not read saved credentials. Re-enter your API keys in Step 3 and save again.",
       };
     }
     const auth = btoa(`${creds.keyId}:${creds.keySecret}`);

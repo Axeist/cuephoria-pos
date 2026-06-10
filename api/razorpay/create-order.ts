@@ -74,6 +74,7 @@ async function createRazorpayOrder(
     locationId: locationId ?? undefined,
     profile,
     purpose: "booking",
+    requireEnabled: true,
   });
 
   const amountInPaise = Math.round(Number(amount) * 100);

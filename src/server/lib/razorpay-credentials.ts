@@ -140,6 +140,7 @@ async function lookupOrganizationId(
 async function resolveOrgCredentials(
   organizationId: string,
   modeOverride?: PaymentMode,
+  options?: { requireEnabled?: boolean },
 ): Promise<ResolvedRazorpayCredentials | null> {
   const supabase = supabaseServiceClient("cuetronix-razorpay-org-creds");
   const { data, error } = await supabase
@@ -152,7 +153,7 @@ async function resolveOrgCredentials(
   if (error || !data) return null;
 
   const row = data as { mode: PaymentMode; is_enabled: boolean; settings: GatewaySettings };
-  if (!row.is_enabled) return null;
+  if (options?.requireEnabled && !row.is_enabled) return null;
 
   const activeMode = modeOverride ?? row.mode;
   const creds = row.settings?.credentials?.[activeMode];
@@ -187,6 +188,7 @@ export async function resolveRazorpayCredentials(input: {
   mode?: PaymentMode;
   profile?: RazorpayProfile;
   purpose?: RazorpayPurpose;
+  requireEnabled?: boolean;
   supabase?: SupabaseClient;
 }): Promise<ResolvedRazorpayCredentials> {
   const profile = input.profile ?? "default";
@@ -214,7 +216,9 @@ export async function resolveRazorpayCredentials(input: {
   });
 
   if (organizationId) {
-    const orgCreds = await resolveOrgCredentials(organizationId, input.mode);
+    const orgCreds = await resolveOrgCredentials(organizationId, input.mode, {
+      requireEnabled: input.requireEnabled ?? false,
+    });
     if (orgCreds) return orgCreds;
   }
 
