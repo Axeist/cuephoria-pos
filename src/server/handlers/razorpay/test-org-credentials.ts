@@ -3,11 +3,8 @@
  * Node-only — verifies tenant Razorpay keys using the official SDK (not Edge fetch).
  */
 
-import {
-  findStoredCredentialSlot,
-  getPaymentGatewayConfig,
-  markCredentialTestPassed,
-} from "../../lib/payment-gateway-config.js";
+import { getPaymentGatewayConfig, markCredentialTestPassed } from "../../lib/payment-gateway-config.js";
+import { findStoredCredentialSlot, type GatewayCredentialSettings } from "../../lib/payment-credential-slots.js";
 import { isPaymentSecretsEncryptionConfigured } from "../../lib/payment-secrets.js";
 import { inferPaymentModeFromKeyId, parsePaymentMode } from "../../lib/payment-provider.js";
 import { resolveRazorpayCredentials } from "../../lib/razorpay-credentials.js";
@@ -98,10 +95,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const configRow = await getPaymentGatewayConfig(orgResult.organizationId, "razorpay");
-    const stored = findStoredCredentialSlot(
-      (configRow?.settings ?? {}) as import("../../lib/payment-gateway-config.js").GatewaySettings,
-      mode,
-    );
+    const stored = findStoredCredentialSlot((configRow?.settings ?? {}) as GatewayCredentialSettings, mode);
     if (!stored) {
       return j(
         res,

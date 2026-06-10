@@ -11,7 +11,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decryptSecret } from "./payment-secrets.js";
 import { normalizePaymentCredential } from "./razorpay-auth.js";
-import { findStoredCredentialSlot } from "./payment-gateway-config.js";
+import { findStoredCredentialSlot } from "./payment-credential-slots.js";
 import type { PaymentMode } from "./payment-provider.js";
 import { supabaseServiceClient } from "../supabaseServer.js";
 

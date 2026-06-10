@@ -66,9 +66,19 @@ const STEPS = [
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { credentials: "include", ...init });
-  const json = await response.json();
+  const text = await response.text();
+  let json: { ok?: boolean; error?: string; result?: { ok: boolean; message: string } };
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(
+      response.ok
+        ? "Invalid server response"
+        : `Server error (${response.status}): ${text.slice(0, 120) || "Unknown error"}`,
+    );
+  }
   if (!response.ok || json?.ok === false) {
-    throw new Error(json?.error || `Request failed (${response.status})`);
+    throw new Error(json?.error || json?.result?.message || `Request failed (${response.status})`);
   }
   return json as T;
 }

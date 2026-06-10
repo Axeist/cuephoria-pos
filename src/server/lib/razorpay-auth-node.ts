@@ -4,7 +4,6 @@
  * checkout already uses this SDK path via create-order.
  */
 
-import Razorpay from "razorpay";
 import { normalizePaymentCredential } from "./razorpay-auth.js";
 import { inferPaymentModeFromKeyId, type PaymentMode } from "./payment-provider.js";
 
@@ -32,6 +31,7 @@ export async function testRazorpayCredentialsNode(args: {
   }
 
   try {
+    const Razorpay = (await import("razorpay")).default;
     const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
     await razorpay.orders.create({
       amount: 100,

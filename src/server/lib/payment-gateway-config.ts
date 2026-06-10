@@ -2,7 +2,11 @@ import { getEnv } from "../adminApiUtils";
 import { supabaseServiceClient } from "../supabaseServer";
 import { encryptSecret, isPaymentSecretsEncryptionConfigured } from "./payment-secrets";
 import { normalizePaymentCredential } from "./razorpay-auth";
+import { findStoredCredentialSlot } from "./payment-credential-slots";
 import { parsePaymentMode, parsePaymentProvider, inferPaymentModeFromKeyId, type PaymentMode, type PaymentProvider } from "./payment-provider";
+
+export { findStoredCredentialSlot } from "./payment-credential-slots";
+export type { GatewayCredentialSettings as GatewaySettings } from "./payment-credential-slots";
 
 export type PaymentGatewayConfigRow = {
   id: string;
@@ -42,9 +46,7 @@ type ModeCredentials = {
   webhook_secret_enc?: string;
 };
 
-export type StoredModeCredentials = ModeCredentials;
-
-export type GatewaySettings = {
+type GatewaySettings = {
   credentials?: Partial<Record<PaymentMode, ModeCredentials>>;
   last_credential_test_at?: string;
   last_webhook_event?: string;
@@ -66,27 +68,6 @@ function resolveEnvPresence(provider: PaymentProvider, mode: PaymentMode) {
   const keyId = mode === "live" ? getEnv("RAZORPAY_KEY_ID_LIVE") : getEnv("RAZORPAY_KEY_ID_TEST");
   const keySecret = mode === "live" ? getEnv("RAZORPAY_KEY_SECRET_LIVE") : getEnv("RAZORPAY_KEY_SECRET_TEST");
   return { keyId: keyId || null, hasSecret: !!keySecret };
-}
-
-function getModeCredentials(settings: GatewaySettings, mode: PaymentMode): ModeCredentials | null {
-  return settings.credentials?.[mode] ?? null;
-}
-
-/** Find stored credentials even when row.mode disagrees with the key slot (test vs live mismatch). */
-export function findStoredCredentialSlot(
-  settings: GatewaySettings,
-  preferredMode?: PaymentMode,
-): { mode: PaymentMode; creds: ModeCredentials } | null {
-  const modes: PaymentMode[] = preferredMode
-    ? [preferredMode, preferredMode === "test" ? "live" : "test"]
-    : ["test", "live"];
-  for (const m of modes) {
-    const creds = settings.credentials?.[m];
-    if (creds?.key_id && creds.key_secret_enc) {
-      return { mode: m, creds };
-    }
-  }
-  return null;
 }
 
 function buildSetupSteps(row: PaymentGatewayConfigRow, creds: ModeCredentials | null): PaymentSetupSteps {
