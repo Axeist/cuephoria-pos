@@ -100,7 +100,7 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
 
   return (
     <>
-      <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+      <Card className="glass-card border-white/10">
         <CardHeader>
           <CardTitle className="text-white">Staff Directory</CardTitle>
           <CardDescription>
@@ -121,9 +121,7 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
               {staffProfiles.map((staff) => (
                 <Card
                   key={staff.user_id}
-                  className={`bg-cuephoria-darker border-cuephoria-purple/10 ${
-                    !staff.is_active && 'opacity-60'
-                  }`}
+                  className={`glass-card border-white/10 ${!staff.is_active && 'opacity-60'}`}
                 >
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between mb-4">
@@ -194,7 +192,7 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
                       </p>
                     )}
 
-                    <div className="space-y-2 pt-3 border-t border-cuephoria-purple/10">
+                    <div className="space-y-2 pt-3 border-t border-border/40">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Monthly Salary:</span>
                         <span className="text-white font-semibold">₹{staff.monthly_salary?.toFixed(2) || '0.00'}</span>
@@ -267,7 +265,7 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deleteStaffId} onOpenChange={() => setDeleteStaffId(null)}>
-        <AlertDialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Staff Member?</AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground">

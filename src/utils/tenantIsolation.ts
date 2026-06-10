@@ -37,6 +37,8 @@ export function clearAllCustomerCaches(): void {
   }
 }
 
+export { clearAllStaffCaches } from '@/utils/staffCache';
+
 export function activeLocationStorageKey(organizationId: string): string {
   return `${LEGACY_LOCATION_KEY}_${organizationId}`;
 }
@@ -80,6 +82,7 @@ export function clearStoredActiveLocationId(organizationId: string | null): void
 export function onOrganizationChanged(nextOrgId: string | null, prevOrgId: string | null): void {
   if (nextOrgId === prevOrgId) return;
   clearAllCustomerCaches();
+  clearAllStaffCaches();
   removeLegacyGlobalLocationKey();
   if (prevOrgId) clearStoredActiveLocationId(prevOrgId);
 }

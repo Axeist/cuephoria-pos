@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import StaffManagement from '@/components/admin/StaffManagement';
+import TeamManagement from '@/components/admin/TeamManagement';
 import {
   Store,
   Users,
@@ -454,7 +454,7 @@ const Settings = () => {
         return isAdmin ? <PaymentGatewaySettings /> : null;
 
       case 'team':
-        return isAdmin ? <StaffManagement /> : null;
+        return isAdmin ? <TeamManagement /> : null;
 
       case 'tournaments':
         return (

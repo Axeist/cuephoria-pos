@@ -20,14 +20,15 @@ function deriveStaffUsername(base: string, attempt: number): string {
 async function pickUniqueUsername(
   supabase: SupabaseClient,
   base: string,
+  organizationId?: string | null,
 ): Promise<string> {
   for (let i = 0; i < 20; i++) {
     const candidate = deriveStaffUsername(base, i);
-    const { data } = await supabase
-      .from("staff_profiles")
-      .select("user_id")
-      .eq("username", candidate)
-      .maybeSingle();
+    let q = supabase.from("staff_profiles").select("user_id").eq("username", candidate);
+    if (organizationId) {
+      q = q.eq("organization_id", organizationId);
+    }
+    const { data } = await q.maybeSingle();
     if (!data) return candidate;
   }
   return `${base.slice(0, 40)}-${Date.now().toString(36)}`;
@@ -49,7 +50,15 @@ export async function createStaffProfileForLoginUser(
   const fullName = opts.displayName.trim() || opts.loginUsername.trim();
   const designation = opts.designation.trim() || "Staff";
   const usernameBase = opts.loginUsername.trim() || opts.email.split("@")[0] || "staff";
-  const username = await pickUniqueUsername(supabase, usernameBase);
+  let organizationId: string | null = null;
+  const { data: locRow } = await supabase
+    .from("locations")
+    .select("organization_id")
+    .eq("id", opts.locationId)
+    .maybeSingle();
+  organizationId = locRow?.organization_id ?? null;
+
+  const username = await pickUniqueUsername(supabase, usernameBase, organizationId);
 
   const record = {
     admin_user_id: opts.adminUserId,
@@ -68,6 +77,7 @@ export async function createStaffProfileForLoginUser(
     role: "staff",
     is_active: true,
     location_id: opts.locationId,
+    organization_id: organizationId,
   };
 
   const { data, error } = await supabase

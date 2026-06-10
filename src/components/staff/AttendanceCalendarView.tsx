@@ -75,16 +75,26 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
   const fetchAttendanceData = async () => {
     setIsLoadingData(true);
     try {
+      const profileIds = (staffProfiles ?? []).map((s) => s.user_id).filter(Boolean);
+      if (!profileIds.length) {
+        setAttendanceData({});
+        setLateLoginData({});
+        setOvertimeData({});
+        setSummaryData([]);
+        setIsLoadingData(false);
+        return;
+      }
+
       const startDate = startOfMonth(currentDate);
       const endDate = endOfMonth(currentDate);
       
       const startDateStr = format(startDate, 'yyyy-MM-dd');
       const endDateStr = format(endDate, 'yyyy-MM-dd');
 
-      // Fetch attendance
       const { data: attendance, error: attendanceError } = await supabase
         .from('staff_attendance')
         .select('*')
+        .in('staff_id', profileIds)
         .gte('date', startDateStr)
         .lte('date', endDateStr);
 
@@ -94,6 +104,7 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
       const { data: lateLogins, error: lateError } = await supabase
         .from('staff_late_logins')
         .select('*')
+        .in('staff_id', profileIds)
         .gte('date', startDateStr)
         .lte('date', endDateStr);
 
@@ -103,6 +114,7 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
       const { data: overtime, error: otError } = await supabase
         .from('staff_overtime')
         .select('*')
+        .in('staff_id', profileIds)
         .gte('date', startDateStr)
         .lte('date', endDateStr);
 

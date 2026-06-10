@@ -66,8 +66,13 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
   useEffect(() => {
     if (staffProfiles && staffProfiles.length > 0) {
       fetchAttendanceRecords();
+    } else {
+      setAttendanceRecords([]);
+      setBreakViolations([]);
     }
   }, [selectedMonth, selectedYear, staffProfiles]);
+
+  const profileIds = (staffProfiles ?? []).map((s) => s.user_id).filter(Boolean);
 
   const getStaffName = (staffId: string) => {
     if (!staffId || !staffProfiles || staffProfiles.length === 0) {
@@ -78,6 +83,11 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
   };
 
   const fetchAttendanceRecords = async () => {
+    if (!profileIds.length) {
+      setAttendanceRecords([]);
+      setBreakViolations([]);
+      return;
+    }
     setIsLoadingRecords(true);
     try {
       const nextMonth = selectedMonth === 12 ? 1 : selectedMonth + 1;
@@ -86,6 +96,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
       const { data, error } = await supabase
         .from('staff_attendance')
         .select('*')
+        .in('staff_id', profileIds)
         .gte('date', `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`)
         .lt('date', `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`)
         .order('date', { ascending: false });
@@ -93,10 +104,10 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
       if (error) throw error;
       setAttendanceRecords(data || []);
 
-      // Fetch break violations for this period
       const { data: violations, error: violationsError } = await supabase
         .from('staff_break_violations')
         .select('*')
+        .in('staff_id', profileIds)
         .gte('date', `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`)
         .lt('date', `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`)
         .order('date', { ascending: false });

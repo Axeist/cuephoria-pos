@@ -134,32 +134,6 @@ const StaffPortal = () => {
     return () => { cancelled = true; };
   }, [user?.id, user?.displayName, user?.username]);
 
-  // Check if anyone is logged in, remind every minute
-  useEffect(() => {
-    const checkLoginStatus = async () => {
-      const { data: activeStaff } = await supabase
-        .from('today_active_shifts')
-        .select('*');
-      
-      if (!activeStaff || activeStaff.length === 0) {
-        toast({
-          title: '⚠️ No Staff Logged In',
-          description: 'Please clock in to start your shift',
-          variant: 'destructive',
-          duration: 5000
-        });
-      }
-    };
-
-    // Check immediately
-    checkLoginStatus();
-    
-    // Then check every minute
-    const interval = setInterval(checkLoginStatus, 60000);
-    
-    return () => clearInterval(interval);
-  }, []);
-
   useEffect(() => {
     if (selectedStaff) {
       fetchStaffData();
@@ -248,11 +222,12 @@ const StaffPortal = () => {
 
       setDoubleShiftRequests(dsReqs || []);
 
-      // Fetch all staff profiles for double shift request
+      // Fetch colleagues at same branch for double-shift requests
       const { data: allStaff } = await supabase
         .from('staff_profiles')
         .select('*')
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .eq('location_id', selectedStaff.location_id);
 
       setAllStaffProfiles(allStaff || []);
 
@@ -301,22 +276,38 @@ const StaffPortal = () => {
 
       setLeaveRequests(leaves || []);
 
-      const approvedPaidLeaves = (leaves || []).filter(
-        l => l.status === 'approved' && 
-        l.leave_type !== 'unpaid_leave' && 
-        new Date(l.start_date).getFullYear() === currentYear
-      ).reduce((sum, l) => sum + (l.total_days || 0), 0);
+      const { data: balanceRows } = await supabase
+        .from('staff_leave_balances')
+        .select('leave_type, remaining')
+        .eq('staff_id', selectedStaff.user_id)
+        .eq('year', currentYear);
 
-      const approvedUnpaidLeaves = (leaves || []).filter(
-        l => l.status === 'approved' && 
-        l.leave_type === 'unpaid_leave' && 
-        new Date(l.start_date).getFullYear() === currentYear
-      ).reduce((sum, l) => sum + (l.total_days || 0), 0);
+      if (balanceRows && balanceRows.length > 0) {
+        const paidRemaining = balanceRows
+          .filter((b) => b.leave_type !== 'unpaid_leave')
+          .reduce((sum, b) => sum + (Number(b.remaining) || 0), 0);
+        const unpaidRemaining = balanceRows
+          .filter((b) => b.leave_type === 'unpaid_leave')
+          .reduce((sum, b) => sum + (Number(b.remaining) || 0), 0);
+        setLeaveBalance({ paid: paidRemaining, unpaid: unpaidRemaining });
+      } else {
+        const approvedPaidLeaves = (leaves || []).filter(
+          l => l.status === 'approved' &&
+          l.leave_type !== 'unpaid_leave' &&
+          new Date(l.start_date).getFullYear() === currentYear
+        ).reduce((sum, l) => sum + (l.total_days || 0), 0);
 
-      setLeaveBalance({
-        paid: Math.max(0, 1 - approvedPaidLeaves),
-        unpaid: Math.max(0, 2 - approvedUnpaidLeaves)
-      });
+        const approvedUnpaidLeaves = (leaves || []).filter(
+          l => l.status === 'approved' &&
+          l.leave_type === 'unpaid_leave' &&
+          new Date(l.start_date).getFullYear() === currentYear
+        ).reduce((sum, l) => sum + (l.total_days || 0), 0);
+
+        setLeaveBalance({
+          paid: Math.max(0, 12 - approvedPaidLeaves),
+          unpaid: Math.max(0, 6 - approvedUnpaidLeaves),
+        });
+      }
 
       const { data: payrollData } = await supabase
         .from('staff_payslip_view')

@@ -4,11 +4,13 @@ import { useOrganizationOptional } from "@/context/OrganizationContext";
 import { invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from "@/utils/dataCache";
 import {
   clearAllCustomerCaches,
+  clearAllStaffCaches,
   onOrganizationChanged,
   readStoredActiveLocationId,
   removeLegacyGlobalLocationKey,
   writeStoredActiveLocationId,
 } from "@/utils/tenantIsolation";
+import { invalidateStaffCache } from "@/utils/staffCache";
 import { BranchSwitchOverlay } from "@/components/BranchSwitchOverlay";
 
 export type VenueLocation = {
@@ -168,6 +170,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       invalidateCache(cacheKeyWithLocation(CACHE_KEYS.SESSIONS, id));
       invalidateCache(cacheKeyWithLocation(CACHE_KEYS.BOOKINGS, id));
 
+      invalidateStaffCache(organizationId, id);
       clearAllCustomerCaches();
     },
     [organizationId, locations]

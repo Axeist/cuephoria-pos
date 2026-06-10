@@ -63,6 +63,16 @@ export default async function handler(req: Request) {
         );
       }
 
+      const { data: loc } = await supabase
+        .from("locations")
+        .select("organization_id")
+        .eq("id", profile.location_id as string)
+        .maybeSingle();
+
+      if (loc?.organization_id && loc.organization_id !== ctx.organizationId) {
+        return j({ ok: false, error: "Staff profile is not in this workspace." }, 403);
+      }
+
       return j({ ok: true, hasProfile: true, profile: profilePayload(profile) }, 200);
     }
 
@@ -81,6 +91,16 @@ export default async function handler(req: Request) {
       if (error) return j({ ok: false, error: error.message }, 500);
       if (!profile) {
         return j({ ok: false, error: "No staff profile linked to your account." }, 404);
+      }
+
+      const { data: loc } = await supabase
+        .from("locations")
+        .select("organization_id")
+        .eq("id", profile.location_id as string)
+        .maybeSingle();
+
+      if (loc?.organization_id && loc.organization_id !== ctx.organizationId) {
+        return j({ ok: false, error: "Staff profile is not in this workspace." }, 403);
       }
 
       if (!portalPinsMatch(profile.portal_pin as string, pin)) {

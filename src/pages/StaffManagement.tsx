@@ -1,147 +1,70 @@
 // src/pages/StaffManagement.tsx
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, UserPlus, Calendar, FileText, DollarSign, Activity, User, Settings, MapPin } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { UserPlus } from 'lucide-react';
+import { StaffHRProvider, useStaffHR } from '@/context/StaffHRContext';
+import { useOrganizationOptional } from '@/context/OrganizationContext';
+import { useLocation } from '@/context/LocationContext';
+import StaffLocationBanner from '@/components/staff/layout/StaffLocationBanner';
+import StaffBranchScopeToggle from '@/components/staff/layout/StaffBranchScopeToggle';
+import StaffStatGrid from '@/components/staff/layout/StaffStatGrid';
+import StaffTabNav from '@/components/staff/layout/StaffTabNav';
 import StaffOverview from '@/components/staff/StaffOverview';
 import StaffDirectory from '@/components/staff/StaffDirectory';
 import AttendanceManagement from '@/components/staff/AttendanceManagement';
-import PayrollManagement from '@/components/staff/PayrollManagement';
 import AttendanceCalendarView from '@/components/staff/AttendanceCalendarView';
-import AdminRegularizationDialog from '@/components/staff/AdminRegularizationDialog';
 import StaffRequestsManagement from '@/components/staff/StaffRequestsManagement';
-import CreateStaffDialog from '@/components/staff/CreateStaffDialog';
-import { useLocation } from '@/context/LocationContext';
+import PayrollManagement from '@/components/staff/PayrollManagement';
+import ShiftRosterPanel from '@/components/staff/shifts/ShiftRosterPanel';
+import StaffReportsPanel from '@/components/staff/reports/StaffReportsPanel';
+import AdminRegularizationDialog from '@/components/staff/AdminRegularizationDialog';
+import StaffEmptyState from '@/components/staff/shared/StaffEmptyState';
 
-const StaffManagement = () => {
-  const { toast } = useToast();
-  const { activeLocationId, activeLocation, locationResolved } = useLocation();
-  const [staffProfiles, setStaffProfiles] = useState<any[]>([]);
-  const [activeShifts, setActiveShifts] = useState<any[]>([]);
-  const [pendingLeaves, setPendingLeaves] = useState<any[]>([]);
-  const [monthlyPayroll, setMonthlyPayroll] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
+const StaffManagementContent: React.FC = () => {
+  const orgCtx = useOrganizationOptional();
+  const { activeLocation } = useLocation();
+  const {
+    profiles,
+    activeShifts,
+    pendingLeaves,
+    stats,
+    isLoading,
+    locationResolved,
+    reportScope,
+    setReportScope,
+    activeTab,
+    setActiveTab,
+    refresh,
+  } = useStaffHR();
+
   const [showAdminRegularizationDialog, setShowAdminRegularizationDialog] = useState(false);
-  const [activeStaffTab, setActiveStaffTab] = useState<'overview'|'directory'|'attendance'|'calendar'|'requests'|'payroll'>('overview');
 
-  useEffect(() => {
-    if (!locationResolved) return;
-    void fetchStaffData();
-  }, [activeLocationId, locationResolved]);
+  if (!locationResolved) {
+    return (
+      <div className="flex-1 p-6">
+        <StaffEmptyState loading={true} />
+      </div>
+    );
+  }
 
-  const fetchStaffData = async () => {
-    if (!activeLocationId) {
-      setStaffProfiles([]);
-      setActiveShifts([]);
-      setPendingLeaves([]);
-      setMonthlyPayroll(0);
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const { data: profiles, error: profilesError } = await supabase
-        .from('staff_profiles')
-        .select('*')
-        .eq('location_id', activeLocationId)
-        .order('created_at', { ascending: false });
-
-      if (profilesError) throw profilesError;
-      setStaffProfiles(profiles || []);
-
-      // Views key staff_id to staff_profiles.user_id (PK), not a separate profile row id.
-      const profileIds = (profiles || [])
-        .map((p: { user_id?: string; id?: string }) => p.user_id ?? p.id)
-        .filter((id): id is string => Boolean(id));
-
-      let shifts: any[] = [];
-      let leaves: any[] = [];
-      let payrollTotal = 0;
-
-      if (profileIds.length > 0) {
-        const currentMonth = new Date().getMonth() + 1;
-        const currentYear = new Date().getFullYear();
-
-        const [shiftsResult, leavesResult, payrollResult] = await Promise.all([
-          supabase.from('today_active_shifts').select('*').in('staff_id', profileIds),
-          supabase.from('pending_leaves_view').select('*').in('staff_id', profileIds),
-          supabase
-            .from('staff_payslip_view')
-            .select('net_salary')
-            .eq('month', currentMonth)
-            .eq('year', currentYear)
-            .in('staff_id', profileIds),
-        ]);
-
-        if (shiftsResult.error) {
-          console.warn('StaffManagement: today_active_shifts', shiftsResult.error);
-        } else {
-          shifts = shiftsResult.data || [];
-        }
-
-        if (leavesResult.error) {
-          console.warn('StaffManagement: pending_leaves_view', leavesResult.error);
-        } else {
-          leaves = leavesResult.data || [];
-        }
-
-        if (payrollResult.error) {
-          console.warn('StaffManagement: staff_payslip_view', payrollResult.error);
-        } else {
-          payrollTotal = (payrollResult.data || []).reduce((sum, p) => sum + (p.net_salary || 0), 0);
-        }
-      }
-
-      setActiveShifts(shifts);
-      setPendingLeaves(leaves);
-      setMonthlyPayroll(payrollTotal);
-
-    } catch (error: any) {
-      console.error('Error fetching staff data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load staff data',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const stats = {
-    totalStaff: staffProfiles?.length || 0,
-    activeStaff: staffProfiles?.filter(s => s.is_active).length || 0,
-    inactiveStaff: staffProfiles?.filter(s => !s.is_active).length || 0,
-    activeNow: activeShifts?.length || 0,
-    pendingLeaves: pendingLeaves?.length || 0,
-    monthlyPayroll: monthlyPayroll
-  };
+  if (!activeLocation) {
+    return (
+      <div className="flex-1 p-6">
+        <StaffEmptyState
+          title="No branch selected"
+          description="Assign at least one branch to this workspace, then return here."
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className="flex-1 space-y-6 p-6 text-white">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-2.5 rounded-xl border bg-purple-500/8 border-purple-400/25 text-purple-200">
-        <Users className="h-4 w-4 flex-shrink-0 text-purple-300" />
-        <span className="text-sm">
-          Showing staff for{' '}
-          <strong className="inline-flex items-center gap-1">
-            <MapPin className="h-3.5 w-3.5" />
-            {activeLocation?.name ?? 'this branch'}
-          </strong>
-          . Add logins in <strong>Settings → Team</strong> and assign branch access there.
-        </span>
-        <Link
-          to="/settings?tab=team"
-          className="sm:ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-purple-100 hover:text-white underline-offset-2 hover:underline"
-        >
-          <Settings className="h-3.5 w-3.5" />
-          Open Settings
-        </Link>
-      </div>
+    <div className="flex-1 space-y-4 sm:space-y-6 p-4 sm:p-6 md:p-8 pt-6">
+      <StaffLocationBanner
+        location={activeLocation}
+        organizationName={orgCtx?.organization?.name}
+      />
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -160,226 +83,93 @@ const StaffManagement = () => {
           >
             Regularize Attendance
           </Button>
-          <Button
-            onClick={() => setShowCreateDialog(true)}
-            variant="outline"
-            className="border-cuephoria-purple/30"
-          >
-            <UserPlus className="mr-2 h-4 w-4" />
-            Add Staff Member
+          <Button asChild variant="default" className="btn-gradient border-0">
+            <Link to="/settings?tab=team">
+              <UserPlus className="mr-2 h-4 w-4" />
+              Add Staff Member
+            </Link>
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-4">
-        <Card className="glass-card glass-card-interactive border-white/10 hover:border-white/15">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-white">Total Staff</CardTitle>
-            <Users className="h-4 w-4 text-cuephoria-lightpurple" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">{stats.totalStaff}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.inactiveStaff} inactive
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card glass-card-interactive border-white/10 hover:border-white/15">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-white">Active Now</CardTitle>
-            <Activity className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">{stats.activeNow}</div>
-            <p className="text-xs text-muted-foreground">
-              Currently clocked in
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card glass-card-interactive border-white/10 hover:border-white/15">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-white">Pending Leaves</CardTitle>
-            <Calendar className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">{stats.pendingLeaves}</div>
-            <p className="text-xs text-muted-foreground">
-              Awaiting approval
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card glass-card-interactive border-white/10 hover:border-white/15">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-white">Monthly Payroll</CardTitle>
-            <DollarSign className="h-4 w-4 text-cuephoria-blue" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">
-              ₹{stats.monthlyPayroll.toLocaleString()}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Total monthly cost
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="w-full">
-        <div className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1 p-1 bg-white/[0.06] border border-white/10 rounded-xl mb-6">
-          <button
-            type="button"
-            onClick={() => setActiveStaffTab('overview')}
-            className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
-              activeStaffTab === 'overview'
-                ? 'bg-white/15 text-white shadow-lg ring-1 ring-white/10'
-                : 'text-white/55 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <Users className="h-4 w-4 flex-shrink-0" />
-            <span className="hidden sm:inline">Overview</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveStaffTab('directory')}
-            className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
-              activeStaffTab === 'directory'
-                ? 'bg-white/15 text-white shadow-lg ring-1 ring-white/10'
-                : 'text-white/55 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <User className="h-4 w-4 flex-shrink-0" />
-            <span className="hidden sm:inline">Directory</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveStaffTab('attendance')}
-            className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
-              activeStaffTab === 'attendance'
-                ? 'bg-white/15 text-white shadow-lg ring-1 ring-white/10'
-                : 'text-white/55 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <Activity className="h-4 w-4 flex-shrink-0" />
-            <span className="hidden sm:inline">Attendance</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveStaffTab('calendar')}
-            className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
-              activeStaffTab === 'calendar'
-                ? 'bg-white/15 text-white shadow-lg ring-1 ring-white/10'
-                : 'text-white/55 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <Calendar className="h-4 w-4 flex-shrink-0" />
-            <span className="hidden sm:inline">Calendar</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveStaffTab('requests')}
-            className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
-              activeStaffTab === 'requests'
-                ? 'bg-white/15 text-white shadow-lg ring-1 ring-white/10'
-                : 'text-white/55 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <FileText className="h-4 w-4 flex-shrink-0" />
-            <span className="hidden sm:inline">Requests</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveStaffTab('payroll')}
-            className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
-              activeStaffTab === 'payroll'
-                ? 'bg-white/15 text-white shadow-lg ring-1 ring-white/10'
-                : 'text-white/55 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <DollarSign className="h-4 w-4 flex-shrink-0" />
-            <span className="hidden sm:inline">Payroll</span>
-          </button>
-        </div>
-
-        {activeStaffTab === 'overview' && (
-          <div className="space-y-4 mt-6">
-            <StaffOverview
-              staffProfiles={staffProfiles || []}
-              activeShifts={activeShifts || []}
-              pendingLeaves={pendingLeaves || []}
-              isLoading={isLoading}
-              onRefresh={fetchStaffData}
-            />
-          </div>
-        )}
-
-        {activeStaffTab === 'directory' && (
-          <div className="space-y-4 mt-6">
-            <StaffDirectory
-              staffProfiles={staffProfiles || []}
-              isLoading={isLoading}
-              onRefresh={fetchStaffData}
-            />
-          </div>
-        )}
-
-        {activeStaffTab === 'attendance' && (
-          <div className="space-y-4 mt-6">
-            <AttendanceManagement
-              staffProfiles={staffProfiles || []}
-              activeShifts={activeShifts || []}
-              isLoading={isLoading}
-              onRefresh={fetchStaffData}
-            />
-          </div>
-        )}
-
-        {activeStaffTab === 'calendar' && (
-          <div className="space-y-4 mt-6">
-            <AttendanceCalendarView
-              staffProfiles={staffProfiles || []}
-              isLoading={isLoading}
-              onRefresh={fetchStaffData}
-            />
-          </div>
-        )}
-
-        {activeStaffTab === 'requests' && (
-          <div className="space-y-4 mt-6">
-            <StaffRequestsManagement
-              staffProfiles={staffProfiles || []}
-              isLoading={isLoading}
-              onRefresh={fetchStaffData}
-            />
-          </div>
-        )}
-
-        {activeStaffTab === 'payroll' && (
-          <div className="space-y-4 mt-6">
-            <PayrollManagement
-              staffProfiles={staffProfiles || []}
-              isLoading={isLoading}
-              onRefresh={fetchStaffData}
-            />
-          </div>
-        )}
-      </div>
-
-      <CreateStaffDialog
-        open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
+      <StaffBranchScopeToggle
+        scope={reportScope}
+        onChange={setReportScope}
+        locationName={activeLocation.name}
       />
+
+      <StaffStatGrid stats={stats} />
+
+      <StaffTabNav
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        pendingBadge={stats.pendingRequests}
+      />
+
+      <div className="rounded-2xl border border-border/50 bg-card/20 p-4 sm:p-6">
+        {activeTab === 'overview' && (
+          <StaffOverview
+            staffProfiles={profiles}
+            activeShifts={activeShifts}
+            pendingLeaves={pendingLeaves}
+            isLoading={isLoading}
+            onRefresh={refresh}
+          />
+        )}
+        {activeTab === 'directory' && (
+          <StaffDirectory
+            staffProfiles={profiles}
+            isLoading={isLoading}
+            onRefresh={refresh}
+          />
+        )}
+        {activeTab === 'attendance' && (
+          <AttendanceManagement
+            staffProfiles={profiles}
+            activeShifts={activeShifts}
+            isLoading={isLoading}
+            onRefresh={refresh}
+          />
+        )}
+        {activeTab === 'calendar' && (
+          <AttendanceCalendarView
+            staffProfiles={profiles}
+            isLoading={isLoading}
+            onRefresh={refresh}
+          />
+        )}
+        {activeTab === 'shifts' && <ShiftRosterPanel />}
+        {activeTab === 'requests' && (
+          <StaffRequestsManagement
+            staffProfiles={profiles}
+            isLoading={isLoading}
+            onRefresh={refresh}
+          />
+        )}
+        {activeTab === 'payroll' && (
+          <PayrollManagement
+            staffProfiles={profiles}
+            isLoading={isLoading}
+            onRefresh={refresh}
+          />
+        )}
+        {activeTab === 'reports' && <StaffReportsPanel />}
+      </div>
 
       <AdminRegularizationDialog
         open={showAdminRegularizationDialog}
         onOpenChange={setShowAdminRegularizationDialog}
-        staffProfiles={staffProfiles || []}
-        onSuccess={fetchStaffData}
+        staffProfiles={profiles}
+        onSuccess={refresh}
       />
     </div>
   );
 };
+
+const StaffManagement: React.FC = () => (
+  <StaffHRProvider>
+    <StaffManagementContent />
+  </StaffHRProvider>
+);
 
 export default StaffManagement;
