@@ -50,6 +50,10 @@ const SLUG_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
 };
 const DEFAULT_COLOR = { bg: 'bg-gray-500/15 border-gray-400/30', text: 'text-gray-300', dot: 'bg-gray-400' };
 
+const formLabel = 'text-sm font-medium text-foreground flex items-center gap-2';
+const formInput = 'glass-card border-border/50';
+const dialogSheet = 'sm:max-w-lg max-h-[min(90vh,820px)]';
+
 // Cafe is a distinct product with its own login (/cafe) and its own user
 // management. It must not appear as an assignable branch in this dashboard.
 const isFranchiseLocation = (loc: LocationInfo) =>
@@ -315,10 +319,10 @@ const StaffManagement: React.FC = () => {
 
   if (!user?.isAdmin) {
     return (
-      <Card className="border border-cuephoria-lightpurple/30">
+      <Card className="glass-card border-border/50">
         <CardContent className="pt-6">
-          <Alert className="bg-cuephoria-dark/50 border-cuephoria-orange/30">
-            <Shield className="h-4 w-4 text-cuephoria-orange" />
+          <Alert className="border-border/50 bg-muted/20">
+            <Shield className="h-4 w-4 text-primary" />
             <AlertTitle>Access Restricted</AlertTitle>
             <AlertDescription>Only administrators can manage user accounts.</AlertDescription>
           </Alert>
@@ -345,12 +349,12 @@ const StaffManagement: React.FC = () => {
             key={loc.id}
             className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-all ${
               disabled ? 'opacity-40 pointer-events-none' : ''
-            } ${checked ? `${c.bg} ${c.text}` : 'border-white/10 bg-white/5 text-white/60 hover:border-white/20'}`}
+            } ${checked ? `${c.bg} ${c.text}` : 'border-border/50 bg-card/20 text-muted-foreground hover:border-border/80 hover:text-foreground'}`}
           >
             <Checkbox
               checked={checked}
               onCheckedChange={() => onToggle(loc.id)}
-              className="border-white/30"
+              className="border-border/50"
             />
             <span className={`h-2 w-2 rounded-full ${c.dot}`} />
             <span className="text-sm font-medium">{loc.name}</span>
@@ -369,14 +373,14 @@ const StaffManagement: React.FC = () => {
         </p>
         <Dialog open={isAddingStaff} onOpenChange={(open) => { setIsAddingStaff(open); if (!open) resetAddForm(); }}>
           <DialogTrigger asChild>
-            <Button size="sm" className="gap-1.5">
+            <Button size="sm" className="gap-1.5 btn-gradient border-0">
               <UserPlus className="h-4 w-4" />
               Add member
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-cuephoria-dark border border-cuephoria-lightpurple/30 max-w-lg max-h-[min(90vh,820px)] overflow-y-auto">
+          <DialogContent className={dialogSheet}>
             <DialogHeader>
-              <DialogTitle className="text-xl">
+              <DialogTitle className="text-2xl gradient-text">
                 {userRole === 'staff' && !newIsSuperAdmin ? 'Add Staff Member' : 'Add New User'}
               </DialogTitle>
               <DialogDescription>
@@ -389,7 +393,7 @@ const StaffManagement: React.FC = () => {
             <div className="space-y-4 py-2">
               {/* Role */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                <Label className={formLabel}>
                   <Shield className="h-4 w-4" /> Role
                 </Label>
                 <RadioGroup value={userRole} onValueChange={(v) => setUserRole(v as 'admin' | 'staff')}>
@@ -427,7 +431,7 @@ const StaffManagement: React.FC = () => {
               {/* Branch access */}
               {!newIsSuperAdmin && (
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                  <Label className={formLabel}>
                     <MapPin className="h-4 w-4" /> Branch Access
                   </Label>
                   {allLocations.length > 0 ? (
@@ -445,60 +449,60 @@ const StaffManagement: React.FC = () => {
               )}
 
               {newIsSuperAdmin && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white/50 text-xs">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 bg-muted/20 text-muted-foreground text-xs">
                   <Globe className="h-3.5 w-3.5" />
                   Super admins automatically get access to all branches
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                <Label className={formLabel}>
                   <IdCard className="h-4 w-4" /> Full name{userRole === 'staff' && !newIsSuperAdmin ? ' *' : ''}
                 </Label>
                 <Input
                   value={newDisplayName}
                   onChange={(e) => setNewDisplayName(e.target.value)}
                   placeholder="e.g. Priya Sharma"
-                  className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
+                  className={formInput}
                 />
-                <p className="text-[11px] text-white/40">Shown in the portal, staff directory, and sidebar.</p>
+                <p className="text-[11px] text-muted-foreground">Shown in the portal, staff directory, and sidebar.</p>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                <Label className={formLabel}>
                   <Briefcase className="h-4 w-4" /> Designation{userRole === 'staff' && !newIsSuperAdmin ? ' *' : ''}
                 </Label>
                 <Input
                   value={newDesignation}
                   onChange={(e) => setNewDesignation(e.target.value)}
                   placeholder="e.g. Front desk, Manager"
-                  className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
+                  className={formInput}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                <Label className={formLabel}>
                   <User className="h-4 w-4" /> Email (login)
                 </Label>
-                <Input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="staff@yourbusiness.com" className="bg-cuephoria-darker border-cuephoria-lightpurple/30" />
+                <Input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="staff@yourbusiness.com" className={formInput} />
               </div>
 
               {userRole === 'staff' && !newIsSuperAdmin && (
                 <>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                    <Label className={formLabel}>
                       <Phone className="h-4 w-4" /> Phone
                     </Label>
                     <Input
                       value={newPhone}
                       onChange={(e) => setNewPhone(e.target.value)}
                       placeholder="+91 9876543210"
-                      className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
+                      className={formInput}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-cuephoria-lightpurple">Monthly Salary (₹) *</Label>
+                    <Label className="text-sm font-medium text-foreground">Monthly Salary (₹) *</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -506,39 +510,39 @@ const StaffManagement: React.FC = () => {
                       value={newMonthlySalary}
                       onChange={(e) => setNewMonthlySalary(e.target.value)}
                       placeholder="7000.00"
-                      className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
+                      className={formInput}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                    <Label className={formLabel}>
                       <Clock className="h-4 w-4" /> Shift timing *
                     </Label>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <Label className="text-xs text-white/50">Start</Label>
+                        <Label className="text-xs text-muted-foreground">Start</Label>
                         <Input
                           type="time"
                           value={newShiftStart}
                           onChange={(e) => setNewShiftStart(e.target.value)}
-                          className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
+                          className={formInput}
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-xs text-white/50">End</Label>
+                        <Label className="text-xs text-muted-foreground">End</Label>
                         <Input
                           type="time"
                           value={newShiftEnd}
                           onChange={(e) => setNewShiftEnd(e.target.value)}
-                          className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
+                          className={formInput}
                         />
                       </div>
                     </div>
-                    <div className="p-3 rounded-lg border border-cuephoria-lightpurple/20 bg-cuephoria-darker/80 text-sm">
-                      <p className="text-white/90">
-                        Shift: <span className="font-semibold text-cuephoria-lightpurple">{newShiftHours.toFixed(1)} hrs/day</span>
+                    <div className="p-3 glass-card border-border/50 rounded-lg text-sm mt-2">
+                      <p className="text-foreground">
+                        Shift: <span className="font-semibold text-primary">{newShiftHours.toFixed(1)} hrs/day</span>
                       </p>
-                      <p className="text-white/60 mt-1">
+                      <p className="text-muted-foreground mt-1">
                         Hourly rate: ₹{newHourlyPreview}/hr · weekly roster auto-created
                       </p>
                     </div>
@@ -547,7 +551,7 @@ const StaffManagement: React.FC = () => {
               )}
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                <Label className={formLabel}>
                   <Lock className="h-4 w-4" /> Password
                 </Label>
                 <div className="relative">
@@ -556,12 +560,12 @@ const StaffManagement: React.FC = () => {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="Enter password"
-                    className="bg-cuephoria-darker border-cuephoria-lightpurple/30 pr-10"
+                    className={`${formInput} pr-10`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowNewPassword(v => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                     tabIndex={-1}
                   >
                     {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -570,9 +574,9 @@ const StaffManagement: React.FC = () => {
               </div>
             </div>
 
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddingStaff(false)}>Cancel</Button>
-              <Button onClick={handleAddStaff} disabled={isLoading} className="bg-cuephoria-lightpurple hover:bg-cuephoria-purple">
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setIsAddingStaff(false)} className="border-border/50">Cancel</Button>
+              <Button onClick={handleAddStaff} disabled={isLoading} className="btn-gradient border-0">
                 {isLoading ? 'Adding...' : `Add ${userRole === 'admin' ? 'Admin' : 'Staff'}`}
               </Button>
             </DialogFooter>
@@ -582,10 +586,10 @@ const StaffManagement: React.FC = () => {
 
         {/* Portal PIN shown once after staff creation */}
         <Dialog open={!!newPortalPin} onOpenChange={(open) => { if (!open) setNewPortalPin(null); }}>
-          <DialogContent className="bg-cuephoria-dark border border-cuephoria-lightpurple/30 max-w-sm">
+          <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle className="text-xl flex items-center gap-2">
-                <KeyRound className="h-5 w-5 text-cuephoria-lightpurple" />
+              <DialogTitle className="text-xl flex items-center gap-2 gradient-text">
+                <KeyRound className="h-5 w-5 text-primary" />
                 Staff portal PIN
               </DialogTitle>
               <DialogDescription>
@@ -594,12 +598,12 @@ const StaffManagement: React.FC = () => {
               </DialogDescription>
             </DialogHeader>
             <div className="py-4 text-center">
-              <p className="text-4xl font-mono font-bold tracking-[0.25em] text-cuephoria-lightpurple">
+              <p className="text-4xl font-mono font-bold tracking-[0.25em] text-primary">
                 {newPortalPin}
               </p>
             </div>
             <DialogFooter>
-              <Button onClick={() => setNewPortalPin(null)} className="w-full bg-cuephoria-lightpurple">
+              <Button onClick={() => setNewPortalPin(null)} className="w-full btn-gradient border-0">
                 Done
               </Button>
             </DialogFooter>
@@ -608,45 +612,45 @@ const StaffManagement: React.FC = () => {
 
         {/* Edit User Dialog */}
         <Dialog open={!!editingStaff} onOpenChange={(open) => { if (!open) setEditingStaff(null); }}>
-          <DialogContent className="bg-cuephoria-dark border border-cuephoria-lightpurple/30 max-w-md max-h-[min(90vh,720px)] overflow-y-auto">
+          <DialogContent className="sm:max-w-md max-h-[min(90vh,720px)]">
             <DialogHeader>
-              <DialogTitle className="text-xl">Edit User</DialogTitle>
+              <DialogTitle className="text-2xl gradient-text">Edit User</DialogTitle>
               <DialogDescription>Update user details and branch access</DialogDescription>
             </DialogHeader>
 
             {editingStaff && (
               <div className="space-y-4 py-2">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                  <Label className={formLabel}>
                     <User className="h-4 w-4" /> Username / email
                   </Label>
-                  <Input value={editUsername} onChange={(e) => setEditUsername(e.target.value)} className="bg-cuephoria-darker border-cuephoria-lightpurple/30" />
+                  <Input value={editUsername} onChange={(e) => setEditUsername(e.target.value)} className={formInput} />
                   {editingStaff.email && editingStaff.username !== editingStaff.email && (
-                    <p className="text-xs text-white/40">Username: {editingStaff.username}</p>
+                    <p className="text-xs text-muted-foreground">Username: {editingStaff.username}</p>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                  <Label className={formLabel}>
                     <IdCard className="h-4 w-4" /> Full name
                   </Label>
                   <Input
                     value={editDisplayName}
                     onChange={(e) => setEditDisplayName(e.target.value)}
                     placeholder="Display name"
-                    className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
+                    className={formInput}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                  <Label className={formLabel}>
                     <Briefcase className="h-4 w-4" /> Designation
                   </Label>
                   <Input
                     value={editDesignation}
                     onChange={(e) => setEditDesignation(e.target.value)}
                     placeholder="Job title"
-                    className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
+                    className={formInput}
                   />
                 </div>
 
@@ -678,7 +682,7 @@ const StaffManagement: React.FC = () => {
                       <RadioGroupItem value="staff" id="edit-r-staff" />
                       <Label htmlFor="edit-r-staff" className="flex items-center gap-2 cursor-pointer">
                         <User className="h-4 w-4" /> Staff
-                        <span className="text-[10px] text-white/40">(gets My Portal PIN)</span>
+                        <span className="text-[10px] text-muted-foreground">(gets My Portal PIN)</span>
                       </Label>
                     </div>
                   </RadioGroup>
@@ -704,7 +708,7 @@ const StaffManagement: React.FC = () => {
 
                 {!editIsSuperAdmin && (
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                    <Label className={formLabel}>
                       <MapPin className="h-4 w-4" /> Branch Access
                     </Label>
                     {allLocations.length > 0 ? (
@@ -728,8 +732,8 @@ const StaffManagement: React.FC = () => {
                     onClick={() => { setIsChangingPassword(v => !v); setEditPassword(''); setShowEditPassword(false); }}
                     className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border transition-colors w-full ${
                       isChangingPassword
-                        ? 'border-cuephoria-lightpurple/60 bg-cuephoria-lightpurple/10 text-cuephoria-lightpurple'
-                        : 'border-white/10 bg-white/5 text-white/50 hover:border-white/20 hover:text-white/70'
+                        ? 'border-primary/40 bg-primary/10 text-primary'
+                        : 'border-border/50 bg-card/20 text-muted-foreground hover:border-border/80 hover:text-foreground'
                     }`}
                   >
                     <KeyRound className="h-4 w-4" />
@@ -742,13 +746,13 @@ const StaffManagement: React.FC = () => {
                         value={editPassword}
                         onChange={(e) => setEditPassword(e.target.value)}
                         placeholder="Enter new password"
-                        className="bg-cuephoria-darker border-cuephoria-lightpurple/30 pr-10"
+                        className={`${formInput} pr-10`}
                         autoFocus
                       />
                       <button
                         type="button"
                         onClick={() => setShowEditPassword(v => !v)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                         tabIndex={-1}
                       >
                         {showEditPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -759,9 +763,9 @@ const StaffManagement: React.FC = () => {
               </div>
             )}
 
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setEditingStaff(null)}>Cancel</Button>
-              <Button onClick={handleUpdateStaff} disabled={isLoading} className="bg-cuephoria-lightpurple hover:bg-cuephoria-purple">
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setEditingStaff(null)} className="border-border/50">Cancel</Button>
+              <Button onClick={handleUpdateStaff} disabled={isLoading} className="btn-gradient border-0">
                 {isLoading ? 'Saving...' : 'Save Changes'}
               </Button>
             </DialogFooter>
