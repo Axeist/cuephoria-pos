@@ -2,6 +2,7 @@
 export const PAYMENT_PROVIDER_ASSETS = {
   razorpay: {
     logoUrl: "/branding/razorpay-logo.png",
+    iconUrl: "/branding/razorpay-icon.png",
     logoAlt: "Razorpay",
   },
   stripe: {

@@ -1,9 +1,22 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, Clock, KeyRound, Loader2, Pencil, ShieldCheck, Zap } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowUpRight,
+  CheckCircle2,
+  Clock,
+  Globe2,
+  KeyRound,
+  Loader2,
+  Pencil,
+  Radio,
+  Sparkles,
+  Zap,
+} from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import RazorpaySetupWizard, { RAZORPAY_WIZARD_STEPS } from "@/components/settings/RazorpaySetupWizard";
 import PaymentProviderBrand from "@/components/settings/PaymentProviderBrand";
@@ -58,6 +71,30 @@ function prettyDate(iso: string | null): string {
 
 function wizardStepIndex(stepId: (typeof RAZORPAY_WIZARD_STEPS)[number]["id"]): number {
   return RAZORPAY_WIZARD_STEPS.findIndex((s) => s.id === stepId);
+}
+
+function DetailCell({
+  icon: Icon,
+  label,
+  value,
+  mono,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-muted/20 px-4 py-3.5">
+      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">
+        <Icon className="h-3.5 w-3.5 shrink-0 opacity-70" />
+        {label}
+      </div>
+      <p className={mono ? "font-mono text-sm text-foreground break-all" : "text-sm text-foreground"}>
+        {value}
+      </p>
+    </div>
+  );
 }
 
 export default function PaymentGatewaySettings() {
@@ -169,19 +206,17 @@ export default function PaymentGatewaySettings() {
 
   if (configQuery.isLoading) {
     return (
-      <Card>
-        <CardContent className="py-10 flex items-center justify-center">
-          <Loader2 className="h-7 w-7 animate-spin" />
-        </CardContent>
-      </Card>
+      <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-border/60 bg-card/40">
+        <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+      </div>
     );
   }
 
   if (configQuery.isError) {
     return (
-      <Card className="border-rose-500/30 bg-rose-500/5">
-        <CardContent className="py-8 text-rose-200 flex items-center gap-2">
-          <AlertCircle className="h-4 w-4" />
+      <Card className="border-destructive/30 bg-destructive/5">
+        <CardContent className="py-8 text-destructive flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 shrink-0" />
           {(configQuery.error as Error).message}
         </CardContent>
       </Card>
@@ -189,29 +224,21 @@ export default function PaymentGatewaySettings() {
   }
 
   const showIntegratedRazorpay = razorpayConfig && !showWizard && !needsWizard;
+  const isLive = razorpayConfig?.mode === "live";
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-2">
-              <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-emerald-500" />
-                Payment gateway configuration
-              </CardTitle>
-              <CardDescription>
-                Connect Razorpay for public booking online payments. Stripe for international card payments is
-                coming soon — use Razorpay for now. Subscription billing to Cuetronix uses platform keys separately.
-              </CardDescription>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <PaymentProviderBrand provider="razorpay" size="md" />
-              <PaymentProviderBrand provider="stripe" size="md" />
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+    <div className="space-y-8 max-w-3xl">
+      {/* Page header */}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" />
+          <h2 className="text-base font-semibold tracking-tight">Payment providers</h2>
+        </div>
+        <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">
+          Connect gateways for public booking checkout. Payments go to your Razorpay account — Cuetronix
+          platform billing uses separate keys.
+        </p>
+      </div>
 
       {razorpayConfig && (showWizard || needsWizard) && (
         <RazorpaySetupWizard
@@ -222,112 +249,172 @@ export default function PaymentGatewaySettings() {
       )}
 
       {showIntegratedRazorpay && razorpayConfig && (
-        <Card className="border-emerald-500/25 bg-emerald-500/5">
-          <CardHeader>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-3">
-                  <PaymentProviderBrand provider="razorpay" size="lg" />
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                    Integration complete
-                  </CardTitle>
+        <section className="space-y-3">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Active integration
+          </p>
+          <Card className="overflow-hidden border-border/70 bg-card/60 shadow-sm">
+            <div className="h-px bg-gradient-to-r from-emerald-500/70 via-emerald-400/30 to-transparent" />
+            <CardHeader className="pb-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-muted/30">
+                    <PaymentProviderBrand provider="razorpay" size="md" variant="icon" padded={false} />
+                  </div>
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CardTitle className="text-lg font-semibold">Razorpay</CardTitle>
+                      <Badge
+                        variant="outline"
+                        className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 gap-1 font-normal"
+                      >
+                        <CheckCircle2 className="h-3 w-3" />
+                        Connected
+                      </Badge>
+                    </div>
+                    <CardDescription className="text-sm leading-relaxed">
+                      Accepting UPI, cards &amp; netbanking on your public booking page.
+                    </CardDescription>
+                  </div>
                 </div>
-                <CardDescription>
-                  Your workspace is connected for public booking online payments via Razorpay.
-                </CardDescription>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-600">
-                  Connected
+                <Badge
+                  variant="secondary"
+                  className="shrink-0 self-start font-normal tabular-nums"
+                >
+                  {isLive ? "Live" : "Test"} mode
                 </Badge>
-                <Badge variant="outline">{razorpayConfig.mode === "live" ? "Live mode" : "Test mode"}</Badge>
               </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              <div className="rounded-lg border bg-background/60 p-3">
-                <p className="text-xs text-muted-foreground mb-1">API key</p>
-                <p className="font-mono text-sm">
-                  {razorpayConfig.public_key_masked || "Saved — use Edit credentials to view or update"}
-                </p>
-              </div>
-              <div className="rounded-lg border bg-background/60 p-3">
-                <p className="text-xs text-muted-foreground mb-1">Webhook</p>
-                <p className="text-sm">
-                  {razorpayConfig.webhook_configured
-                    ? `Configured · last event ${prettyDate(razorpayConfig.webhook_last_event_at)}`
-                    : "Optional — add in Edit credentials if not set yet"}
-                </p>
-              </div>
-            </div>
+            </CardHeader>
 
-            <div className="flex flex-wrap gap-2 pt-1">
-              <Button
-                variant="outline"
-                onClick={() => testMutation.mutate(razorpayConfig.mode)}
-                disabled={testMutation.isPending}
-              >
-                {testMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Zap className="h-4 w-4 mr-2" />
-                )}
-                Test connection
+            <CardContent className="space-y-5 pb-6">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <DetailCell
+                  icon={KeyRound}
+                  label="API key"
+                  mono
+                  value={
+                    razorpayConfig.public_key_masked ||
+                    "Saved — edit credentials to update"
+                  }
+                />
+                <DetailCell
+                  icon={Radio}
+                  label="Webhook"
+                  value={
+                    razorpayConfig.webhook_configured
+                      ? `Active · ${prettyDate(razorpayConfig.webhook_last_event_at)}`
+                      : "Not configured (optional)"
+                  }
+                />
+                <DetailCell
+                  icon={Globe2}
+                  label="Currencies"
+                  value={razorpayConfig.supported_currencies.join(", ") || "INR"}
+                />
+              </div>
+
+              <Separator className="bg-border/60" />
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-muted-foreground">
+                  {isLive
+                    ? "Live keys are active — real payments will be captured."
+                    : "Test mode — use Razorpay test cards; no real money moves."}
+                </p>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    onClick={() => testMutation.mutate(razorpayConfig.mode)}
+                    disabled={testMutation.isPending}
+                    className="gap-2"
+                  >
+                    {testMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Zap className="h-4 w-4" />
+                    )}
+                    Test connection
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => reopenWizard("keys")}
+                    className="gap-2"
+                  >
+                    <KeyRound className="h-4 w-4" />
+                    Edit credentials
+                  </Button>
+                  {!isLive && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => reopenWizard("live")}
+                      className="gap-2 text-muted-foreground hover:text-foreground"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Go live
+                      <ArrowUpRight className="h-3.5 w-3.5 opacity-60" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      <section className="space-y-3">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          {showIntegratedRazorpay ? "More providers" : "Available providers"}
+        </p>
+
+        {!showIntegratedRazorpay && (
+          <Card className="border-border/70 bg-card/40">
+            <CardContent className="flex flex-wrap items-center gap-4 py-5">
+              <PaymentProviderBrand provider="razorpay" size="md" variant="logo" />
+              <div className="flex-1 min-w-[200px] space-y-1">
+                <p className="text-sm font-medium">Razorpay</p>
+                <p className="text-xs text-muted-foreground">
+                  UPI, cards &amp; netbanking for India — complete setup to enable online pay.
+                </p>
+              </div>
+              <Button size="sm" onClick={() => reopenWizard()}>
+                Connect Razorpay
               </Button>
-              <Button variant="outline" onClick={() => reopenWizard("keys")}>
-                <KeyRound className="h-4 w-4 mr-2" />
-                Edit credentials
-              </Button>
-              {razorpayConfig.mode === "test" && (
-                <Button variant="ghost" size="sm" onClick={() => reopenWizard("live")}>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Switch to live keys
-                </Button>
-              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <Card className="border border-dashed border-border/60 bg-muted/10 opacity-90">
+          <CardContent className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border/40 bg-muted/20 opacity-80">
+              <PaymentProviderBrand provider="stripe" size="md" padded={false} />
+            </div>
+            <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium text-foreground/90">Stripe</p>
+                <Badge variant="secondary" className="gap-1 text-xs font-normal">
+                  <Clock className="h-3 w-3" />
+                  Coming soon
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                International cards, wallets &amp; multi-currency — self-service setup like Razorpay.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground sm:shrink-0">
+              <PaymentProviderBrand provider="razorpay" size="sm" variant="icon" padded={false} />
+              <span className="opacity-40">+</span>
+              <PaymentProviderBrand provider="stripe" size="sm" padded={false} />
             </div>
           </CardContent>
         </Card>
-      )}
+      </section>
 
-      <Card className="border-dashed border-muted-foreground/30 bg-muted/20">
-        <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-3">
-                <PaymentProviderBrand provider="stripe" size="lg" />
-                <CardTitle className="text-lg">Stripe</CardTitle>
-              </div>
-              <CardDescription>
-                International card payments and multi-currency checkout — same self-service setup as Razorpay, coming
-                soon.
-              </CardDescription>
-            </div>
-            <Badge variant="secondary" className="gap-1 shrink-0">
-              <Clock className="h-3 w-3" />
-              Coming soon
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4 text-sm text-muted-foreground">
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-white/5 bg-background/40 p-3">
-            <PaymentProviderBrand provider="razorpay" size="sm" />
-            <span className="text-muted-foreground">+</span>
-            <PaymentProviderBrand provider="stripe" size="sm" />
-            <span className="text-xs sm:text-sm">
-              Accept UPI &amp; Indian cards with Razorpay today; Stripe will add global cards &amp; wallets.
-            </span>
-          </div>
-          <p>
-            <strong className="text-foreground">For now:</strong> use Razorpay above for public booking online
-            payments (UPI, cards, netbanking in India).
-          </p>
-          <p className="text-xs">
-            We&apos;ll notify you when Stripe setup is ready. No action needed on your side today.
-          </p>
-        </CardContent>
-      </Card>
+      <p className="text-xs text-muted-foreground/80 pb-2">
+        Need help? Re-run the setup wizard from Edit credentials, or contact support if webhooks
+        aren&apos;t firing after a test payment.
+      </p>
     </div>
   );
 }

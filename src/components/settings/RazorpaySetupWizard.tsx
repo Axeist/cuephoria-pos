@@ -358,19 +358,24 @@ export default function RazorpaySetupWizard({ config, onComplete, initialStepIdx
     saveCredentialsMutation.isPending || testMutation.isPending || branchToggleMutation.isPending;
 
   return (
-    <Card className="border-emerald-500/20">
+    <Card className="overflow-hidden border-border/70 bg-card/60 shadow-sm">
+      <div className="h-px bg-gradient-to-r from-emerald-500/50 via-primary/20 to-transparent" />
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
-          <div className="space-y-2 flex-1">
-            <div className="flex flex-wrap items-center gap-3">
-              <PaymentProviderBrand provider="razorpay" size="lg" />
-              <CardTitle>Razorpay setup wizard</CardTitle>
+          <div className="flex items-start gap-4 flex-1 min-w-0">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-muted/30">
+              <PaymentProviderBrand provider="razorpay" size="md" variant="icon" padded={false} />
             </div>
-            <CardDescription>
-              Step {stepIdx + 1} of {STEPS.length} — {step.label}
-            </CardDescription>
+            <div className="space-y-1 min-w-0">
+              <CardTitle className="text-lg">Razorpay setup</CardTitle>
+              <CardDescription>
+                Step {stepIdx + 1} of {STEPS.length} — {step.label}
+              </CardDescription>
+            </div>
           </div>
-          <Badge variant="outline">{mode === "test" ? "Test mode" : "Live mode"}</Badge>
+          <Badge variant="secondary" className="shrink-0 font-normal">
+            {mode === "test" ? "Test mode" : "Live mode"}
+          </Badge>
         </div>
         <div className="flex gap-1 mt-3">
           {STEPS.map((s, i) => (

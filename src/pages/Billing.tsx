@@ -69,6 +69,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import PaymentProviderBrand from "@/components/settings/PaymentProviderBrand";
 
 // ---------------------------------------------------------------------------
 // Types mirroring /api/tenant/billing response shapes
@@ -199,39 +200,8 @@ interface CreateSuccess {
 }
 
 // ---------------------------------------------------------------------------
-// Razorpay branding
+// Razorpay branding (official assets via PaymentProviderBrand)
 // ---------------------------------------------------------------------------
-
-const RAZORPAY_NAVY = "#072654";
-const RAZORPAY_BLUE = "#3395FF";
-
-/** Razorpay official wordmark — use `brand` on light backgrounds for readable contrast. */
-function RazorpayWordmark({
-  className = "h-5 w-auto",
-  variant = "brand",
-}: {
-  className?: string;
-  variant?: "brand" | "mono-light";
-}) {
-  const textFill = variant === "brand" ? RAZORPAY_NAVY : "currentColor";
-
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 105 22"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-label="Razorpay"
-      role="img"
-    >
-      <path d="M16.7 0 11.2 8.6 8.6 17.2 14.2 0H8.5L0 13.5h3.6L1.5 22l15.2-22Z" fill={RAZORPAY_BLUE} />
-      <path
-        fill={textFill}
-        d="M27.7 17.4h-3.1l-2.2-4.6h-1.6v4.6h-2.5V5.7h4.4c2.7 0 4.3 1.4 4.3 3.6 0 1.7-.9 2.9-2.5 3.4l2.7 4.7h.5Zm-4.9-9.5h-2v3h2c1.2 0 1.9-.5 1.9-1.5s-.7-1.5-1.9-1.5Zm7 9.5V5.7h7.7v2.1h-5.2v2.6h4.5V12h-4.5v3.3h5.4v2.1h-7.9Zm12.8 0V5.7h5c2.4 0 3.7 1.1 3.7 3 0 1.2-.6 2.1-1.6 2.6 1.4.4 2.2 1.4 2.2 2.8 0 2.1-1.5 3.3-4.1 3.3h-5.2Zm2.5-7v2.4h2.2c1 0 1.6-.4 1.6-1.2s-.6-1.2-1.6-1.2h-2.2Zm0 4.4v2.5h2.4c1.1 0 1.7-.5 1.7-1.3s-.6-1.2-1.7-1.2h-2.4Zm10 2.6V5.7h2.5v11.7h-2.5Zm5.9 0V5.7h2.5l4.6 7.3V5.7H66v11.7h-2.4l-4.7-7.4v7.4h-2.5Zm12.9 0V5.7h2.5l4.6 7.3V5.7h2.4v11.7h-2.4l-4.7-7.4v7.4H73Z"
-      />
-    </svg>
-  );
-}
 
 function RazorpayTrustBadge({
   mode,
@@ -240,19 +210,18 @@ function RazorpayTrustBadge({
   mode?: string;
   size?: "sm" | "md" | "lg";
 }) {
-  const logoClass =
-    size === "lg" ? "h-6 w-auto" : size === "sm" ? "h-4 w-auto" : "h-5 w-auto";
+  const brandSize = size === "lg" ? "md" : "sm";
   const pad = size === "lg" ? "px-4 py-2.5" : size === "sm" ? "px-2.5 py-1.5" : "px-3 py-2";
 
   return (
     <div
-      className={`inline-flex items-center gap-2 rounded-xl border border-[#3395FF]/20 bg-white shadow-[0_8px_28px_-12px_rgba(51,149,255,0.55)] ${pad}`}
+      className={`inline-flex items-center gap-2.5 rounded-xl border border-[#3395FF]/20 bg-white shadow-[0_8px_28px_-12px_rgba(51,149,255,0.55)] ${pad}`}
     >
       <ShieldCheck className={`${size === "lg" ? "h-5 w-5" : "h-4 w-4"} text-emerald-600 shrink-0`} />
       <span className={`${size === "lg" ? "text-sm" : "text-xs"} font-medium text-zinc-600`}>
         Secured by
       </span>
-      <RazorpayWordmark variant="brand" className={logoClass} />
+      <PaymentProviderBrand provider="razorpay" size={brandSize} variant="logo" padded={false} />
       {mode ? (
         <span
           className={`rounded-md bg-[#3395FF]/10 font-bold uppercase tracking-wider text-[#072654] ${
@@ -270,7 +239,7 @@ function RazorpayPoweredBy({ className = "" }: { className?: string }) {
   return (
     <div className={`inline-flex items-center gap-2 text-xs text-white/60 ${className}`}>
       <span>Payments powered by</span>
-      <RazorpayWordmark variant="mono-light" className="h-4 w-auto text-white" />
+      <PaymentProviderBrand provider="razorpay" size="sm" variant="logo" padded={false} />
     </div>
   );
 }
@@ -1978,7 +1947,7 @@ function BillingSkeleton({ orgName, prepend }: { orgName?: string; prepend?: Rea
           Loading plans for{" "}
           <span className="normal-case text-white/70">{orgName ?? "your workspace"}</span>
           <span className="text-white/25">·</span>
-          <RazorpayWordmark variant="brand" className="h-4 w-auto" />
+          <PaymentProviderBrand provider="razorpay" size="sm" variant="logo" padded={false} />
         </div>
         <Skeleton className="h-44 w-full rounded-3xl bg-white/[0.04]" />
         <div className="grid lg:grid-cols-5 gap-6">
