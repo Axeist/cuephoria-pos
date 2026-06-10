@@ -387,6 +387,8 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
     ? staffProfiles.filter(s => s.is_active)
     : staffProfiles.filter(s => s.user_id === selectedStaff && s.is_active);
 
+  const compactCalendar = displayedStaff.length > 4;
+
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   const navigateMonth = (direction: 'prev' | 'next') => {
@@ -411,13 +413,13 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
 
   return (
     <Card className="glass-card border-border/50">
-      <CardHeader>
-        <div className="flex items-center justify-between">
+      <CardHeader className="pb-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle className="text-white">Attendance Calendar View</CardTitle>
-            <CardDescription>Track all employees' attendance status</CardDescription>
+            <CardTitle className="text-base text-foreground">Attendance calendar</CardTitle>
+            <CardDescription className="text-sm">Monthly view for all staff</CardDescription>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Select
               value={selectedStaff}
               onValueChange={setSelectedStaff}
@@ -470,77 +472,130 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
             <div className="animate-spin h-8 w-8 rounded-full border-4 border-primary/40 border-t-transparent"></div>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Month Header */}
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-white">
+              <h3 className="text-lg font-semibold text-foreground">
                 {format(currentDate, 'MMMM yyyy')}
               </h3>
             </div>
 
             {/* Calendar Grid */}
             <div className="overflow-x-auto">
-              <div className="min-w-full">
+              <div className="min-w-[560px]">
                 {/* Week Days Header */}
-                <div className="grid grid-cols-7 gap-1 mb-2">
+                <div className="grid grid-cols-7 gap-px mb-1 bg-border/30 rounded-t-md overflow-hidden">
                   {weekDays.map(day => (
-                    <div key={day} className="text-center text-sm font-semibold text-muted-foreground py-2">
+                    <div key={day} className="text-center text-xs font-medium text-muted-foreground py-1.5 bg-card/40">
                       {day}
                     </div>
                   ))}
                 </div>
 
-                {/* Calendar Days */}
-                <div className="grid grid-cols-7 gap-1">
+                {/* Calendar Days — fixed height cells, not square */}
+                <div className="grid grid-cols-7 gap-px bg-border/30 rounded-b-md overflow-hidden">
                   {emptyDays.map((_, index) => (
-                    <div key={`empty-${index}`} className="aspect-square" />
+                    <div key={`empty-${index}`} className="min-h-[72px] bg-card/20" />
                   ))}
                   {daysInMonth.map(day => {
                     const dateKey = format(day, 'yyyy-MM-dd');
+                    const dayRecords = displayedStaff.map(staff => ({
+                      staff,
+                      attendance: attendanceData[staff.user_id]?.[dateKey],
+                    }));
+                    const presentCount = dayRecords.filter(
+                      ({ attendance }) =>
+                        attendance?.status &&
+                        !['absent', 'absent_lop'].includes(attendance.status),
+                    ).length;
+
                     return (
                       <div
                         key={dateKey}
                         className={cn(
-                          "aspect-square border border-border/50 rounded-lg p-1",
-                          isToday(day) && "ring-2 ring-primary/60"
+                          'min-h-[72px] bg-card/20 p-1.5 flex flex-col',
+                          isToday(day) && 'ring-1 ring-inset ring-primary/60 bg-primary/5',
                         )}
                       >
-                        <div className="text-xs font-semibold text-white mb-1">
-                          {format(day, 'd')}
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <span className={cn(
+                            'text-xs font-semibold leading-none',
+                            isToday(day) ? 'text-primary' : 'text-foreground',
+                          )}>
+                            {format(day, 'd')}
+                          </span>
+                          {compactCalendar && displayedStaff.length > 0 && (
+                            <span className="text-[10px] text-muted-foreground tabular-nums">
+                              {presentCount}/{displayedStaff.length}
+                            </span>
+                          )}
                         </div>
-                        <div className="space-y-1">
-                          {displayedStaff.map(staff => {
-                            const attendance = attendanceData[staff.user_id]?.[dateKey];
-                            const status = attendance?.status || null;
-                            const isLate = attendance?.isLate;
-                            const hasOvertime = attendance?.hasOvertime;
-                            
-                            let tooltip = `${staff.username}: ${getStatusLabel(status)}`;
-                            if (attendance?.clockIn) tooltip += ` (${attendance.clockIn})`;
-                            if (isLate) tooltip += ` - Late: ${attendance.lateMinutes} min`;
-                            if (hasOvertime) tooltip += ` - OT: ${attendance.overtimeHours?.toFixed(1)} hrs`;
-                            
-                            return (
-                              <div
-                                key={staff.user_id}
-                                className={cn(
-                                  "text-[10px] px-1 py-0.5 rounded border flex items-center gap-1 relative",
-                                  getStatusColor(status)
-                                )}
-                                title={tooltip}
-                              >
-                                {getStatusIcon(status)}
-                                <span className="truncate">{staff.username.split(' ')[0]}</span>
-                                {isLate && (
-                                  <AlertTriangle className="h-2.5 w-2.5 text-orange-400 ml-0.5" title={`Late: ${attendance.lateMinutes} min`} />
-                                )}
-                                {hasOvertime && status !== 'absent' && status !== 'absent_lop' && (
-                                  <TrendingUp className="h-2.5 w-2.5 text-blue-400 ml-0.5" title={`OT: ${attendance.overtimeHours?.toFixed(1)} hrs`} />
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
+
+                        {compactCalendar ? (
+                          <div className="flex flex-wrap gap-0.5 content-start flex-1">
+                            {dayRecords.map(({ staff, attendance }) => {
+                              const status = attendance?.status || null;
+                              const isLate = attendance?.isLate;
+                              const hasOvertime = attendance?.hasOvertime;
+                              let tooltip = `${staff.username}: ${getStatusLabel(status)}`;
+                              if (attendance?.clockIn) tooltip += ` (${attendance.clockIn})`;
+                              if (isLate) tooltip += ` - Late: ${attendance.lateMinutes} min`;
+                              if (hasOvertime) tooltip += ` - OT: ${attendance.overtimeHours?.toFixed(1)} hrs`;
+
+                              return (
+                                <span
+                                  key={staff.user_id}
+                                  className={cn(
+                                    'inline-block h-2.5 w-2.5 rounded-full border shrink-0',
+                                    status === 'present' || status === 'regularized' || status === 'completed'
+                                      ? 'bg-green-500/80 border-green-400/60'
+                                      : status === 'half_day' || status === 'half_day_lop'
+                                        ? 'bg-yellow-500/80 border-yellow-400/60'
+                                        : status === 'leave'
+                                          ? 'bg-blue-500/80 border-blue-400/60'
+                                          : status === 'absent' || status === 'absent_lop'
+                                            ? 'bg-red-500/80 border-red-400/60'
+                                            : 'bg-muted border-border',
+                                    isLate && 'ring-1 ring-orange-400',
+                                  )}
+                                  title={tooltip}
+                                />
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="space-y-0.5 flex-1 overflow-hidden">
+                            {dayRecords.map(({ staff, attendance }) => {
+                              const status = attendance?.status || null;
+                              const isLate = attendance?.isLate;
+                              const hasOvertime = attendance?.hasOvertime;
+                              let tooltip = `${staff.username}: ${getStatusLabel(status)}`;
+                              if (attendance?.clockIn) tooltip += ` (${attendance.clockIn})`;
+                              if (isLate) tooltip += ` - Late: ${attendance.lateMinutes} min`;
+                              if (hasOvertime) tooltip += ` - OT: ${attendance.overtimeHours?.toFixed(1)} hrs`;
+
+                              return (
+                                <div
+                                  key={staff.user_id}
+                                  className={cn(
+                                    'text-xs px-1.5 py-0.5 rounded border flex items-center gap-1 min-h-[22px]',
+                                    getStatusColor(status),
+                                  )}
+                                  title={tooltip}
+                                >
+                                  {getStatusIcon(status)}
+                                  <span className="truncate font-medium">{staff.username.split(' ')[0]}</span>
+                                  {isLate && (
+                                    <AlertTriangle className="h-3 w-3 text-orange-400 shrink-0" />
+                                  )}
+                                  {hasOvertime && status !== 'absent' && status !== 'absent_lop' && (
+                                    <TrendingUp className="h-3 w-3 text-blue-400 shrink-0" />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -550,35 +605,35 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
 
             {/* Staff Summary Table */}
             {summaryData.length > 0 && (
-              <div className="pt-4 border-t border-border/50">
-                <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <User className="h-5 w-5 text-primary" />
-                  Staff Summary - {format(currentDate, 'MMMM yyyy')}
+              <div className="pt-3 border-t border-border/50">
+                <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <User className="h-4 w-4 text-primary" />
+                  Staff summary — {format(currentDate, 'MMMM yyyy')}
                 </h4>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto rounded-md border border-border/50">
                   <Table>
                     <TableHeader>
-                      <TableRow className="glass-card border-border/50 border-border/50">
-                        <TableHead className="text-white">Staff Name</TableHead>
-                        <TableHead className="text-white">Designation</TableHead>
-                        <TableHead className="text-white text-center">Working Days</TableHead>
-                        <TableHead className="text-white text-center">Absent Days</TableHead>
-                        <TableHead className="text-white text-center">Leave Days</TableHead>
-                        <TableHead className="text-white text-center">Total Days</TableHead>
-                        <TableHead className="text-white text-right">Salary Earned</TableHead>
-                        <TableHead className="text-white text-right">Allowances</TableHead>
+                      <TableRow className="border-border/50 hover:bg-transparent">
+                        <TableHead className="text-xs text-muted-foreground h-9">Staff</TableHead>
+                        <TableHead className="text-xs text-muted-foreground h-9">Role</TableHead>
+                        <TableHead className="text-xs text-muted-foreground h-9 text-center">Working</TableHead>
+                        <TableHead className="text-xs text-muted-foreground h-9 text-center">Absent</TableHead>
+                        <TableHead className="text-xs text-muted-foreground h-9 text-center">Leave</TableHead>
+                        <TableHead className="text-xs text-muted-foreground h-9 text-center">Total</TableHead>
+                        <TableHead className="text-xs text-muted-foreground h-9 text-right">Earned</TableHead>
+                        <TableHead className="text-xs text-muted-foreground h-9 text-right">Allowances</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {summaryData.map((summary) => (
-                        <TableRow 
+                        <TableRow
                           key={summary.user_id}
-                          className="glass-card border-border/50/50 border-border/40 hover:glass-card border-border/50"
+                          className="border-border/40 hover:bg-muted/30"
                         >
-                          <TableCell className="font-medium text-white">
+                          <TableCell className="text-sm font-medium text-foreground py-2">
                             {summary.username}
                           </TableCell>
-                          <TableCell className="text-muted-foreground">
+                          <TableCell className="text-sm text-muted-foreground py-2">
                             {summary.designation}
                           </TableCell>
                           <TableCell className="text-center">
@@ -624,8 +679,8 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
             )}
 
             {/* Legend */}
-            <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-border/50">
-              <div className="text-sm font-semibold text-white">Legend:</div>
+            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-border/50">
+              <div className="text-xs font-medium text-muted-foreground w-full sm:w-auto">Legend</div>
               <Badge className={getStatusColor('present')}>
                 <CheckCircle className="h-3 w-3 mr-1" />
                 Present

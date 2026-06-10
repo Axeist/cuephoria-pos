@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,37 +11,49 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useStaffHR } from '@/context/StaffHRContext';
 import StaffEmptyState from '@/components/staff/shared/StaffEmptyState';
-import { deleteHoliday, fetchHolidays, upsertHoliday } from '@/services/staff/staffApi';
+import { deleteHoliday, fetchHolidays, seedHolidaysIfMissing, upsertHoliday } from '@/services/staff/staffApi';
 import type { StaffHoliday } from '@/types/staff.types';
-import { CalendarDays, Plus, Pencil, Trash2 } from 'lucide-react';
+import { getIndianPublicHolidays, usesOfficialMovableDates } from '@/utils/indianHolidays';
+import { CalendarDays, ChevronLeft, ChevronRight, Flag, Plus, Pencil, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 const HolidayManagerPanel: React.FC = () => {
   const { toast } = useToast();
   const { staffScope, isLoading } = useStaffHR();
-  const year = new Date().getFullYear();
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
   const [holidays, setHolidays] = useState<StaffHoliday[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [seedConfirmOpen, setSeedConfirmOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({ date: '', name: '', is_paid: true });
+
+  const indianPreview = useMemo(
+    () => getIndianPublicHolidays(selectedYear),
+    [selectedYear],
+  );
 
   const load = useCallback(async () => {
     if (!staffScope) return;
     setLoading(true);
     try {
-      setHolidays(await fetchHolidays(staffScope, year));
+      setHolidays(await fetchHolidays(staffScope, selectedYear));
     } catch (e) {
       console.error(e);
       toast({ title: 'Error', description: 'Failed to load holidays', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
-  }, [staffScope, year, toast]);
+  }, [staffScope, selectedYear, toast]);
 
   useEffect(() => {
     void load();
@@ -101,32 +113,111 @@ const HolidayManagerPanel: React.FC = () => {
     }
   };
 
+  const handleSeedIndianHolidays = async () => {
+    if (!staffScope) return;
+    setSeeding(true);
+    try {
+      const existingDates = new Set(holidays.map((h) => h.date));
+      const { added, skipped } = await seedHolidaysIfMissing(
+        staffScope,
+        indianPreview,
+        existingDates,
+      );
+      toast({
+        title: 'Indian holidays added',
+        description: `${added} added for ${selectedYear}${skipped ? `, ${skipped} already on calendar` : ''}.`,
+      });
+      setSeedConfirmOpen(false);
+      await load();
+    } catch (e: unknown) {
+      toast({
+        title: 'Error',
+        description: e instanceof Error ? e.message : 'Failed to seed holidays',
+        variant: 'destructive',
+      });
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   if (isLoading || loading) return <StaffEmptyState loading />;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-white flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-primary" />
-            Holiday calendar {year}
+            Holiday calendar
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
             Org-wide or branch-specific paid / unpaid holidays
           </p>
         </div>
-        <Button className="btn-gradient border-0" onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add holiday
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 rounded-lg border border-border/50 bg-card/30 p-1">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8"
+              onClick={() => setSelectedYear((y) => y - 1)}
+              aria-label="Previous year"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Select
+              value={String(selectedYear)}
+              onValueChange={(v) => setSelectedYear(parseInt(v, 10))}
+            >
+              <SelectTrigger className="w-[100px] h-8 border-0 bg-transparent shadow-none">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 11 }, (_, i) => currentYear - 5 + i).map((y) => (
+                  <SelectItem key={y} value={String(y)}>
+                    {y}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8"
+              onClick={() => setSelectedYear((y) => y + 1)}
+              aria-label="Next year"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <Button
+            variant="outline"
+            className="border-border/50"
+            onClick={() => setSeedConfirmOpen(true)}
+          >
+            <Flag className="h-4 w-4 mr-2" />
+            Add Indian holidays
+          </Button>
+          <Button className="btn-gradient border-0" onClick={openCreate}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add holiday
+          </Button>
+        </div>
       </div>
 
       {holidays.length === 0 ? (
-        <StaffEmptyState title="No holidays" description={`Add holidays for ${year}.`} />
+        <StaffEmptyState
+          title="No holidays"
+          description={`Add holidays for ${selectedYear}, or use "Add Indian holidays" for Republic Day, Holi, Diwali, and other major public holidays.`}
+        />
       ) : (
         <Card className="glass-card border-border/50">
           <CardHeader>
-            <CardTitle className="text-base text-white">{holidays.length} holidays</CardTitle>
+            <CardTitle className="text-base text-white">
+              {holidays.length} holidays in {selectedYear}
+            </CardTitle>
           </CardHeader>
           <CardContent className="divide-y divide-border/40">
             {holidays.map((h) => (
@@ -191,6 +282,43 @@ const HolidayManagerPanel: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={seedConfirmOpen} onOpenChange={setSeedConfirmOpen}>
+        <AlertDialogContent className="glass-card border-border/50 text-white max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Add Indian public holidays for {selectedYear}?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  This adds {indianPreview.length} major national holidays (Republic Day, Independence Day,
+                  Holi, Diwali, Eid, Good Friday, etc.) as paid holidays for this branch.
+                </p>
+                <p>
+                  {usesOfficialMovableDates(selectedYear)
+                    ? 'Festival dates use official calendar dates for this year.'
+                    : 'Festival dates are estimated for this year; review and edit any that differ locally.'}
+                </p>
+                <p>Dates already on your calendar will be skipped.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-border/50" disabled={seeding}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="btn-gradient border-0"
+              disabled={seeding}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleSeedIndianHolidays();
+              }}
+            >
+              {seeding ? 'Adding…' : `Add ${indianPreview.length} holidays`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent className="glass-card border-border/50 text-white">

@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { syncRosterFromProfile } from '@/services/staff/staffApi';
 import { Clock, User, Mail, Phone, DollarSign } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 
@@ -103,6 +104,15 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
         .eq('user_id', staff.user_id);
 
       if (error) throw error;
+
+      if (staff.location_id) {
+        await syncRosterFromProfile(
+          staff.user_id,
+          staff.location_id,
+          formData.shift_start_time,
+          formData.shift_end_time,
+        );
+      }
 
       toast({
         title: 'Success',

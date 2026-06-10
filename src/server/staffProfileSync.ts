@@ -90,7 +90,18 @@ export async function createStaffProfileForLoginUser(
     return { error: error.message };
   }
 
-  return { profile: data as StaffProfileRow, portalPin };
+  const profile = data as StaffProfileRow;
+  const scheduleRows = Array.from({ length: 7 }, (_, day) => ({
+    staff_id: profile.user_id,
+    day_of_week: day,
+    shift_start: record.shift_start_time,
+    shift_end: record.shift_end_time,
+    is_active: true,
+    location_id: opts.locationId,
+  }));
+  await supabase.from("staff_work_schedules").insert(scheduleRows);
+
+  return { profile, portalPin };
 }
 
 export async function syncStaffProfileFromAdminUser(

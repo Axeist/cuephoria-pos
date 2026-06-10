@@ -389,4 +389,95 @@ export async function deleteHoliday(id: string, scope: StaffScope): Promise<void
   if (error) throw error;
 }
 
+export async function seedHolidaysIfMissing(
+  scope: StaffScope,
+  entries: Array<{ date: string; name: string; is_paid: boolean }>,
+  existingDates: Set<string>,
+): Promise<{ added: number; skipped: number }> {
+  assertScope(scope);
+  let added = 0;
+  let skipped = 0;
+  for (const entry of entries) {
+    if (existingDates.has(entry.date)) {
+      skipped++;
+      continue;
+    }
+    await upsertHoliday(scope, {
+      organization_id: scope.organizationId,
+      location_id: scope.locationId,
+      date: entry.date,
+      name: entry.name,
+      is_paid: entry.is_paid,
+    });
+    added++;
+  }
+  return { added, skipped };
+}
+
+/** Sync all 7 days of staff_work_schedules from profile shift times. */
+export async function syncRosterFromProfile(
+  staffId: string,
+  locationId: string,
+  shiftStart: string,
+  shiftEnd: string,
+  options?: { onlyIfMissing?: boolean },
+): Promise<number> {
+  const start = shiftStart.length === 5 ? `${shiftStart}:00` : shiftStart;
+  const end = shiftEnd.length === 5 ? `${shiftEnd}:00` : shiftEnd;
+
+  if (options?.onlyIfMissing) {
+    const { count } = await supabase
+      .from('staff_work_schedules')
+      .select('*', { count: 'exact', head: true })
+      .eq('staff_id', staffId);
+    if ((count ?? 0) > 0) return 0;
+  }
+
+  let written = 0;
+  for (let day = 0; day < 7; day++) {
+    const payload = {
+      staff_id: staffId,
+      day_of_week: day,
+      shift_start: start,
+      shift_end: end,
+      is_active: true,
+      location_id: locationId,
+    };
+    const { data: existing } = await supabase
+      .from('staff_work_schedules')
+      .select('id')
+      .eq('staff_id', staffId)
+      .eq('day_of_week', day)
+      .maybeSingle();
+
+    if (existing?.id) {
+      const { error } = await supabase.from('staff_work_schedules').update(payload).eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('staff_work_schedules').insert(payload);
+      if (error) throw error;
+    }
+    written++;
+  }
+  return written;
+}
+
+export async function syncMissingRostersFromProfiles(
+  profiles: StaffProfile[],
+  locationId: string | null,
+): Promise<number> {
+  if (!locationId) return 0;
+  let total = 0;
+  for (const p of profiles.filter((s) => s.is_active && s.shift_start_time && s.shift_end_time)) {
+    total += await syncRosterFromProfile(
+      p.user_id,
+      locationId,
+      p.shift_start_time!.substring(0, 5),
+      p.shift_end_time!.substring(0, 5),
+      { onlyIfMissing: true },
+    );
+  }
+  return total;
+}
+
 export { staffProfileId, staffProfileIds };
