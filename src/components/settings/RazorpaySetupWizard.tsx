@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { buildPublicBookingUrl } from "@/utils/publicBookingUrl";
 import { BOOKING_ACCESS_KEYS, parseBookingSettingBool } from "@/utils/bookingAccessSettings";
+import PaymentProviderBrand from "@/components/settings/PaymentProviderBrand";
 
 type Mode = "test" | "live";
 
@@ -359,9 +360,12 @@ export default function RazorpaySetupWizard({ config, onComplete, initialStepIdx
   return (
     <Card className="border-emerald-500/20">
       <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <CardTitle>Razorpay setup wizard</CardTitle>
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-2 flex-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <PaymentProviderBrand provider="razorpay" size="lg" />
+              <CardTitle>Razorpay setup wizard</CardTitle>
+            </div>
             <CardDescription>
               Step {stepIdx + 1} of {STEPS.length} — {step.label}
             </CardDescription>
@@ -398,10 +402,11 @@ export default function RazorpaySetupWizard({ config, onComplete, initialStepIdx
                   <li>Use test card <code className="text-xs bg-muted px-1 rounded">4111 1111 1111 1111</code> for a trial booking</li>
                   <li>Switch to Live only after a successful test booking</li>
                 </ul>
-                <p className="text-xs text-muted-foreground border-t pt-3 mt-3">
-                  Stripe for international card payments is coming soon. For now, Razorpay is the supported provider for
-                  public booking online pay.
-                </p>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground border-t pt-3 mt-3">
+                  <span>Also coming to this page:</span>
+                  <PaymentProviderBrand provider="stripe" size="sm" />
+                  <span>for international cards — use Razorpay for now.</span>
+                </div>
               </>
             )}
 

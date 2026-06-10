@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import RazorpaySetupWizard, { RAZORPAY_WIZARD_STEPS } from "@/components/settings/RazorpaySetupWizard";
+import PaymentProviderBrand from "@/components/settings/PaymentProviderBrand";
 
 type Provider = "razorpay" | "stripe";
 type Mode = "test" | "live";
@@ -193,14 +194,22 @@ export default function PaymentGatewaySettings() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-emerald-500" />
-            Payment gateway configuration
-          </CardTitle>
-          <CardDescription>
-            Connect Razorpay for public booking online payments. Stripe for international card payments is coming
-            soon — use Razorpay for now. Subscription billing to Cuetronix uses platform keys separately.
-          </CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-2">
+              <CardTitle className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-emerald-500" />
+                Payment gateway configuration
+              </CardTitle>
+              <CardDescription>
+                Connect Razorpay for public booking online payments. Stripe for international card payments is
+                coming soon — use Razorpay for now. Subscription billing to Cuetronix uses platform keys separately.
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <PaymentProviderBrand provider="razorpay" size="md" />
+              <PaymentProviderBrand provider="stripe" size="md" />
+            </div>
+          </div>
         </CardHeader>
       </Card>
 
@@ -216,13 +225,16 @@ export default function PaymentGatewaySettings() {
         <Card className="border-emerald-500/25 bg-emerald-500/5">
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-1">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                  Razorpay integration complete
-                </CardTitle>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  <PaymentProviderBrand provider="razorpay" size="lg" />
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                    Integration complete
+                  </CardTitle>
+                </div>
                 <CardDescription>
-                  Your workspace is connected for public booking online payments.
+                  Your workspace is connected for public booking online payments via Razorpay.
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -281,26 +293,35 @@ export default function PaymentGatewaySettings() {
 
       <Card className="border-dashed border-muted-foreground/30 bg-muted/20">
         <CardHeader>
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-lg text-muted-foreground">Stripe</CardTitle>
-            <Badge variant="secondary" className="gap-1">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-3">
+                <PaymentProviderBrand provider="stripe" size="lg" />
+                <CardTitle className="text-lg">Stripe</CardTitle>
+              </div>
+              <CardDescription>
+                International card payments and multi-currency checkout — same self-service setup as Razorpay, coming
+                soon.
+              </CardDescription>
+            </div>
+            <Badge variant="secondary" className="gap-1 shrink-0">
               <Clock className="h-3 w-3" />
               Coming soon
             </Badge>
           </div>
-          <CardDescription>
-            Stripe integration for international card payments and multi-currency checkout is not available yet.
-            You cannot connect a Stripe account at this time.
-          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm text-muted-foreground">
+        <CardContent className="space-y-4 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-white/5 bg-background/40 p-3">
+            <PaymentProviderBrand provider="razorpay" size="sm" />
+            <span className="text-muted-foreground">+</span>
+            <PaymentProviderBrand provider="stripe" size="sm" />
+            <span className="text-xs sm:text-sm">
+              Accept UPI &amp; Indian cards with Razorpay today; Stripe will add global cards &amp; wallets.
+            </span>
+          </div>
           <p>
             <strong className="text-foreground">For now:</strong> use Razorpay above for public booking online
             payments (UPI, cards, netbanking in India).
-          </p>
-          <p>
-            <strong className="text-foreground">Coming soon:</strong> connect your own Stripe account, test/live
-            keys, webhooks, and international currencies — same self-service wizard as Razorpay.
           </p>
           <p className="text-xs">
             We&apos;ll notify you when Stripe setup is ready. No action needed on your side today.
