@@ -24,6 +24,9 @@ import {
 
 import reconcileHandler from "../../src/server/handlers/razorpay/reconcile.js";
 import testCredentialsHandler from "../../src/server/handlers/razorpay/test-credentials.js";
+import { findStoredCredentialSlot } from "../../src/server/lib/payment-credential-slots.js";
+import { decryptSecret } from "../../src/server/lib/payment-secrets.js";
+import type { PaymentMode } from "../../src/server/lib/payment-provider.js";
 
 export const config = {
   maxDuration: 30,
@@ -99,15 +102,59 @@ async function handleTestOrgCredentials(req: VercelRequest, res: VercelResponse)
 
     const body = (req.body ?? {}) as Record<string, unknown>;
     const rawCreds = body.credentials;
-    if (!rawCreds || typeof rawCreds !== "object") {
-      return jsonRes(res, {
-        ok: true,
-        result: { ok: false, message: "Key ID and Secret are required." },
-      });
+    const requestedMode: PaymentMode =
+      body.mode === "live" || body.mode === "test" ? body.mode : "test";
+
+    let keyId = "";
+    let keySecret = "";
+
+    if (rawCreds && typeof rawCreds === "object") {
+      const creds = rawCreds as Record<string, unknown>;
+      keyId = normalizeCredential(String(creds.key_id ?? ""));
+      keySecret = normalizeCredential(String(creds.key_secret ?? ""));
+    } else {
+      const { data: configRow, error: configErr } = await supabase
+        .from("payment_gateway_configs")
+        .select("mode, settings")
+        .eq("organization_id", orgId)
+        .eq("provider", "razorpay")
+        .maybeSingle();
+      if (configErr) return jsonRes(res, { ok: false, error: configErr.message }, 500);
+
+      const row = configRow as { mode?: PaymentMode; settings?: Record<string, unknown> } | null;
+      const stored = findStoredCredentialSlot(
+        (row?.settings ?? {}) as {
+          credentials?: Partial<
+            Record<PaymentMode, { key_id?: string; key_secret_enc?: string }>
+          >;
+        },
+        requestedMode ?? row?.mode,
+      );
+      if (!stored?.creds.key_id || !stored.creds.key_secret_enc) {
+        return jsonRes(res, {
+          ok: true,
+          result: {
+            ok: false,
+            message: "No saved workspace credentials found. Use Edit credentials to re-enter your API keys.",
+          },
+        });
+      }
+      try {
+        keyId = normalizeCredential(stored.creds.key_id);
+        keySecret = normalizeCredential(await decryptSecret(stored.creds.key_secret_enc));
+      } catch (decryptErr) {
+        return jsonRes(res, {
+          ok: true,
+          result: {
+            ok: false,
+            message:
+              decryptErr instanceof Error
+                ? decryptErr.message
+                : "Could not read saved credentials. Re-enter your API keys in Edit credentials.",
+          },
+        });
+      }
     }
-    const creds = rawCreds as Record<string, unknown>;
-    const keyId = normalizeCredential(String(creds.key_id ?? ""));
-    const keySecret = normalizeCredential(String(creds.key_secret ?? ""));
 
     if (!keyId || !keySecret) {
       return jsonRes(res, {
@@ -160,8 +207,11 @@ async function handleTestOrgCredentials(req: VercelRequest, res: VercelResponse)
     });
   } catch (err: unknown) {
     const e = err as { error?: { description?: string }; message?: string; statusCode?: number };
-    const body = (req.body ?? {}) as { credentials?: { key_id?: string } };
-    const mode = String(body.credentials?.key_id ?? "").startsWith("rzp_live_") ? "live" : "test";
+    const body = (req.body ?? {}) as { credentials?: { key_id?: string }; mode?: string };
+    const modeHint =
+      String(body.credentials?.key_id ?? "").startsWith("rzp_live_") || body.mode === "live"
+        ? "live"
+        : "test";
     const detail =
       e?.error?.description ||
       e?.message ||
@@ -172,7 +222,7 @@ async function handleTestOrgCredentials(req: VercelRequest, res: VercelResponse)
       provider: "razorpay",
       result: {
         ok: false,
-        message: `Razorpay auth failed (${e?.statusCode ?? "error"}, ${mode}): ${detail}`,
+        message: `Razorpay auth failed (${e?.statusCode ?? "error"}, ${modeHint}): ${detail}`,
       },
     });
   }
