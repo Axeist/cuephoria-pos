@@ -58,6 +58,7 @@ export async function fetchRazorpayKeyId(
 }
 
 export function primeRazorpayCheckout(isLiteBranch: boolean, locationId?: string | null): void {
+  if (!locationId && !isLiteBranch) return;
   void loadRazorpayScript().catch(() => {});
   void fetchRazorpayKeyId(isLiteBranch, locationId).catch(() => {});
 }

@@ -309,14 +309,22 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
       if (!ok) return;
     }
     if (step.id === "booking") {
+      toast({
+        title: "Razorpay setup complete",
+        description:
+          "Test booking is optional. Switch to Live keys from Settings → Payments when you are ready.",
+      });
       onComplete();
       return;
     }
     if (step.id === "live") {
       if (mode === "live" && keyId.trim() && keySecret.trim()) {
-        await saveKeysStep();
-        await runTest();
+        const keysOk = await saveKeysStep();
+        if (!keysOk) return;
+        const testOk = await runTest();
+        if (!testOk) return;
       }
+      toast({ title: "Razorpay setup complete" });
       onComplete();
       return;
     }

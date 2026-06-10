@@ -66,6 +66,7 @@ export default function PaymentGatewaySettings() {
   const qc = useQueryClient();
   const [drafts, setDrafts] = React.useState<Record<string, PaymentConfig>>({});
   const [showWizard, setShowWizard] = React.useState(false);
+  const [wizardDismissed, setWizardDismissed] = React.useState(false);
 
   const configQuery = useQuery({
     queryKey: ["admin-payment-config"],
@@ -108,12 +109,36 @@ export default function PaymentGatewaySettings() {
   }, [configQuery.data]);
 
   const razorpayConfig = drafts.razorpay;
+  const wizardDismissedKey = razorpayConfig?.id?.startsWith("draft-")
+    ? null
+    : `razorpay-wizard-dismissed:${razorpayConfig?.id ?? ""}`;
   const needsWizard =
-    razorpayConfig && !razorpayConfig.provider_ready && !razorpayConfig.platform_fallback_available;
+    razorpayConfig &&
+    !razorpayConfig.provider_ready &&
+    !razorpayConfig.platform_fallback_available &&
+    !wizardDismissed;
+
+  React.useEffect(() => {
+    if (!wizardDismissedKey) return;
+    setWizardDismissed(localStorage.getItem(wizardDismissedKey) === "1");
+  }, [wizardDismissedKey]);
 
   React.useEffect(() => {
     if (needsWizard) setShowWizard(true);
   }, [needsWizard]);
+
+  function dismissWizard() {
+    setShowWizard(false);
+    setWizardDismissed(true);
+    if (wizardDismissedKey) localStorage.setItem(wizardDismissedKey, "1");
+    qc.invalidateQueries({ queryKey: ["admin-payment-config"] });
+  }
+
+  function reopenWizard() {
+    setShowWizard(true);
+    setWizardDismissed(false);
+    if (wizardDismissedKey) localStorage.removeItem(wizardDismissedKey);
+  }
 
   const saveMutation = useMutation({
     mutationFn: async (row: PaymentConfig) =>
@@ -222,19 +247,13 @@ export default function PaymentGatewaySettings() {
       </Card>
 
       {razorpayConfig && (showWizard || needsWizard) && (
-        <RazorpaySetupWizard
-          config={razorpayConfig}
-          onComplete={() => {
-            setShowWizard(false);
-            qc.invalidateQueries({ queryKey: ["admin-payment-config"] });
-          }}
-        />
+        <RazorpaySetupWizard config={razorpayConfig} onComplete={dismissWizard} />
       )}
 
-      {razorpayConfig?.provider_ready && !showWizard && (
+      {razorpayConfig && !showWizard && !needsWizard && (
         <div className="flex justify-end">
-          <Button variant="outline" size="sm" onClick={() => setShowWizard(true)}>
-            Edit Razorpay setup
+          <Button variant="outline" size="sm" onClick={reopenWizard}>
+            {razorpayConfig.provider_ready ? "Edit Razorpay setup" : "Continue Razorpay setup"}
           </Button>
         </div>
       )}

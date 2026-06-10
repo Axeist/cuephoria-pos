@@ -98,7 +98,7 @@ async function createRazorpayOrder(
     if (Object.keys(validNotes).length > 0) orderOptions.notes = validNotes;
   }
 
-  return razorpay.orders.create(orderOptions);
+  return { order: await razorpay.orders.create(orderOptions), keyId: creds.keyId };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -209,14 +209,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     let order;
+    let checkoutKeyId: string | undefined;
     try {
-      order = await createRazorpayOrder(
+      const created = await createRazorpayOrder(
         Number(amount),
         receipt,
         notes,
         canonicalLocationId,
         profile,
       );
+      order = created.order;
+      checkoutKeyId = created.keyId;
     } catch (err) {
       if (holdSessionId && supabase) {
         await deleteSlotHoldsBySessionId(supabase, holdSessionId);
@@ -292,6 +295,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       currency: order.currency,
       receipt: order.receipt,
       status: order.status,
+      keyId: checkoutKeyId,
     });
   } catch (err: any) {
     return j(res, { ok: false, error: err?.message || String(err), type: err?.name || "UnknownError" }, 500);

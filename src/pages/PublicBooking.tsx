@@ -384,7 +384,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   // Razorpay keys differ per branch (lite uses RAZORPAY_*_LITE env vars)
   useEffect(() => {
     setRazorpayKeyId("");
-  }, [branchSlug]);
+  }, [branchSlug, publicLocationId]);
 
   // Check if user is logged in as customer (for bottom nav)
   const customerSession = getCustomerSession();
@@ -1642,15 +1642,21 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
   // Warm Razorpay script + key as soon as online pay is available (and when selected).
   useEffect(() => {
-    if (!onlinePaymentEnabled) return;
+    if (!onlinePaymentEnabled || !publicLocationId) return;
+    let cancelled = false;
     primeRazorpayCheckout(isLiteBranch, publicLocationId);
     fetchRazorpayKeyId(isLiteBranch, publicLocationId)
-      .then((keyId) => setRazorpayKeyId(keyId))
+      .then((keyId) => {
+        if (!cancelled) setRazorpayKeyId(keyId);
+      })
       .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [onlinePaymentEnabled, isLiteBranch, publicLocationId]);
 
   useEffect(() => {
-    if (paymentMethod === "razorpay" && onlinePaymentEnabled) {
+    if (paymentMethod === "razorpay" && onlinePaymentEnabled && publicLocationId) {
       primeRazorpayCheckout(isLiteBranch, publicLocationId);
     }
   }, [paymentMethod, onlinePaymentEnabled, isLiteBranch, publicLocationId]);
@@ -1760,9 +1766,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
     await loadRazorpayScript();
 
-    const keyPromise = razorpayKeyId
-      ? Promise.resolve(razorpayKeyId)
-      : fetchRazorpayKeyId(isLiteBranch, publicLocationId);
+    const keyPromise = fetchRazorpayKeyId(isLiteBranch, publicLocationId);
 
     const orderPromise = fetch("/api/razorpay/create-order", {
       method: "POST",
@@ -1798,15 +1802,16 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       return null;
     }
 
-    if (keyId && !razorpayKeyId) {
-      setRazorpayKeyId(keyId);
+    const resolvedKeyId = orderData.keyId || keyId;
+    if (resolvedKeyId) {
+      setRazorpayKeyId(resolvedKeyId);
     }
 
     return {
       orderId: orderData.orderId,
       amount: orderData.amount,
       currency: orderData.currency || "INR",
-      keyId: keyId || razorpayKeyId,
+      keyId: resolvedKeyId,
       txnId,
       slotsCount: slotsToBook.length,
     };

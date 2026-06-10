@@ -185,6 +185,34 @@ async function resolveOrgCredentials(
   }
 }
 
+function tenantBookingCredentialError(): Error {
+  return new Error(
+    "This venue's Razorpay account is not ready for online payments. Complete setup under Settings → Payments.",
+  );
+}
+
+async function resolveOrgKeyIdOnly(
+  organizationId: string,
+  modeOverride?: PaymentMode,
+): Promise<string | null> {
+  const supabase = supabaseServiceClient("cuetronix-razorpay-key-id-org");
+  const { data, error } = await supabase
+    .from("payment_gateway_configs")
+    .select("mode, is_enabled, settings")
+    .eq("organization_id", organizationId)
+    .eq("provider", "razorpay")
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const row = data as { mode: PaymentMode; is_enabled: boolean; settings: GatewaySettings };
+  if (!row.is_enabled) return null;
+
+  const stored = findStoredCredentialSlot(row.settings ?? {}, modeOverride ?? row.mode);
+  const keyId = stored?.creds.key_id;
+  return keyId ? normalizePaymentCredential(keyId) : null;
+}
+
 export async function resolveRazorpayCredentials(input: {
   organizationId?: string;
   locationId?: string;
@@ -224,6 +252,7 @@ export async function resolveRazorpayCredentials(input: {
       requireEnabled: input.requireEnabled ?? false,
     });
     if (orgCreds) return orgCreds;
+    throw tenantBookingCredentialError();
   }
 
   const env = getRazorpayCredentials(profile);
@@ -249,18 +278,9 @@ export async function resolveRazorpayKeyIdOnly(input: {
     const supabase = supabaseServiceClient("cuetronix-razorpay-key-id");
     const orgId = await lookupOrganizationId(supabase, { locationId: input.locationId });
     if (orgId) {
-      const { data } = await supabase
-        .from("payment_gateway_configs")
-        .select("mode, is_enabled, settings")
-        .eq("organization_id", orgId)
-        .eq("provider", "razorpay")
-        .maybeSingle();
-      const row = data as { mode: PaymentMode; is_enabled: boolean; settings: GatewaySettings } | null;
-      if (row?.is_enabled) {
-        const stored = findStoredCredentialSlot(row.settings ?? {}, row.mode);
-        const keyId = stored?.creds.key_id;
-        if (keyId) return normalizePaymentCredential(keyId);
-      }
+      const keyId = await resolveOrgKeyIdOnly(orgId);
+      if (keyId) return keyId;
+      throw tenantBookingCredentialError();
     }
   }
   return getRazorpayKeyId(profile);
