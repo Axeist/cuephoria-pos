@@ -566,13 +566,14 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return { meta, names };
         };
 
+        let useDefaultsOnly = false;
+        const useAppearanceColumns = categoryAppearanceColumnsRef.current;
         let { data, error } = await supabase
           .from('categories')
-          .select('name, accent_color, quick_shop_enabled')
+          .select(useAppearanceColumns ? 'name, accent_color, quick_shop_enabled' : 'name')
           .eq('location_id', activeLocationId);
 
-        let useDefaultsOnly = false;
-        if (error && isMissingColumnError(error)) {
+        if (error && useAppearanceColumns) {
           categoryAppearanceColumnsRef.current = false;
           useDefaultsOnly = true;
           ({ data, error } = await supabase

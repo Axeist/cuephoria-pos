@@ -11,8 +11,10 @@ export function isMissingColumnError(
   const isColumnError =
     code === '42703' ||
     code === 'PGRST204' ||
+    code === '400' ||
     (message.includes('does not exist') && message.includes('column')) ||
-    (message.includes('schema cache') && message.includes('column'));
+    (message.includes('schema cache') && message.includes('column')) ||
+    /could not find the ['"][\w]+['"] column of ['"][\w]+['"]/i.test(message);
 
   if (!isColumnError) return false;
   if (!column) return true;
