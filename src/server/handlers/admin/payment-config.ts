@@ -36,6 +36,13 @@ async function verifyOrgRazorpayCredentials(
 
     const inlineKeyId = inline?.key_id?.trim();
     const inlineSecret = inline?.key_secret?.trim();
+    if (inlineKeyId && !inlineSecret) {
+      return {
+        ok: false,
+        message:
+          "Key Secret is required to test these keys. Re-paste the secret from Razorpay Dashboard (it is only shown once when generated).",
+      };
+    }
     if (inlineKeyId && inlineSecret) {
       if (!validateRazorpayKeyIdPrefix(inlineKeyId, mode)) {
         return {

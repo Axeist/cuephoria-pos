@@ -457,7 +457,7 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>Key ID (optional — re-test without going back)</Label>
+                    <Label>Key ID</Label>
                     <Input
                       value={keyId}
                       onChange={(e) => setKeyId(e.target.value)}
@@ -465,15 +465,21 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Key Secret (optional)</Label>
+                    <Label>Key Secret</Label>
                     <Input
                       type="password"
                       value={keySecret}
                       onChange={(e) => setKeySecret(e.target.value)}
-                      placeholder="Paste secret to re-test"
+                      placeholder="Required — paste secret again to test"
                     />
                   </div>
                 </div>
+                {!keySecret.trim() && (
+                  <p className="text-xs text-amber-600">
+                    Razorpay never shows the secret again after save. Paste the Key Secret here to test — both fields
+                    are required.
+                  </p>
+                )}
                 <Button onClick={() => void runTest()} disabled={testMutation.isPending}>
                   {testMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />

@@ -55,6 +55,7 @@ export async function testRazorpayCredentials(args: {
     method: "POST",
     headers: {
       Authorization: `Basic ${auth}`,
+      Accept: "application/json",
       "content-type": "application/json",
     },
     body: JSON.stringify({
@@ -70,7 +71,11 @@ export async function testRazorpayCredentials(args: {
 
   const text = await response.text();
   let detail = parseRazorpayErrorBody(text);
-  if (response.status === 400 && /auth|invalid|api key|secret/i.test(detail)) {
+  const authFailure =
+    response.status === 401 ||
+    response.status === 406 ||
+    (response.status === 400 && /auth|invalid|api key|secret/i.test(detail));
+  if (authFailure) {
     detail = `${detail} Re-copy both Key ID and Secret from Razorpay Dashboard → Settings → API Keys (${args.mode} mode). If you regenerated the secret, paste the new one and save again.`;
   }
 
