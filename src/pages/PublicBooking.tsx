@@ -33,6 +33,7 @@ import {
   loadRazorpayScript,
   primeRazorpayCheckout,
 } from "@/utils/razorpayCheckout";
+import { paymentCallbackQuery, type PublicBookingReturnContext } from "@/utils/publicBookingUrl";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import CouponPromotionalPopup from "@/components/CouponPromotionalPopup";
 import BookingConfirmationDialog from "@/components/BookingConfirmationDialog";
@@ -302,6 +303,16 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   } = usePublicBookingBrand(publicLocationId, branchSlug);
 
   const isCuephoriaWorkspace = workspaceSlug === "cuephoria";
+  const orgSlugParam = searchParams.get("org")?.trim() || undefined;
+  const paymentReturnCtx = useMemo<PublicBookingReturnContext>(
+    () => ({
+      branchSlug,
+      locationId: publicLocationId,
+      orgSlug:
+        orgSlugParam || (workspaceSlug && workspaceSlug !== "cuephoria" ? workspaceSlug : undefined),
+    }),
+    [branchSlug, publicLocationId, orgSlugParam, workspaceSlug],
+  );
   const { config: popupConfig } = usePublicBookingPopups(publicLocationId);
 
   useEffect(() => {
@@ -1713,6 +1724,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       },
       bookingAddons: bookingAddonsSnapshot,
       booking_group_id: bookingGroupIdRef.current,
+      returnContext: paymentReturnCtx,
     };
     localStorage.setItem("pendingBooking", JSON.stringify(pendingBooking));
 
@@ -1836,8 +1848,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         razorpay_order_id: string;
         razorpay_signature: string;
       }) {
-        const liteQs = isLiteBranch ? "&profile=lite" : "";
-        window.location.href = `/public/payment/success?payment_id=${encodeURIComponent(response.razorpay_payment_id)}&order_id=${encodeURIComponent(response.razorpay_order_id)}&signature=${encodeURIComponent(response.razorpay_signature)}${liteQs}`;
+        const returnQs = paymentCallbackQuery(paymentReturnCtx);
+        window.location.href = `/public/payment/success?payment_id=${encodeURIComponent(response.razorpay_payment_id)}&order_id=${encodeURIComponent(response.razorpay_order_id)}&signature=${encodeURIComponent(response.razorpay_signature)}${returnQs}`;
       },
       prefill: {
         name: customerInfo.name,
@@ -1866,8 +1878,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       const error = response.error?.description || response.error?.reason || "Payment failed";
       toast.error(`Payment failed: ${error}`);
       setLoading(false);
-      const liteQs = isLiteBranch ? "&profile=lite" : "";
-      window.location.href = `/public/payment/failed?order_id=${encodeURIComponent(prepared.orderId)}&error=${encodeURIComponent(error)}${liteQs}`;
+      const returnQs = paymentCallbackQuery(paymentReturnCtx);
+      window.location.href = `/public/payment/failed?order_id=${encodeURIComponent(prepared.orderId)}&error=${encodeURIComponent(error)}${returnQs}`;
     });
 
     rzp.open();

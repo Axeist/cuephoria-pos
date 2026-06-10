@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle2, Loader2, AlertCircle, Sparkles } from "lucide-react";
+import { CheckCircle2, Loader2, AlertCircle, Sparkles, RefreshCw } from "lucide-react";
 import { CUETRONIX_ASSETS } from "@/branding/assets";
 import CuephoriaTechAttribution from "@/components/branding/CuephoriaTechAttribution";
+import {
+  resolvePublicBookingReturnPath,
+  returnContextFromSearchParams,
+  type PublicBookingReturnContext,
+} from "@/utils/publicBookingUrl";
 
 type PendingBooking = {
   selectedStations: string[];
@@ -13,6 +18,7 @@ type PendingBooking = {
   duration: number;
   customer: { id?: string; name: string; phone: string; email?: string };
   locationId?: string | null;
+  returnContext?: PublicBookingReturnContext;
   pricing: {
     original: number;
     discount: number;
@@ -82,10 +88,10 @@ async function buildConfirmationAndRedirect(args: {
   }>;
   paymentId: string;
   pb: PendingBooking | null;
-  razorpayProfile: string;
+  returnContext: PublicBookingReturnContext;
   navigate: (path: string) => void;
 }) {
-  const { bookings, paymentId, pb, razorpayProfile, navigate } = args;
+  const { bookings, paymentId, pb, returnContext, navigate } = args;
   const sorted = [...bookings].sort((a, b) => a.start_time.localeCompare(b.start_time));
   const first = sorted[0];
   const last = sorted[sorted.length - 1];
@@ -136,9 +142,13 @@ async function buildConfirmationAndRedirect(args: {
   );
   localStorage.removeItem("pendingBooking");
 
-  const bookingBase =
-    razorpayProfile === "lite" ? "/lite/public/booking" : "/public/booking";
-  navigate(`${bookingBase}?booking_success=true`);
+  navigate(
+    resolvePublicBookingReturnPath({
+      ...returnContext,
+      locationId: returnContext.locationId ?? pb?.locationId ?? null,
+      bookingSuccess: true,
+    }),
+  );
 }
 
 export default function PublicPaymentSuccess() {
@@ -147,9 +157,15 @@ export default function PublicPaymentSuccess() {
   const paymentId = searchParams.get("payment_id") || "";
   const orderId = searchParams.get("order_id") || "";
   const signature = searchParams.get("signature") || "";
-  const razorpayProfile = searchParams.get("profile") || "";
   const [status, setStatus] = useState<"checking" | "creating" | "done" | "failed">("checking");
   const [msg, setMsg] = useState("Verifying your payment…");
+  const [returnContext, setReturnContext] = useState<PublicBookingReturnContext>({
+    branchSlug: searchParams.get("profile") === "lite" ? "lite" : "main",
+    locationId: searchParams.get("location"),
+    orgSlug: searchParams.get("org"),
+  });
+
+  const retryPath = resolvePublicBookingReturnPath(returnContext);
 
   // Warn user not to close/refresh the page
   useEffect(() => {
@@ -210,6 +226,14 @@ export default function PublicPaymentSuccess() {
         ? JSON.parse(pendingRaw)
         : null;
 
+      const ctx = returnContextFromSearchParams(searchParams, pendingBooking?.returnContext ?? null);
+      if (pendingBooking?.locationId && !ctx.locationId) {
+        ctx.locationId = pendingBooking.locationId;
+      }
+      setReturnContext(ctx);
+
+      const razorpayProfile = ctx.branchSlug === "lite" ? "lite" : "";
+
       const existingBookings = await fetchPaidBookingsForCheckout(paymentId, orderId);
       if (existingBookings.length > 0) {
         setStatus("done");
@@ -218,7 +242,7 @@ export default function PublicPaymentSuccess() {
           bookings: existingBookings,
           paymentId,
           pb: pendingBooking,
-          razorpayProfile,
+          returnContext: ctx,
           navigate,
         });
         return;
@@ -352,7 +376,7 @@ export default function PublicPaymentSuccess() {
           bookings: preInsertBookings,
           paymentId,
           pb,
-          razorpayProfile,
+          returnContext: ctx,
           navigate,
         });
         return;
@@ -407,7 +431,7 @@ export default function PublicPaymentSuccess() {
             bookings: racedBookings,
             paymentId,
             pb,
-            razorpayProfile,
+            returnContext: ctx,
             navigate,
           });
           return;
@@ -426,13 +450,13 @@ export default function PublicPaymentSuccess() {
         bookings: inserted ?? [],
         paymentId,
         pb,
-        razorpayProfile,
+        returnContext: ctx,
         navigate,
       });
     };
 
     run();
-  }, [paymentId, orderId, signature, razorpayProfile]);
+  }, [paymentId, orderId, signature, searchParams, navigate]);
 
   const title =
     status === "done" ? "Payment Successful!"
@@ -555,6 +579,15 @@ export default function PublicPaymentSuccess() {
                   <AlertCircle className="h-4 w-4" />
                   {msg}
                 </p>
+              </div>
+              <div className="flex justify-center pt-2">
+                <Link
+                  to={retryPath}
+                  className="group inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 px-6 py-3 text-white text-sm font-semibold transition-all duration-300 shadow-lg shadow-cuephoria-purple/30 hover:shadow-cuephoria-purple/50 hover:scale-105"
+                >
+                  <RefreshCw className="h-4 w-4 group-hover:rotate-180 transition-transform duration-500" />
+                  Back to booking
+                </Link>
               </div>
             </div>
           )}
