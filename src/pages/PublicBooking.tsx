@@ -1550,6 +1550,13 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         ? `Minimum ${slotConfig.minimum_booking_minutes} minutes — select ${slotConfig.slots_per_minimum} consecutive ${slotConfig.slot_interval_minutes}-minute slots.`
         : null;
 
+  const slotSelectionSummary =
+    selectedGridSlots.length === 0
+      ? null
+      : mergedSlotSelection?.ok
+        ? `${slotConfig.minimum_booking_minutes}-minute session ready — choose stations in Step 3`
+        : `${selectedGridSlots.length} of ${slotConfig.slots_per_minimum} slots selected`;
+
   const isStationSelectionAvailable = () => isCustomerInfoComplete;
   const isTimeSelectionAvailable = () =>
     isStationSelectionAvailable() && selectedStations.length > 0;
@@ -2645,6 +2652,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                             selectedSlots={selectedSlots}
                             onSlotSelect={handleSlotSelect}
                             loading={slotsLoading}
+                            selectionSummary={slotSelectionSummary}
                           />
                           </>
                         )}

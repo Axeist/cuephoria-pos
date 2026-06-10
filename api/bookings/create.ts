@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { PAYMENT_ORDER_PENDING_TTL_MS } from "../../src/server/lib/payment-order-ttl.ts";
+import { resolveBookingSlotConfigForLocation } from "../../src/server/lib/resolveBookingSlotConfigForLocation.js";
+import { validateAndMergeGridSlots } from "../../src/utils/bookingSlotConfig.js";
 
 function getEnv(name: string): string | undefined {
   const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
@@ -103,11 +105,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!customerInfo || !selectedStations || !selectedDate || slotsToBook.length === 0) {
       return j(res, { ok: false, error: "Missing required booking data" }, 400);
     }
-
-    const { resolveBookingSlotConfigForLocation } = await import(
-      "../../src/server/lib/resolveBookingSlotConfigForLocation.js"
-    );
-    const { validateAndMergeGridSlots } = await import("../../src/utils/bookingSlotConfig.js");
 
     const slotConfig = await resolveBookingSlotConfigForLocation(supabase, location_id);
     const merged = validateAndMergeGridSlots(

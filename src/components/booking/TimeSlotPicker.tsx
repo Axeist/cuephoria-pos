@@ -16,6 +16,8 @@ interface TimeSlotPickerProps {
   selectedSlots?: TimeSlot[];
   onSlotSelect: (slot: TimeSlot) => void;
   loading?: boolean;
+  /** Overrides default "N hour(s) selected" banner copy. */
+  selectionSummary?: string | null;
 }
 
 const formatTime = (timeString: string) => {
@@ -36,6 +38,7 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
   selectedSlots = [],
   onSlotSelect,
   loading = false,
+  selectionSummary,
 }) => {
   if (loading) {
     return (
@@ -87,8 +90,8 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
         <div className="flex items-center gap-2 rounded-md border border-cuephoria-purple/25 bg-cuephoria-purple/10 px-2.5 py-1.5">
           <CheckCircle2 className="h-3.5 w-3.5 text-cuephoria-lightpurple shrink-0" />
           <p className="text-xs font-medium text-white text-left">
-            {selectionCount} hour{selectionCount !== 1 ? "s" : ""} selected — choose stations in
-            Step 3
+            {selectionSummary ??
+              `${selectionCount} hour${selectionCount !== 1 ? "s" : ""} selected — choose stations in Step 3`}
           </p>
         </div>
       )}

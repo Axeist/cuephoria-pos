@@ -3,13 +3,13 @@ import {
   BOOKING_SLOT_CONFIG_KEY,
   type BranchBookingSlotConfig,
   type ResolvedBookingSlotConfig,
-} from "../../types/bookingSlotConfig";
+} from "../../types/bookingSlotConfig.js";
 import {
   DEFAULT_WORKSPACE_SLOT_DEFAULTS,
   parseBranchBookingSlotConfig,
   parseWorkspaceSlotDefaults,
   resolveBookingSlotConfig,
-} from "../../utils/bookingSlotConfig";
+} from "../../utils/bookingSlotConfig.js";
 
 /** Load effective public booking slot config for a branch (defaults 60/60 if columns missing). */
 export async function resolveBookingSlotConfigForLocation(
