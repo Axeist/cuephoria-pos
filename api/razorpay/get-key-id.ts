@@ -25,6 +25,8 @@ export default async function handler(req: Request) {
     const keyId = await resolveRazorpayKeyIdOnly({ locationId, profile });
     return j({ ok: true, keyId });
   } catch (err: any) {
-    return j({ ok: false, error: String(err?.message || err) }, 500);
+    const message = String(err?.message || err);
+    const status = message.includes("Razorpay account is not ready") ? 503 : 500;
+    return j({ ok: false, error: message }, status);
   }
 }

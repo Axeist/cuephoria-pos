@@ -155,13 +155,19 @@ async function resolveOrgCredentials(
   if (error || !data) return null;
 
   const row = data as { mode: PaymentMode; is_enabled: boolean; settings: GatewaySettings };
-  if (options?.requireEnabled && !row.is_enabled) return null;
 
   const stored = findStoredCredentialSlot(row.settings ?? {}, modeOverride ?? row.mode);
   if (!stored) return null;
 
   const { mode: activeMode, creds } = stored;
   if (!creds.key_id || !creds.key_secret_enc) return null;
+
+  if (options?.requireEnabled && !row.is_enabled) {
+    // Allow checkout when keys are saved; venue-level online pay is gated separately.
+    console.warn(
+      "[razorpay-credentials] payment_gateway_configs.is_enabled is false but credentials exist; allowing booking checkout",
+    );
+  }
 
   try {
     const keySecret = normalizePaymentCredential(await decryptSecret(creds.key_secret_enc));
@@ -206,7 +212,6 @@ async function resolveOrgKeyIdOnly(
   if (error || !data) return null;
 
   const row = data as { mode: PaymentMode; is_enabled: boolean; settings: GatewaySettings };
-  if (!row.is_enabled) return null;
 
   const stored = findStoredCredentialSlot(row.settings ?? {}, modeOverride ?? row.mode);
   const keyId = stored?.creds.key_id;

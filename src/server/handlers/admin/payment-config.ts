@@ -166,7 +166,7 @@ export default withOrgContext(async (req, ctx) => {
       adminUserId: ctx.user.id,
       provider,
       mode,
-      isEnabled: Boolean(body.is_enabled),
+      isEnabled: "is_enabled" in body ? Boolean(body.is_enabled) : undefined,
       supportedCurrencies: parseSupportedCurrencies(body.supported_currencies),
       isInternationalEnabled: Boolean(body.is_international_enabled),
       webhookConfigured: Boolean(body.webhook_configured),

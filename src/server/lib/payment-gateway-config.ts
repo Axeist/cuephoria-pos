@@ -208,15 +208,16 @@ export async function upsertPaymentGatewayConfig(input: {
   let settings = (input.settings ?? {}) as GatewaySettings;
   let mode = input.mode ?? "test";
 
+  const { data: existingRow } = await supabase
+    .from("payment_gateway_configs")
+    .select("mode, is_enabled, settings")
+    .eq("organization_id", input.organizationId)
+    .eq("provider", input.provider)
+    .maybeSingle();
+  const prevRow = existingRow as PaymentGatewayConfigRow | null;
+
   if (input.credentials) {
-    const { data: existing } = await supabase
-      .from("payment_gateway_configs")
-      .select("settings")
-      .eq("organization_id", input.organizationId)
-      .eq("provider", input.provider)
-      .maybeSingle();
-    const prevSettings = ((existing as { settings?: GatewaySettings } | null)?.settings ??
-      {}) as GatewaySettings;
+    const prevSettings = (prevRow?.settings ?? {}) as GatewaySettings;
     settings = await mergeGatewayCredentials(prevSettings, mode, input.credentials);
     if (input.settings) {
       settings = { ...settings, ...input.settings };
@@ -228,16 +229,22 @@ export async function upsertPaymentGatewayConfig(input: {
       const inferred = inferPaymentModeFromKeyId(normalizePaymentCredential(input.credentials.key_id));
       if (inferred) mode = inferred;
     }
+  } else if (prevRow?.settings) {
+    settings = { ...(prevRow.settings as GatewaySettings), ...settings };
+    if (!input.mode && prevRow.mode) {
+      mode = parsePaymentMode(prevRow.mode);
+    }
   }
 
   const payload = {
     organization_id: input.organizationId,
     provider: input.provider,
     mode,
-    is_enabled: input.isEnabled ?? false,
-    supported_currencies: input.supportedCurrencies ?? ["INR"],
-    is_international_enabled: input.isInternationalEnabled ?? false,
-    webhook_configured: input.webhookConfigured ?? false,
+    is_enabled: input.isEnabled ?? prevRow?.is_enabled ?? false,
+    supported_currencies: input.supportedCurrencies ?? prevRow?.supported_currencies ?? ["INR"],
+    is_international_enabled:
+      input.isInternationalEnabled ?? prevRow?.is_international_enabled ?? false,
+    webhook_configured: input.webhookConfigured ?? prevRow?.webhook_configured ?? false,
     settings,
     updated_by: input.adminUserId,
   };

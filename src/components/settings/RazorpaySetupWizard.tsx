@@ -201,7 +201,6 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
     try {
       await saveCredentialsMutation.mutateAsync({
         mode: effectiveMode,
-        is_enabled: config.is_enabled,
         credentials: { key_id: keyId.trim(), key_secret: keySecret.trim() },
       });
       toast({ title: "API keys saved" });
@@ -216,7 +215,6 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
     try {
       await saveCredentialsMutation.mutateAsync({
         mode,
-        is_enabled: config.is_enabled,
         webhook_configured: !!webhookSecret.trim() || config.webhook_configured,
         credentials: webhookSecret.trim()
           ? { webhook_secret: webhookSecret.trim() }
@@ -245,7 +243,6 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
     try {
       await saveCredentialsMutation.mutateAsync({
         mode: effectiveMode,
-        is_enabled: config.is_enabled,
         credentials: { key_id: testKeyId, key_secret: testKeySecret },
       });
       setKeyId(testKeyId);
@@ -309,6 +306,15 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
       if (!ok) return;
     }
     if (step.id === "booking") {
+      try {
+        await saveCredentialsMutation.mutateAsync({
+          mode,
+          is_enabled: true,
+          webhook_configured: config.webhook_configured || !!webhookSecret.trim(),
+        });
+      } catch {
+        // Non-blocking — keys may already be saved from earlier steps.
+      }
       toast({
         title: "Razorpay setup complete",
         description:
