@@ -22,6 +22,7 @@ import {
 import { cn } from '@/lib/utils';
 import PublicBookingPopupsSettings from '@/components/settings/PublicBookingPopupsSettings';
 import PoolBookingAddonsSettings from '@/components/settings/PoolBookingAddonsSettings';
+import BookingSlotConfigSettings from '@/components/settings/BookingSlotConfigSettings';
 
 interface Coupon {
   code: string;
@@ -406,6 +407,12 @@ const BookingSettings = () => {
             </Button>
           </div>
         )}
+      </section>
+
+      <section className="rounded-2xl border border-border/60 bg-background/40 overflow-hidden">
+        <div className="p-4 sm:p-5">
+          <BookingSlotConfigSettings />
+        </div>
       </section>
 
       <section className="rounded-2xl border border-border/60 bg-background/40 overflow-hidden">

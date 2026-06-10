@@ -104,6 +104,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return j(res, { ok: false, error: "Missing required booking data" }, 400);
     }
 
+    const { resolveBookingSlotConfigForLocation } = await import(
+      "../../src/server/lib/resolveBookingSlotConfigForLocation.js"
+    );
+    const { validateAndMergeGridSlots } = await import("../../src/utils/bookingSlotConfig.js");
+
+    const slotConfig = await resolveBookingSlotConfigForLocation(supabase, location_id);
+    const merged = validateAndMergeGridSlots(
+      slotsToBook.map((s: { start_time: string; end_time: string }) => ({
+        start_time: s.start_time,
+        end_time: s.end_time,
+      })),
+      slotConfig,
+    );
+    if (!merged.ok) {
+      return j(res, { ok: false, error: merged.error }, 400);
+    }
+
+    const gridSlots = merged.gridSlots;
+    const bookingSessions = merged.sessions;
+
+    const { data: stationRows, error: stationMetaErr } = await supabase
+      .from("stations")
+      .select("id, type, slot_duration")
+      .in("id", selectedStations);
+    if (stationMetaErr) {
+      return j(res, { ok: false, error: "Failed to load station configuration" }, 500);
+    }
+    const stationMeta = new Map(
+      (stationRows ?? []).map((s: { id: string; type: string; slot_duration: number | null }) => [s.id, s]),
+    );
+
+    const playDurationForStation = (stationId: string, sessionDuration: number): number => {
+      const meta = stationMeta.get(stationId);
+      if (!meta) return sessionDuration;
+      if (meta.type === "vr") return 15;
+      if (meta.slot_duration != null && meta.slot_duration > 0) return Number(meta.slot_duration);
+      return sessionDuration;
+    };
+
     let customerId = customerInfo.id;
     if (!customerId) {
       const normalizedPhone = normalizePhoneNumber(customerInfo.phone);
@@ -164,7 +203,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const existingStart = timeToMinutes(booking.start_time);
       const existingEnd = timeToMinutes(booking.end_time);
       const existingEndMinutes = existingEnd === 0 ? 24 * 60 : existingEnd;
-      return slotsToBook.some((slot: any) => {
+      return gridSlots.some((slot) => {
         const requestedStart = timeToMinutes(slot.start_time);
         const requestedEnd = timeToMinutes(slot.end_time);
         const requestedEndMinutes = requestedEnd === 0 ? 24 * 60 : requestedEnd;
@@ -185,7 +224,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
     }
 
-    for (const slot of slotsToBook) {
+    for (const slot of gridSlots) {
       const { data: activeBlocks, error: blockCheckError } = await supabase
         .from("slot_blocks")
         .select("id, station_id, session_id")
@@ -214,7 +253,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const expiresAt = new Date(Date.now() + PAYMENT_ORDER_PENDING_TTL_MS).toISOString();
-    const blockRows = (slotsToBook as any[]).flatMap((slot) =>
+    const blockRows = gridSlots.flatMap((slot) =>
       selectedStations.map((stationId: string) => ({
         station_id: stationId,
         location_id,
@@ -261,15 +300,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? bookingGroupIdRaw
         : crypto.randomUUID();
 
-    const rowTemplates = (slotsToBook as any[]).flatMap((slot) =>
+    const rowTemplates = bookingSessions.flatMap((session) =>
       selectedStations.map((stationId: string) => ({
         station_id: stationId,
         customer_id: customerId,
         location_id,
         booking_date: selectedDate,
-        start_time: slot.start_time,
-        end_time: slot.end_time,
-        duration: 60,
+        start_time: session.start_time,
+        end_time: session.end_time,
+        duration: playDurationForStation(stationId, session.duration),
         status: "confirmed",
         original_price: originalPrice || 0,
         discount_percentage: discount > 0 && originalPrice > 0 ? (discount / originalPrice) * 100 : null,

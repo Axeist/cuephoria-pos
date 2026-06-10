@@ -34,7 +34,11 @@ import {
   primeRazorpayCheckout,
 } from "@/utils/razorpayCheckout";
 import { paymentCallbackQuery, type PublicBookingReturnContext } from "@/utils/publicBookingUrl";
-import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
+import { usePublicBookingSlotConfig } from "@/hooks/usePublicBookingSlotConfig";
+import {
+  bookingSlotConfigLabel,
+  validateAndMergeGridSlots,
+} from "@/utils/bookingSlotConfig";
 import CouponPromotionalPopup from "@/components/CouponPromotionalPopup";
 import BookingConfirmationDialog from "@/components/BookingConfirmationDialog";
 import CuephoriaTechAttribution from "@/components/branding/CuephoriaTechAttribution";
@@ -301,6 +305,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     workspaceSlug,
     loading: brandLoading,
   } = usePublicBookingBrand(publicLocationId, branchSlug);
+
+  const { config: slotConfig } = usePublicBookingSlotConfig(publicLocationId);
 
   const isCuephoriaWorkspace = workspaceSlug === "cuephoria";
   const orgSlugParam = searchParams.get("org")?.trim() || undefined;
@@ -755,7 +761,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       setSelectedSlot(null);
       setSelectedSlots([]);
     }
-  }, [selectedDate, selectedStations, isCustomerInfoComplete, stations.length, publicLocationId]);
+  }, [selectedDate, selectedStations, isCustomerInfoComplete, stations.length, publicLocationId, slotConfig.slot_interval_minutes]);
   
   // NEW: Update available stations when a time slot is selected
   useEffect(() => {
@@ -901,6 +907,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         bookings: occupancy.bookings,
         sessionBlocks: occupancy.sessionBlocks,
         isToday,
+        slotIntervalMinutes: slotConfig.slot_interval_minutes,
       });
 
       if (gen !== slotsFetchGenRef.current) return;
@@ -1519,6 +1526,29 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     ? buildBookingAddonsSnapshot(poolAddonsConfig, selectedPoolAddonIds)
     : null;
 
+  const selectedGridSlots = useMemo(
+    () => (selectedSlots.length > 0 ? selectedSlots : selectedSlot ? [selectedSlot] : []),
+    [selectedSlots, selectedSlot],
+  );
+
+  const mergedSlotSelection = useMemo(() => {
+    if (selectedGridSlots.length === 0) return null;
+    return validateAndMergeGridSlots(
+      selectedGridSlots.map((s) => ({ start_time: s.start_time, end_time: s.end_time })),
+      slotConfig,
+    );
+  }, [selectedGridSlots, slotConfig]);
+
+  /** Billable session blocks (0 until minimum contiguous slots are selected). */
+  const bookingSessionCount = mergedSlotSelection?.ok ? mergedSlotSelection.sessionBlocks : 0;
+
+  const slotSelectionHint =
+    selectedGridSlots.length > 0 && mergedSlotSelection && !mergedSlotSelection.ok
+      ? mergedSlotSelection.error
+      : slotConfig.slots_per_minimum > 1
+        ? `Minimum ${slotConfig.minimum_booking_minutes} minutes — select ${slotConfig.slots_per_minimum} consecutive ${slotConfig.slot_interval_minutes}-minute slots.`
+        : null;
+
   const isStationSelectionAvailable = () => isCustomerInfoComplete;
   const isTimeSelectionAvailable = () =>
     isStationSelectionAvailable() && selectedStations.length > 0;
@@ -1529,11 +1559,19 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     try {
       const couponCodes = Object.values(appliedCoupons).join(",");
       
-      // Use selectedSlots if available, otherwise fall back to single selectedSlot
-      const slotsToBook = selectedSlots.length > 0 ? selectedSlots : (selectedSlot ? [selectedSlot] : []);
-      
+      const slotsToBook = selectedGridSlots;
+
       if (slotsToBook.length === 0) {
         toast.error("Please select at least one time slot");
+        return;
+      }
+
+      const merged = validateAndMergeGridSlots(
+        slotsToBook.map((s) => ({ start_time: s.start_time, end_time: s.end_time })),
+        slotConfig,
+      );
+      if (!merged.ok) {
+        toast.error(merged.error);
         return;
       }
 
@@ -1544,11 +1582,11 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         return;
       }
       
-      // Calculate total price for all slots
-      const slotsCount = slotsToBook.length;
-      const totalOriginalPrice = originalPrice * slotsCount;
-      const totalDiscountAmount = discount * slotsCount;
-      const totalFinalPrice = finalPrice * slotsCount + poolAddonTotal;
+      // Price per minimum session block × number of merged sessions
+      const sessionBlocks = merged.sessionBlocks;
+      const totalOriginalPrice = originalPrice * sessionBlocks;
+      const totalDiscountAmount = discount * sessionBlocks;
+      const totalFinalPrice = finalPrice * sessionBlocks + poolAddonTotal;
 
       if (!publicLocationId) {
         toast.error("Branch not ready. Please refresh the page.");
@@ -1567,6 +1605,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           selectedDate: format(selectedDate, "yyyy-MM-dd"),
           selectedSlot: selectedSlot ?? slotsToBook[0],
           selectedSlots: slotsToBook,
+          bookingSessions: merged.sessions,
           originalPrice,
           discount,
           finalPrice,
@@ -1598,12 +1637,13 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       const hasVR = selectedStations.some(id => 
         stations.find(s => s.id === id && s.type === 'vr')
       );
+      const firstSession = merged.sessions[0];
       const sessionDuration = hasVR
         ? `60 minutes (${VR_HOURLY_PASSES} VR passes per hour)`
-        : "60 minutes";
+        : `${firstSession?.duration ?? slotConfig.minimum_booking_minutes} minutes`;
       
-      // Use first slot for confirmation display (or selectedSlot if available)
-      const displaySlot = selectedSlot || slotsToBook[0];
+      const displaySlot = firstSession ?? selectedSlot ?? slotsToBook[0];
+      const displayEndSlot = merged.sessions[merged.sessions.length - 1] ?? displaySlot;
       
       setBookingConfirmationData({
         bookingId: String(json.bookingId || "").slice(0, 8).toUpperCase(),
@@ -1614,7 +1654,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           "en-US",
           { hour: "numeric", minute: "2-digit", hour12: true }
         ),
-        endTime: new Date(`2000-01-01T${displaySlot.end_time}`).toLocaleTimeString(
+        endTime: new Date(`2000-01-01T${displayEndSlot.end_time}`).toLocaleTimeString(
           "en-US",
           { hour: "numeric", minute: "2-digit", hour12: true }
         ),
@@ -1678,15 +1718,24 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       return null;
     }
 
-    const slotsToBook =
-      selectedSlots.length > 0 ? selectedSlots : selectedSlot ? [selectedSlot] : [];
+    const slotsToBook = selectedGridSlots;
 
     if (slotsToBook.length === 0) {
       toast.error("Please select at least one time slot");
       return null;
     }
 
-    const totalPrice = finalPrice * slotsToBook.length + poolAddonTotal;
+    const merged = validateAndMergeGridSlots(
+      slotsToBook.map((s) => ({ start_time: s.start_time, end_time: s.end_time })),
+      slotConfig,
+    );
+    if (!merged.ok) {
+      toast.error(merged.error);
+      return null;
+    }
+
+    const sessionBlocks = merged.sessionBlocks;
+    const totalPrice = finalPrice * sessionBlocks + poolAddonTotal;
 
     if (totalPrice <= 0) {
       toast.error("Amount must be greater than 0 for online payment.");
@@ -1700,22 +1749,23 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     const transactionFee = Math.round(totalPrice * 0.025 * 100) / 100;
     const totalWithFee = totalPrice + transactionFee;
     const txnId = genTxnId();
-    const bookingDuration = getBookingDuration(selectedStations, stations);
+    const bookingDuration = merged.sessions[0]?.duration ?? getBookingDuration(selectedStations, stations);
 
     const pendingBooking = {
       selectedStations,
       stationPlayerCounts,
       selectedDateISO: format(selectedDate, "yyyy-MM-dd"),
-      slots: slotsToBook.map((slot) => ({
+      slots: merged.sessions.map((slot) => ({
         start_time: slot.start_time,
         end_time: slot.end_time,
       })),
+      gridSlots: merged.gridSlots,
       duration: bookingDuration,
       customer: customerInfo,
       locationId: publicLocationId,
       pricing: {
-        original: originalPrice * slotsToBook.length,
-        discount: discount * slotsToBook.length,
+        original: originalPrice * sessionBlocks,
+        discount: discount * sessionBlocks,
         final: totalPrice,
         transactionFee,
         totalWithFee,
@@ -1731,7 +1781,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     const bookingDataCompact = JSON.stringify({
       s: selectedStations,
       d: format(selectedDate, "yyyy-MM-dd"),
-      t: slotsToBook.map((s) => ({ s: s.start_time, e: s.end_time })),
+      t: merged.sessions.map((s) => ({ s: s.start_time, e: s.end_time })),
       du: bookingDuration,
       pc: selectedStations.map((id) => stationPlayerCounts[id] ?? 1),
       c: {
@@ -1741,8 +1791,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         i: customerInfo.id || "",
       },
       p: {
-        o: originalPrice * slotsToBook.length,
-        d: discount * slotsToBook.length,
+        o: originalPrice * sessionBlocks,
+        d: discount * sessionBlocks,
         f: totalPrice,
         tf: transactionFee,
         twf: totalWithFee,
@@ -1825,7 +1875,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       currency: orderData.currency || "INR",
       keyId: resolvedKeyId,
       txnId,
-      slotsCount: slotsToBook.length,
+      slotsCount: sessionBlocks,
     };
   };
 
@@ -2385,7 +2435,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
             ) : (
               <>
                 {tenantDisplayName} offers <span className="font-medium">time-based rentals</span> of PlayStation 5
-                stations, 8-Ball pool tables, and VR Gaming. All bookings are 1-hour slots; VR supports up to{" "}
+                stations, 8-Ball pool tables, and VR Gaming. {bookingSlotConfigLabel(slotConfig)}; VR supports up to{" "}
                 {VR_HOURLY_PASSES} passes per hour.
               </>
             )}
@@ -2582,6 +2632,12 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                             <strong>On booking page</strong> for each station (globe toggle), then refresh this page.
                           </div>
                         ) : (
+                          <>
+                            {slotSelectionHint && (
+                              <p className="text-xs text-amber-200/90 mb-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2">
+                                {slotSelectionHint}
+                              </p>
+                            )}
                           <TimeSlotPicker
                             slots={availableSlots}
                             selectedSlot={selectedSlot}
@@ -2589,6 +2645,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                             onSlotSelect={handleSlotSelect}
                             loading={slotsLoading}
                           />
+                          </>
                         )}
                       </div>
                     </div>
@@ -3023,23 +3080,23 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                     <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
                     <div className="space-y-2">
                       {(() => {
-                        const slotsCount = selectedSlots.length > 0 ? selectedSlots.length : (selectedSlot ? 1 : 0);
-                        const totalOriginal = originalPrice * slotsCount;
-                        const totalDiscount = discount * slotsCount;
-                        const stationFinal = finalPrice * slotsCount;
+                        const sessionsCount = bookingSessionCount;
+                        const totalOriginal = originalPrice * (sessionsCount || 0);
+                        const totalDiscount = discount * (sessionsCount || 0);
+                        const stationFinal = finalPrice * (sessionsCount || 0);
                         const totalFinal = stationFinal + poolAddonTotal;
                         
                         return (
                           <>
                             <div className="flex justify-between items-center">
-                              <Label className="text-sm text-gray-300">Price per slot</Label>
+                              <Label className="text-sm text-gray-300">Price per session</Label>
                               <span className="text-sm text-gray-200">
                                 {INR(originalPrice)}
                               </span>
                             </div>
-                            {slotsCount > 1 && (
+                            {sessionsCount > 1 && (
                               <div className="flex justify-between items-center text-xs text-gray-400">
-                                <Label>× {slotsCount} slot{slotsCount !== 1 ? 's' : ''}</Label>
+                                <Label>× {sessionsCount} session{sessionsCount !== 1 ? 's' : ''}</Label>
                                 <span>{INR(totalOriginal)}</span>
                               </div>
                             )}
@@ -3054,10 +3111,10 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                       })()}
 
                       {(() => {
-                        const slotsCount = selectedSlots.length > 0 ? selectedSlots.length : (selectedSlot ? 1 : 0);
-                        const totalOriginal = originalPrice * slotsCount;
-                        const totalDiscount = discount * slotsCount;
-                        const stationFinal = finalPrice * slotsCount;
+                        const sessionsCount = bookingSessionCount;
+                        const totalOriginal = originalPrice * (sessionsCount || 0);
+                        const totalDiscount = discount * (sessionsCount || 0);
+                        const stationFinal = finalPrice * (sessionsCount || 0);
                         const totalFinal = stationFinal + poolAddonTotal;
                         
                         return (
@@ -3066,7 +3123,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                               <>
                                 <div className="border p-2 rounded bg-black/10 text-green-400">
                                   <Label className="font-semibold text-xs uppercase">
-                                    Discount Breakdown (per slot)
+                                    Discount Breakdown (per session)
                                   </Label>
                                   <ul className="list-disc ml-5 mt-1 text-sm">
                                     {Object.entries(discountBreakdown).map(([k, v]) => (
@@ -3076,9 +3133,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                                     ))}
                                   </ul>
                                 </div>
-                                {slotsCount > 1 && (
+                                {sessionsCount > 1 && (
                                   <div className="flex justify-between items-center text-xs text-gray-400">
-                                    <Label>× {slotsCount} slot{slotsCount !== 1 ? 's' : ''}</Label>
+                                    <Label>× {sessionsCount} session{sessionsCount !== 1 ? 's' : ''}</Label>
                                     <span>-{INR(totalDiscount)}</span>
                                   </div>
                                 )}
@@ -3229,7 +3286,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
               Terms & Conditions (Summary)
             </h3>
             <ul className="ml-5 list-disc text-sm text-gray-300 space-y-1.5">
-              <li>Bookings are 1-hour time slots (PS5, Pool &amp; VR). VR allows up to {VR_HOURLY_PASSES} passes per hour; extensions subject to availability.</li>
+              <li>{bookingSlotConfigLabel(slotConfig)} (PS5, Pool &amp; VR). VR allows up to {VR_HOURLY_PASSES} passes per hour; extensions subject to availability.</li>
               <li>Arrive on time; late arrivals may reduce play time without fee adjustment.</li>
               <li>Damage to equipment may incur charges as per in-store policy.</li>
               <li>Management may refuse service in cases of misconduct or safety concerns.</li>
@@ -3767,9 +3824,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           the booking flow so the running total + CTA are always reachable
           without scrolling past the entire form to the summary card. */}
       {(() => {
-        const slotsCount = selectedSlots.length > 0 ? selectedSlots.length : (selectedSlot ? 1 : 0);
-        const totalFinal = finalPrice * slotsCount + poolAddonTotal;
-        const hasProgress = selectedStations.length > 0 && slotsCount > 0;
+        const sessionsCount = bookingSessionCount;
+        const totalFinal = finalPrice * (sessionsCount || 0) + poolAddonTotal;
+        const hasProgress = selectedStations.length > 0 && selectedGridSlots.length > 0;
         if (!viewIsMobile || !hasProgress) return null;
         return (
           <StickyMobileActionBar
@@ -3780,7 +3837,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           >
             <div className="flex-1 min-w-0">
               <div className="text-[10px] uppercase tracking-wider text-white/55 font-semibold">
-                Total · {slotsCount} slot{slotsCount !== 1 ? 's' : ''}
+                Total · {sessionsCount > 0 ? `${sessionsCount} session${sessionsCount !== 1 ? 's' : ''}` : 'select slots'}
               </div>
               <div className="text-base font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">
                 ₹{totalFinal.toLocaleString('en-IN')}

@@ -113,10 +113,40 @@ function hourSlotTimes(hour: number): { start_time: string; end_time: string } {
   return { start_time, end_time };
 }
 
+function minutesToTimeString(totalMinutes: number): string {
+  const wrapped = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60);
+  const h = Math.floor(wrapped / 60);
+  const m = wrapped % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:00`;
+}
+
+function slotTimesFromMinutes(
+  startMinutes: number,
+  intervalMinutes: number,
+): { start_time: string; end_time: string } {
+  const endMinutes = startMinutes + intervalMinutes;
+  return {
+    start_time: minutesToTimeString(startMinutes),
+    end_time: minutesToTimeString(endMinutes),
+  };
+}
+
 function isSlotInPast(hour: number, isToday: boolean): boolean {
   if (!isToday) return false;
   const now = new Date();
   return hour < now.getHours() || (hour === now.getHours() && now.getMinutes() >= 0);
+}
+
+function isSlotStartInPast(startMinutes: number, isToday: boolean): boolean {
+  if (!isToday) return false;
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  return startMinutes <= nowMin;
+}
+
+/** VR pass capacity scales with calendar block length (4 per hour at 60-min grid). */
+export function vrPassesForBlock(intervalMinutes: number): number {
+  return Math.max(1, Math.round(VR_HOURLY_PASSES * (intervalMinutes / 60)));
 }
 
 type BuildSlotsParams = {
@@ -126,11 +156,24 @@ type BuildSlotsParams = {
   bookings: DayOccupancyRow[];
   sessionBlocks: DayOccupancyRow[];
   isToday: boolean;
+  /** Grid step in minutes. Default 60 preserves legacy hourly public booking. */
+  slotIntervalMinutes?: number;
 };
 
 export function buildPublicBookingSlots(params: BuildSlotsParams): PublicTimeSlot[] {
-  const { stations, stationType, selectedStationIds, bookings, sessionBlocks, isToday } =
-    params;
+  const {
+    stations,
+    stationType,
+    selectedStationIds,
+    bookings,
+    sessionBlocks,
+    isToday,
+    slotIntervalMinutes = 60,
+  } = params;
+
+  const interval =
+    slotIntervalMinutes === 30 ? 30 : 60;
+  const vrPasses = vrPassesForBlock(interval);
 
   let pool = stations;
   if (stationType !== 'all') {
@@ -144,10 +187,50 @@ export function buildPublicBookingSlots(params: BuildSlotsParams): PublicTimeSlo
   const occupancy = [...bookings, ...sessionBlocks];
   const slots: PublicTimeSlot[] = [];
 
-  for (let hour = PUBLIC_BOOKING_OPEN_HOUR; hour <= PUBLIC_BOOKING_CLOSE_HOUR; hour++) {
-    const { start_time, end_time } = hourSlotTimes(hour);
+  const openMinutes = PUBLIC_BOOKING_OPEN_HOUR * 60;
+  const closeMinutes = (PUBLIC_BOOKING_CLOSE_HOUR + 1) * 60;
 
-    if (isSlotInPast(hour, isToday)) {
+  if (interval === 60) {
+    for (let hour = PUBLIC_BOOKING_OPEN_HOUR; hour <= PUBLIC_BOOKING_CLOSE_HOUR; hour++) {
+      const { start_time, end_time } = hourSlotTimes(hour);
+
+      if (isSlotInPast(hour, isToday)) {
+        slots.push({ start_time, end_time, is_available: false, status: 'elapsed' });
+        continue;
+      }
+
+      const vrStations = pool.filter((s) => s.type === 'vr');
+      const nonVrStations = pool.filter((s) => s.type !== 'vr');
+
+      let anyAvailable = false;
+
+      for (const station of nonVrStations) {
+        const overlaps = countOverlappingBookings(station.id, start_time, end_time, occupancy);
+        if (overlaps === 0) {
+          anyAvailable = true;
+          break;
+        }
+      }
+
+      for (const station of vrStations) {
+        const overlaps = countOverlappingBookings(station.id, start_time, end_time, occupancy);
+        if (overlaps < vrPasses) anyAvailable = true;
+      }
+
+      slots.push({
+        start_time,
+        end_time,
+        is_available: anyAvailable,
+        status: anyAvailable ? 'available' : 'booked',
+      });
+    }
+    return slots;
+  }
+
+  for (let startMin = openMinutes; startMin < closeMinutes; startMin += interval) {
+    const { start_time, end_time } = slotTimesFromMinutes(startMin, interval);
+
+    if (isSlotStartInPast(startMin, isToday)) {
       slots.push({ start_time, end_time, is_available: false, status: 'elapsed' });
       continue;
     }
@@ -167,7 +250,7 @@ export function buildPublicBookingSlots(params: BuildSlotsParams): PublicTimeSlo
 
     for (const station of vrStations) {
       const overlaps = countOverlappingBookings(station.id, start_time, end_time, occupancy);
-      if (overlaps < VR_HOURLY_PASSES) anyAvailable = true;
+      if (overlaps < vrPasses) anyAvailable = true;
     }
 
     slots.push({
@@ -196,13 +279,6 @@ export function vrPassesLeftForSlot(
     occupancy
   );
   return Math.max(0, VR_HOURLY_PASSES - overlaps);
-}
-
-function minutesToTimeString(totalMinutes: number): string {
-  const wrapped = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60);
-  const h = Math.floor(wrapped / 60);
-  const m = wrapped % 60;
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:00`;
 }
 
 export function stationsAvailableForSlot(
