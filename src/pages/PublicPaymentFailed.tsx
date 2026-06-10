@@ -1,15 +1,33 @@
 // src/pages/PublicPaymentFailed.tsx
 import { Link, useSearchParams } from 'react-router-dom';
-import { AlertCircle, XCircle, RefreshCw, Sparkles } from 'lucide-react';
+import { AlertCircle, XCircle, RefreshCw } from 'lucide-react';
 import { CUETRONIX_ASSETS } from '@/branding/assets';
 import CuephoriaTechAttribution from '@/components/branding/CuephoriaTechAttribution';
+import {
+  resolvePublicBookingReturnPath,
+  returnContextFromSearchParams,
+  type PublicBookingReturnContext,
+} from '@/utils/publicBookingUrl';
+
+function readPendingReturnContext(): PublicBookingReturnContext | null {
+  try {
+    const raw = localStorage.getItem('pendingBooking');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { returnContext?: PublicBookingReturnContext; locationId?: string };
+    if (parsed.returnContext) return parsed.returnContext;
+    if (parsed.locationId) return { locationId: parsed.locationId };
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export default function PublicPaymentFailed() {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get("order_id");
   const error = searchParams.get("error");
-  const profile = searchParams.get("profile");
-  const retryPath = profile === "lite" ? "/lite/public/booking" : "/public/booking";
+  const returnContext = returnContextFromSearchParams(searchParams, readPendingReturnContext());
+  const retryPath = resolvePublicBookingReturnPath(returnContext);
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12] flex items-center justify-center p-6">
@@ -53,7 +71,7 @@ export default function PublicPaymentFailed() {
 
           {/* Main Message */}
           <p className="text-gray-300 mb-6 text-base leading-relaxed">
-            Your payment didn't go through. No booking was created.
+            Your payment didn&apos;t go through. No booking was created.
           </p>
 
           {/* Error Details */}
@@ -83,7 +101,7 @@ export default function PublicPaymentFailed() {
               className="group inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 px-6 py-3 text-white text-sm font-semibold transition-all duration-300 shadow-lg shadow-cuephoria-purple/30 hover:shadow-cuephoria-purple/50 hover:scale-105"
             >
               <RefreshCw className="h-4 w-4 group-hover:rotate-180 transition-transform duration-500" />
-              Try Again
+              Back to booking
             </Link>
           </div>
 
