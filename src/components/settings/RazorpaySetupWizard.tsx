@@ -142,12 +142,10 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
 
   const testMutation = useMutation({
     mutationFn: (args: { keyId: string; keySecret: string; effectiveMode: Mode }) =>
-      fetchJson<{ ok: true; result: { ok: boolean; message: string } }>("/api/admin/payment-config", {
+      fetchJson<{ ok: true; result: { ok: boolean; message: string } }>("/api/razorpay/test-org-credentials", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          action: "test-credentials",
-          provider: "razorpay",
           mode: args.effectiveMode,
           credentials: { key_id: args.keyId, key_secret: args.keySecret },
         }),

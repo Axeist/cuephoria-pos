@@ -140,15 +140,26 @@ export default function PaymentGatewaySettings() {
   });
 
   const actionMutation = useMutation({
-    mutationFn: async (args: { provider: Provider; mode?: Mode; action: "test-credentials" | "webhook-health" }) =>
-      fetchJson<{ ok: true; result?: { ok: boolean; message: string }; webhook?: { configured: boolean; last_event_at: string | null } }>(
+    mutationFn: async (args: { provider: Provider; mode?: Mode; action: "test-credentials" | "webhook-health" }) => {
+      if (args.action === "test-credentials" && args.provider === "razorpay") {
+        return fetchJson<{ ok: true; result?: { ok: boolean; message: string } }>(
+          "/api/razorpay/test-org-credentials",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ mode: args.mode }),
+          },
+        );
+      }
+      return fetchJson<{ ok: true; result?: { ok: boolean; message: string }; webhook?: { configured: boolean; last_event_at: string | null } }>(
         "/api/admin/payment-config",
         {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(args),
         },
-      ),
+      );
+    },
     onSuccess: (payload, args) => {
       if (args.action === "test-credentials") {
         const status = payload.result?.ok ? "Connection successful" : "Connection failed";

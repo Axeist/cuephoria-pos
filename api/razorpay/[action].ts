@@ -39,6 +39,7 @@ import {
 
 import reconcileHandler from "../../src/server/handlers/razorpay/reconcile.js";
 import testCredentialsHandler from "../../src/server/handlers/razorpay/test-credentials.js";
+import testOrgCredentialsHandler from "../../src/server/handlers/razorpay/test-org-credentials.js";
 
 export const config = {
   maxDuration: 30,
@@ -49,8 +50,9 @@ type DispatchEntry =
   | { kind: "edge"; handler: EdgeHandler };
 
 const ROUTES: Record<string, DispatchEntry> = {
-  reconcile:          { kind: "node", handler: reconcileHandler as unknown as NodeHandler },
+  reconcile: { kind: "node", handler: reconcileHandler as unknown as NodeHandler },
   "test-credentials": { kind: "edge", handler: testCredentialsHandler as unknown as EdgeHandler },
+  "test-org-credentials": { kind: "node", handler: testOrgCredentialsHandler as unknown as NodeHandler },
 };
 
 export default async function dispatcher(req: VercelRequest, res: VercelResponse) {

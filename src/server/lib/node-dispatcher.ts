@@ -46,7 +46,7 @@ export function getAction(req: VercelRequest): string {
 }
 
 /** Build a whatwg `Request` object that mirrors the incoming Node request. */
-function toFetchRequest(req: VercelRequest): Request {
+export function toFetchRequest(req: VercelRequest): Request {
   const method = (req.method || "GET").toUpperCase();
 
   const headers = new Headers();
