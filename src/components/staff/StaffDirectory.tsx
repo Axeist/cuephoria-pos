@@ -118,7 +118,10 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {staffProfiles.map((staff) => (
+              {staffProfiles.map((staff) => {
+                const displayName = staff.full_name?.trim() || staff.username;
+                const avatarInitial = displayName.charAt(0).toUpperCase() || '?';
+                return (
                 <Card
                   key={staff.user_id}
                   className={`glass-card border-white/10 ${!staff.is_active && 'opacity-60'}`}
@@ -128,12 +131,15 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
                       <div className="flex items-center gap-3">
                         <div className="h-12 w-12 rounded-full bg-primary/15 flex items-center justify-center">
                           <span className="text-xl font-bold text-primary">
-                            {staff.username?.charAt(0)?.toUpperCase() || '?'}
+                            {avatarInitial}
                           </span>
                         </div>
                         <div>
-                          <p className="font-semibold text-white">{staff.username}</p>
+                          <p className="font-semibold text-white">{displayName}</p>
                           <p className="text-sm text-muted-foreground">{staff.designation}</p>
+                          {staff.username && staff.username !== displayName && (
+                            <p className="text-xs text-muted-foreground/80 mt-0.5">{staff.username}</p>
+                          )}
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-1">
@@ -158,11 +164,6 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
                     </div>
 
                     <div className="space-y-2 text-sm mb-4">
-                      {staff.full_name && staff.full_name !== staff.username && (
-                        <p className="text-muted-foreground">
-                          Full Name: <span className="text-white">{staff.full_name}</span>
-                        </p>
-                      )}
                       {staff.email && (
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Mail className="h-4 w-4" />
@@ -257,7 +258,8 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

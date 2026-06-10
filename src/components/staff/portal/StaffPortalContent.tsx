@@ -24,7 +24,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { resolveStaffHourlyRate, resolveStaffShiftHours } from '@/utils/staffEarnings';
+import { resolveStaffHourlyRate, resolveStaffShiftHours, isStaffSalaryConfigured } from '@/utils/staffEarnings';
 import { clearStaffPortalUnlock } from '@/utils/staffPortalSession';
 
 const StaffPortalContent: React.FC = () => {
@@ -162,14 +162,22 @@ const StaffPortalContent: React.FC = () => {
 
           {/* Real-Time Timer */}
           {currentShift && (
-            <RealTimeTimer
-              clockInTime={currentShift.clock_in}
-              breakStartTime={currentShift.break_start_time}
-              breakDuration={currentShift.break_duration_minutes || 0}
-              hourlyRate={resolveStaffHourlyRate(selectedStaff ?? {})}
-              maxPaidHours={resolveStaffShiftHours(selectedStaff ?? {})}
-              isOnBreak={isOnBreak}
-            />
+            <>
+              {!isStaffSalaryConfigured(selectedStaff ?? {}) && (
+                <p className="text-sm text-amber-400/90 mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                  Monthly salary is not set on your profile, so earnings stay at ₹0. Ask your manager to
+                  set it in Staff → Directory → Edit.
+                </p>
+              )}
+              <RealTimeTimer
+                clockInTime={currentShift.clock_in}
+                breakStartTime={currentShift.break_start_time}
+                breakDuration={currentShift.break_duration_minutes || 0}
+                hourlyRate={resolveStaffHourlyRate(selectedStaff ?? {})}
+                maxPaidHours={resolveStaffShiftHours(selectedStaff ?? {})}
+                isOnBreak={isOnBreak}
+              />
+            </>
           )}
         </CardContent>
       </Card>

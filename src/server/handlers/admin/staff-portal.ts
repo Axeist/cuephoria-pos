@@ -8,10 +8,25 @@ import { portalPinsMatch } from "../../staffPortalPin";
 import { supabaseServiceClient } from "../../supabaseServer";
 import { resolveOrgContext } from "../../orgContext";
 import { assertEntitlement } from "../../lib/entitlements.js";
+import { resolveStaffHourlyRate } from "../../../utils/staffEarnings.js";
 
 export const config = { runtime: "edge" };
 
 function profilePayload(row: Record<string, unknown>) {
+  const monthlySalary = Number(row.monthly_salary ?? 0);
+  const shiftStart = (row.shift_start_time as string | null) ?? null;
+  const shiftEnd = (row.shift_end_time as string | null) ?? null;
+  const defaultShiftHours =
+    row.default_shift_hours != null ? Number(row.default_shift_hours) : null;
+
+  const payFields = {
+    hourly_rate: row.hourly_rate,
+    monthly_salary: monthlySalary,
+    shift_start_time: shiftStart,
+    shift_end_time: shiftEnd,
+    default_shift_hours: defaultShiftHours,
+  };
+
   return {
     userId: row.user_id,
     username: row.username,
@@ -19,11 +34,11 @@ function profilePayload(row: Record<string, unknown>) {
     designation: row.designation ?? null,
     email: row.email ?? null,
     locationId: row.location_id ?? null,
-    hourlyRate: row.hourly_rate ?? 0,
-    monthlySalary: row.monthly_salary ?? 0,
-    shiftStartTime: row.shift_start_time ?? null,
-    shiftEndTime: row.shift_end_time ?? null,
-    defaultShiftHours: row.default_shift_hours ?? null,
+    hourlyRate: resolveStaffHourlyRate(payFields),
+    monthlySalary,
+    shiftStartTime: shiftStart,
+    shiftEndTime: shiftEnd,
+    defaultShiftHours,
     isActive: row.is_active !== false,
   };
 }

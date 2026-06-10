@@ -1,5 +1,27 @@
 /** Derive shift length and hourly rate from staff profile (matches payroll trigger logic). */
 
+type StaffPayFields = {
+  hourly_rate?: number | null;
+  hourlyRate?: number | null;
+  monthly_salary?: number | null;
+  monthlySalary?: number | null;
+  shift_start_time?: string | null;
+  shiftStartTime?: string | null;
+  shift_end_time?: string | null;
+  shiftEndTime?: string | null;
+  default_shift_hours?: number | null;
+  defaultShiftHours?: number | null;
+};
+
+function pickNumber(...values: unknown[]): number {
+  for (const value of values) {
+    if (value === null || value === undefined || value === '') continue;
+    const n = Number(value);
+    if (!Number.isNaN(n)) return n;
+  }
+  return 0;
+}
+
 export function shiftHoursFromTimes(
   start?: string | null,
   end?: string | null,
@@ -15,24 +37,23 @@ export function shiftHoursFromTimes(
 }
 
 export function resolveStaffHourlyRate(
-  staff: {
-    hourly_rate?: number | null;
-    monthly_salary?: number | null;
-    shift_start_time?: string | null;
-    shift_end_time?: string | null;
-    default_shift_hours?: number | null;
-  },
+  staff: StaffPayFields,
   referenceDate = new Date(),
 ): number {
-  const stored = Number(staff.hourly_rate);
+  const stored = pickNumber(staff.hourly_rate, staff.hourlyRate);
   if (stored > 0) return stored;
 
-  const monthlySalary = Number(staff.monthly_salary);
-  if (!monthlySalary || monthlySalary <= 0) return 0;
+  const monthlySalary = pickNumber(staff.monthly_salary, staff.monthlySalary);
+  if (monthlySalary <= 0) return 0;
 
   const shiftHours =
-    Number(staff.default_shift_hours) ||
-    shiftHoursFromTimes(staff.shift_start_time, staff.shift_end_time);
+    pickNumber(staff.default_shift_hours, staff.defaultShiftHours) ||
+    shiftHoursFromTimes(
+      staff.shift_start_time ?? staff.shiftStartTime,
+      staff.shift_end_time ?? staff.shiftEndTime,
+    );
+  if (shiftHours <= 0) return 0;
+
   const daysInMonth = new Date(
     referenceDate.getFullYear(),
     referenceDate.getMonth() + 1,
@@ -42,13 +63,16 @@ export function resolveStaffHourlyRate(
   return monthlySalary / daysInMonth / shiftHours;
 }
 
-export function resolveStaffShiftHours(staff: {
-  default_shift_hours?: number | null;
-  shift_start_time?: string | null;
-  shift_end_time?: string | null;
-}): number {
+export function resolveStaffShiftHours(staff: StaffPayFields): number {
   return (
-    Number(staff.default_shift_hours) ||
-    shiftHoursFromTimes(staff.shift_start_time, staff.shift_end_time)
+    pickNumber(staff.default_shift_hours, staff.defaultShiftHours) ||
+    shiftHoursFromTimes(
+      staff.shift_start_time ?? staff.shiftStartTime,
+      staff.shift_end_time ?? staff.shiftEndTime,
+    )
   );
+}
+
+export function isStaffSalaryConfigured(staff: StaffPayFields): boolean {
+  return resolveStaffHourlyRate(staff) > 0;
 }

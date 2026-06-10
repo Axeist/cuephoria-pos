@@ -165,6 +165,38 @@ export function useStaffPortal() {
     
     setIsLoading(true);
     try {
+      // Refresh pay fields from server so live earnings reflect latest salary
+      let staffSnapshot = selectedStaff;
+      try {
+        const res = await fetch('/api/admin/staff-portal', { method: 'GET', credentials: 'same-origin' });
+        const json = await res.json();
+        if (json?.ok && json.hasProfile && json.profile) {
+          staffSnapshot = mapPortalProfileToStaff(json.profile);
+          setSelectedStaff(staffSnapshot);
+        }
+      } catch {
+        /* keep cached profile */
+      }
+
+      const hourlyRate = resolveStaffHourlyRate(staffSnapshot);
+      if (hourlyRate > 0) {
+        const { data: zeroEarnings } = await supabase
+          .from('staff_attendance')
+          .select('id, clock_out')
+          .eq('staff_id', staffSnapshot.user_id)
+          .not('clock_out', 'is', null)
+          .or('daily_earnings.is.null,daily_earnings.eq.0')
+          .limit(20);
+
+        for (const row of zeroEarnings ?? []) {
+          if (!row.clock_out) continue;
+          await supabase
+            .from('staff_attendance')
+            .update({ clock_out: row.clock_out })
+            .eq('id', row.id);
+        }
+      }
+
       // Any open shift (including stale shifts from prior days)
       const { data: shift } = await supabase
         .from('staff_attendance')
