@@ -70,6 +70,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import PaymentProviderBrand from "@/components/settings/PaymentProviderBrand";
+import { PLAN_MARKETING, PLAN_FEATURE_MATRIX, yearlySavingsPercent } from "@/billing/planCatalog";
+import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Types mirroring /api/tenant/billing response shapes
@@ -1049,8 +1051,8 @@ export default function Billing() {
                 {internal
                   ? "This workspace is invoiced internally — no Razorpay charges happen here."
                   : isSandbox
-                    ? "Demo workspace — switch Starter, Growth, or Pro to preview what each tier unlocks."
-                    : "Manage your Cuephoria POS plan, payment cycle, and invoices. Secure recurring mandates are powered by Razorpay; your card stays on file across cycles."}
+                    ? "Demo workspace — switch Starter, Growth, or Pro to preview tier restrictions live."
+                    : "Pick the plan that matches your venue. Pro unlocks multi-branch, HR, and advanced analytics — most scaling lounges choose it."}
               </p>
             </div>
 
@@ -1091,7 +1093,8 @@ export default function Billing() {
         )}
 
         {/* CURRENT SUB + PLAN PICKER */}
-        <div className="grid gap-6 lg:grid-cols-5">
+        <div className="space-y-8">
+          <div className="grid gap-6 lg:grid-cols-5">
           {/* Current subscription */}
           <section className="glass-card lg:col-span-2 p-6 space-y-5">
             <div className="flex items-start justify-between gap-3">
@@ -1459,9 +1462,16 @@ export default function Billing() {
                 Internal tenancy — no self-serve billing here.
               </p>
             ) : (
-              <div className="grid sm:grid-cols-3 gap-3">
-                {visiblePlans.map((plan) => {
+              <div className="grid gap-4 lg:grid-cols-3 lg:items-stretch">
+                {visiblePlans
+                  .filter((p) => p.code === "starter" || p.code === "growth" || p.code === "pro")
+                  .sort((a, b) => a.sort_order - b.sort_order)
+                  .map((plan) => {
                   const planTier = plan.code as PlanTier;
+                  const marketing =
+                    plan.code === "starter" || plan.code === "growth" || plan.code === "pro"
+                      ? PLAN_MARKETING[plan.code]
+                      : null;
                   const price = cycle === "year" ? plan.price_inr_year : plan.price_inr_month;
                   const rzpId =
                     cycle === "year" ? plan.razorpay_plan_id_year : plan.razorpay_plan_id_month;
@@ -1472,10 +1482,15 @@ export default function Billing() {
                       (subscription?.billing_cycle ?? subscription?.interval) === cycle &&
                       isReusable;
                   const isPending =
-                    (createM.isPending || upgradeM.isPending || sandboxSwitchM.isPending) && pendingTier === planTier;
-                  const isMostPopular = plan.code === "growth";
+                    (createM.isPending || upgradeM.isPending || sandboxSwitchM.isPending) &&
+                    pendingTier === planTier;
+                  const isFeatured = marketing?.highlight === true;
+                  const savings =
+                    cycle === "year"
+                      ? yearlySavingsPercent(plan.price_inr_month, plan.price_inr_year)
+                      : null;
 
-                  const buttonLabel = isSandbox
+                  const defaultButtonLabel = isSandbox
                     ? isCurrent
                       ? "Current demo plan"
                       : "Switch demo plan"
@@ -1487,10 +1502,15 @@ export default function Billing() {
                         ? "Current plan"
                         : "Switch plan";
 
+                  const buttonLabel =
+                    !isCurrent && marketing?.ctaLabel && (defaultButtonLabel === "Subscribe" || defaultButtonLabel === "Switch plan")
+                      ? marketing.ctaLabel
+                      : defaultButtonLabel;
+
                   const ButtonIcon =
                     buttonLabel === "Renew"
                       ? RotateCw
-                      : buttonLabel === "Switch plan"
+                      : buttonLabel.includes("Switch") || buttonLabel.includes("Go Pro")
                         ? ArrowRight
                         : isCurrent
                           ? Check
@@ -1500,113 +1520,146 @@ export default function Billing() {
                     plan.code === "test"
                       ? FlaskConical
                       : plan.code === "starter"
-                      ? Zap
-                      : plan.code === "growth"
-                        ? TrendingUp
-                        : Crown;
+                        ? Zap
+                        : plan.code === "growth"
+                          ? TrendingUp
+                          : Crown;
 
                   return (
                     <div
                       key={plan.id}
-                      className={`relative rounded-2xl border p-5 flex flex-col transition-all duration-200 ${
+                      className={cn(
+                        "relative rounded-2xl border p-5 sm:p-6 flex flex-col transition-all duration-300",
+                        isFeatured && "lg:scale-[1.04] lg:-my-1 z-10 shadow-[0_28px_80px_-32px_color-mix(in_oklab,var(--brand-accent-hex)_55%,transparent)]",
                         isCurrent
-                          ? "border-transparent ring-1"
-                          : isMostPopular
-                            ? "border-white/15 hover:border-white/30 hover:-translate-y-0.5"
-                            : "border-white/10 hover:border-white/20 hover:-translate-y-0.5"
-                      }`}
+                          ? "ring-1"
+                          : isFeatured
+                            ? "border-[color:var(--brand-accent-hex)]/50 hover:border-[color:var(--brand-accent-hex)]/70"
+                            : "border-white/10 hover:border-white/25 hover:-translate-y-0.5",
+                      )}
                       style={
                         isCurrent
                           ? {
                               background:
-                                'linear-gradient(160deg, color-mix(in oklab, var(--brand-primary-hex) 22%, rgba(255,255,255,0.04)) 0%, color-mix(in oklab, var(--brand-primary-hex) 8%, rgba(255,255,255,0.015)) 60%, rgba(5,3,14,0.85) 100%)',
+                                "linear-gradient(160deg, color-mix(in oklab, var(--brand-primary-hex) 22%, rgba(255,255,255,0.04)) 0%, color-mix(in oklab, var(--brand-primary-hex) 8%, rgba(255,255,255,0.015)) 60%, rgba(5,3,14,0.85) 100%)",
                               boxShadow:
-                                '0 22px 60px -28px color-mix(in oklab, var(--brand-primary-hex) 60%, rgba(0,0,0,0.6)), inset 0 1px 0 rgba(255,255,255,0.08)',
-                              borderColor:
-                                'color-mix(in oklab, var(--brand-primary-hex) 55%, transparent)',
+                                "0 22px 60px -28px color-mix(in oklab, var(--brand-primary-hex) 60%, rgba(0,0,0,0.6)), inset 0 1px 0 rgba(255,255,255,0.08)",
+                              borderColor: "color-mix(in oklab, var(--brand-primary-hex) 55%, transparent)",
                             }
-                          : isMostPopular
+                          : isFeatured
                             ? {
                                 background:
-                                  'linear-gradient(170deg, color-mix(in oklab, var(--brand-accent-hex) 12%, rgba(255,255,255,0.03)) 0%, rgba(6,4,14,0.72) 100%)',
+                                  "linear-gradient(165deg, color-mix(in oklab, var(--brand-accent-hex) 18%, rgba(255,255,255,0.05)) 0%, color-mix(in oklab, var(--brand-primary-hex) 10%, rgba(6,4,14,0.75)) 45%, rgba(4,2,12,0.92) 100%)",
                               }
                             : {
                                 background:
-                                  'linear-gradient(180deg, rgba(255,255,255,0.025) 0%, rgba(6,4,14,0.55) 100%)',
+                                  "linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(6,4,14,0.55) 100%)",
                               }
                       }
                     >
-                      {plan.code === "test" && !isCurrent && (
-                        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-500 text-zinc-950 shadow">
-                          Test billing
-                        </div>
-                      )}
-                      {isMostPopular && !isCurrent && plan.code !== "test" && (
+                      {marketing?.badge && !isCurrent && (
                         <div
-                          className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider shadow"
-                          style={{
-                            background:
-                              'linear-gradient(90deg, var(--brand-primary-hex), var(--brand-accent-hex))',
-                            color: '#fff',
-                          }}
+                          className={cn(
+                            "absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider shadow-lg whitespace-nowrap",
+                            isFeatured ? "text-zinc-950" : "text-white",
+                          )}
+                          style={
+                            isFeatured
+                              ? {
+                                  background:
+                                    "linear-gradient(90deg, var(--brand-accent-hex), color-mix(in oklab, var(--brand-primary-hex) 70%, white))",
+                                }
+                              : {
+                                  background:
+                                    "linear-gradient(90deg, var(--brand-primary-hex), var(--brand-accent-hex))",
+                                }
+                          }
                         >
-                          Most popular
+                          {marketing.badge}
                         </div>
                       )}
                       {isCurrent && (
-                        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500 text-zinc-950 shadow">
-                          Current
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500 text-zinc-950 shadow">
+                          Current plan
                         </div>
                       )}
 
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="h-8 w-8 rounded-lg grid place-items-center"
-                          style={{
-                            background:
-                              'linear-gradient(135deg, color-mix(in oklab, var(--brand-primary-hex) 30%, transparent), color-mix(in oklab, var(--brand-accent-hex) 20%, transparent))',
-                            border:
-                              '1px solid color-mix(in oklab, var(--brand-primary-hex) 35%, transparent)',
-                          }}
-                        >
-                          <PlanIcon className="h-4 w-4 text-white" />
-                        </div>
-                        <div>
-                          <div className="text-[10px] uppercase font-bold tracking-[0.16em] text-white/55">
-                            {plan.code}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={cn(
+                              "h-10 w-10 rounded-xl grid place-items-center shrink-0",
+                              isFeatured && "shadow-[0_8px_24px_-8px_var(--brand-accent-hex)]",
+                            )}
+                            style={{
+                              background: isFeatured
+                                ? "linear-gradient(135deg, var(--brand-accent-hex), var(--brand-primary-hex))"
+                                : "linear-gradient(135deg, color-mix(in oklab, var(--brand-primary-hex) 30%, transparent), color-mix(in oklab, var(--brand-accent-hex) 20%, transparent))",
+                              border: "1px solid color-mix(in oklab, var(--brand-primary-hex) 35%, transparent)",
+                            }}
+                          >
+                            <PlanIcon className="h-5 w-5 text-white" />
                           </div>
-                          <div className="font-bold text-base text-white">{plan.name}</div>
+                          <div>
+                            <div className="font-bold text-lg text-white leading-tight">{plan.name}</div>
+                            {marketing?.tagline && (
+                              <p className="text-[11px] text-white/55 mt-0.5 max-w-[14rem] leading-snug">
+                                {marketing.tagline}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
 
                       <div className="mt-5">
                         <div className="flex items-baseline gap-1">
-                          <span className="text-3xl font-extrabold tracking-tight">
+                          <span className="text-3xl sm:text-4xl font-extrabold tracking-tight">
                             {formatINR(price)}
                           </span>
                           <span className="text-xs text-white/55 font-medium">
                             /{cycle === "month" ? "mo" : "yr"}
                           </span>
                         </div>
-                        <div className="text-[11px] text-white/45 mt-1">
-                          GST as applicable · auto-renew via Razorpay
+                        <div className="text-[11px] text-white/45 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                          <span>GST as applicable</span>
+                          {savings != null && cycle === "year" && (
+                            <span className="text-emerald-300/90 font-semibold">Save {savings}% vs monthly</span>
+                          )}
                         </div>
                       </div>
 
+                      {marketing && (
+                        <ul className="mt-5 space-y-2 flex-1">
+                          {marketing.features.map((feat) => (
+                            <li key={feat} className="flex items-start gap-2 text-[11px] sm:text-xs text-white/80 leading-snug">
+                              <Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-emerald-400" />
+                              <span>{feat}</span>
+                            </li>
+                          ))}
+                          {marketing.missing?.map((feat) => (
+                            <li key={feat} className="flex items-start gap-2 text-[11px] text-white/35 leading-snug">
+                              <X className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                              <span>{feat}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
                       {!mapped && (
                         <Badge className="mt-3 w-fit bg-rose-900/60 text-[10px] border border-rose-700/60">
-                          Map plan_XXXX in platform
+                          Map plan in platform admin
                         </Badge>
                       )}
 
-                      <div className="flex-1" />
-
                       <Button
-                        className={`w-full mt-5 font-semibold ${
+                        className={cn(
+                          "w-full mt-5 font-semibold h-11",
                           isCurrent
-                            ? 'bg-white/10 hover:bg-white/15 text-white'
-                            : 'btn-gradient text-white'
-                        }`}
+                            ? "bg-white/10 hover:bg-white/15 text-white"
+                            : isFeatured
+                              ? "btn-gradient text-white shadow-[0_12px_32px_-12px_var(--brand-accent-hex)]"
+                              : "btn-gradient text-white",
+                        )}
                         disabled={!canEdit || isPending || !mapped || isCurrent}
                         onClick={() => handlePlanClick(planTier)}
                       >
@@ -1617,9 +1670,14 @@ export default function Billing() {
                         )}
                         {buttonLabel}
                       </Button>
+                      {isFeatured && !isCurrent && (
+                        <p className="mt-2 text-[10px] text-center text-white/50">
+                          Most venues outgrow Growth — Pro unlocks HR & multi-branch
+                        </p>
+                      )}
                       {isCurrent && (
                         <div className="mt-2 text-[10px] text-center text-emerald-300 flex items-center justify-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" /> On file for renewals
+                          <CheckCircle2 className="h-3 w-3" /> Active for renewals
                         </div>
                       )}
                     </div>
@@ -1628,6 +1686,11 @@ export default function Billing() {
               </div>
             )}
           </section>
+          </div>
+
+          {!internal && !isSandbox && visiblePlans.some((p) => ["starter", "growth", "pro"].includes(p.code)) && (
+            <PlanFeatureComparison />
+          )}
         </div>
 
         {/* INVOICES */}
@@ -1843,6 +1906,74 @@ export default function Billing() {
 // ---------------------------------------------------------------------------
 // Small subcomponents
 // ---------------------------------------------------------------------------
+
+function PlanFeatureComparison() {
+  return (
+    <section className="glass-card overflow-hidden">
+      <div className="px-5 sm:px-6 py-4 border-b border-white/10">
+        <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-white/45">
+          Compare plans
+        </div>
+        <p className="text-xs text-white/55 mt-1">
+          Full feature breakdown — Pro is built for venues scaling beyond a single floor.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
+          <thead>
+            <tr className="border-b border-white/10 bg-white/[0.02]">
+              <th className="text-left py-3 pl-5 pr-3 text-[10px] uppercase tracking-wider text-white/40 font-semibold w-[38%]">
+                Feature
+              </th>
+              <th className="py-3 px-3 text-center text-[10px] uppercase tracking-wider text-white/40 font-semibold">
+                Starter
+              </th>
+              <th className="py-3 px-3 text-center text-[10px] uppercase tracking-wider text-white/40 font-semibold">
+                Growth
+              </th>
+              <th
+                className="py-3 pr-5 pl-3 text-center text-[10px] uppercase tracking-wider font-bold"
+                style={{ color: "var(--brand-accent-hex)" }}
+              >
+                Pro ★
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {PLAN_FEATURE_MATRIX.map((row) => (
+              <tr key={row.label} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                <td className="py-2.5 pl-5 pr-3 text-white/80 text-xs">{row.label}</td>
+                {(["starter", "growth", "pro"] as const).map((tier) => {
+                  const val = row[tier];
+                  const isPro = tier === "pro";
+                  return (
+                    <td
+                      key={tier}
+                      className={cn(
+                        "py-2.5 px-3 text-center text-xs",
+                        isPro && "bg-[color:var(--brand-accent-hex)]/[0.06]",
+                      )}
+                    >
+                      {typeof val === "boolean" ? (
+                        val ? (
+                          <Check className={cn("h-4 w-4 mx-auto", isPro ? "text-emerald-300" : "text-emerald-400/80")} />
+                        ) : (
+                          <X className="h-4 w-4 mx-auto text-white/20" />
+                        )
+                      ) : (
+                        <span className={cn("font-medium", isPro ? "text-white" : "text-white/70")}>{val}</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
 
 function Stat({
   label,

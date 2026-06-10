@@ -1,16 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, Trash2, Save, Ticket, Loader2, MapPin } from 'lucide-react';
+import { Plus, Trash2, Save, Ticket, Loader2, MapPin, ExternalLink, Megaphone, Layers } from 'lucide-react';
 import { useLocation } from '@/context/LocationContext';
 import { useAuth } from '@/context/AuthContext';
+import { buildPublicBookingUrl } from '@/utils/publicBookingUrl';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 import PublicBookingPopupsSettings from '@/components/settings/PublicBookingPopupsSettings';
 import PoolBookingAddonsSettings from '@/components/settings/PoolBookingAddonsSettings';
 
@@ -30,6 +39,8 @@ const BookingSettings = () => {
   const [saving, setSaving] = useState(false);
   const [togglingCode, setTogglingCode] = useState<string | null>(null);
   const { activeLocationId, activeLocation } = useLocation();
+  
+  const [addOpen, setAddOpen] = useState(false);
   
   // Coupons state
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -142,10 +153,11 @@ const BookingSettings = () => {
       discount_value: 0,
       enabled: true
     });
+    setAddOpen(false);
 
     toast({
-      title: 'Coupon Added',
-      description: 'Remember to click Save Changes to apply'
+      title: 'Coupon added',
+      description: 'Click Save changes to publish on the booking page',
     });
   };
 
@@ -189,6 +201,10 @@ const BookingSettings = () => {
     ));
   };
 
+  const publicBookingUrl = activeLocation
+    ? buildPublicBookingUrl({ branchSlug: activeLocation.slug, locationId: activeLocationId })
+    : null;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -198,213 +214,228 @@ const BookingSettings = () => {
   }
 
   return (
-    <div className="space-y-8 -mt-2">
-      <Card className="border-border/60 bg-background/40">
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <Ticket className="h-5 w-5 text-cuephoria-lightpurple" />
-              <CardTitle>Coupon Codes</CardTitle>
-            </div>
-            {activeLocation && (
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+    <div className="space-y-6 -mt-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-border/60 bg-muted/10 px-4 py-3">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          {activeLocation && (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border',
                 activeLocation.slug === 'lite'
                   ? 'bg-cyan-500/15 border-cyan-400/30 text-cyan-300'
-                  : 'bg-purple-500/15 border-purple-400/30 text-purple-300'
-              }`}>
-                <MapPin className="h-3 w-3" />
-                {activeLocation.name}
-              </span>
-            )}
-          </div>
-          <CardDescription>
-            Manage coupon codes for <strong>{activeLocation?.name ?? 'this branch'}</strong>.
-            Toggling a coupon saves immediately. Changes only affect this branch.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Existing Coupons */}
-          <div className="space-y-3">
-            <Label className="text-base font-semibold">Active Coupons</Label>
-            {coupons.length === 0 ? (
-              <p className="text-sm text-gray-400">No coupons configured yet</p>
-            ) : (
-              <div className="space-y-3">
-                {coupons.map((coupon) => (
-                  <div key={coupon.code} className="flex items-start gap-3 p-4 rounded-xl border border-border/60 bg-muted/20">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="font-mono">
-                          {coupon.code}
-                        </Badge>
-                        <Badge variant={coupon.enabled ? 'default' : 'secondary'}>
-                          {coupon.enabled ? 'Enabled' : 'Disabled'}
-                        </Badge>
-                      </div>
-                      
-                      <Input
-                        value={coupon.description}
-                        onChange={(e) => updateCoupon(coupon.code, 'description', e.target.value)}
-                        placeholder="Coupon description"
-                        className="bg-background/60 border-border/60 h-9"
-                      />
-                      
-                      <div className="flex gap-2">
-                        <div className="flex-1">
-                          <Label className="text-xs text-gray-400">Type</Label>
-                          <select
-                            value={coupon.discount_type}
-                            onChange={(e) => updateCoupon(coupon.code, 'discount_type', e.target.value)}
-                            className="w-full h-9 px-3 bg-background/60 border border-border/60 rounded-md text-sm"
-                          >
-                            <option value="percentage">Percentage</option>
-                            <option value="fixed">Fixed Amount</option>
-                          </select>
-                        </div>
-                        <div className="flex-1">
-                          <Label className="text-xs text-gray-400">
-                            Value ({coupon.discount_type === 'percentage' ? '%' : '₹'})
-                          </Label>
-                          <Input
-                            type="number"
-                            value={coupon.discount_value}
-                            onChange={(e) => updateCoupon(coupon.code, 'discount_value', parseFloat(e.target.value) || 0)}
-                            className="bg-background/60 border-border/60 h-9"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-col gap-2 items-center">
-                      {togglingCode === coupon.code ? (
-                        <Loader2 className="h-5 w-5 animate-spin text-cuephoria-lightpurple" />
-                      ) : (
-                        <Switch
-                          checked={coupon.enabled}
-                          onCheckedChange={() => toggleCoupon(coupon.code)}
-                          disabled={!!togglingCode}
-                        />
-                      )}
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => removeCoupon(coupon.code)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <Separator />
-
-          {/* Add New Coupon */}
-          <div className="space-y-3">
-            <Label className="text-base font-semibold">Add New Coupon</Label>
-            <div className="space-y-3 p-4 rounded-xl border border-border/50 bg-muted/10">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="newCode">Coupon Code *</Label>
-                  <Input
-                    id="newCode"
-                    value={newCoupon.code}
-                    onChange={(e) => setNewCoupon({...newCoupon, code: e.target.value.toUpperCase()})}
-                    placeholder="e.g., SUMMER50"
-                    className="bg-background/60 border-border/60 font-mono"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="newValue">
-                    Discount Value * ({newCoupon.discount_type === 'percentage' ? '%' : '₹'})
-                  </Label>
-                  <Input
-                    id="newValue"
-                    type="number"
-                    value={newCoupon.discount_value}
-                    onChange={(e) => setNewCoupon({...newCoupon, discount_value: parseFloat(e.target.value) || 0})}
-                    placeholder="e.g., 20"
-                    className="bg-background/60 border-border/60"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="newDescription">Description</Label>
-                <Input
-                  id="newDescription"
-                  value={newCoupon.description}
-                  onChange={(e) => setNewCoupon({...newCoupon, description: e.target.value})}
-                  placeholder="e.g., Summer special discount"
-                  className="bg-gray-900/60 border-gray-600/60"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="newType">Discount Type</Label>
-                <select
-                  id="newType"
-                  value={newCoupon.discount_type}
-                  onChange={(e) => setNewCoupon({...newCoupon, discount_type: e.target.value as 'percentage' | 'fixed'})}
-                  className="w-full h-10 px-3 bg-background/60 border border-border/60 rounded-md"
-                >
-                  <option value="percentage">Percentage Discount</option>
-                  <option value="fixed">Fixed Amount Discount</option>
-                </select>
-              </div>
-
-              <Button 
-                onClick={addCoupon}
-                variant="outline"
-                className="w-full"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Coupon
-              </Button>
-            </div>
-          </div>
-
-          <Button 
-            onClick={saveCoupons}
-            disabled={saving}
-            className="w-full"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Save All Coupon Changes
-              </>
-            )}
+                  : 'bg-purple-500/15 border-purple-400/30 text-purple-300',
+              )}
+            >
+              <MapPin className="h-3 w-3" />
+              {activeLocation.name}
+            </span>
+          )}
+          <span>{coupons.length} coupon{coupons.length === 1 ? '' : 's'}</span>
+        </div>
+        {publicBookingUrl && (
+          <Button variant="outline" size="sm" className="gap-1.5" asChild>
+            <a href={publicBookingUrl} target="_blank" rel="noreferrer">
+              <ExternalLink className="h-3.5 w-3.5" />
+              View booking page
+            </a>
           </Button>
-        </CardContent>
-      </Card>
+        )}
+      </div>
 
-      <Separator />
+      {/* Coupons */}
+      <section className="rounded-2xl border border-border/60 bg-background/40 overflow-hidden">
+        <div className="flex items-start justify-between gap-3 border-b border-border/50 px-4 py-4 sm:px-5">
+          <div>
+            <div className="flex items-center gap-2">
+              <Ticket className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold">Coupon codes</h3>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Toggle saves instantly. Edit values then save changes to publish.
+            </p>
+          </div>
+          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-1.5 shrink-0">
+                <Plus className="h-3.5 w-3.5" />
+                Add coupon
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>New coupon</DialogTitle>
+                <DialogDescription>Shown on your public booking page for this branch.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="newCode">Code</Label>
+                    <Input
+                      id="newCode"
+                      value={newCoupon.code}
+                      onChange={(e) => setNewCoupon({ ...newCoupon, code: e.target.value.toUpperCase() })}
+                      placeholder="SUMMER50"
+                      className="font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="newValue">
+                      Value ({newCoupon.discount_type === 'percentage' ? '%' : '₹'})
+                    </Label>
+                    <Input
+                      id="newValue"
+                      type="number"
+                      value={newCoupon.discount_value}
+                      onChange={(e) =>
+                        setNewCoupon({ ...newCoupon, discount_value: parseFloat(e.target.value) || 0 })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="newDescription">Description</Label>
+                  <Input
+                    id="newDescription"
+                    value={newCoupon.description}
+                    onChange={(e) => setNewCoupon({ ...newCoupon, description: e.target.value })}
+                    placeholder="Summer special"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="newType">Type</Label>
+                  <select
+                    id="newType"
+                    value={newCoupon.discount_type}
+                    onChange={(e) =>
+                      setNewCoupon({
+                        ...newCoupon,
+                        discount_type: e.target.value as 'percentage' | 'fixed',
+                      })
+                    }
+                    className="w-full h-10 px-3 bg-background border border-border rounded-md text-sm"
+                  >
+                    <option value="percentage">Percentage</option>
+                    <option value="fixed">Fixed amount (₹)</option>
+                  </select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAddOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={addCoupon}>Add</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
 
-      <PoolBookingAddonsSettings />
+        <div className="p-4 sm:p-5 space-y-2">
+          {coupons.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">No coupons for this branch yet.</p>
+          ) : (
+            coupons.map((coupon) => (
+              <div
+                key={coupon.code}
+                className="flex items-center gap-3 rounded-xl border border-border/50 bg-muted/10 px-3 py-2.5"
+              >
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="font-mono text-xs">
+                      {coupon.code}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {coupon.discount_type === 'percentage'
+                        ? `${coupon.discount_value}% off`
+                        : `₹${coupon.discount_value} off`}
+                    </span>
+                  </div>
+                  <Input
+                    value={coupon.description}
+                    onChange={(e) => updateCoupon(coupon.code, 'description', e.target.value)}
+                    placeholder="Description"
+                    className="h-8 text-sm bg-background/60"
+                  />
+                  <div className="grid grid-cols-2 gap-2 max-w-xs">
+                    <select
+                      value={coupon.discount_type}
+                      onChange={(e) => updateCoupon(coupon.code, 'discount_type', e.target.value)}
+                      className="h-8 px-2 bg-background border border-border rounded-md text-xs"
+                    >
+                      <option value="percentage">%</option>
+                      <option value="fixed">₹ fixed</option>
+                    </select>
+                    <Input
+                      type="number"
+                      value={coupon.discount_value}
+                      onChange={(e) =>
+                        updateCoupon(coupon.code, 'discount_value', parseFloat(e.target.value) || 0)
+                      }
+                      className="h-8 text-sm bg-background/60"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col items-center gap-2 shrink-0">
+                  {togglingCode === coupon.code ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Switch
+                      checked={coupon.enabled}
+                      onCheckedChange={() => toggleCoupon(coupon.code)}
+                      disabled={!!togglingCode}
+                    />
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-destructive"
+                    onClick={() => removeCoupon(coupon.code)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {coupons.length > 0 && (
+          <div className="border-t border-border/50 px-4 py-3 sm:px-5 flex justify-end">
+            <Button size="sm" onClick={saveCoupons} disabled={saving} className="gap-1.5">
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Save changes
+            </Button>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-border/60 bg-background/40 overflow-hidden">
+        <div className="border-b border-border/50 px-4 py-4 sm:px-5">
+          <div className="flex items-center gap-2">
+            <Layers className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold">Pool add-ons</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">Extra options customers can add when booking pool tables.</p>
+        </div>
+        <div className="p-4 sm:p-5">
+          <PoolBookingAddonsSettings />
+        </div>
+      </section>
 
       {isAdmin && (
-        <>
-          <Separator />
-          <Card className="border-border/60 bg-background/40">
-            <CardHeader>
-              <CardTitle className="text-base">Promotional popups</CardTitle>
-              <CardDescription>
-                Timed coupon promos, pay-online nudge, and Instagram follow gate on the public booking page.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <PublicBookingPopupsSettings />
-            </CardContent>
-          </Card>
-        </>
+        <section className="rounded-2xl border border-border/60 bg-background/40 overflow-hidden">
+          <div className="border-b border-border/50 px-4 py-4 sm:px-5">
+            <div className="flex items-center gap-2">
+              <Megaphone className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold">Promotional popups</h3>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Timed promos, pay-online nudge, and Instagram follow gate on booking.
+            </p>
+          </div>
+          <div className="p-4 sm:p-5">
+            <PublicBookingPopupsSettings />
+          </div>
+        </section>
       )}
     </div>
   );

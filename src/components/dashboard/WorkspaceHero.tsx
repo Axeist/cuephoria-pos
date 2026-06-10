@@ -273,7 +273,7 @@ const WorkspaceHero: React.FC = () => {
             {canEdit && (
               <>
                 <QuickAction
-                  to="/settings/organization#branding"
+                  to="/settings?tab=branding"
                   icon={Palette}
                   label="Branding"
                   primary={primary}
@@ -295,7 +295,7 @@ const WorkspaceHero: React.FC = () => {
                       boxShadow: `0 6px 18px ${primary}55`,
                     }}
                   >
-                    <Link to="/settings/organization#subscription">
+                    <Link to="/settings?tab=subscription">
                       Manage plan
                       <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
                     </Link>

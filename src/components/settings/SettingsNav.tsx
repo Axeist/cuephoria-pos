@@ -4,7 +4,8 @@ import type { LucideIcon } from "lucide-react";
 
 export type SettingsTabId =
   | "general"
-  | "workspace"
+  | "branding"
+  | "subscription"
   | "branches"
   | "booking"
   | "payments"

@@ -14,10 +14,13 @@ import {
   CreditCard,
   MapPin,
   Palette,
+  ShieldCheck,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import BranchManagementSettings from '@/components/settings/BranchManagementSettings';
-import WorkspaceSettingsPanel from '@/components/settings/WorkspaceSettingsPanel';
+import WorkspaceBrandingPanel from '@/components/settings/WorkspaceBrandingPanel';
+import WorkspaceSubscriptionPanel from '@/components/settings/WorkspaceSubscriptionPanel';
+import OrganizationSettings from '@/pages/OrganizationSettings';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
 import GeneralSettings from '@/components/settings/GeneralSettings';
 import PaymentGatewaySettings from '@/components/settings/PaymentGatewaySettings';
@@ -53,7 +56,8 @@ import { cn } from '@/lib/utils';
 
 const SETTINGS_TABS: SettingsTabId[] = [
   'general',
-  'workspace',
+  'branding',
+  'subscription',
   'branches',
   'booking',
   'payments',
@@ -62,6 +66,11 @@ const SETTINGS_TABS: SettingsTabId[] = [
   'leaderboard',
 ];
 
+const LEGACY_TAB_ALIASES: Record<string, SettingsTabId> = {
+  workspace: 'branding',
+  organization: 'branding',
+};
+
 const NAV_GROUPS: SettingsNavGroup[] = [
   {
     label: 'Your venue',
@@ -69,7 +78,7 @@ const NAV_GROUPS: SettingsNavGroup[] = [
       {
         id: 'general',
         label: 'Business & POS',
-        description: 'Receipts, tax, loyalty, in-store',
+        description: 'Company info, receipts, tax, loyalty',
         icon: Store,
       },
       {
@@ -91,10 +100,17 @@ const NAV_GROUPS: SettingsNavGroup[] = [
     label: 'Account & billing',
     items: [
       {
-        id: 'workspace',
-        label: 'Company profile',
-        description: 'Name, logo, brand colors',
+        id: 'branding',
+        label: 'Branding',
+        description: 'Logo, colors, public look',
         icon: Palette,
+        adminOnly: true,
+      },
+      {
+        id: 'subscription',
+        label: 'Subscription',
+        description: 'Plan and billing cycle',
+        icon: ShieldCheck,
         adminOnly: true,
       },
       {
@@ -140,11 +156,15 @@ const NAV_GROUPS: SettingsNavGroup[] = [
 const SECTION_META: Record<SettingsTabId, { title: string; description: string }> = {
   general: {
     title: 'Business & POS',
-    description: 'Branch-specific settings for receipts, tax, loyalty points, and in-store payment options.',
+    description: 'Company identity plus branch settings for receipts, tax, loyalty, and in-store payments.',
   },
-  workspace: {
-    title: 'Company profile',
-    description: 'Workspace name, branding, and subscription — shared across all locations.',
+  branding: {
+    title: 'Branding',
+    description: 'Logo, colors, and display name on login, receipts, and your public booking page.',
+  },
+  subscription: {
+    title: 'Subscription',
+    description: 'Your Cuetronix plan, trial status, and billing cycle.',
   },
   branches: {
     title: 'Locations',
@@ -193,7 +213,9 @@ const Settings = () => {
         : tabParam === 'staff'
           ? 'team'
           : 'general'
-      : tabParam;
+      : tabParam && LEGACY_TAB_ALIASES[tabParam]
+        ? LEGACY_TAB_ALIASES[tabParam]
+        : tabParam;
   const activeTab: SettingsTabId =
     normalizedTab && (SETTINGS_TABS as readonly string[]).includes(normalizedTab)
       ? (normalizedTab as SettingsTabId)
@@ -409,10 +431,18 @@ const Settings = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'general':
-        return <GeneralSettings />;
+        return (
+          <div className="space-y-6 -mt-2">
+            {isAdmin && <OrganizationSettings embedded section="identity" />}
+            <GeneralSettings />
+          </div>
+        );
 
-      case 'workspace':
-        return isAdmin ? <WorkspaceSettingsPanel /> : null;
+      case 'branding':
+        return isAdmin ? <WorkspaceBrandingPanel /> : null;
+
+      case 'subscription':
+        return isAdmin ? <WorkspaceSubscriptionPanel /> : null;
 
       case 'branches':
         return isAdmin ? <BranchManagementSettings /> : null;
@@ -428,22 +458,20 @@ const Settings = () => {
 
       case 'tournaments':
         return (
-          <>
+          <div className="space-y-6 -mt-2">
             {managingTournament ? (
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-xl border border-border/60 bg-card/30 p-4">
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-border/60 bg-muted/10 px-4 py-3">
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Managing tournament
+                      Managing
                     </p>
-                    <h3 className="text-lg font-semibold mt-0.5">{managingTournament.name}</h3>
-                    <p className="text-sm text-muted-foreground">Add players and generate brackets</p>
+                    <h3 className="text-base font-semibold">{managingTournament.name}</h3>
                   </div>
-                  <Button variant="outline" onClick={() => setManagingTournament(null)}>
+                  <Button variant="outline" size="sm" onClick={() => setManagingTournament(null)}>
                     Back to list
                   </Button>
                 </div>
-
                 <TournamentManagement
                   tournament={managingTournament}
                   onSave={handleSaveTournamentFromManagement}
@@ -451,10 +479,11 @@ const Settings = () => {
                 />
               </div>
             ) : (
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-border/60 bg-muted/10 px-4 py-3">
                   <p className="text-sm text-muted-foreground">
-                    {tournaments.length} tournament{tournaments.length === 1 ? '' : 's'} for this branch
+                    {tournaments.length} tournament{tournaments.length === 1 ? '' : 's'} ·{' '}
+                    {activeLocation?.name ?? 'this branch'}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <TournamentImageUpload
@@ -462,11 +491,13 @@ const Settings = () => {
                       onImageUploaded={handleImageUploaded}
                       iconOnly={true}
                     />
-                    <Button variant="outline" onClick={handleOpenPublicTournaments} className="gap-2">
-                      <ExternalLink className="h-4 w-4" />
+                    <Button variant="outline" size="sm" onClick={handleOpenPublicTournaments} className="gap-1.5">
+                      <ExternalLink className="h-3.5 w-3.5" />
                       Public page
                     </Button>
                     <Button
+                      size="sm"
+                      className="gap-1.5"
                       onClick={() => {
                         const defaultTournament: Tournament = {
                           id: generateId(),
@@ -483,9 +514,8 @@ const Settings = () => {
                         setEditingTournament(defaultTournament);
                         setDialogOpen(true);
                       }}
-                      className="gap-2"
                     >
-                      <Plus className="h-4 w-4" />
+                      <Plus className="h-3.5 w-3.5" />
                       New tournament
                     </Button>
                   </div>
@@ -499,8 +529,19 @@ const Settings = () => {
                   onViewHistory={handleViewHistory}
                 />
 
-                <TournamentImageManagement key={imageManagementKey} onRefresh={handleImageManagementRefresh} />
-              </div>
+                <details className="rounded-xl border border-border/60 bg-background/40 group">
+                  <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium flex items-center justify-between">
+                    Winner gallery
+                    <span className="text-xs text-muted-foreground font-normal group-open:hidden">Expand</span>
+                  </summary>
+                  <div className="border-t border-border/50 p-4">
+                    <TournamentImageManagement
+                      key={imageManagementKey}
+                      onRefresh={handleImageManagementRefresh}
+                    />
+                  </div>
+                </details>
+              </>
             )}
 
             <TournamentDialog
@@ -517,7 +558,7 @@ const Settings = () => {
               tournamentId={selectedTournamentForHistory?.id || ''}
               tournamentName={selectedTournamentForHistory?.name || ''}
             />
-          </>
+          </div>
         );
 
       case 'leaderboard':

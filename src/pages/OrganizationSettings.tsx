@@ -93,7 +93,12 @@ const statusStyles: Record<string, string> = {
   suspended: "bg-rose-500/10 text-rose-700 border-rose-500/40 dark:text-rose-300",
 };
 
-const OrganizationSettings: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
+type OrgSettingsSection = "all" | "identity" | "branding" | "subscription";
+
+const OrganizationSettings: React.FC<{ embedded?: boolean; section?: OrgSettingsSection }> = ({
+  embedded = false,
+  section = "all",
+}) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -203,9 +208,14 @@ const OrganizationSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fal
   const data = query.data!;
   const { organization: org, subscription, plan, role, canEdit } = data;
 
+  const showIdentity = section === "all" || section === "identity";
+  const showBranding = section === "all" || section === "branding";
+  const showSubscription = section === "all" || section === "subscription";
+  const showReadOnlyBanner = !canEdit && (showIdentity || showBranding || showSubscription);
+
   const settingsBody = (
     <>
-      {!canEdit && (
+      {showReadOnlyBanner && (
         <Card className="border-amber-500/30 bg-amber-500/5">
           <CardContent className="py-3 flex items-start gap-2 text-sm">
             <Lock className="h-4 w-4 mt-0.5 text-amber-500 shrink-0" />
@@ -220,15 +230,17 @@ const OrganizationSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fal
         </Card>
       )}
 
-      {/* Identity card */}
+      {showIdentity && (
       <Card className={embedded ? "border-border/60 bg-background/40" : undefined}>
         <CardHeader className="flex flex-row items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              Identity
+              <Building2 className="h-4 w-4 text-primary" />
+              Company identity
             </CardTitle>
-            <CardDescription>How your workspace shows up on receipts, bookings and invoices.</CardDescription>
+            <CardDescription>
+              Legal name and locale for your workspace — shared across all branches. Branch-specific receipt details are below.
+            </CardDescription>
           </div>
           {canEdit && (
             editing ? (
@@ -298,11 +310,11 @@ const OrganizationSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fal
           )}
         </CardContent>
       </Card>
+      )}
 
-      {/* Branding card */}
-      <BrandingCard canEdit={canEdit} />
+      {showBranding && <BrandingCard canEdit={canEdit} embedded={embedded} />}
 
-      {/* Plan card */}
+      {showSubscription && (
       <Card className={cn("relative overflow-hidden", embedded && "border-border/60 bg-background/40")}>
         <div
           aria-hidden
@@ -380,6 +392,7 @@ const OrganizationSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fal
           </div>
         </CardContent>
       </Card>
+      )}
     </>
   );
 
@@ -400,7 +413,7 @@ const OrganizationSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fal
         />
         <div className="relative z-10">
           <Link
-            to="/settings?tab=workspace"
+            to="/settings?tab=branding"
             className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
@@ -515,7 +528,7 @@ const emptyBranding: BrandingFormState = {
 const HEX_RE = /^#[0-9a-f]{6}$/i;
 const HTTPS_RE = /^https:\/\//i;
 
-const BrandingCard: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
+const BrandingCard: React.FC<{ canEdit: boolean; embedded?: boolean }> = ({ canEdit, embedded }) => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { applyBrandingFromServer, refresh: refreshBranding } = useTenantBranding();
@@ -617,7 +630,7 @@ const BrandingCard: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
   return (
     <>
-    <Card>
+    <Card className={embedded ? "border-border/60 bg-background/40" : undefined}>
       <CardHeader className="flex flex-row items-start justify-between gap-3">
         <div>
           <CardTitle className="flex items-center gap-2">
