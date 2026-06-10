@@ -16,12 +16,14 @@ import { resolveRazorpayCredentials } from "../../lib/razorpay-credentials";
 import { validateRazorpayKeyIdPrefix } from "../../lib/payment-checkout-guards";
 import { getPaymentGatewayConfig } from "../../lib/payment-gateway-config";
 import { isPaymentSecretsEncryptionConfigured } from "../../lib/payment-secrets";
+import { testRazorpayCredentials } from "../../lib/razorpay-auth";
 
 export const config = { runtime: "edge" };
 
 async function verifyOrgRazorpayCredentials(
   organizationId: string,
   mode: PaymentMode,
+  inline?: { key_id?: string; key_secret?: string },
 ): Promise<{ ok: boolean; message: string }> {
   try {
     if (!isPaymentSecretsEncryptionConfigured()) {
@@ -30,6 +32,29 @@ async function verifyOrgRazorpayCredentials(
         message:
           "Payment encryption is not configured on the server (PAYMENT_SECRETS_ENCRYPTION_KEY). Contact support.",
       };
+    }
+
+    const inlineKeyId = inline?.key_id?.trim();
+    const inlineSecret = inline?.key_secret?.trim();
+    if (inlineKeyId && inlineSecret) {
+      if (!validateRazorpayKeyIdPrefix(inlineKeyId, mode)) {
+        return {
+          ok: false,
+          message:
+            mode === "live"
+              ? "Live mode requires a Key ID starting with rzp_live_"
+              : "Test mode requires a Key ID starting with rzp_test_",
+        };
+      }
+      const result = await testRazorpayCredentials({
+        keyId: inlineKeyId,
+        keySecret: inlineSecret,
+        mode,
+      });
+      if (result.ok) {
+        await markCredentialTestPassed(organizationId, "razorpay");
+      }
+      return result;
     }
 
     const configRow = await getPaymentGatewayConfig(organizationId, "razorpay");
@@ -53,30 +78,16 @@ async function verifyOrgRazorpayCredentials(
           "Could not read saved credentials. Re-enter your API keys in Step 3 and save again.",
       };
     }
-    const auth = btoa(`${creds.keyId}:${creds.keySecret}`);
-    const response = await fetch("https://api.razorpay.com/v1/orders?count=1", {
-      method: "GET",
-      headers: {
-        Authorization: `Basic ${auth}`,
-        "content-type": "application/json",
-      },
+
+    const result = await testRazorpayCredentials({
+      keyId: creds.keyId,
+      keySecret: creds.keySecret,
+      mode,
     });
-    if (!response.ok) {
-      const text = await response.text();
-      let message = text.slice(0, 300);
-      try {
-        const parsed = JSON.parse(text) as { error?: { description?: string; code?: string } };
-        message = parsed?.error?.description || parsed?.error?.code || message;
-      } catch {
-        // keep raw text fallback
-      }
-      return {
-        ok: false,
-        message: `Razorpay auth failed (${response.status}, ${mode}): ${message}`,
-      };
+    if (result.ok) {
+      await markCredentialTestPassed(organizationId, "razorpay");
     }
-    await markCredentialTestPassed(organizationId, "razorpay");
-    return { ok: true, message: `Razorpay credentials are valid in ${mode} mode.` };
+    return result;
   } catch (err) {
     return {
       ok: false,
@@ -169,7 +180,11 @@ export default withOrgContext(async (req, ctx) => {
           200,
         );
       }
-      const result = await verifyOrgRazorpayCredentials(ctx.organizationId, mode);
+      const result = await verifyOrgRazorpayCredentials(
+        ctx.organizationId,
+        mode,
+        parseCredentials(body.credentials, mode),
+      );
       return j({ ok: true, provider, result }, 200);
     }
 

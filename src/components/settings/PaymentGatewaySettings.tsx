@@ -1,6 +1,6 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, Loader2, RefreshCcw, ShieldCheck, Zap } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Loader2, RefreshCcw, ShieldCheck, Zap } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +41,7 @@ type PaymentConfig = {
 
 type ConfigResponse = { ok: true; configs: PaymentConfig[] };
 
-const PROVIDERS: Provider[] = ["razorpay", "stripe"];
+const PROVIDERS: Provider[] = ["razorpay"];
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { credentials: "include", ...init });
@@ -204,8 +204,8 @@ export default function PaymentGatewaySettings() {
             Payment gateway configuration
           </CardTitle>
           <CardDescription>
-            Connect your Razorpay account for public booking online payments. Subscription billing uses platform keys
-            separately.
+            Connect Razorpay for public booking online payments. Stripe for international card payments is coming
+            soon — use Razorpay for now. Subscription billing to Cuetronix uses platform keys separately.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -232,7 +232,6 @@ export default function PaymentGatewaySettings() {
         const row = drafts[provider];
         if (!row) return null;
         const currencies = row.supported_currencies.join(", ");
-        const stripeLocked = provider === "stripe";
         const hideFlatCard = provider === "razorpay" && (showWizard || needsWizard);
 
         if (hideFlatCard) return null;
@@ -241,12 +240,12 @@ export default function PaymentGatewaySettings() {
           <Card key={provider}>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">{provider.toUpperCase()}</CardTitle>
+                <CardTitle className="text-lg">Razorpay</CardTitle>
                 <div className="flex items-center gap-2">
                   <Badge variant={row.provider_ready ? "default" : "secondary"}>
                     {row.provider_ready ? "Ready" : "Needs setup"}
                   </Badge>
-                  {stripeLocked && <Badge variant="outline">Coming soon</Badge>}
+                  <Badge variant="outline">Active provider</Badge>
                 </div>
               </div>
               <CardDescription className="flex flex-wrap items-center gap-3">
@@ -268,7 +267,7 @@ export default function PaymentGatewaySettings() {
                     onValueChange={(value) =>
                       updateProvider(provider, (cur) => ({ ...cur, mode: value as Mode }))
                     }
-                    disabled={stripeLocked}
+                    disabled={false}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -293,7 +292,6 @@ export default function PaymentGatewaySettings() {
                       }))
                     }
                     placeholder="INR, USD"
-                    disabled={stripeLocked}
                   />
                 </div>
               </div>
@@ -309,20 +307,18 @@ export default function PaymentGatewaySettings() {
                     onCheckedChange={(checked) =>
                       updateProvider(provider, (cur) => ({ ...cur, is_enabled: checked }))
                     }
-                    disabled={stripeLocked}
                   />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <p className="text-sm font-medium">International enabled</p>
-                    <p className="text-xs text-muted-foreground">Mirror dashboard activation status.</p>
+                    <p className="text-xs text-muted-foreground">Mirror Razorpay dashboard activation status.</p>
                   </div>
                   <Switch
                     checked={row.is_international_enabled}
                     onCheckedChange={(checked) =>
                       updateProvider(provider, (cur) => ({ ...cur, is_international_enabled: checked }))
                     }
-                    disabled={stripeLocked}
                   />
                 </div>
               </div>
@@ -334,7 +330,7 @@ export default function PaymentGatewaySettings() {
               <div className="flex flex-wrap gap-2">
                 <Button
                   onClick={() => saveMutation.mutate(row)}
-                  disabled={saveMutation.isPending || stripeLocked}
+                  disabled={saveMutation.isPending}
                 >
                   {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Save
@@ -377,6 +373,35 @@ export default function PaymentGatewaySettings() {
           </Card>
         );
       })}
+
+      <Card className="border-dashed border-muted-foreground/30 bg-muted/20">
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-lg text-muted-foreground">Stripe</CardTitle>
+            <Badge variant="secondary" className="gap-1">
+              <Clock className="h-3 w-3" />
+              Coming soon
+            </Badge>
+          </div>
+          <CardDescription>
+            Stripe integration for international card payments and multi-currency checkout is not available yet.
+            You cannot connect a Stripe account at this time.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <p>
+            <strong className="text-foreground">For now:</strong> use Razorpay above for public booking online
+            payments (UPI, cards, netbanking in India).
+          </p>
+          <p>
+            <strong className="text-foreground">Coming soon:</strong> connect your own Stripe account, test/live
+            keys, webhooks, and international currencies — same self-service wizard as Razorpay.
+          </p>
+          <p className="text-xs">
+            We&apos;ll notify you when Stripe setup is ready. No action needed on your side today.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

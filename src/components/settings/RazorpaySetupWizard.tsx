@@ -125,12 +125,21 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
   });
 
   const testMutation = useMutation({
-    mutationFn: () =>
-      fetchJson<{ ok: true; result: { ok: boolean; message: string } }>("/api/admin/payment-config", {
+    mutationFn: () => {
+      const payload: Record<string, unknown> = {
+        action: "test-credentials",
+        provider: "razorpay",
+        mode,
+      };
+      if (keyId.trim() && keySecret.trim()) {
+        payload.credentials = { key_id: keyId.trim(), key_secret: keySecret.trim() };
+      }
+      return fetchJson<{ ok: true; result: { ok: boolean; message: string } }>("/api/admin/payment-config", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "test-credentials", provider: "razorpay", mode }),
-      }),
+        body: JSON.stringify(payload),
+      });
+    },
     onSuccess: (data) => {
       setTestResult(data.result);
       qc.invalidateQueries({ queryKey: ["admin-payment-config"] });
@@ -201,6 +210,13 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
       if (!data.result.ok) {
         toast({ variant: "destructive", title: "Connection failed", description: data.result.message });
         return false;
+      }
+      if (keyId.trim() && keySecret.trim()) {
+        await saveCredentialsMutation.mutateAsync({
+          mode,
+          is_enabled: config.is_enabled,
+          credentials: { key_id: keyId.trim(), key_secret: keySecret.trim() },
+        });
       }
       toast({ title: "Connection successful", description: data.result.message });
       return true;
@@ -321,6 +337,10 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
                   <li>Use test card <code className="text-xs bg-muted px-1 rounded">4111 1111 1111 1111</code> for a trial booking</li>
                   <li>Switch to Live only after a successful test booking</li>
                 </ul>
+                <p className="text-xs text-muted-foreground border-t pt-3 mt-3">
+                  Stripe for international card payments is coming soon. For now, Razorpay is the supported provider for
+                  public booking online pay.
+                </p>
               </>
             )}
 
@@ -426,8 +446,34 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
             {step.id === "test" && (
               <>
                 <p className="text-sm text-muted-foreground">
-                  We&apos;ll verify your saved keys against the Razorpay API.
+                  We&apos;ll verify your keys against the Razorpay API in <strong>{mode}</strong> mode.
+                  {config.public_key_masked && (
+                    <> Saved key: <code className="text-xs bg-muted px-1 rounded">{config.public_key_masked}</code>.</>
+                  )}
                 </p>
+                <p className="text-xs text-muted-foreground">
+                  If the test fails, re-paste both Key ID and Secret from Razorpay Dashboard → Settings → API Keys
+                  (make sure they are both from {mode === "test" ? "Test" : "Live"} mode and still active).
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Key ID (optional — re-test without going back)</Label>
+                    <Input
+                      value={keyId}
+                      onChange={(e) => setKeyId(e.target.value)}
+                      placeholder={mode === "live" ? "rzp_live_..." : "rzp_test_..."}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Key Secret (optional)</Label>
+                    <Input
+                      type="password"
+                      value={keySecret}
+                      onChange={(e) => setKeySecret(e.target.value)}
+                      placeholder="Paste secret to re-test"
+                    />
+                  </div>
+                </div>
                 <Button onClick={() => void runTest()} disabled={testMutation.isPending}>
                   {testMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
