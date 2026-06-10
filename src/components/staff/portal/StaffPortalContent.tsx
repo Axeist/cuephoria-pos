@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import {
   Clock, LogIn, LogOut, Coffee, Calendar as CalendarIcon, FileText, DollarSign,
-  TrendingUp, Plus, Trash2, AlertCircle, Filter, CheckCircle, XCircle,
+  TrendingUp, Plus, Trash2, AlertCircle, Filter, CheckCircle, XCircle, User,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -159,12 +159,12 @@ const StaffPortalContent: React.FC = () => {
           </div>
 
           {/* Real-Time Timer */}
-          {currentShift && selectedStaff?.hourly_rate && (
+          {currentShift && (
             <RealTimeTimer
               clockInTime={currentShift.clock_in}
               breakStartTime={currentShift.break_start_time}
               breakDuration={currentShift.break_duration_minutes || 0}
-              hourlyRate={selectedStaff.hourly_rate || 0}
+              hourlyRate={selectedStaff?.hourly_rate || 0}
               isOnBreak={isOnBreak}
             />
           )}

@@ -147,14 +147,15 @@ export function useStaffPortal() {
     
     setIsLoading(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
-      
+      // Any open shift (including stale shifts from prior days)
       const { data: shift } = await supabase
         .from('staff_attendance')
         .select('*')
         .eq('staff_id', selectedStaff.user_id)
-        .eq('date', today)
         .is('clock_out', null)
+        .not('clock_in', 'is', null)
+        .order('clock_in', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       setCurrentShift(shift);
@@ -220,8 +221,8 @@ export function useStaffPortal() {
       const currentYear = new Date().getFullYear();
       
       // Calculate monthly stats including regularized attendance
-      const startOfMonth = new Date(currentYear, currentMonth - 1, 1).toISOString().split('T')[0];
-      const endOfMonth = new Date(currentYear, currentMonth, 0).toISOString().split('T')[0];
+      const startOfMonth = format(new Date(currentYear, currentMonth - 1, 1), 'yyyy-MM-dd');
+      const endOfMonth = format(new Date(currentYear, currentMonth, 0), 'yyyy-MM-dd');
       
       const { data: attendanceStats } = await supabase
         .from('staff_attendance')
@@ -307,31 +308,82 @@ export function useStaffPortal() {
   };
 
   const handleClockIn = async () => {
+    if (!selectedStaff?.user_id) return;
+
     try {
-      const { error } = await supabase
+      const today = format(new Date(), 'yyyy-MM-dd');
+
+      const { data: openShift } = await supabase
+        .from('staff_attendance')
+        .select('*')
+        .eq('staff_id', selectedStaff.user_id)
+        .is('clock_out', null)
+        .not('clock_in', 'is', null)
+        .order('clock_in', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (openShift) {
+        setCurrentShift(openShift);
+        toast({
+          title: 'Already clocked in',
+          description:
+            openShift.date === today
+              ? 'You are already on an active shift.'
+              : `You have an open shift from ${format(new Date(openShift.date), 'MMM dd')}. Clock out first.`,
+        });
+        return;
+      }
+
+      const { data: todayRecord } = await supabase
+        .from('staff_attendance')
+        .select('id, clock_out')
+        .eq('staff_id', selectedStaff.user_id)
+        .eq('date', today)
+        .maybeSingle();
+
+      if (todayRecord?.clock_out) {
+        toast({
+          title: 'Shift already completed',
+          description: 'You have already clocked out for today.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const { data: inserted, error } = await supabase
         .from('staff_attendance')
         .insert({
           staff_id: selectedStaff.user_id,
-          date: new Date().toISOString().split('T')[0],
-          clock_in: new Date().toISOString(),
+          date: today,
+          clock_in: now,
           status: 'active',
           location_id: selectedStaff.location_id,
-        });
+        })
+        .select('*')
+        .single();
 
       if (error) throw error;
 
+      setCurrentShift(inserted);
+
       toast({
         title: 'Clocked In',
-        description: 'Have a great shift!'
+        description: 'Have a great shift!',
       });
 
-      fetchStaffData();
+      await fetchStaffData();
     } catch (error: any) {
       console.error('Error clocking in:', error);
+      const message =
+        error?.code === '23505'
+          ? 'You already have an attendance record for today.'
+          : error.message || 'Failed to clock in';
       toast({
         title: 'Error',
-        description: error.message || 'Failed to clock in',
-        variant: 'destructive'
+        description: message,
+        variant: 'destructive',
       });
     }
   };
@@ -366,12 +418,14 @@ export function useStaffPortal() {
         .eq('attendance_id', currentShift.id)
         .eq('is_active', true);
 
+      setCurrentShift(null);
+
       toast({
         title: 'Clocked Out',
-        description: 'Shift ended successfully'
+        description: 'Shift ended successfully',
       });
 
-      fetchStaffData();
+      await fetchStaffData();
     } catch (error: any) {
       console.error('Error clocking out:', error);
       toast({
