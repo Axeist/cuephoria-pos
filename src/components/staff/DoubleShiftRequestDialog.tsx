@@ -174,7 +174,7 @@ const DoubleShiftRequestDialog: React.FC<DoubleShiftRequestDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="glass-card border-border/50 text-white sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl gradient-text">Request Double Shift</DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -189,10 +189,10 @@ const DoubleShiftRequestDialog: React.FC<DoubleShiftRequestDialogProps> = ({
               value={coveredStaffId}
               onValueChange={setCoveredStaffId}
             >
-              <SelectTrigger className="bg-cuephoria-darker border-cuephoria-purple/20">
+              <SelectTrigger className="glass-card border-border/50 border-border/50">
                 <SelectValue placeholder="Select staff member" />
               </SelectTrigger>
-              <SelectContent className="bg-cuephoria-dark border-cuephoria-purple/20">
+              <SelectContent className="glass-card border-border/50">
                 {availableStaff.map(staff => (
                   <SelectItem key={staff.user_id} value={staff.user_id}>
                     {staff.username} - {staff.designation}
@@ -209,7 +209,7 @@ const DoubleShiftRequestDialog: React.FC<DoubleShiftRequestDialogProps> = ({
                 <Button
                   variant="outline"
                   className={cn(
-                    "w-full justify-start text-left font-normal bg-cuephoria-darker border-cuephoria-purple/20",
+                    "w-full justify-start text-left font-normal glass-card border-border/50 border-border/50",
                     !selectedDate && "text-muted-foreground"
                   )}
                 >
@@ -217,22 +217,22 @@ const DoubleShiftRequestDialog: React.FC<DoubleShiftRequestDialogProps> = ({
                   {selectedDate ? format(selectedDate, "PPP") : "Select date"}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 bg-cuephoria-dark border-cuephoria-purple/20">
+              <PopoverContent className="w-auto p-0 glass-card border-border/50">
                 <Calendar
                   mode="single"
                   selected={selectedDate}
                   onSelect={(date) => date && setSelectedDate(date)}
                   initialFocus
-                  className="bg-cuephoria-dark text-white"
+                  className="glass-card border-border/50 text-white"
                 />
               </PopoverContent>
             </Popover>
           </div>
 
           {coveredStaff && (
-            <div className="p-3 bg-cuephoria-darker rounded-lg border border-cuephoria-purple/20 space-y-2">
+            <div className="p-3 glass-card border-border/50 rounded-lg border border-border/50 space-y-2">
               <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-cuephoria-lightpurple" />
+                <User className="h-4 w-4 text-primary" />
                 <span className="font-semibold text-white">{coveredStaff.username}</span>
               </div>
               <div className="text-sm text-muted-foreground space-y-1">
@@ -253,7 +253,7 @@ const DoubleShiftRequestDialog: React.FC<DoubleShiftRequestDialogProps> = ({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Explain why you're covering this shift..."
-              className="bg-cuephoria-darker border-cuephoria-purple/20 text-white min-h-[100px]"
+              className="glass-card border-border/50 border-border/50 text-white min-h-[100px]"
             />
           </div>
 
@@ -269,7 +269,7 @@ const DoubleShiftRequestDialog: React.FC<DoubleShiftRequestDialogProps> = ({
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="border-cuephoria-purple/20"
+            className="border-border/50"
             disabled={isSubmitting}
           >
             Cancel
@@ -277,7 +277,7 @@ const DoubleShiftRequestDialog: React.FC<DoubleShiftRequestDialogProps> = ({
           <Button
             onClick={handleSubmit}
             disabled={isSubmitting || !coveredStaffId || !reason || !selectedDate}
-            className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
+            className="btn-gradient border-0"
           >
             {isSubmitting ? 'Submitting...' : 'Submit Request'}
           </Button>

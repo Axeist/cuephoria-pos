@@ -51,10 +51,10 @@ const StaffPortalPinGate: React.FC<StaffPortalPinGateProps> = ({
 
   return (
     <div className="flex flex-1 items-center justify-center p-6">
-      <Card className="w-full max-w-md bg-cuephoria-dark border-cuephoria-purple/20">
+      <Card className="w-full max-w-md glass-card border-border/50">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-cuephoria-purple/20">
-            <KeyRound className="h-7 w-7 text-cuephoria-lightpurple" />
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-primary/15">
+            <KeyRound className="h-7 w-7 text-primary" />
           </div>
           <CardTitle className="text-2xl gradient-text">Staff Portal</CardTitle>
           <CardDescription className="text-muted-foreground">
@@ -66,7 +66,7 @@ const StaffPortalPinGate: React.FC<StaffPortalPinGateProps> = ({
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="portal-pin" className="text-cuephoria-lightpurple">
+              <Label htmlFor="portal-pin" className="text-primary">
                 Portal PIN
               </Label>
               <Input
@@ -77,7 +77,7 @@ const StaffPortalPinGate: React.FC<StaffPortalPinGateProps> = ({
                 value={pin}
                 onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
                 placeholder="6-digit PIN from your manager"
-                className="bg-cuephoria-darker border-cuephoria-purple/20 text-center text-2xl tracking-[0.3em]"
+                className="glass-card border-border/50 border-border/50 text-center text-2xl tracking-[0.3em]"
                 autoFocus
               />
               <p className="text-xs text-muted-foreground text-center">
@@ -90,7 +90,7 @@ const StaffPortalPinGate: React.FC<StaffPortalPinGateProps> = ({
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="w-full bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
+              className="w-full btn-gradient border-0"
             >
               {isSubmitting ? (
                 <>

@@ -134,7 +134,7 @@ const OvertimeRequestDialog: React.FC<OvertimeRequestDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="glass-card border-border/50 text-white sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl gradient-text">Request Overtime Allowance</DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -160,7 +160,7 @@ const OvertimeRequestDialog: React.FC<OvertimeRequestDialogProps> = ({
                 <Button
                   variant="outline"
                   className={cn(
-                    "w-full justify-start text-left font-normal bg-cuephoria-darker border-cuephoria-purple/20",
+                    "w-full justify-start text-left font-normal glass-card border-border/50 border-border/50",
                     !selectedDate && "text-muted-foreground"
                   )}
                 >
@@ -168,13 +168,13 @@ const OvertimeRequestDialog: React.FC<OvertimeRequestDialogProps> = ({
                   {selectedDate ? format(selectedDate, "PPP") : "Select date"}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 bg-cuephoria-dark border-cuephoria-purple/20">
+              <PopoverContent className="w-auto p-0 glass-card border-border/50">
                 <Calendar
                   mode="single"
                   selected={selectedDate}
                   onSelect={(date) => date && setSelectedDate(date)}
                   initialFocus
-                  className="bg-cuephoria-dark text-white"
+                  className="glass-card border-border/50 text-white"
                 />
               </PopoverContent>
             </Popover>
@@ -183,7 +183,7 @@ const OvertimeRequestDialog: React.FC<OvertimeRequestDialogProps> = ({
           <div className="space-y-2">
             <Label>Overtime Hours *</Label>
             <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-cuephoria-lightpurple" />
+              <Clock className="h-4 w-4 text-primary" />
               <Input
                 type="number"
                 step="0.5"
@@ -191,7 +191,7 @@ const OvertimeRequestDialog: React.FC<OvertimeRequestDialogProps> = ({
                 value={overtimeHours}
                 onChange={(e) => setOvertimeHours(e.target.value)}
                 placeholder="e.g. 2.5"
-                className="bg-cuephoria-darker border-cuephoria-purple/20"
+                className="glass-card border-border/50 border-border/50"
               />
             </div>
             <p className="text-xs text-muted-foreground">
@@ -205,12 +205,12 @@ const OvertimeRequestDialog: React.FC<OvertimeRequestDialogProps> = ({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Please provide a reason for working overtime..."
-              className="bg-cuephoria-darker border-cuephoria-purple/20"
+              className="glass-card border-border/50 border-border/50"
               rows={4}
             />
           </div>
 
-          <div className="p-3 bg-cuephoria-darker rounded-lg border border-cuephoria-purple/20">
+          <div className="p-3 glass-card border-border/50 rounded-lg border border-border/50">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">OT Allowance:</span>
               <Badge className="bg-green-500/20 text-green-400 border-green-500/50">
@@ -227,7 +227,7 @@ const OvertimeRequestDialog: React.FC<OvertimeRequestDialogProps> = ({
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="border-cuephoria-purple/20"
+            className="border-border/50"
             disabled={isSubmitting}
           >
             Cancel
@@ -235,7 +235,7 @@ const OvertimeRequestDialog: React.FC<OvertimeRequestDialogProps> = ({
           <Button
             onClick={handleSubmit}
             disabled={isSubmitting || !overtimeHours || !reason.trim()}
-            className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
+            className="btn-gradient border-0"
           >
             {isSubmitting ? 'Submitting...' : 'Submit Request'}
           </Button>

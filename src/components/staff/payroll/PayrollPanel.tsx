@@ -70,7 +70,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                   value={String(selectedMonth)}
                   onValueChange={(v) => setSelectedMonth(parseInt(v))}
                 >
-                  <SelectTrigger className="w-[140px] bg-card/30 border-border/50er border-border/50">
+                  <SelectTrigger className="w-[140px] bg-card/30 border-border/50 border-border/50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-card/30 border-border/50 border-border/50">
@@ -85,7 +85,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                   value={String(selectedYear)}
                   onValueChange={(v) => setSelectedYear(parseInt(v))}
                 >
-                  <SelectTrigger className="w-[100px] bg-card/30 border-border/50er border-border/50">
+                  <SelectTrigger className="w-[100px] bg-card/30 border-border/50 border-border/50">
                     <SelectValue />
                   </SelectTrigger>
                       <SelectContent className="bg-card/30 border-border/50 border-border/50">
@@ -122,7 +122,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
               <div className="space-y-4">
                 {/* Insight widgets */}
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  <Card className="bg-card/30 border-border/50er border-border/40 overflow-hidden relative">
+                  <Card className="bg-card/30 border-border/50 border-border/40 overflow-hidden relative">
                     <div className="absolute -top-16 -right-16 h-40 w-40 rounded-full bg-primary/15 blur-3xl" />
                     <CardContent className="p-4 relative">
                       <div className="flex items-start justify-between gap-3">
@@ -180,7 +180,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                     </CardContent>
                   </Card>
 
-                  <Card className="bg-card/30 border-border/50er border-border/40 overflow-hidden relative">
+                  <Card className="bg-card/30 border-border/50 border-border/40 overflow-hidden relative">
                     <div className="absolute -top-16 -left-16 h-40 w-40 rounded-full bg-green-500/10 blur-3xl" />
                     <CardContent className="p-4 relative">
                       <div className="flex items-start justify-between gap-3">
@@ -210,7 +210,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                               </div>
                               <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
                                 <div
-                                  className="h-full rounded-full bg-gradient-to-r from-green-400/70 to-cuephoria-lightpurple/70"
+                                  className="h-full rounded-full bg-gradient-to-r from-green-400/70 to-primary/70/70"
                                   style={{ width: `${topAllowanceMax > 0 ? Math.max(8, Math.round((v / topAllowanceMax) * 100)) : 0}%` }}
                                 />
                               </div>
@@ -221,7 +221,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                     </CardContent>
                   </Card>
 
-                  <Card className="bg-card/30 border-border/50er border-border/40 overflow-hidden relative">
+                  <Card className="bg-card/30 border-border/50 border-border/40 overflow-hidden relative">
                     <div className="absolute -bottom-16 -right-16 h-40 w-40 rounded-full bg-red-500/10 blur-3xl" />
                     <CardContent className="p-4 relative">
                       <div className="flex items-start justify-between gap-3">
@@ -265,7 +265,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                     </CardContent>
                   </Card>
 
-                  <Card className="bg-card/30 border-border/50er border-border/40 overflow-hidden relative">
+                  <Card className="bg-card/30 border-border/50 border-border/40 overflow-hidden relative">
                     <div className="absolute -bottom-16 -left-16 h-40 w-40 rounded-full bg-blue-500/10 blur-3xl" />
                     <CardContent className="p-4 relative">
                       <div className="flex items-start justify-between gap-3">
@@ -278,7 +278,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                         </div>
                         <div className="h-10 w-10 rounded-xl bg-blue-500/10 ring-1 ring-white/10 flex items-center justify-center">
                           {pendingCount > 0 ? (
-                            <AlertCircle className="h-5 w-5 text-cuephoria-blue" />
+                            <AlertCircle className="h-5 w-5 text-blue-400" />
                           ) : (
                             <CheckCircle2 className="h-5 w-5 text-green-400" />
                           )}
@@ -311,7 +311,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                   return (
                     <Card
                       key={staff.user_id}
-                      className="bg-card/30 border-border/50er border-border/40"
+                      className="bg-card/30 border-border/50 border-border/40"
                     >
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
@@ -384,7 +384,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                                     onClick={() => setRegenerateStaffId(staff.user_id)}
                                     variant="outline"
                                     size="sm"
-                                    className="border-cuephoria-purple text-cuephoria-purple hover:bg-cuephoria-purple hover:text-white"
+                                    className="border-primary/40 text-primary hover:bg-primary hover:text-white"
                                   >
                                     <RefreshCw className="h-3 w-3 mr-1" />
                                     Regenerate
@@ -412,7 +412,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                             ) : (
                               <Button
                                 onClick={() => handleGeneratePayroll(staff.user_id)}
-                                className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
+                                className="btn-gradient border-0"
                                 size="sm"
                               >
                                 <TrendingUp className="h-4 w-4 mr-2" />
@@ -447,7 +447,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                 value={deductionForm.type}
                 onValueChange={(v) => setDeductionForm({...deductionForm, type: v})}
               >
-                <SelectTrigger className="bg-card/30 border-border/50er border-border/50">
+                <SelectTrigger className="bg-card/30 border-border/50 border-border/50">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-card/30 border-border/50 border-border/50">
@@ -467,7 +467,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                 value={deductionForm.amount}
                 onChange={(e) => setDeductionForm({...deductionForm, amount: e.target.value})}
                 placeholder="0.00"
-                className="bg-card/30 border-border/50er border-border/50"
+                className="bg-card/30 border-border/50 border-border/50"
               />
             </div>
             <div className="space-y-2">
@@ -476,7 +476,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                 value={deductionForm.reason}
                 onChange={(e) => setDeductionForm({...deductionForm, reason: e.target.value})}
                 placeholder="Enter reason for deduction"
-                className="bg-card/30 border-border/50er border-border/50"
+                className="bg-card/30 border-border/50 border-border/50"
               />
             </div>
           </div>
@@ -517,7 +517,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                 value={allowanceForm.type}
                 onValueChange={(v) => setAllowanceForm({...allowanceForm, type: v})}
               >
-                <SelectTrigger className="bg-card/30 border-border/50er border-border/50">
+                <SelectTrigger className="bg-card/30 border-border/50 border-border/50">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-card/30 border-border/50 border-border/50">
@@ -536,7 +536,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                 value={allowanceForm.amount}
                 onChange={(e) => setAllowanceForm({...allowanceForm, amount: e.target.value})}
                 placeholder="0.00"
-                className="bg-card/30 border-border/50er border-border/50"
+                className="bg-card/30 border-border/50 border-border/50"
               />
             </div>
             <div className="space-y-2">
@@ -545,7 +545,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
                 value={allowanceForm.reason}
                 onChange={(e) => setAllowanceForm({...allowanceForm, reason: e.target.value})}
                 placeholder="Enter reason for allowance"
-                className="bg-card/30 border-border/50er border-border/50"
+                className="bg-card/30 border-border/50 border-border/50"
               />
             </div>
           </div>
@@ -583,7 +583,7 @@ const PayrollPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) 
             <AlertDialogCancel className="border-border/50">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleRegeneratePayroll}
-              className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
+              className="btn-gradient border-0"
             >
               Regenerate
             </AlertDialogAction>

@@ -113,7 +113,7 @@ const RealTimeTimer: React.FC<RealTimeTimerProps> = ({
       </Card>
 
       {/* Earnings Timer */}
-      <Card className={`bg-gradient-to-br ${isOnBreak ? 'from-gray-600 to-gray-800' : 'from-cuephoria-purple to-cuephoria-blue'} border-none shadow-lg`}>
+      <Card className={`bg-gradient-to-br ${isOnBreak ? 'from-gray-600 to-gray-800' : 'from-primary to-blue-600'} border-none shadow-lg`}>
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">

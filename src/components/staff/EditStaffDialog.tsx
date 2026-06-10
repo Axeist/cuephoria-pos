@@ -143,7 +143,7 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
                 value={formData.username}
                 onChange={(e) => setFormData({...formData, username: e.target.value})}
                 placeholder="Enter username"
-                className="bg-cuephoria-darker border-cuephoria-purple/20"
+                className="glass-card border-border/50 border-border/50"
               />
             </div>
             <div className="space-y-2">
@@ -152,7 +152,7 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
                 value={formData.full_name}
                 onChange={(e) => setFormData({...formData, full_name: e.target.value})}
                 placeholder="Enter full name"
-                className="bg-cuephoria-darker border-cuephoria-purple/20"
+                className="glass-card border-border/50 border-border/50"
               />
             </div>
           </div>
@@ -163,7 +163,7 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
               value={formData.designation}
               onChange={(e) => setFormData({...formData, designation: e.target.value})}
               placeholder="e.g. Receptionist, Cook, Manager"
-              className="bg-cuephoria-darker border-cuephoria-purple/20"
+              className="glass-card border-border/50 border-border/50"
             />
           </div>
 
@@ -175,7 +175,7 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
                 placeholder="email@example.com"
-                className="bg-cuephoria-darker border-cuephoria-purple/20"
+                className="glass-card border-border/50 border-border/50"
               />
             </div>
             <div className="space-y-2">
@@ -184,7 +184,7 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
                 value={formData.phone}
                 onChange={(e) => setFormData({...formData, phone: e.target.value})}
                 placeholder="+91 1234567890"
-                className="bg-cuephoria-darker border-cuephoria-purple/20"
+                className="glass-card border-border/50 border-border/50"
               />
             </div>
           </div>
@@ -197,7 +197,7 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
               value={formData.monthly_salary}
               onChange={(e) => setFormData({...formData, monthly_salary: e.target.value})}
               placeholder="12000.00"
-              className="bg-cuephoria-darker border-cuephoria-purple/20"
+              className="glass-card border-border/50 border-border/50"
             />
           </div>
 
@@ -207,31 +207,31 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
               <div className="space-y-2">
                 <Label className="text-sm text-muted-foreground">Shift Start</Label>
                 <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-cuephoria-lightpurple" />
+                  <Clock className="h-4 w-4 text-primary" />
                   <Input
                     type="time"
                     value={formData.shift_start_time}
                     onChange={(e) => setFormData({...formData, shift_start_time: e.target.value})}
-                    className="bg-cuephoria-darker border-cuephoria-purple/20"
+                    className="glass-card border-border/50 border-border/50"
                   />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label className="text-sm text-muted-foreground">Shift End</Label>
                 <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-cuephoria-lightpurple" />
+                  <Clock className="h-4 w-4 text-primary" />
                   <Input
                     type="time"
                     value={formData.shift_end_time}
                     onChange={(e) => setFormData({...formData, shift_end_time: e.target.value})}
-                    className="bg-cuephoria-darker border-cuephoria-purple/20"
+                    className="glass-card border-border/50 border-border/50"
                   />
                 </div>
               </div>
             </div>
-            <div className="p-3 bg-cuephoria-darker rounded-lg border border-cuephoria-purple/20 mt-2">
+            <div className="p-3 glass-card border-border/50 rounded-lg border border-border/50 mt-2">
               <p className="text-sm text-white">
-                Total shift hours: <span className="font-bold text-cuephoria-lightpurple">{calculateShiftHours()} hours/day</span>
+                Total shift hours: <span className="font-bold text-primary">{calculateShiftHours()} hours/day</span>
               </p>
               {formData.monthly_salary && (
                 <p className="text-sm text-muted-foreground mt-1">
@@ -249,7 +249,7 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="border-cuephoria-purple/20"
+            className="border-border/50"
             disabled={isSubmitting}
           >
             Cancel
@@ -257,7 +257,7 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
           <Button
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
+            className="btn-gradient border-0"
           >
             {isSubmitting ? (
               <>

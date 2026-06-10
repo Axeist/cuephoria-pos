@@ -141,7 +141,7 @@ const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white sm:max-w-[500px]">
+      <DialogContent className="glass-card border-border/50 text-white sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="text-2xl gradient-text">Request Leave</DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -154,10 +154,10 @@ const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
           <div className="space-y-2">
             <Label>Leave Type</Label>
             <Select value={leaveType} onValueChange={setLeaveType}>
-              <SelectTrigger className="bg-cuephoria-darker border-cuephoria-purple/20">
+              <SelectTrigger className="glass-card border-border/50 border-border/50">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-cuephoria-dark border-cuephoria-purple/20">
+              <SelectContent className="glass-card border-border/50">
                 <SelectItem value="sick_leave">Sick Leave (Paid - {leaveBalance.paid} day remaining)</SelectItem>
                 <SelectItem value="casual_leave">Casual Leave (Paid - {leaveBalance.paid} day remaining)</SelectItem>
                 <SelectItem value="emergency_leave">Emergency Leave (Paid - {leaveBalance.paid} day remaining)</SelectItem>
@@ -174,7 +174,7 @@ const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
                 <Button
                   variant="outline"
                   className={cn(
-                    "w-full justify-start text-left font-normal bg-cuephoria-darker border-cuephoria-purple/20",
+                    "w-full justify-start text-left font-normal glass-card border-border/50 border-border/50",
                     !startDate && "text-muted-foreground"
                   )}
                 >
@@ -182,14 +182,14 @@ const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
                   {startDate ? format(startDate, "PPP") : "Pick a date"}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 bg-cuephoria-dark border-cuephoria-purple/20">
+              <PopoverContent className="w-auto p-0 glass-card border-border/50">
                 <Calendar
                   mode="single"
                   selected={startDate}
                   onSelect={setStartDate}
                   disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                   initialFocus
-                  className="bg-cuephoria-dark text-white"
+                  className="glass-card border-border/50 text-white"
                 />
               </PopoverContent>
             </Popover>
@@ -203,7 +203,7 @@ const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
                 <Button
                   variant="outline"
                   className={cn(
-                    "w-full justify-start text-left font-normal bg-cuephoria-darker border-cuephoria-purple/20",
+                    "w-full justify-start text-left font-normal glass-card border-border/50 border-border/50",
                     !endDate && "text-muted-foreground"
                   )}
                 >
@@ -211,7 +211,7 @@ const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
                   {endDate ? format(endDate, "PPP") : "Pick a date"}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 bg-cuephoria-dark border-cuephoria-purple/20">
+              <PopoverContent className="w-auto p-0 glass-card border-border/50">
                 <Calendar
                   mode="single"
                   selected={endDate}
@@ -221,7 +221,7 @@ const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
                     (startDate ? date < startDate : false)
                   }
                   initialFocus
-                  className="bg-cuephoria-dark text-white"
+                  className="glass-card border-border/50 text-white"
                 />
               </PopoverContent>
             </Popover>
@@ -229,9 +229,9 @@ const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
 
           {/* Show days calculation */}
           {startDate && endDate && (
-            <div className="p-3 bg-cuephoria-darker rounded-lg border border-cuephoria-purple/20">
+            <div className="p-3 glass-card border-border/50 rounded-lg border border-border/50">
               <p className="text-sm text-white">
-                Total Days: <span className="font-bold text-cuephoria-lightpurple">
+                Total Days: <span className="font-bold text-primary">
                   {Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1} day(s)
                 </span>
               </p>
@@ -245,7 +245,7 @@ const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Provide reason for your leave request..."
-              className="bg-cuephoria-darker border-cuephoria-purple/20 min-h-[100px]"
+              className="glass-card border-border/50 border-border/50 min-h-[100px]"
               maxLength={500}
             />
             <p className="text-xs text-muted-foreground text-right">
@@ -258,7 +258,7 @@ const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="border-cuephoria-purple/20"
+            className="border-border/50"
             disabled={isSubmitting}
           >
             Cancel
@@ -266,7 +266,7 @@ const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
           <Button
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
+            className="btn-gradient border-0"
           >
             {isSubmitting ? (
               <>

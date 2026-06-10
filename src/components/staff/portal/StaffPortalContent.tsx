@@ -205,7 +205,7 @@ const StaffPortalContent: React.FC = () => {
         <Card className="glass-card border-border/50 border-border/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-white">Paid Leave</CardTitle>
-            <CalendarIcon className="h-4 w-4 text-cuephoria-blue" />
+            <CalendarIcon className="h-4 w-4 text-blue-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-white">
@@ -249,7 +249,7 @@ const StaffPortalContent: React.FC = () => {
             </CardHeader>
             <CardContent>
               {/* Filters */}
-              <div className="mb-4 p-4 glass-card border-border/50er rounded-lg border border-border/40 space-y-3">
+              <div className="mb-4 p-4 glass-card border-border/50 rounded-lg border border-border/40 space-y-3">
                 <div className="flex items-center gap-2 mb-2">
                   <Filter className="h-4 w-4 text-primary" />
                   <span className="text-sm font-semibold text-white">Filters</span>
@@ -338,7 +338,7 @@ const StaffPortalContent: React.FC = () => {
                           ? "bg-purple-500/10 border-purple-500/30" 
                           : isAbsent
                           ? "bg-red-500/10 border-red-500/30"
-                          : "glass-card border-border/50er border-border/40"
+                          : "glass-card border-border/50 border-border/40"
                       )}
                     >
                       <div className="flex-1">
@@ -389,7 +389,7 @@ const StaffPortalContent: React.FC = () => {
                           </div>
                           <div>
                             <p className="text-muted-foreground">Earnings</p>
-                            <p className="text-cuephoria-blue font-semibold">
+                            <p className="text-blue-400 font-semibold">
                               ₹{record.daily_earnings?.toFixed(2) || '0.00'}
                             </p>
                           </div>
@@ -438,7 +438,7 @@ const StaffPortalContent: React.FC = () => {
             </Button>
             <Button
               onClick={() => setShowLeaveRequest(true)}
-              className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
+              className="btn-gradient border-0"
               size="sm"
             >
               <Plus className="h-4 w-4 mr-2" />

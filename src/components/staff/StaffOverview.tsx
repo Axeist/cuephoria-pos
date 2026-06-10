@@ -24,7 +24,7 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin h-8 w-8 rounded-full border-4 border-cuephoria-lightpurple border-t-transparent"></div>
+        <div className="animate-spin h-8 w-8 rounded-full border-4 border-primary/40 border-t-transparent"></div>
       </div>
     );
   }
@@ -65,8 +65,8 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
                   className="flex items-center justify-between p-4 theme-inset"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-cuephoria-purple/20 flex items-center justify-center">
-                      <span className="text-lg font-bold text-cuephoria-lightpurple">
+                    <div className="h-10 w-10 rounded-full bg-primary/15 flex items-center justify-center">
+                      <span className="text-lg font-bold text-primary">
                         {shift.staff_name?.charAt(0)?.toUpperCase() || '?'}
                       </span>
                     </div>
@@ -142,7 +142,7 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
       <Card className="glass-card border-white/10">
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-cuephoria-blue" />
+            <TrendingUp className="h-5 w-5 text-blue-400" />
             Staff Summary
           </CardTitle>
           <CardDescription>Active staff members overview</CardDescription>
@@ -158,8 +158,8 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
                   className="p-4 theme-inset"
                 >
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="h-10 w-10 rounded-full bg-cuephoria-purple/20 flex items-center justify-center">
-                      <span className="text-lg font-bold text-cuephoria-lightpurple">
+                    <div className="h-10 w-10 rounded-full bg-primary/15 flex items-center justify-center">
+                      <span className="text-lg font-bold text-primary">
                         {staff.username?.charAt(0)?.toUpperCase() || '?'}
                       </span>
                     </div>

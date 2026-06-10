@@ -404,13 +404,13 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin h-8 w-8 rounded-full border-4 border-cuephoria-lightpurple border-t-transparent"></div>
+        <div className="animate-spin h-8 w-8 rounded-full border-4 border-primary/40 border-t-transparent"></div>
       </div>
     );
   }
 
   return (
-    <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+    <Card className="glass-card border-border/50">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
@@ -422,10 +422,10 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
               value={selectedStaff}
               onValueChange={setSelectedStaff}
             >
-              <SelectTrigger className="w-[200px] bg-cuephoria-darker border-cuephoria-purple/20">
+              <SelectTrigger className="w-[200px] glass-card border-border/50 border-border/50">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-cuephoria-dark border-cuephoria-purple/20">
+              <SelectContent className="glass-card border-border/50">
                 <SelectItem value="all">All Staff</SelectItem>
                 {staffProfiles.filter(s => s.is_active).map(staff => (
                   <SelectItem key={staff.user_id} value={staff.user_id}>
@@ -438,7 +438,7 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
               onClick={() => navigateMonth('prev')}
               variant="outline"
               size="sm"
-              className="border-cuephoria-purple/20"
+              className="border-border/50"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -446,7 +446,7 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
               onClick={() => navigateMonth('next')}
               variant="outline"
               size="sm"
-              className="border-cuephoria-purple/20"
+              className="border-border/50"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -457,7 +457,7 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
               }}
               variant="outline"
               size="sm"
-              className="border-cuephoria-purple/20"
+              className="border-border/50"
             >
               Refresh
             </Button>
@@ -467,7 +467,7 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
       <CardContent>
         {isLoadingData ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin h-8 w-8 rounded-full border-4 border-cuephoria-lightpurple border-t-transparent"></div>
+            <div className="animate-spin h-8 w-8 rounded-full border-4 border-primary/40 border-t-transparent"></div>
           </div>
         ) : (
           <div className="space-y-6">
@@ -501,8 +501,8 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
                       <div
                         key={dateKey}
                         className={cn(
-                          "aspect-square border border-cuephoria-purple/20 rounded-lg p-1",
-                          isToday(day) && "ring-2 ring-cuephoria-purple"
+                          "aspect-square border border-border/50 rounded-lg p-1",
+                          isToday(day) && "ring-2 ring-primary/60"
                         )}
                       >
                         <div className="text-xs font-semibold text-white mb-1">
@@ -550,15 +550,15 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
 
             {/* Staff Summary Table */}
             {summaryData.length > 0 && (
-              <div className="pt-4 border-t border-cuephoria-purple/20">
+              <div className="pt-4 border-t border-border/50">
                 <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <User className="h-5 w-5 text-cuephoria-lightpurple" />
+                  <User className="h-5 w-5 text-primary" />
                   Staff Summary - {format(currentDate, 'MMMM yyyy')}
                 </h4>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-cuephoria-darker border-cuephoria-purple/20">
+                      <TableRow className="glass-card border-border/50 border-border/50">
                         <TableHead className="text-white">Staff Name</TableHead>
                         <TableHead className="text-white">Designation</TableHead>
                         <TableHead className="text-white text-center">Working Days</TableHead>
@@ -573,7 +573,7 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
                       {summaryData.map((summary) => (
                         <TableRow 
                           key={summary.user_id}
-                          className="bg-cuephoria-darker/50 border-cuephoria-purple/10 hover:bg-cuephoria-darker"
+                          className="glass-card border-border/50/50 border-border/40 hover:glass-card border-border/50"
                         >
                           <TableCell className="font-medium text-white">
                             {summary.username}
@@ -624,7 +624,7 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
             )}
 
             {/* Legend */}
-            <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-cuephoria-purple/20">
+            <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-border/50">
               <div className="text-sm font-semibold text-white">Legend:</div>
               <Badge className={getStatusColor('present')}>
                 <CheckCircle className="h-3 w-3 mr-1" />

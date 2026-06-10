@@ -105,7 +105,7 @@ const StaffReportsPanel: React.FC = () => {
           value={profiles.filter((p) => p.is_active).length}
           subValue={`of ${profiles.length} total`}
           icon={Users}
-          iconColor="text-cuephoria-lightpurple"
+          iconColor="text-primary"
           iconBgColor="bg-purple-500/15"
         />
         <StatsCard
@@ -113,7 +113,7 @@ const StaffReportsPanel: React.FC = () => {
           value={`₹${payrollTotal.toLocaleString()}`}
           subValue="Sum of monthly salaries"
           icon={TrendingUp}
-          iconColor="text-cuephoria-blue"
+          iconColor="text-blue-400"
           iconBgColor="bg-blue-500/15"
         />
         <StatsCard

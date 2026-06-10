@@ -180,7 +180,7 @@ const RegularizationRequestDialog: React.FC<RegularizationRequestDialogProps> = 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="glass-card border-border/50 text-white sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl gradient-text">Request Attendance Regularization</DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -196,7 +196,7 @@ const RegularizationRequestDialog: React.FC<RegularizationRequestDialogProps> = 
             </div>
           )}
 
-          <div className="flex items-center justify-between p-3 bg-cuephoria-darker rounded-lg border border-cuephoria-purple/20">
+          <div className="flex items-center justify-between p-3 glass-card border-border/50 rounded-lg border border-border/50">
             <span className="text-sm text-muted-foreground">Remaining Regularizations:</span>
             <Badge variant={remainingRegularizations > 0 ? 'default' : 'destructive'} className="text-lg px-3 py-1">
               {remainingRegularizations} / 3
@@ -210,7 +210,7 @@ const RegularizationRequestDialog: React.FC<RegularizationRequestDialogProps> = 
                 <Button
                   variant="outline"
                   className={cn(
-                    "w-full justify-start text-left font-normal bg-cuephoria-darker border-cuephoria-purple/20",
+                    "w-full justify-start text-left font-normal glass-card border-border/50 border-border/50",
                     !selectedDate && "text-muted-foreground"
                   )}
                 >
@@ -218,13 +218,13 @@ const RegularizationRequestDialog: React.FC<RegularizationRequestDialogProps> = 
                   {selectedDate ? format(selectedDate, "PPP") : "Select date"}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 bg-cuephoria-dark border-cuephoria-purple/20">
+              <PopoverContent className="w-auto p-0 glass-card border-border/50">
                 <Calendar
                   mode="single"
                   selected={selectedDate}
                   onSelect={(date) => date && setSelectedDate(date)}
                   initialFocus
-                  className="bg-cuephoria-dark text-white"
+                  className="glass-card border-border/50 text-white"
                 />
               </PopoverContent>
             </Popover>
@@ -241,10 +241,10 @@ const RegularizationRequestDialog: React.FC<RegularizationRequestDialogProps> = 
                 setLeaveType('');
               }}
             >
-              <SelectTrigger className="bg-cuephoria-darker border-cuephoria-purple/20">
+              <SelectTrigger className="glass-card border-border/50 border-border/50">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-cuephoria-dark border-cuephoria-purple/20">
+              <SelectContent className="glass-card border-border/50">
                 <SelectItem value="missing_clock_in">Missing Clock In</SelectItem>
                 <SelectItem value="missing_clock_out">Missing Clock Out</SelectItem>
                 <SelectItem value="apply_leave">Apply Leave</SelectItem>
@@ -256,23 +256,23 @@ const RegularizationRequestDialog: React.FC<RegularizationRequestDialogProps> = 
             <div className="space-y-2">
               <Label>Requested Clock In Time *</Label>
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-cuephoria-lightpurple" />
+                <Clock className="h-4 w-4 text-primary" />
                 <Input
                   type="time"
                   value={requestedClockIn}
                   onChange={(e) => setRequestedClockIn(e.target.value)}
-                  className="bg-cuephoria-darker border-cuephoria-purple/20"
+                  className="glass-card border-border/50 border-border/50"
                 />
               </div>
               <div className="space-y-2 mt-2">
                 <Label>Requested Clock Out Time (Optional)</Label>
                 <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-cuephoria-lightpurple" />
+                  <Clock className="h-4 w-4 text-primary" />
                   <Input
                     type="time"
                     value={requestedClockOut}
                     onChange={(e) => setRequestedClockOut(e.target.value)}
-                    className="bg-cuephoria-darker border-cuephoria-purple/20"
+                    className="glass-card border-border/50 border-border/50"
                   />
                 </div>
               </div>
@@ -283,12 +283,12 @@ const RegularizationRequestDialog: React.FC<RegularizationRequestDialogProps> = 
             <div className="space-y-2">
               <Label>Requested Clock Out Time *</Label>
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-cuephoria-lightpurple" />
+                <Clock className="h-4 w-4 text-primary" />
                 <Input
                   type="time"
                   value={requestedClockOut}
                   onChange={(e) => setRequestedClockOut(e.target.value)}
-                  className="bg-cuephoria-darker border-cuephoria-purple/20"
+                  className="glass-card border-border/50 border-border/50"
                 />
               </div>
             </div>
@@ -301,10 +301,10 @@ const RegularizationRequestDialog: React.FC<RegularizationRequestDialogProps> = 
                 value={leaveType}
                 onValueChange={setLeaveType}
               >
-                <SelectTrigger className="bg-cuephoria-darker border-cuephoria-purple/20">
+                <SelectTrigger className="glass-card border-border/50 border-border/50">
                   <SelectValue placeholder="Select leave type" />
                 </SelectTrigger>
-                <SelectContent className="bg-cuephoria-dark border-cuephoria-purple/20">
+                <SelectContent className="glass-card border-border/50">
                   <SelectItem value="paid_leave">Paid Leave</SelectItem>
                   <SelectItem value="unpaid_leave">Unpaid Leave</SelectItem>
                   <SelectItem value="sick_leave">Sick Leave</SelectItem>
@@ -321,7 +321,7 @@ const RegularizationRequestDialog: React.FC<RegularizationRequestDialogProps> = 
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Please provide a reason for this regularization request..."
-              className="bg-cuephoria-darker border-cuephoria-purple/20"
+              className="glass-card border-border/50 border-border/50"
               rows={4}
             />
           </div>
@@ -331,7 +331,7 @@ const RegularizationRequestDialog: React.FC<RegularizationRequestDialogProps> = 
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="border-cuephoria-purple/20"
+            className="border-border/50"
             disabled={isSubmitting}
           >
             Cancel
@@ -339,7 +339,7 @@ const RegularizationRequestDialog: React.FC<RegularizationRequestDialogProps> = 
           <Button
             onClick={handleSubmit}
             disabled={isSubmitting || remainingRegularizations <= 0}
-            className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
+            className="btn-gradient border-0"
           >
             {isSubmitting ? 'Submitting...' : 'Submit Request'}
           </Button>

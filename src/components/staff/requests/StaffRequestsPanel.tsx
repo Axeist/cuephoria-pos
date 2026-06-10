@@ -32,7 +32,7 @@ type Props = { staffProfiles: StaffProfile[]; isLoading: boolean; onRefresh: () 
 
 const StaffRequestsPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefresh }) => {
   const {
-    filteredRequests, selectedRequest, isProcessing, adminComments, setAdminComments,
+    filteredRequests, allRequests, selectedRequest, isProcessing, adminComments, setAdminComments,
     showDialog, setShowDialog, showDeleteDialog, setShowDeleteDialog, actionType,
     filterType, setFilterType, filterStatus, setFilterStatus, dateFilter, setDateFilter,
     isLoadingRequests, analytics, isAdmin,
@@ -296,22 +296,22 @@ const StaffRequestsPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefre
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-card/30 border-border/50er rounded-lg">
+            <div className="text-center p-4 bg-card/30 border-border/50 rounded-lg">
               <Calendar className="h-6 w-6 text-yellow-500 mx-auto mb-2" />
               <div className="text-2xl font-bold text-white">{analytics.typeDistribution.leave}</div>
               <p className="text-xs text-muted-foreground">Leaves</p>
             </div>
-            <div className="text-center p-4 bg-card/30 border-border/50er rounded-lg">
+            <div className="text-center p-4 bg-card/30 border-border/50 rounded-lg">
               <FileText className="h-6 w-6 text-orange-500 mx-auto mb-2" />
               <div className="text-2xl font-bold text-white">{analytics.typeDistribution.regularization}</div>
               <p className="text-xs text-muted-foreground">Regularizations</p>
             </div>
-            <div className="text-center p-4 bg-card/30 border-border/50er rounded-lg">
+            <div className="text-center p-4 bg-card/30 border-border/50 rounded-lg">
               <TrendingUp className="h-6 w-6 text-blue-500 mx-auto mb-2" />
               <div className="text-2xl font-bold text-white">{analytics.typeDistribution.overtime}</div>
               <p className="text-xs text-muted-foreground">Overtime</p>
             </div>
-            <div className="text-center p-4 bg-card/30 border-border/50er rounded-lg">
+            <div className="text-center p-4 bg-card/30 border-border/50 rounded-lg">
               <User className="h-6 w-6 text-purple-500 mx-auto mb-2" />
               <div className="text-2xl font-bold text-white">{analytics.typeDistribution['double-shift']}</div>
               <p className="text-xs text-muted-foreground">Double Shift</p>
@@ -330,7 +330,7 @@ const StaffRequestsPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefre
             </div>
             <div className="flex items-center gap-2">
               <Select value={dateFilter} onValueChange={(v) => setDateFilter(v as DateFilter)}>
-                <SelectTrigger className="w-[180px] bg-card/30 border-border/50er border-border/50">
+                <SelectTrigger className="w-[180px] bg-card/30 border-border/50 border-border/50">
                   <Calendar className="h-4 w-4 mr-2" />
                   <SelectValue />
                 </SelectTrigger>
@@ -344,7 +344,7 @@ const StaffRequestsPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefre
                 </SelectContent>
               </Select>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-[150px] bg-card/30 border-border/50er border-border/50">
+                <SelectTrigger className="w-[150px] bg-card/30 border-border/50 border-border/50">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -355,7 +355,7 @@ const StaffRequestsPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefre
                 </SelectContent>
               </Select>
               <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="w-[180px] bg-card/30 border-border/50er border-border/50">
+                <SelectTrigger className="w-[180px] bg-card/30 border-border/50 border-border/50">
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue placeholder="Filter by type" />
                 </SelectTrigger>
@@ -396,14 +396,14 @@ const StaffRequestsPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefre
               {filteredRequests.map((request) => (
                 <Card
                   key={`${request.type}-${request.id}`}
-                  className={`bg-card/30 border-border/50er border-border/40 hover:border-cuephoria-purple/40 transition-all ${
+                  className={`bg-card/30 border-border/50 border-border/40 hover:border-primary/30 transition-all ${
                     request.priority === 'high' && request.status === 'pending' ? 'border-red-500/50 bg-red-500/5' : ''
                   } ${request.status === 'approved' ? 'border-green-500/20' : request.status === 'rejected' ? 'border-red-500/20' : ''}`}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex items-start gap-4 flex-1">
-                        <div className={`h-12 w-12 rounded-full bg-cuephoria-purple/20 flex items-center justify-center flex-shrink-0 ${getRequestTypeColor(request.type).split(' ')[0]}`}>
+                        <div className={`h-12 w-12 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 ${getRequestTypeColor(request.type).split(' ')[0]}`}>
                           {getRequestTypeIcon(request.type)}
                         </div>
                         
@@ -532,7 +532,7 @@ const StaffRequestsPanel: React.FC<Props> = ({ staffProfiles, isLoading, onRefre
                 placeholder="Add any comments or notes..."
                 value={adminComments}
                 onChange={(e) => setAdminComments(e.target.value)}
-                className="bg-card/30 border-border/50er border-border/50"
+                className="bg-card/30 border-border/50 border-border/50"
                 rows={4}
               />
             </div>

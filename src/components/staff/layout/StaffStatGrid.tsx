@@ -14,7 +14,7 @@ const StaffStatGrid: React.FC<Props> = ({ stats }) => (
       value={stats.totalStaff}
       subValue={`${stats.inactiveStaff} inactive`}
       icon={Users}
-      iconColor="text-cuephoria-lightpurple"
+      iconColor="text-primary"
       iconBgColor="bg-purple-500/15"
     />
     <StatsCard
@@ -46,7 +46,7 @@ const StaffStatGrid: React.FC<Props> = ({ stats }) => (
       value={`₹${stats.monthlyPayroll.toLocaleString()}`}
       subValue="Total net this month"
       icon={DollarSign}
-      iconColor="text-cuephoria-blue"
+      iconColor="text-blue-400"
       iconBgColor="bg-blue-500/15"
       className="col-span-2 lg:col-span-1"
     />

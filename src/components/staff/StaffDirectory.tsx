@@ -93,7 +93,7 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin h-8 w-8 rounded-full border-4 border-cuephoria-lightpurple border-t-transparent"></div>
+        <div className="animate-spin h-8 w-8 rounded-full border-4 border-primary/40 border-t-transparent"></div>
       </div>
     );
   }
@@ -105,7 +105,7 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
           <CardTitle className="text-white">Staff Directory</CardTitle>
           <CardDescription>
             HR profiles for your team. Logins and portal PINs are managed in{' '}
-            <Link to="/settings?tab=team" className="text-cuephoria-lightpurple hover:underline">
+            <Link to="/settings?tab=team" className="text-primary hover:underline">
               Settings → Team
             </Link>
             .
@@ -126,8 +126,8 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-full bg-cuephoria-purple/20 flex items-center justify-center">
-                          <span className="text-xl font-bold text-cuephoria-lightpurple">
+                        <div className="h-12 w-12 rounded-full bg-primary/15 flex items-center justify-center">
+                          <span className="text-xl font-bold text-primary">
                             {staff.username?.charAt(0)?.toUpperCase() || '?'}
                           </span>
                         </div>
@@ -199,7 +199,7 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Hourly Rate:</span>
-                        <span className="text-cuephoria-blue font-semibold">₹{staff.hourly_rate?.toFixed(2) || '0.00'}/hr</span>
+                        <span className="text-blue-400 font-semibold">₹{staff.hourly_rate?.toFixed(2) || '0.00'}/hr</span>
                       </div>
                       {staff.shift_start_time && staff.shift_end_time && (
                         <div className="flex justify-between text-sm">
@@ -219,7 +219,7 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
                         }}
                         variant="outline"
                         size="sm"
-                        className="border-cuephoria-purple text-cuephoria-purple hover:bg-cuephoria-purple hover:text-white"
+                        className="border-primary/40 text-primary hover:bg-primary hover:text-white"
                       >
                         <Edit className="h-3 w-3 mr-1" />
                         Edit
@@ -282,7 +282,7 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-cuephoria-purple/20">Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="border-border/50">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteStaff}
               className="bg-red-600 hover:bg-red-700"

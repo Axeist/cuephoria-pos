@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import StaffSubTabNav from '@/components/staff/layout/StaffSubTabNav';
 
 interface AttendanceManagementProps {
   staffProfiles: any[];
@@ -200,7 +201,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin h-8 w-8 rounded-full border-4 border-cuephoria-lightpurple border-t-transparent"></div>
+        <div className="animate-spin h-8 w-8 rounded-full border-4 border-primary/40 border-t-transparent"></div>
       </div>
     );
   }
@@ -209,45 +210,30 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
     <>
       <div className="space-y-6">
         <div className="w-full">
-          <div className="grid w-full grid-cols-2 gap-1 p-1 bg-cuephoria-dark border border-cuephoria-purple/20 rounded-xl mb-6">
-            <button
-              type="button"
-              onClick={() => setActiveAttendanceTab('active')}
-              className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 text-sm ${
-                activeAttendanceTab === 'active'
-                  ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
-                  : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
-              }`}
-            >
-              Active Shifts
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveAttendanceTab('history')}
-              className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 text-sm ${
-                activeAttendanceTab === 'history'
-                  ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
-                  : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
-              }`}
-            >
-              Attendance History
-            </button>
-          </div>
+        <StaffSubTabNav
+          className="mb-6"
+          tabs={[
+            { id: 'active' as const, label: 'Active Shifts' },
+            { id: 'history' as const, label: 'Attendance History' },
+          ]}
+          active={activeAttendanceTab}
+          onChange={setActiveAttendanceTab}
+        />
 
           {activeAttendanceTab === 'active' && (
-            <div className="space-y-4 mt-6">
-            <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+            <div className="space-y-4">
+            <Card className="glass-card border-border/50">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-white">Active Shifts</CardTitle>
+                    <CardTitle className="text-foreground">Active Shifts</CardTitle>
                     <CardDescription>Currently clocked in staff members</CardDescription>
                   </div>
                   <Button
                     onClick={onRefresh}
                     variant="outline"
                     size="sm"
-                    className="border-cuephoria-purple/20"
+                    className="border-border/50"
                   >
                     Refresh
                   </Button>
@@ -264,11 +250,11 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                     {activeShifts.map((shift) => (
                       <div
                         key={shift.id}
-                        className="flex items-center justify-between p-4 rounded-lg bg-cuephoria-darker border border-cuephoria-purple/10"
+                        className="flex items-center justify-between p-4 rounded-lg glass-card border-border/50 border border-border/40"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-cuephoria-purple/20 flex items-center justify-center">
-                            <span className="font-bold text-cuephoria-lightpurple">
+                          <div className="h-10 w-10 rounded-full bg-primary/15 flex items-center justify-center">
+                            <span className="font-bold text-primary">
                               {shift.staff_name?.charAt(0)?.toUpperCase() || '?'}
                             </span>
                           </div>
@@ -282,7 +268,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                           <p className="text-white font-semibold">
                             {format(new Date(shift.clock_in), 'hh:mm a')}
                           </p>
-                          <p className="text-sm text-cuephoria-blue mt-1">
+                          <p className="text-sm text-blue-400 mt-1">
                             {shift.hours_so_far?.toFixed(1)} hours
                           </p>
                         </div>
@@ -312,7 +298,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                 <CardContent>
                   <div className="space-y-2">
                     {breakViolations.map((v) => (
-                      <div key={v.id} className="flex items-center justify-between p-3 bg-cuephoria-darker rounded-lg">
+                      <div key={v.id} className="flex items-center justify-between p-3 glass-card border-border/50 rounded-lg">
                         <div>
                           <p className="text-white font-semibold">{getStaffName(v.staff_id)}</p>
                           <p className="text-sm text-muted-foreground">
@@ -333,7 +319,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
               </Card>
             )}
 
-            <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+            <Card className="glass-card border-border/50">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -345,10 +331,10 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                       value={String(selectedMonth)}
                       onValueChange={(v) => setSelectedMonth(parseInt(v))}
                     >
-                      <SelectTrigger className="w-[140px] bg-cuephoria-darker border-cuephoria-purple/20">
+                      <SelectTrigger className="w-[140px] glass-card border-border/50 border-border/50">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-cuephoria-dark border-cuephoria-purple/20">
+                      <SelectContent className="glass-card border-border/50">
                         {Array.from({ length: 12 }, (_, i) => (
                           <SelectItem key={i + 1} value={String(i + 1)}>
                             {format(new Date(2025, i, 1), 'MMMM')}
@@ -360,10 +346,10 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                       value={String(selectedYear)}
                       onValueChange={(v) => setSelectedYear(parseInt(v))}
                     >
-                      <SelectTrigger className="w-[100px] bg-cuephoria-darker border-cuephoria-purple/20">
+                      <SelectTrigger className="w-[100px] glass-card border-border/50 border-border/50">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-cuephoria-dark border-cuephoria-purple/20">
+                      <SelectContent className="glass-card border-border/50">
                         {Array.from({ length: 5 }, (_, i) => {
                           const year = new Date().getFullYear() - i;
                           return (
@@ -380,7 +366,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
               <CardContent>
                 {isLoadingRecords ? (
                   <div className="flex items-center justify-center py-12">
-                    <div className="animate-spin h-8 w-8 rounded-full border-4 border-cuephoria-lightpurple border-t-transparent"></div>
+                    <div className="animate-spin h-8 w-8 rounded-full border-4 border-primary/40 border-t-transparent"></div>
                   </div>
                 ) : attendanceRecords.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
@@ -391,14 +377,14 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                     {attendanceRecords.map((record) => (
                       <div
                         key={record.id}
-                        className="flex items-center justify-between p-4 rounded-lg bg-cuephoria-darker border border-cuephoria-purple/10"
+                        className="flex items-center justify-between p-4 rounded-lg glass-card border-border/50 border border-border/40"
                       >
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
                             <p className="font-semibold text-white">
                               {getStaffName(record.staff_id)}
                             </p>
-                            <Badge variant="outline" className="text-cuephoria-lightpurple border-cuephoria-lightpurple">
+                            <Badge variant="outline" className="text-primary border-primary/40">
                               {format(new Date(record.date), 'MMM dd, yyyy')}
                             </Badge>
                             {record.break_duration_minutes > 60 && (
@@ -430,7 +416,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                             </div>
                             <div>
                               <p className="text-muted-foreground">Earnings</p>
-                              <p className="text-cuephoria-blue font-semibold">
+                              <p className="text-blue-400 font-semibold">
                                 ₹{record.daily_earnings?.toFixed(2) || '0.00'}
                               </p>
                             </div>
@@ -441,7 +427,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                             onClick={() => handleEditAttendance(record)}
                             variant="outline"
                             size="sm"
-                            className="border-cuephoria-purple text-cuephoria-purple hover:bg-cuephoria-purple hover:text-white"
+                            className="border-primary/40 text-primary hover:bg-primary hover:text-white"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -467,7 +453,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
 
       {/* Edit Dialog */}
       <Dialog open={!!editAttendance} onOpenChange={() => setEditAttendance(null)}>
-        <DialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white">
+        <DialogContent className="glass-card border-border/50 text-white">
           <DialogHeader>
             <DialogTitle>Edit Attendance</DialogTitle>
             <DialogDescription>
@@ -481,7 +467,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                 type="datetime-local"
                 value={editForm.clock_in}
                 onChange={(e) => setEditForm({...editForm, clock_in: e.target.value})}
-                className="bg-cuephoria-darker border-cuephoria-purple/20"
+                className="glass-card border-border/50 border-border/50"
               />
             </div>
             <div className="space-y-2">
@@ -490,7 +476,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                 type="datetime-local"
                 value={editForm.clock_out}
                 onChange={(e) => setEditForm({...editForm, clock_out: e.target.value})}
-                className="bg-cuephoria-darker border-cuephoria-purple/20"
+                className="glass-card border-border/50 border-border/50"
               />
             </div>
             <div className="space-y-2">
@@ -499,7 +485,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                 type="number"
                 value={editForm.break_duration_minutes}
                 onChange={(e) => setEditForm({...editForm, break_duration_minutes: parseInt(e.target.value) || 0})}
-                className="bg-cuephoria-darker border-cuephoria-purple/20"
+                className="glass-card border-border/50 border-border/50"
               />
               {editForm.break_duration_minutes > 60 && (
                 <p className="text-xs text-red-500">⚠️ Exceeds maximum allowed break time (60 min)</p>
@@ -510,13 +496,13 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
             <Button
               variant="outline"
               onClick={() => setEditAttendance(null)}
-              className="border-cuephoria-purple/20"
+              className="border-border/50"
             >
               Cancel
             </Button>
             <Button
               onClick={handleSaveEdit}
-              className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
+              className="btn-gradient border-0"
             >
               Save Changes
             </Button>
@@ -526,7 +512,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteAttendanceId} onOpenChange={() => setDeleteAttendanceId(null)}>
-        <AlertDialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white">
+        <AlertDialogContent className="glass-card border-border/50 text-white">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Attendance Record?</AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground">
@@ -534,7 +520,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-cuephoria-purple/20">Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="border-border/50">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteAttendance}
               className="bg-red-600 hover:bg-red-700"

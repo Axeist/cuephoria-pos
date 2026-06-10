@@ -36,7 +36,7 @@ const StaffBranchScopeToggle: React.FC<Props> = ({
       className={cn(
         'flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors',
         scope === 'all'
-          ? 'bg-cuephoria-blue/20 border-cuephoria-blue/50 text-cuephoria-blue font-semibold'
+          ? 'bg-blue-500/15 border-blue-400/40 text-blue-400 font-semibold'
           : 'border-border/60 text-muted-foreground hover:border-border hover:text-foreground',
       )}
     >

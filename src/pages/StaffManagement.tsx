@@ -9,7 +9,11 @@ import { useLocation } from '@/context/LocationContext';
 import StaffLocationBanner from '@/components/staff/layout/StaffLocationBanner';
 import StaffBranchScopeToggle from '@/components/staff/layout/StaffBranchScopeToggle';
 import StaffStatGrid from '@/components/staff/layout/StaffStatGrid';
-import StaffTabNav from '@/components/staff/layout/StaffTabNav';
+import {
+  StaffNavDesktop,
+  StaffNavMobile,
+  STAFF_SECTION_META,
+} from '@/components/staff/layout/StaffNav';
 import StaffOverview from '@/components/staff/StaffOverview';
 import StaffDirectory from '@/components/staff/StaffDirectory';
 import AttendanceManagement from '@/components/staff/AttendanceManagement';
@@ -103,13 +107,33 @@ const StaffManagementContent: React.FC = () => {
 
       <StaffStatGrid stats={stats} />
 
-      <StaffTabNav
+      <StaffNavMobile
         activeTab={activeTab}
         onChange={setActiveTab}
         pendingBadge={stats.pendingRequests}
       />
 
-      <div className="rounded-2xl border border-border/50 bg-card/20 p-4 sm:p-6">
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+        <aside className="hidden lg:block w-60 shrink-0">
+          <div className="sticky top-24 rounded-2xl border border-border/50 bg-card/20 p-3">
+            <StaffNavDesktop
+              activeTab={activeTab}
+              onChange={setActiveTab}
+              pendingBadge={stats.pendingRequests}
+            />
+          </div>
+        </aside>
+
+        <main className="flex-1 min-w-0">
+          <div className="rounded-2xl border border-border/50 bg-card/20 p-4 sm:p-6 md:p-8">
+            <header className="mb-6">
+              <h3 className="text-xl font-semibold tracking-tight text-foreground">
+                {STAFF_SECTION_META[activeTab].title}
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1 max-w-2xl leading-relaxed">
+                {STAFF_SECTION_META[activeTab].description}
+              </p>
+            </header>
         {activeTab === 'overview' && (
           <StaffOverview
             staffProfiles={profiles}
@@ -160,6 +184,8 @@ const StaffManagementContent: React.FC = () => {
         {activeTab === 'policies' && <LeavePolicyPanel />}
         {activeTab === 'holidays' && <HolidayManagerPanel />}
         {activeTab === 'audit' && <StaffAuditPanel />}
+          </div>
+        </main>
       </div>
 
       <AdminRegularizationDialog

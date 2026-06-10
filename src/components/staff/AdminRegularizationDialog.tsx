@@ -228,7 +228,7 @@ const AdminRegularizationDialog: React.FC<AdminRegularizationDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="glass-card border-border/50 text-white sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl gradient-text">Admin Attendance Regularization</DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -243,10 +243,10 @@ const AdminRegularizationDialog: React.FC<AdminRegularizationDialogProps> = ({
               value={selectedStaff}
               onValueChange={setSelectedStaff}
             >
-              <SelectTrigger className="bg-cuephoria-darker border-cuephoria-purple/20">
+              <SelectTrigger className="glass-card border-border/50 border-border/50">
                 <SelectValue placeholder="Select staff member" />
               </SelectTrigger>
-              <SelectContent className="bg-cuephoria-dark border-cuephoria-purple/20">
+              <SelectContent className="glass-card border-border/50">
                 {staffProfiles.filter(s => s.is_active).map(staff => (
                   <SelectItem key={staff.user_id} value={staff.user_id}>
                     {staff.username} - {staff.designation}
@@ -263,7 +263,7 @@ const AdminRegularizationDialog: React.FC<AdminRegularizationDialogProps> = ({
                 <Button
                   variant="outline"
                   className={cn(
-                    "w-full justify-start text-left font-normal bg-cuephoria-darker border-cuephoria-purple/20",
+                    "w-full justify-start text-left font-normal glass-card border-border/50 border-border/50",
                     !selectedDate && "text-muted-foreground"
                   )}
                 >
@@ -271,22 +271,22 @@ const AdminRegularizationDialog: React.FC<AdminRegularizationDialogProps> = ({
                   {selectedDate ? format(selectedDate, "PPP") : "Select date"}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 bg-cuephoria-dark border-cuephoria-purple/20">
+              <PopoverContent className="w-auto p-0 glass-card border-border/50">
                 <Calendar
                   mode="single"
                   selected={selectedDate}
                   onSelect={(date) => date && setSelectedDate(date)}
                   initialFocus
-                  className="bg-cuephoria-dark text-white"
+                  className="glass-card border-border/50 text-white"
                 />
               </PopoverContent>
             </Popover>
           </div>
 
           {selectedStaffData && (
-            <div className="p-3 bg-cuephoria-darker rounded-lg border border-cuephoria-purple/20">
+            <div className="p-3 glass-card border-border/50 rounded-lg border border-border/50">
               <div className="flex items-center gap-2 mb-2">
-                <User className="h-4 w-4 text-cuephoria-lightpurple" />
+                <User className="h-4 w-4 text-primary" />
                 <span className="font-semibold text-white">{selectedStaffData.username}</span>
               </div>
               <div className="text-sm text-muted-foreground space-y-1">
@@ -302,10 +302,10 @@ const AdminRegularizationDialog: React.FC<AdminRegularizationDialogProps> = ({
               value={regularizationType}
               onValueChange={(value: any) => setRegularizationType(value)}
             >
-              <SelectTrigger className="bg-cuephoria-darker border-cuephoria-purple/20">
+              <SelectTrigger className="glass-card border-border/50 border-border/50">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-cuephoria-dark border-cuephoria-purple/20">
+              <SelectContent className="glass-card border-border/50">
                 <SelectItem value="full_day">Full Day Present</SelectItem>
                 <SelectItem value="half_day">Half Day Present</SelectItem>
                 <SelectItem value="absent">Absent (No Salary)</SelectItem>
@@ -314,7 +314,7 @@ const AdminRegularizationDialog: React.FC<AdminRegularizationDialogProps> = ({
           </div>
 
           {selectedStaffData && regularizationType !== 'absent' && (
-            <div className="p-4 bg-cuephoria-darker rounded-lg border border-cuephoria-purple/20 space-y-2">
+            <div className="p-4 glass-card border-border/50 rounded-lg border border-border/50 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Working Hours:</span>
                 <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/50">
@@ -345,7 +345,7 @@ const AdminRegularizationDialog: React.FC<AdminRegularizationDialogProps> = ({
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="border-cuephoria-purple/20"
+            className="border-border/50"
             disabled={isSubmitting}
           >
             Cancel
@@ -353,7 +353,7 @@ const AdminRegularizationDialog: React.FC<AdminRegularizationDialogProps> = ({
           <Button
             onClick={handleSubmit}
             disabled={isSubmitting || !selectedStaff || !selectedDate}
-            className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
+            className="btn-gradient border-0"
           >
             {isSubmitting ? 'Processing...' : 'Regularize Attendance'}
           </Button>
