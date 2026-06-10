@@ -2,33 +2,17 @@
  * Catch-all dispatcher for /api/razorpay/* routes that DON'T have a
  * concrete sibling file in this directory.
  *
- * Vercel resolves concrete files before dynamic segments, so the existing
- * concrete handlers continue to serve their own routes:
- *
- *   /api/razorpay/callback        → api/razorpay/callback.ts
- *   /api/razorpay/create-order    → api/razorpay/create-order.ts
- *   /api/razorpay/get-key-id      → api/razorpay/get-key-id.ts
- *   /api/razorpay/verify-payment  → api/razorpay/verify-payment.ts
- *   /api/razorpay/webhook         → api/razorpay/webhook.ts
- *
- * This dispatcher is responsible only for actions WITHOUT a concrete file:
- *
- *   GET      /api/razorpay/test-credentials      → handlers/razorpay/test-credentials (Edge)
- *   POST     /api/razorpay/test-org-credentials  → handlers/razorpay/test-org-credentials (Node)
- *   GET/POST /api/razorpay/reconcile              → handlers/razorpay/reconcile (Node, cron)
- *
- * IMPORTANT:
- *   1. All handler imports are STATIC so Vercel's Node File Trace bundles
- *      them. Dynamic `await import("...")` is NOT reliably traced.
- *   2. Relative imports must use `.js` extension because the deployment
- *      runs as Node ESM (`"type": "module"` in package.json).
- *   3. We do NOT import handlers that have a concrete sibling file
- *      (e.g. create-order, verify-payment). Those modules are duplicate
- *      stale copies under src/server/handlers/razorpay/ that are not
- *      maintained and import broken relative paths; loading them here
- *      would crash the dispatcher at module-init time.
+ *   GET      /api/razorpay/test-credentials      → Edge (platform env keys)
+ *   POST     /api/razorpay/test-org-credentials  → Node (tenant keys, inline)
+ *   GET/POST /api/razorpay/reconcile             → Node (cron)
  */
 
+import { createClient } from "@supabase/supabase-js";
+import {
+  ADMIN_SESSION_COOKIE,
+  parseCookies,
+  verifyAdminSession,
+} from "../../src/server/adminApiUtils.js";
 import {
   callEdgeHandler,
   getAction,
@@ -40,7 +24,6 @@ import {
 
 import reconcileHandler from "../../src/server/handlers/razorpay/reconcile.js";
 import testCredentialsHandler from "../../src/server/handlers/razorpay/test-credentials.js";
-import testOrgCredentialsHandler from "../../src/server/handlers/razorpay/test-org-credentials.js";
 
 export const config = {
   maxDuration: 30,
@@ -53,12 +36,156 @@ type DispatchEntry =
 const ROUTES: Record<string, DispatchEntry> = {
   reconcile: { kind: "node", handler: reconcileHandler as unknown as NodeHandler },
   "test-credentials": { kind: "edge", handler: testCredentialsHandler as unknown as EdgeHandler },
-  "test-org-credentials": { kind: "node", handler: testOrgCredentialsHandler as unknown as NodeHandler },
 };
+
+function readHeader(req: VercelRequest, name: string): string {
+  const v = req.headers?.[name.toLowerCase()];
+  if (Array.isArray(v)) return v[0] || "";
+  return (v as string | undefined) || "";
+}
+
+function jsonRes(res: VercelResponse, data: unknown, status = 200) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "content-type");
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.status(status).json(data);
+}
+
+function normalizeCredential(value: string): string {
+  return value.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+}
+
+/** Tenant Razorpay credential test — inlined to avoid heavy handler import graph on Vercel. */
+async function handleTestOrgCredentials(req: VercelRequest, res: VercelResponse) {
+  if (req.method === "OPTIONS") return jsonRes(res, {}, 200);
+  if (req.method !== "POST") return jsonRes(res, { ok: false, error: "Method not allowed" }, 405);
+
+  try {
+    const cookies = parseCookies(readHeader(req, "cookie"));
+    const user = await verifyAdminSession(cookies[ADMIN_SESSION_COOKIE] || "");
+    if (!user) return jsonRes(res, { ok: false, error: "Unauthorized" }, 401);
+    if (!user.isAdmin) {
+      return jsonRes(res, { ok: false, error: "Only admins can test payment gateways." }, 403);
+    }
+
+    const supabaseUrl =
+      process.env.SUPABASE_URL ||
+      process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      process.env.VITE_SUPABASE_URL;
+    const supabaseKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_SERVICE_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      return jsonRes(res, { ok: false, error: "Server misconfigured (Supabase)." }, 500);
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const { data: membership, error: memErr } = await supabase
+      .from("org_memberships")
+      .select("organization_id")
+      .eq("admin_user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+    if (memErr) return jsonRes(res, { ok: false, error: memErr.message }, 500);
+
+    const orgId = (membership as { organization_id?: string } | null)?.organization_id;
+    if (!orgId) {
+      return jsonRes(res, { ok: false, error: "No organization membership found." }, 403);
+    }
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const rawCreds = body.credentials;
+    if (!rawCreds || typeof rawCreds !== "object") {
+      return jsonRes(res, {
+        ok: true,
+        result: { ok: false, message: "Key ID and Secret are required." },
+      });
+    }
+    const creds = rawCreds as Record<string, unknown>;
+    const keyId = normalizeCredential(String(creds.key_id ?? ""));
+    const keySecret = normalizeCredential(String(creds.key_secret ?? ""));
+
+    if (!keyId || !keySecret) {
+      return jsonRes(res, {
+        ok: true,
+        result: { ok: false, message: "Key ID and Secret are required." },
+      });
+    }
+
+    const mode = keyId.startsWith("rzp_live_") ? "live" : keyId.startsWith("rzp_test_") ? "test" : null;
+    if (!mode) {
+      return jsonRes(res, {
+        ok: true,
+        result: {
+          ok: false,
+          message: "Key ID must start with rzp_test_ (test) or rzp_live_ (live).",
+        },
+      });
+    }
+
+    const Razorpay = (await import("razorpay")).default;
+    const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
+    await razorpay.orders.create({
+      amount: 100,
+      currency: "INR",
+      receipt: `cuetronix-test-${Date.now()}`.slice(0, 40),
+    });
+
+    const { data: existing } = await supabase
+      .from("payment_gateway_configs")
+      .select("settings")
+      .eq("organization_id", orgId)
+      .eq("provider", "razorpay")
+      .maybeSingle();
+    const prevSettings = ((existing as { settings?: Record<string, unknown> } | null)?.settings ??
+      {}) as Record<string, unknown>;
+    await supabase.from("payment_gateway_configs").upsert(
+      {
+        organization_id: orgId,
+        provider: "razorpay",
+        mode,
+        settings: { ...prevSettings, last_credential_test_at: new Date().toISOString() },
+      },
+      { onConflict: "organization_id,provider" },
+    );
+
+    return jsonRes(res, {
+      ok: true,
+      provider: "razorpay",
+      result: { ok: true, message: `Razorpay credentials are valid in ${mode} mode.` },
+    });
+  } catch (err: unknown) {
+    const e = err as { error?: { description?: string }; message?: string; statusCode?: number };
+    const body = (req.body ?? {}) as { credentials?: { key_id?: string } };
+    const mode = String(body.credentials?.key_id ?? "").startsWith("rzp_live_") ? "live" : "test";
+    const detail =
+      e?.error?.description ||
+      e?.message ||
+      "Authentication failed — check that Key ID and Secret are a matching pair from Razorpay Dashboard.";
+    console.error("[test-org-credentials]", err);
+    return jsonRes(res, {
+      ok: true,
+      provider: "razorpay",
+      result: {
+        ok: false,
+        message: `Razorpay auth failed (${e?.statusCode ?? "error"}, ${mode}): ${detail}`,
+      },
+    });
+  }
+}
 
 export default async function dispatcher(req: VercelRequest, res: VercelResponse) {
   try {
     const action = getAction(req);
+
+    if (action === "test-org-credentials") {
+      return await handleTestOrgCredentials(req, res);
+    }
+
     const entry = ROUTES[action];
     if (!entry) {
       res.setHeader("Content-Type", "application/json; charset=utf-8");
