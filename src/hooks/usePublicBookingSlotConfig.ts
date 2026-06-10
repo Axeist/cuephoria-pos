@@ -16,11 +16,11 @@ async function fetchPublicBookingSlotConfig(
   locationId: string,
 ): Promise<ResolvedBookingSlotConfig> {
   const res = await fetch(
-    `/api/public/booking-slot-config?location=${encodeURIComponent(locationId)}`,
+    `/api/public/bookable-stations?location=${encodeURIComponent(locationId)}`,
   );
   const json = await res.json().catch(() => ({}));
-  if (!json?.ok || !json.config) return FALLBACK;
-  const c = json.config as ResolvedBookingSlotConfig;
+  if (!json?.ok || !json.slot_config) return FALLBACK;
+  const c = json.slot_config as ResolvedBookingSlotConfig;
   return {
     slot_interval_minutes: c.slot_interval_minutes === 30 ? 30 : DEFAULT_SLOT_INTERVAL_MINUTES,
     minimum_booking_minutes:

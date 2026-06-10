@@ -7,7 +7,9 @@
 
 import { j } from "../../src/server/adminApiUtils";
 import { resolvePublicLocation, DEFAULT_PUBLIC_ORG_SLUG } from "../../src/server/lib/resolvePublicLocation";
+import { resolveBookingSlotConfigForLocation } from "../../src/server/lib/resolveBookingSlotConfigForLocation";
 import { supabaseServiceClient, SupabaseConfigError } from "../../src/server/supabaseServer";
+import { bookingSlotConfigLabel } from "../../src/utils/bookingSlotConfig";
 import { isStationPublicBookable } from "../../src/utils/stationTransform";
 
 export const config = { runtime: "edge" };
@@ -50,9 +52,17 @@ export default async function handler(req: Request) {
     if (stError) throw stError;
 
     const stations = (rows || []).filter((s) => isStationPublicBookable(s));
+    const slotConfig = await resolveBookingSlotConfigForLocation(supabase, resolved.id);
 
     return j(
-      { ok: true, location_id: resolved.id, stations, count: stations.length },
+      {
+        ok: true,
+        location_id: resolved.id,
+        stations,
+        count: stations.length,
+        slot_config: slotConfig,
+        slot_config_label: bookingSlotConfigLabel(slotConfig),
+      },
       200,
       { "cache-control": "public, max-age=30" }
     );
