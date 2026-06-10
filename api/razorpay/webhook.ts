@@ -5,8 +5,15 @@ import {
   isSubscriptionWebhookEvent,
 } from "../../src/server/lib/razorpay-subscription-webhook.js";
 import { createHmac, timingSafeEqual } from "crypto";
-import { recordWebhookEventHeartbeat } from "../../src/server/lib/payment-gateway-config.js";
+import {
+  lookupPaymentOrderOrganizationId,
+  recordWebhookEventHeartbeat,
+} from "../../src/server/lib/payment-gateway-config.js";
 import { findBillIdByOrderId, findBillIdByPaymentId, materializeBookingFromPaymentOrder } from "../../src/server/lib/materialize-booking.js";
+import {
+  getPlatformWebhookSecret,
+  resolveWebhookSecretsForOrder,
+} from "./credentials.js";
 
 export const config = {
   maxDuration: 30, // 30 seconds
@@ -62,7 +69,16 @@ function getRazorpayWebhookSecret() {
     : (need("RAZORPAY_WEBHOOK_SECRET_TEST") || need("RAZORPAY_WEBHOOK_SECRET"));
 }
 
-// Verify webhook signature
+function verifyWebhookSignatureWithAnySecret(
+  payload: string,
+  signature: string,
+  secrets: string[],
+): boolean {
+  for (const secret of secrets) {
+    if (verifyWebhookSignature(payload, signature, secret)) return true;
+  }
+  return false;
+}
 function verifyWebhookSignature(
   payload: string,
   signature: string,
@@ -739,17 +755,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       payloadLength: rawPayload.length,
     });
 
-    // Verify webhook signature
-    const webhookSecret = getRazorpayWebhookSecret();
-    const isValid = verifyWebhookSignature(rawPayload, signature, webhookSecret);
+    const event = data.event;
+    const payment = data.payload?.payment?.entity || data.payload?.payment;
+    const order = data.payload?.order?.entity || data.payload?.order;
+    const orderIdForVerify = payment?.order_id || order?.id || null;
+
+    let webhookSecrets: string[] = [];
+    if (isSubscriptionWebhookEvent(event)) {
+      try {
+        webhookSecrets = [getPlatformWebhookSecret()];
+      } catch {
+        webhookSecrets = [];
+      }
+    } else {
+      webhookSecrets = await resolveWebhookSecretsForOrder(
+        orderIdForVerify ? String(orderIdForVerify) : null,
+      );
+    }
+
+    const isValid = verifyWebhookSignatureWithAnySecret(rawPayload, signature, webhookSecrets);
 
     if (!isValid) {
       console.error("❌ Invalid webhook signature");
       return j(res, { ok: false, error: "Invalid signature" }, 401);
     }
-    const event = data.event;
-    const payment = data.payload?.payment?.entity || data.payload?.payment;
-    const order = data.payload?.order?.entity || data.payload?.order;
+
     const fallbackEventId = `${event}:${payment?.id || order?.id || "unknown"}`;
     const eventId = String(headerEventId || fallbackEventId);
 
@@ -857,7 +887,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     await recordWebhookEventHeartbeat({
       provider: "razorpay",
-      organizationId: null,
+      organizationId: orderIdFromPayment
+        ? await lookupPaymentOrderOrganizationId(String(orderIdFromPayment))
+        : null,
       event,
     });
 

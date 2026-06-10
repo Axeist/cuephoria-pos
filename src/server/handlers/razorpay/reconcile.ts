@@ -29,7 +29,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getRazorpayCredentials, type RazorpayProfile } from "../../lib/razorpay-credentials.js";
+import { resolveRazorpayCredentials, type RazorpayProfile } from "../../lib/razorpay-credentials.js";
 import { materializeBookingFromPaymentOrder } from "../../lib/materialize-booking.js";
 import { PAYMENT_ORDER_PENDING_TTL_MS } from "../../lib/payment-order-ttl.js";
 
@@ -117,6 +117,7 @@ type PaymentOrderRow = {
   provider_order_id: string;
   provider_payment_id: string | null;
   amount_paise: number;
+  organization_id: string | null;
   location_id: string | null;
   customer_phone: string | null;
   booking_payload: Record<string, unknown>;
@@ -132,15 +133,18 @@ type RazorpayPaymentEntity = {
   order_id: string;
 };
 
-async function fetchOrderPayments(
-  orderId: string,
-  profile: RazorpayProfile,
-): Promise<RazorpayPaymentEntity[]> {
+async function fetchOrderPayments(row: PaymentOrderRow): Promise<RazorpayPaymentEntity[]> {
   const Razorpay = (await import("razorpay")).default;
-  const { keyId, keySecret } = getRazorpayCredentials(profile);
-  const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
-  // razorpay.orders.fetchPayments returns { entity: 'collection', count, items: Payment[] }
-  const res = (await razorpay.orders.fetchPayments(orderId)) as unknown as {
+  const profile: RazorpayProfile = row.profile === "lite" ? "lite" : "default";
+  const creds = await resolveRazorpayCredentials({
+    orderId: row.provider_order_id,
+    organizationId: row.organization_id ?? undefined,
+    locationId: row.location_id ?? undefined,
+    profile,
+    purpose: "booking",
+  });
+  const razorpay = new Razorpay({ key_id: creds.keyId, key_secret: creds.keySecret });
+  const res = (await razorpay.orders.fetchPayments(row.provider_order_id)) as unknown as {
     items?: RazorpayPaymentEntity[];
   };
   return Array.isArray(res?.items) ? res.items : [];
@@ -198,7 +202,7 @@ async function processRow(
   );
   let payments: RazorpayPaymentEntity[] = [];
   try {
-    payments = await fetchOrderPayments(row.provider_order_id, profile);
+    payments = await fetchOrderPayments(row);
     console.log(
       `[reconcile] fetched ${payments.length} payment(s) for order=${row.provider_order_id} statuses=[${payments.map((p) => p.status).join(",")}]`,
     );
@@ -261,7 +265,7 @@ async function processSingleOrder(
   const { data: row } = await supabase
     .from("payment_orders")
     .select(
-      "id, provider, profile, status, provider_order_id, provider_payment_id, amount_paise, location_id, customer_phone, booking_payload, reconcile_attempts, created_at",
+      "id, provider, profile, status, provider_order_id, provider_payment_id, amount_paise, organization_id, location_id, customer_phone, booking_payload, reconcile_attempts, created_at",
     )
     .eq("provider", "razorpay")
     .eq("provider_order_id", orderId)

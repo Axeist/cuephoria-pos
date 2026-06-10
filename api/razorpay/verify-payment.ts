@@ -1,8 +1,10 @@
 import {
-  getRazorpayCredentials,
   parseRazorpayProfile,
+  resolveRazorpayCredentials,
+  verifyRazorpayPaymentSignature,
   type RazorpayProfile,
 } from "./credentials.js";
+import { lookupPaymentOrderOrganizationId } from "../../src/server/lib/payment-gateway-config.ts";
 
 type VercelRequest = {
   method?: string;
@@ -29,26 +31,40 @@ function j(res: VercelResponse, data: unknown, status = 200) {
   res.status(status).json(data);
 }
 
-function verifyPaymentSignature(
+async function verifyPaymentSignature(
   razorpayOrderId: string,
   razorpayPaymentId: string,
   razorpaySignature: string,
   profile: RazorpayProfile,
-): boolean {
-  const { keySecret } = getRazorpayCredentials(profile);
-  const payload = `${razorpayOrderId}|${razorpayPaymentId}`;
-  const crypto = globalThis.crypto;
-  if (!crypto || !crypto.subtle) return false;
-  void keySecret;
-  void payload;
-  void razorpaySignature;
-  return true;
+  locationId?: string,
+): Promise<boolean> {
+  const orgId = await lookupPaymentOrderOrganizationId(razorpayOrderId);
+  const creds = await resolveRazorpayCredentials({
+    orderId: razorpayOrderId,
+    locationId,
+    organizationId: orgId ?? undefined,
+    profile,
+    purpose: "booking",
+  });
+  return verifyRazorpayPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature, creds);
 }
 
-async function fetchPaymentStatus(paymentId: string, profile: RazorpayProfile) {
+async function fetchPaymentStatus(
+  paymentId: string,
+  orderId: string,
+  profile: RazorpayProfile,
+  locationId?: string,
+) {
   const Razorpay = (await import("razorpay")).default;
-  const { keyId, keySecret } = getRazorpayCredentials(profile);
-  const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
+  const orgId = await lookupPaymentOrderOrganizationId(orderId);
+  const creds = await resolveRazorpayCredentials({
+    orderId,
+    locationId,
+    organizationId: orgId ?? undefined,
+    profile,
+    purpose: "booking",
+  });
+  const razorpay = new Razorpay({ key_id: creds.keyId, key_secret: creds.keySecret });
   return razorpay.payments.fetch(paymentId);
 }
 
@@ -61,8 +77,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const payload = req.body || {};
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, profile: profileRaw } = payload;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, profile: profileRaw, location_id } =
+      payload;
     const profile = parseRazorpayProfile(profileRaw);
+    const locationId = typeof location_id === "string" ? location_id : undefined;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return j(res, { ok: false, error: "Missing required payment parameters" }, 400);
@@ -70,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let payment;
     try {
-      payment = await fetchPaymentStatus(razorpay_payment_id, profile);
+      payment = await fetchPaymentStatus(razorpay_payment_id, razorpay_order_id, profile, locationId);
     } catch (fetchErr: any) {
       return j(res, {
         ok: false,
@@ -87,12 +105,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return j(res, { ok: false, success: false, status: payment.status, error: errorMsg });
     }
 
-    const signatureValid = verifyPaymentSignature(
+    let signatureValid = await verifyPaymentSignature(
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
       profile,
+      locationId,
     );
+
+    if (!signatureValid) {
+      const altProfile: RazorpayProfile = profile === "lite" ? "default" : "lite";
+      signatureValid = await verifyPaymentSignature(
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature,
+        altProfile,
+        locationId,
+      );
+    }
+
+    if (!signatureValid) {
+      return j(res, { ok: false, success: false, error: "Invalid Razorpay signature" }, 401);
+    }
 
     return j(res, {
       ok: true,

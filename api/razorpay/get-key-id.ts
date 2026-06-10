@@ -1,4 +1,4 @@
-import { getRazorpayKeyId as resolveKeyId, parseRazorpayProfile } from "./credentials.js";
+import { parseRazorpayProfile, resolveRazorpayKeyIdOnly } from "./credentials.js";
 
 export const config = { runtime: "edge" };
 
@@ -21,7 +21,8 @@ export default async function handler(req: Request) {
   try {
     const url = new URL(req.url);
     const profile = parseRazorpayProfile(url.searchParams.get("profile"));
-    const keyId = resolveKeyId(profile);
+    const locationId = (url.searchParams.get("location") || "").trim() || undefined;
+    const keyId = await resolveRazorpayKeyIdOnly({ locationId, profile });
     return j({ ok: true, keyId });
   } catch (err: any) {
     return j({ ok: false, error: String(err?.message || err) }, 500);

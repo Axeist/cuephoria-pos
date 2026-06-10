@@ -41,10 +41,15 @@ export async function resolveLocationIdForCheckout(
   supabase: SupabaseClient,
   payloadLocationId: string | null | undefined,
   profile: "default" | "lite",
+  organizationId?: string | null,
 ): Promise<string | null> {
   if (payloadLocationId && String(payloadLocationId).length > 0) return String(payloadLocationId);
   const slug = profile === "lite" ? "lite" : "main";
-  const { data } = await supabase.from("locations").select("id").eq("slug", slug).limit(1).maybeSingle();
+  let q = supabase.from("locations").select("id").eq("slug", slug);
+  if (organizationId) {
+    q = q.eq("organization_id", organizationId);
+  }
+  const { data } = await q.limit(1).maybeSingle();
   return (data as { id?: string } | null)?.id ?? null;
 }
 

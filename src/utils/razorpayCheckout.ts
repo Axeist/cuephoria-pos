@@ -2,10 +2,7 @@
 
 let scriptPromise: Promise<void> | null = null;
 
-const keyCache: Record<"default" | "lite", string | null> = {
-  default: null,
-  lite: null,
-};
+const keyCache = new Map<string, string>();
 
 export function loadRazorpayScript(): Promise<void> {
   if (typeof window === "undefined") {
@@ -31,22 +28,36 @@ export function loadRazorpayScript(): Promise<void> {
   return scriptPromise;
 }
 
-export async function fetchRazorpayKeyId(isLiteBranch: boolean): Promise<string> {
-  const cacheKey = isLiteBranch ? "lite" : "default";
-  const cached = keyCache[cacheKey];
+function cacheKeyFor(locationId: string | null | undefined, isLiteBranch: boolean): string {
+  if (locationId) return `loc:${locationId}`;
+  return isLiteBranch ? "profile:lite" : "profile:default";
+}
+
+export async function fetchRazorpayKeyId(
+  isLiteBranch: boolean,
+  locationId?: string | null,
+): Promise<string> {
+  const cacheKey = cacheKeyFor(locationId, isLiteBranch);
+  const cached = keyCache.get(cacheKey);
   if (cached) return cached;
 
-  const profileQs = isLiteBranch ? "?profile=lite" : "";
-  const res = await fetch(`/api/razorpay/get-key-id${profileQs}`);
+  const params = new URLSearchParams();
+  if (locationId) {
+    params.set("location", locationId);
+  } else if (isLiteBranch) {
+    params.set("profile", "lite");
+  }
+  const qs = params.toString();
+  const res = await fetch(`/api/razorpay/get-key-id${qs ? `?${qs}` : ""}`);
   const data = (await res.json()) as { ok?: boolean; keyId?: string };
   if (data.ok && data.keyId) {
-    keyCache[cacheKey] = data.keyId;
+    keyCache.set(cacheKey, data.keyId);
     return data.keyId;
   }
   throw new Error("Payment gateway configuration error");
 }
 
-export function primeRazorpayCheckout(isLiteBranch: boolean): void {
+export function primeRazorpayCheckout(isLiteBranch: boolean, locationId?: string | null): void {
   void loadRazorpayScript().catch(() => {});
-  void fetchRazorpayKeyId(isLiteBranch).catch(() => {});
+  void fetchRazorpayKeyId(isLiteBranch, locationId).catch(() => {});
 }

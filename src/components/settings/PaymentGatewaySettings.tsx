@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import RazorpaySetupWizard from "@/components/settings/RazorpaySetupWizard";
 
 type Provider = "razorpay" | "stripe";
 type Mode = "test" | "live";
@@ -25,7 +26,17 @@ type PaymentConfig = {
   settings: Record<string, unknown>;
   public_key_masked: string | null;
   has_secret: boolean;
+  has_webhook_secret: boolean;
   provider_ready: boolean;
+  platform_fallback_available: boolean;
+  credentials_configured: boolean;
+  setup_steps: {
+    keys: boolean;
+    webhook: boolean;
+    tested: boolean;
+    enabled: boolean;
+    all_complete: boolean;
+  };
 };
 
 type ConfigResponse = { ok: true; configs: PaymentConfig[] };
@@ -54,6 +65,7 @@ export default function PaymentGatewaySettings() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [drafts, setDrafts] = React.useState<Record<string, PaymentConfig>>({});
+  const [showWizard, setShowWizard] = React.useState(false);
 
   const configQuery = useQuery({
     queryKey: ["admin-payment-config"],
@@ -71,7 +83,7 @@ export default function PaymentGatewaySettings() {
           id: `draft-${provider}`,
           provider,
           mode: "test",
-          is_enabled: provider === "razorpay",
+          is_enabled: false,
           supported_currencies: ["INR"],
           is_international_enabled: false,
           webhook_configured: false,
@@ -79,11 +91,29 @@ export default function PaymentGatewaySettings() {
           settings: {},
           public_key_masked: null,
           has_secret: false,
+          has_webhook_secret: false,
           provider_ready: false,
+          platform_fallback_available: false,
+          credentials_configured: false,
+          setup_steps: {
+            keys: false,
+            webhook: false,
+            tested: false,
+            enabled: false,
+            all_complete: false,
+          },
         } as PaymentConfig);
     }
     setDrafts(map);
   }, [configQuery.data]);
+
+  const razorpayConfig = drafts.razorpay;
+  const needsWizard =
+    razorpayConfig && !razorpayConfig.provider_ready && !razorpayConfig.platform_fallback_available;
+
+  React.useEffect(() => {
+    if (needsWizard) setShowWizard(true);
+  }, [needsWizard]);
 
   const saveMutation = useMutation({
     mutationFn: async (row: PaymentConfig) =>
@@ -174,16 +204,38 @@ export default function PaymentGatewaySettings() {
             Payment gateway configuration
           </CardTitle>
           <CardDescription>
-            Razorpay is active now. Stripe is scaffolded for later activation.
+            Connect your Razorpay account for public booking online payments. Subscription billing uses platform keys
+            separately.
           </CardDescription>
         </CardHeader>
       </Card>
+
+      {razorpayConfig && (showWizard || needsWizard) && (
+        <RazorpaySetupWizard
+          config={razorpayConfig}
+          onComplete={() => {
+            setShowWizard(false);
+            qc.invalidateQueries({ queryKey: ["admin-payment-config"] });
+          }}
+        />
+      )}
+
+      {razorpayConfig?.provider_ready && !showWizard && (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" onClick={() => setShowWizard(true)}>
+            Edit Razorpay setup
+          </Button>
+        </div>
+      )}
 
       {PROVIDERS.map((provider) => {
         const row = drafts[provider];
         if (!row) return null;
         const currencies = row.supported_currencies.join(", ");
         const stripeLocked = provider === "stripe";
+        const hideFlatCard = provider === "razorpay" && (showWizard || needsWizard);
+
+        if (hideFlatCard) return null;
 
         return (
           <Card key={provider}>
@@ -198,9 +250,13 @@ export default function PaymentGatewaySettings() {
                 </div>
               </div>
               <CardDescription className="flex flex-wrap items-center gap-3">
-                <span>Public key: {row.public_key_masked || "Not found"}</span>
-                <span>Secret: {row.has_secret ? "Present" : "Missing"}</span>
-                <span>Webhook: {row.webhook_configured ? "Configured" : "Not configured"}</span>
+                <span>Key: {row.public_key_masked || "Not configured"}</span>
+                <span>Secret: {row.has_secret ? "Saved" : "Missing"}</span>
+                <span>Webhook secret: {row.has_webhook_secret ? "Saved" : "Missing"}</span>
+                <span>Webhook events: {row.webhook_configured ? "Receiving" : "Not configured"}</span>
+                {row.platform_fallback_available && !row.credentials_configured && (
+                  <span className="text-amber-600">Platform env fallback active</span>
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -246,7 +302,7 @@ export default function PaymentGatewaySettings() {
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <p className="text-sm font-medium">Enable provider</p>
-                    <p className="text-xs text-muted-foreground">Controls checkout and billing routing.</p>
+                    <p className="text-xs text-muted-foreground">Required for public booking online pay.</p>
                   </div>
                   <Switch
                     checked={row.is_enabled}
@@ -305,6 +361,11 @@ export default function PaymentGatewaySettings() {
                   <RefreshCcw className="h-4 w-4 mr-2" />
                   Webhook health
                 </Button>
+                {provider === "razorpay" && (
+                  <Button variant="outline" onClick={() => setShowWizard(true)}>
+                    Setup wizard
+                  </Button>
+                )}
                 {row.provider_ready && (
                   <span className="inline-flex items-center text-sm text-emerald-600 gap-1">
                     <CheckCircle2 className="h-4 w-4" />

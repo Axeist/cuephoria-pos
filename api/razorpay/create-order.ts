@@ -1,6 +1,6 @@
 import {
-  getRazorpayCredentials,
   parseRazorpayProfile,
+  resolveRazorpayCredentials,
   type RazorpayProfile,
 } from "./credentials.js";
 import { PAYMENT_ORDER_PENDING_TTL_MS } from "../../src/server/lib/payment-order-ttl.ts";
@@ -14,6 +14,10 @@ import {
   reassignHoldSessionToProviderOrderId,
   resolveLocationIdForCheckout,
 } from "../../src/server/lib/checkout-slot-hold.ts";
+import {
+  isOnlinePaymentEnabledForLocation,
+  resolveOrganizationIdFromLocation,
+} from "../../src/server/lib/payment-checkout-guards.ts";
 
 export const config = {
   maxDuration: 30,
@@ -62,16 +66,21 @@ async function createRazorpayOrder(
   amount: number,
   receipt: string,
   notes: Record<string, string> | undefined,
+  locationId: string | null,
   profile: RazorpayProfile,
 ) {
   const Razorpay = (await import("razorpay")).default;
-  const { keyId, keySecret } = getRazorpayCredentials(profile);
+  const creds = await resolveRazorpayCredentials({
+    locationId: locationId ?? undefined,
+    profile,
+    purpose: "booking",
+  });
 
   const amountInPaise = Math.round(Number(amount) * 100);
   if (amountInPaise < 100) throw new Error("Amount must be at least ₹1.00 (100 paise)");
   if (!Number.isInteger(amountInPaise)) throw new Error("Amount must be a valid number");
 
-  const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
+  const razorpay = new Razorpay({ key_id: creds.keyId, key_secret: creds.keySecret });
   const orderOptions: any = {
     amount: amountInPaise,
     currency: "INR",
@@ -114,6 +123,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let supabase: SupabaseClient | null = null;
     let holdSessionId: string | null = null;
+    let canonicalLocationId: string | null = null;
+    let organizationId: string | null = null;
 
     if (wantsBookingHold) {
       const env = getSupabaseEnv();
@@ -136,19 +147,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             400,
           );
         }
+
+        const locationIdRaw = (payload as { location_id?: unknown }).location_id;
+        const payloadLocationId =
+          (typeof locationIdRaw === "string" && locationIdRaw.length > 0
+            ? locationIdRaw
+            : normalized.locationId) || null;
+
+        if (payloadLocationId) {
+          organizationId = await resolveOrganizationIdFromLocation(supabase, payloadLocationId);
+        }
+
         const profileTag: "default" | "lite" = profile === "lite" ? "lite" : "default";
-        const locationId = await resolveLocationIdForCheckout(supabase, normalized.locationId, profileTag);
-        if (!locationId) {
+        canonicalLocationId = await resolveLocationIdForCheckout(
+          supabase,
+          payloadLocationId,
+          profileTag,
+          organizationId,
+        );
+        if (!canonicalLocationId) {
           return j(res, { ok: false, error: "Could not resolve venue for this booking." }, 500);
         }
-        const overlap = await assertNoConfirmedBookingOverlap(supabase, normalized, locationId);
+
+        if (!organizationId) {
+          organizationId = await resolveOrganizationIdFromLocation(supabase, canonicalLocationId);
+        }
+
+        const onlineEnabled = await isOnlinePaymentEnabledForLocation(supabase, canonicalLocationId);
+        if (!onlineEnabled) {
+          return j(
+            res,
+            { ok: false, error: "Online payment is disabled for this venue. Please pay at the venue." },
+            403,
+          );
+        }
+
+        const overlap = await assertNoConfirmedBookingOverlap(supabase, normalized, canonicalLocationId);
         if (!overlap.ok) {
           return j(res, { ok: false, conflict: true, error: overlap.message }, 409);
         }
         holdSessionId = newCheckoutHoldSessionId();
         const expiresAtIso = new Date(Date.now() + PAYMENT_ORDER_PENDING_TTL_MS).toISOString();
         const ins = await insertExclusiveCheckoutHolds(supabase, {
-          locationId,
+          locationId: canonicalLocationId,
           payload: normalized,
           holdSessionId,
           expiresAtIso,
@@ -168,7 +209,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let order;
     try {
-      order = await createRazorpayOrder(Number(amount), receipt, notes, profile);
+      order = await createRazorpayOrder(
+        Number(amount),
+        receipt,
+        notes,
+        canonicalLocationId,
+        profile,
+      );
     } catch (err) {
       if (holdSessionId && supabase) {
         await deleteSlotHoldsBySessionId(supabase, holdSessionId);
@@ -191,7 +238,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               auth: { persistSession: false, autoRefreshToken: false },
               global: { headers: { "x-application-name": "cuephoria-create-order" } },
             });
-          const locationIdRaw = (payload as { location_id?: unknown }).location_id;
+
+          if (!canonicalLocationId) {
+            const locationIdRaw = (payload as { location_id?: unknown }).location_id;
+            if (typeof locationIdRaw === "string" && locationIdRaw.length > 0) {
+              canonicalLocationId = locationIdRaw;
+              organizationId = await resolveOrganizationIdFromLocation(sb, canonicalLocationId);
+            }
+          }
+
           const customerInfo = (payload as { customer?: { name?: string; phone?: string; email?: string } })
             .customer;
           const amountPaise = Number(order.amount) || Math.round(Number(amount) * 100);
@@ -203,7 +258,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             kind,
             status: "created",
             provider_order_id: order.id,
-            location_id: typeof locationIdRaw === "string" && locationIdRaw.length > 0 ? locationIdRaw : null,
+            organization_id: organizationId,
+            location_id: canonicalLocationId,
             customer_name: customerInfo?.name?.trim() || null,
             customer_phone: customerInfo?.phone?.trim() || null,
             customer_email: customerInfo?.email?.trim() || null,

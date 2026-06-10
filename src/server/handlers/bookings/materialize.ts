@@ -2,19 +2,16 @@
  * /api/bookings/materialize (Node)
  *
  * Public endpoint called by PublicPaymentSuccess after Razorpay redirects.
- * Replaces the localStorage-driven booking insert that used to live in the
- * client. Verifies the Razorpay signature, fetches the payment to confirm
+ * Verifies the Razorpay signature, fetches the payment to confirm
  * status + amount, then delegates to the shared idempotent helper.
- *
- * Reached via the api/bookings/[action].ts dispatcher — no new function file.
- *
- * Auth: Razorpay HMAC signature triplet only. Anyone in possession of a
- * valid (order_id, payment_id, signature) tuple can request materialization
- * for that single payment — exactly what the public success page needs.
  */
 
-import { createHmac, timingSafeEqual } from "crypto";
-import { getRazorpayCredentials, type RazorpayProfile } from "../../lib/razorpay-credentials.js";
+import {
+  parseRazorpayProfile,
+  resolveRazorpayCredentials,
+  verifyRazorpayPaymentSignature,
+  type RazorpayProfile,
+} from "../../lib/razorpay-credentials.js";
 import { materializeBookingFromPaymentOrder } from "../../lib/materialize-booking.js";
 
 export const config = {
@@ -45,32 +42,20 @@ function j(res: VercelResponse, data: unknown, status = 200) {
   res.status(status).json(data);
 }
 
-function verifyRazorpaySignature(
+async function verifyWithProfile(
   orderId: string,
   paymentId: string,
   signature: string,
   profile: RazorpayProfile,
-): boolean {
-  if (!orderId || !paymentId || !signature) return false;
-  try {
-    const { keySecret } = getRazorpayCredentials(profile);
-    const expected = createHmac("sha256", keySecret)
-      .update(`${orderId}|${paymentId}`)
-      .digest("hex");
-    const a = Buffer.from(expected, "hex");
-    const b = Buffer.from(signature.trim(), "hex");
-    if (a.length !== b.length) return false;
-    return timingSafeEqual(a, b);
-  } catch (err) {
-    console.error("[bookings/materialize] signature verify threw:", err);
-    return false;
-  }
+): Promise<boolean> {
+  const creds = await resolveRazorpayCredentials({ orderId, profile, purpose: "booking" });
+  return verifyRazorpayPaymentSignature(orderId, paymentId, signature, creds);
 }
 
-async function fetchPayment(paymentId: string, profile: RazorpayProfile) {
+async function fetchPayment(paymentId: string, orderId: string, profile: RazorpayProfile) {
   const Razorpay = (await import("razorpay")).default;
-  const { keyId, keySecret } = getRazorpayCredentials(profile);
-  const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
+  const creds = await resolveRazorpayCredentials({ orderId, profile, purpose: "booking" });
+  const razorpay = new Razorpay({ key_id: creds.keyId, key_secret: creds.keySecret });
   return razorpay.payments.fetch(paymentId);
 }
 
@@ -101,29 +86,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return j(res, { ok: false, error: "Missing razorpay_order_id, razorpay_payment_id, or razorpay_signature" }, 400);
   }
 
-  const sigValid = verifyRazorpaySignature(orderId, paymentId, signature, profile);
+  let sigValid = await verifyWithProfile(orderId, paymentId, signature, profile);
   if (!sigValid) {
-    // Try the alternate profile (older orders may have used a different one).
     const altProfile: RazorpayProfile = profile === "lite" ? "default" : "lite";
-    const altValid = verifyRazorpaySignature(orderId, paymentId, signature, altProfile);
-    if (!altValid) {
+    sigValid = await verifyWithProfile(orderId, paymentId, signature, altProfile);
+    if (!sigValid) {
       return j(res, { ok: false, error: "Invalid Razorpay signature" }, 401);
     }
   }
 
-  // Pull the actual payment so we can confirm status + amount.
   let payment: { id: string; status: string; amount: number; currency: string; order_id: string };
   try {
-    payment = (await fetchPayment(paymentId, profile)) as unknown as typeof payment;
+    payment = (await fetchPayment(paymentId, orderId, profile)) as unknown as typeof payment;
   } catch (err) {
-    return j(
-      res,
-      {
-        ok: false,
-        error: `Could not fetch payment from Razorpay: ${(err as Error).message}`,
-      },
-      502,
-    );
+    const altProfile: RazorpayProfile = profile === "lite" ? "default" : "lite";
+    try {
+      payment = (await fetchPayment(paymentId, orderId, altProfile)) as unknown as typeof payment;
+    } catch {
+      return j(
+        res,
+        {
+          ok: false,
+          error: `Could not fetch payment from Razorpay: ${(err as Error).message}`,
+        },
+        502,
+      );
+    }
   }
 
   const accepted = payment.status === "captured" || payment.status === "authorized";

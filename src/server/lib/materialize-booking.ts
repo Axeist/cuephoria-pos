@@ -124,6 +124,7 @@ type PaymentOrderRow = {
   provider_order_id: string;
   provider_payment_id: string | null;
   amount_paise: number;
+  organization_id: string | null;
   location_id: string | null;
   customer_id: string | null;
   customer_name: string | null;
@@ -137,7 +138,7 @@ type PaymentOrderRow = {
 };
 
 const PAYMENT_ORDER_SELECT =
-  "id, provider, profile, status, last_error, provider_order_id, provider_payment_id, amount_paise, location_id, customer_id, customer_name, customer_phone, customer_email, booking_payload, notes, materialized_booking_ids, materialized_bill_id, bill_suppressed_at";
+  "id, provider, profile, status, last_error, provider_order_id, provider_payment_id, amount_paise, organization_id, location_id, customer_id, customer_name, customer_phone, customer_email, booking_payload, notes, materialized_booking_ids, materialized_bill_id, bill_suppressed_at";
 
 function razorpayOrderTag(orderId: string): string {
   return `Razorpay Order: ${orderId}`;
@@ -435,11 +436,16 @@ async function resolveLocationId(
   payload: NormalizedPayload,
   paymentOrderLocationId: string | null,
   profile: string,
+  organizationId?: string | null,
 ): Promise<string | null> {
   if (paymentOrderLocationId) return paymentOrderLocationId;
   if (payload.locationId) return payload.locationId;
   const slug = profile === "lite" ? "lite" : "main";
-  const { data } = await supabase.from("locations").select("id").eq("slug", slug).limit(1).maybeSingle();
+  let q = supabase.from("locations").select("id").eq("slug", slug);
+  if (organizationId) {
+    q = q.eq("organization_id", organizationId);
+  }
+  const { data } = await q.limit(1).maybeSingle();
   return (data as { id?: string } | null)?.id ?? null;
 }
 
@@ -1002,7 +1008,13 @@ export async function materializeBookingFromPaymentOrder(
   }
 
   // 5. Resolve location + customer.
-  const locationId = await resolveLocationId(supabase, normalized, paymentOrder?.location_id ?? null, profile);
+  const locationId = await resolveLocationId(
+    supabase,
+    normalized,
+    paymentOrder?.location_id ?? null,
+    profile,
+    paymentOrder?.organization_id ?? null,
+  );
   if (!locationId) {
     const errMsg = "could not resolve location_id";
     if (paymentOrder) {

@@ -8,6 +8,7 @@ import {
 } from "../../adminApiUtils";
 import { resolveOrgContext } from "../../orgContext";
 import { assertEntitlement } from "../../lib/entitlements.js";
+import { assertLocationOwnedByOrg, getOrganizationLocationIds } from "../../lib/payment-checkout-guards.js";
 
 export const config = { runtime: "edge" };
 
@@ -43,13 +44,20 @@ export default async function handler(req: Request) {
     const bookingGate = await assertEntitlement(ctx, "bookings_enabled");
     if (bookingGate) return bookingGate;
 
-    // GET: fetch booking settings for a branch (?location_id=uuid)
+    const orgLocationIds = await getOrganizationLocationIds(supabase, ctx.organizationId);
+
+    // GET: fetch booking settings for org branches (?location_id=uuid optional)
     if (req.method === "GET") {
       const url = new URL(req.url);
       const locationId = url.searchParams.get("location_id");
-      let q = supabase.from("booking_settings").select("setting_key, setting_value");
+      let q = supabase.from("booking_settings").select("setting_key, setting_value, location_id");
       if (locationId) {
+        if (!orgLocationIds.includes(locationId)) {
+          return j({ ok: false, error: "Location not found in this workspace." }, 404);
+        }
         q = q.eq("location_id", locationId);
+      } else {
+        q = q.in("location_id", orgLocationIds);
       }
       const { data, error } = await q;
 
@@ -66,6 +74,9 @@ export default async function handler(req: Request) {
       if (setting_value === undefined) return j({ ok: false, error: "Missing setting_value" }, 400);
       if (!location_id) return j({ ok: false, error: "Missing location_id" }, 400);
 
+      const owned = await assertLocationOwnedByOrg(supabase, location_id, ctx.organizationId);
+      if (!owned.ok) return j({ ok: false, error: owned.message }, 404);
+
       const { error } = await supabase
         .from("booking_settings")
         .upsert(
@@ -75,7 +86,7 @@ export default async function handler(req: Request) {
             location_id,
             ...(description ? { description } : {}),
           },
-          { onConflict: "location_id,setting_key" }
+          { onConflict: "location_id,setting_key" },
         );
 
       if (error) return j({ ok: false, error: error.message }, 500);

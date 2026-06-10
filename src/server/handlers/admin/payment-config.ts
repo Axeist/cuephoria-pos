@@ -2,6 +2,7 @@ import { j } from "../../adminApiUtils";
 import { withOrgContext } from "../../orgContext";
 import {
   listPaymentGatewayConfigs,
+  markCredentialTestPassed,
   upsertPaymentGatewayConfig,
 } from "../../lib/payment-gateway-config";
 import {
@@ -11,37 +12,28 @@ import {
   type PaymentProvider,
   type PaymentMode,
 } from "../../lib/payment-provider";
-import { getRazorpayCredentials } from "../../lib/razorpay-credentials";
-import { getEnv } from "../../adminApiUtils";
+import { resolveRazorpayCredentials } from "../../lib/razorpay-credentials";
+import { validateRazorpayKeyIdPrefix } from "../../lib/payment-checkout-guards";
 
 export const config = { runtime: "edge" };
 
-function getRazorpayCredentialsByMode(mode: PaymentMode): { keyId: string; keySecret: string } {
-  const keyId =
-    (mode === "live" ? getEnv("RAZORPAY_KEY_ID_LIVE") : getEnv("RAZORPAY_KEY_ID_TEST")) ||
-    getEnv("RAZORPAY_KEY_ID");
-  const keySecret =
-    (mode === "live" ? getEnv("RAZORPAY_KEY_SECRET_LIVE") : getEnv("RAZORPAY_KEY_SECRET_TEST")) ||
-    getEnv("RAZORPAY_KEY_SECRET");
-
-  if (!keyId || !keySecret) {
-    throw new Error(
-      mode === "live"
-        ? "Missing RAZORPAY_KEY_ID_LIVE / RAZORPAY_KEY_SECRET_LIVE"
-        : "Missing RAZORPAY_KEY_ID_TEST / RAZORPAY_KEY_SECRET_TEST",
-    );
-  }
-  return {
-    keyId: keyId.trim(),
-    keySecret: keySecret.trim(),
-  };
-}
-
-async function verifyRazorpayCredentials(mode?: PaymentMode): Promise<{ ok: boolean; message: string }> {
+async function verifyOrgRazorpayCredentials(
+  organizationId: string,
+  mode: PaymentMode,
+): Promise<{ ok: boolean; message: string }> {
   try {
-    const resolvedMode = mode ?? (getRazorpayCredentials("default").isLive ? "live" : "test");
-    const { keyId, keySecret } = getRazorpayCredentialsByMode(resolvedMode);
-    const auth = btoa(`${keyId}:${keySecret}`);
+    const creds = await resolveRazorpayCredentials({
+      organizationId,
+      mode,
+      purpose: "booking",
+    });
+    if (creds.source !== "org") {
+      return {
+        ok: false,
+        message: "No saved workspace credentials found. Paste your API keys in Step 3 first.",
+      };
+    }
+    const auth = btoa(`${creds.keyId}:${creds.keySecret}`);
     const response = await fetch("https://api.razorpay.com/v1/orders?count=1", {
       method: "GET",
       headers: {
@@ -60,10 +52,11 @@ async function verifyRazorpayCredentials(mode?: PaymentMode): Promise<{ ok: bool
       }
       return {
         ok: false,
-        message: `Razorpay auth failed (${response.status}, ${resolvedMode}): ${message}`,
+        message: `Razorpay auth failed (${response.status}, ${mode}): ${message}`,
       };
     }
-    return { ok: true, message: `Razorpay credentials are valid in ${resolvedMode} mode.` };
+    await markCredentialTestPassed(organizationId, "razorpay");
+    return { ok: true, message: `Razorpay credentials are valid in ${mode} mode.` };
   } catch (err) {
     return {
       ok: false,
@@ -80,6 +73,23 @@ function parseSupportedCurrencies(raw: unknown): string[] {
   return clean.length > 0 ? Array.from(new Set(clean)) : ["INR"];
 }
 
+function parseCredentials(raw: unknown, mode: PaymentMode) {
+  if (!raw || typeof raw !== "object") return undefined;
+  const c = raw as Record<string, unknown>;
+  const keyId = typeof c.key_id === "string" ? c.key_id.trim() : undefined;
+  const keySecret = typeof c.key_secret === "string" ? c.key_secret : undefined;
+  const webhookSecret = typeof c.webhook_secret === "string" ? c.webhook_secret : undefined;
+  if (keyId && !validateRazorpayKeyIdPrefix(keyId, mode)) {
+    throw new Error(
+      mode === "live"
+        ? "Live mode requires a key ID starting with rzp_live_"
+        : "Test mode requires a key ID starting with rzp_test_",
+    );
+  }
+  if (!keyId && !keySecret && !webhookSecret) return undefined;
+  return { key_id: keyId, key_secret: keySecret, webhook_secret: webhookSecret };
+}
+
 export default withOrgContext(async (req, ctx) => {
   if (!ctx.user.isAdmin) {
     return j({ ok: false, error: "Only admins can manage payment gateways." }, 403);
@@ -93,11 +103,19 @@ export default withOrgContext(async (req, ctx) => {
   if (req.method === "PUT") {
     const body = await req.json().catch(() => ({} as Record<string, unknown>));
     const provider = parsePaymentProvider(body.provider);
+    const mode = parsePaymentMode(body.mode);
+    let credentials;
+    try {
+      credentials = parseCredentials(body.credentials, mode);
+    } catch (err) {
+      return j({ ok: false, error: (err as Error).message }, 400);
+    }
+
     const row = await upsertPaymentGatewayConfig({
       organizationId: ctx.organizationId,
       adminUserId: ctx.user.id,
       provider,
-      mode: parsePaymentMode(body.mode),
+      mode,
       isEnabled: Boolean(body.is_enabled),
       supportedCurrencies: parseSupportedCurrencies(body.supported_currencies),
       isInternationalEnabled: Boolean(body.is_international_enabled),
@@ -106,6 +124,7 @@ export default withOrgContext(async (req, ctx) => {
         body.settings && typeof body.settings === "object"
           ? (body.settings as Record<string, unknown>)
           : {},
+      credentials,
     });
     return j({ ok: true, config: row }, 200);
   }
@@ -130,7 +149,7 @@ export default withOrgContext(async (req, ctx) => {
           200,
         );
       }
-      const result = await verifyRazorpayCredentials(mode);
+      const result = await verifyOrgRazorpayCredentials(ctx.organizationId, mode);
       return j({ ok: true, provider, result }, 200);
     }
 

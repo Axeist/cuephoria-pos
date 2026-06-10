@@ -309,11 +309,13 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     (async () => {
       setBranchLocationLoading(true);
       const locationIdParam = searchParams.get("location")?.trim() || null;
+      const orgSlugParam = searchParams.get("org")?.trim() || undefined;
 
       try {
         const row = await fetchPublicLocation({
           locationId: locationIdParam,
           branchSlug,
+          orgSlug: orgSlugParam,
         });
         if (cancelled) return;
         if (row?.id) setPublicLocationId(row.id);
@@ -1641,17 +1643,17 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   // Warm Razorpay script + key as soon as online pay is available (and when selected).
   useEffect(() => {
     if (!onlinePaymentEnabled) return;
-    primeRazorpayCheckout(isLiteBranch);
-    fetchRazorpayKeyId(isLiteBranch)
+    primeRazorpayCheckout(isLiteBranch, publicLocationId);
+    fetchRazorpayKeyId(isLiteBranch, publicLocationId)
       .then((keyId) => setRazorpayKeyId(keyId))
       .catch(() => {});
-  }, [onlinePaymentEnabled, isLiteBranch]);
+  }, [onlinePaymentEnabled, isLiteBranch, publicLocationId]);
 
   useEffect(() => {
     if (paymentMethod === "razorpay" && onlinePaymentEnabled) {
-      primeRazorpayCheckout(isLiteBranch);
+      primeRazorpayCheckout(isLiteBranch, publicLocationId);
     }
-  }, [paymentMethod, onlinePaymentEnabled, isLiteBranch]);
+  }, [paymentMethod, onlinePaymentEnabled, isLiteBranch, publicLocationId]);
 
   const prepareRazorpayPayment = async (): Promise<PreparedRazorpayCheckout | null> => {
     if (!onlinePaymentEnabled) {
@@ -1760,7 +1762,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
     const keyPromise = razorpayKeyId
       ? Promise.resolve(razorpayKeyId)
-      : fetchRazorpayKeyId(isLiteBranch);
+      : fetchRazorpayKeyId(isLiteBranch, publicLocationId);
 
     const orderPromise = fetch("/api/razorpay/create-order", {
       method: "POST",
