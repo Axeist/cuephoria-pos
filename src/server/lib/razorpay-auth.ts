@@ -1,5 +1,13 @@
 import type { PaymentMode } from "./payment-provider.js";
 
+/** Strip invisible chars / whitespace from pasted API keys. */
+export function normalizePaymentCredential(value: string): string {
+  return value
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\r\n/g, "\n")
+    .trim();
+}
+
 export function buildRazorpayBasicAuth(keyId: string, keySecret: string): string {
   const bytes = new TextEncoder().encode(`${keyId}:${keySecret}`);
   let binary = "";
@@ -33,8 +41,8 @@ export async function testRazorpayCredentials(args: {
   keySecret: string;
   mode: PaymentMode;
 }): Promise<{ ok: boolean; message: string }> {
-  const keyId = args.keyId.trim();
-  const keySecret = args.keySecret.trim();
+  const keyId = normalizePaymentCredential(args.keyId);
+  const keySecret = normalizePaymentCredential(args.keySecret);
   if (!keyId || !keySecret) {
     return { ok: false, message: "Key ID and Secret are required." };
   }

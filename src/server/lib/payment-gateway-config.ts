@@ -1,6 +1,7 @@
 import { getEnv } from "../adminApiUtils";
 import { supabaseServiceClient } from "../supabaseServer";
 import { encryptSecret, isPaymentSecretsEncryptionConfigured } from "./payment-secrets";
+import { normalizePaymentCredential } from "./razorpay-auth";
 import { parsePaymentMode, parsePaymentProvider, type PaymentMode, type PaymentProvider } from "./payment-provider";
 
 export type PaymentGatewayConfigRow = {
@@ -165,13 +166,13 @@ export async function mergeGatewayCredentials(
   const next: ModeCredentials = { ...prev };
 
   if (input.key_id !== undefined) {
-    next.key_id = input.key_id.trim();
+    next.key_id = normalizePaymentCredential(input.key_id);
   }
   if (input.key_secret !== undefined && input.key_secret.trim().length > 0) {
-    next.key_secret_enc = await encryptSecret(input.key_secret.trim());
+    next.key_secret_enc = await encryptSecret(normalizePaymentCredential(input.key_secret));
   }
   if (input.webhook_secret !== undefined && input.webhook_secret.trim().length > 0) {
-    next.webhook_secret_enc = await encryptSecret(input.webhook_secret.trim());
+    next.webhook_secret_enc = await encryptSecret(normalizePaymentCredential(input.webhook_secret));
   }
 
   return {

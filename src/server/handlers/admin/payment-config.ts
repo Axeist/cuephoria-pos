@@ -16,7 +16,7 @@ import { resolveRazorpayCredentials } from "../../lib/razorpay-credentials";
 import { validateRazorpayKeyIdPrefix } from "../../lib/payment-checkout-guards";
 import { getPaymentGatewayConfig } from "../../lib/payment-gateway-config";
 import { isPaymentSecretsEncryptionConfigured } from "../../lib/payment-secrets";
-import { testRazorpayCredentials } from "../../lib/razorpay-auth";
+import { testRazorpayCredentials, normalizePaymentCredential } from "../../lib/razorpay-auth";
 
 export const config = { runtime: "edge" };
 
@@ -34,8 +34,44 @@ async function verifyOrgRazorpayCredentials(
       };
     }
 
-    const inlineKeyId = inline?.key_id?.trim();
-    const inlineSecret = inline?.key_secret?.trim();
+    const inlineKeyId = inline?.key_id ? normalizePaymentCredential(inline.key_id) : undefined;
+    const inlineSecret = inline?.key_secret ? normalizePaymentCredential(inline.key_secret) : undefined;
+
+    // Prefer saved credentials (same path as checkout) when available for the requested mode.
+    const configRow = await getPaymentGatewayConfig(organizationId, "razorpay");
+    const settings = (configRow?.settings ?? {}) as {
+      credentials?: Partial<Record<PaymentMode, { key_id?: string; key_secret_enc?: string }>>;
+    };
+    const savedForMode = settings.credentials?.[mode];
+    const hasSavedForMode = !!(savedForMode?.key_id && savedForMode?.key_secret_enc);
+
+    if (hasSavedForMode) {
+      const creds = await resolveRazorpayCredentials({
+        organizationId,
+        mode,
+        purpose: "booking",
+        requireEnabled: false,
+      });
+      if (creds.source === "org") {
+        const result = await testRazorpayCredentials({
+          keyId: creds.keyId,
+          keySecret: creds.keySecret,
+          mode,
+        });
+        if (result.ok) {
+          await markCredentialTestPassed(organizationId, "razorpay");
+          return result;
+        }
+        // Saved creds failed — if user pasted fresh keys, try those next.
+        if (!inlineKeyId || !inlineSecret) {
+          return {
+            ...result,
+            message: `${result.message} Go back to Step 3, re-paste both keys, save, then test again.`,
+          };
+        }
+      }
+    }
+
     if (inlineKeyId && !inlineSecret) {
       return {
         ok: false,
@@ -43,6 +79,7 @@ async function verifyOrgRazorpayCredentials(
           "Key Secret is required to test these keys. Re-paste the secret from Razorpay Dashboard (it is only shown once when generated).",
       };
     }
+
     if (inlineKeyId && inlineSecret) {
       if (!validateRazorpayKeyIdPrefix(inlineKeyId, mode)) {
         return {
@@ -64,7 +101,6 @@ async function verifyOrgRazorpayCredentials(
       return result;
     }
 
-    const configRow = await getPaymentGatewayConfig(organizationId, "razorpay");
     if (!configRow?.credentials_configured) {
       return {
         ok: false,
@@ -72,29 +108,11 @@ async function verifyOrgRazorpayCredentials(
       };
     }
 
-    const creds = await resolveRazorpayCredentials({
-      organizationId,
-      mode,
-      purpose: "booking",
-      requireEnabled: false,
-    });
-    if (creds.source !== "org") {
-      return {
-        ok: false,
-        message:
-          "Could not read saved credentials. Re-enter your API keys in Step 3 and save again.",
-      };
-    }
-
-    const result = await testRazorpayCredentials({
-      keyId: creds.keyId,
-      keySecret: creds.keySecret,
-      mode,
-    });
-    if (result.ok) {
-      await markCredentialTestPassed(organizationId, "razorpay");
-    }
-    return result;
+    return {
+      ok: false,
+      message:
+        "Could not read saved credentials. Re-enter your API keys in Step 3 and save again.",
+    };
   } catch (err) {
     return {
       ok: false,
@@ -114,9 +132,10 @@ function parseSupportedCurrencies(raw: unknown): string[] {
 function parseCredentials(raw: unknown, mode: PaymentMode) {
   if (!raw || typeof raw !== "object") return undefined;
   const c = raw as Record<string, unknown>;
-  const keyId = typeof c.key_id === "string" ? c.key_id.trim() : undefined;
-  const keySecret = typeof c.key_secret === "string" ? c.key_secret : undefined;
-  const webhookSecret = typeof c.webhook_secret === "string" ? c.webhook_secret : undefined;
+  const keyId = typeof c.key_id === "string" ? normalizePaymentCredential(c.key_id) : undefined;
+  const keySecret = typeof c.key_secret === "string" ? normalizePaymentCredential(c.key_secret) : undefined;
+  const webhookSecret =
+    typeof c.webhook_secret === "string" ? normalizePaymentCredential(c.webhook_secret) : undefined;
   if (keyId && !validateRazorpayKeyIdPrefix(keyId, mode)) {
     throw new Error(
       mode === "live"

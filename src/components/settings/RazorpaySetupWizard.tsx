@@ -2,6 +2,8 @@ import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Eye,
+  EyeOff,
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
@@ -81,7 +83,9 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
   const [keySecret, setKeySecret] = React.useState("");
   const [webhookSecret, setWebhookSecret] = React.useState("");
   const [testResult, setTestResult] = React.useState<{ ok: boolean; message: string } | null>(null);
+  const [showTestSecret, setShowTestSecret] = React.useState(false);
   const [branchToggles, setBranchToggles] = React.useState<Record<string, boolean>>({});
+  const testFormRef = React.useRef<HTMLFormElement>(null);
 
   const step = STEPS[stepIdx];
   const webhookUrl =
@@ -125,26 +129,29 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
   });
 
   const testMutation = useMutation({
-    mutationFn: () => {
-      const payload: Record<string, unknown> = {
-        action: "test-credentials",
-        provider: "razorpay",
-        mode,
-      };
-      if (keyId.trim() && keySecret.trim()) {
-        payload.credentials = { key_id: keyId.trim(), key_secret: keySecret.trim() };
-      }
-      return fetchJson<{ ok: true; result: { ok: boolean; message: string } }>("/api/admin/payment-config", {
+    mutationFn: () =>
+      fetchJson<{ ok: true; result: { ok: boolean; message: string } }>("/api/admin/payment-config", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    },
+        body: JSON.stringify({ action: "test-credentials", provider: "razorpay", mode }),
+      }),
     onSuccess: (data) => {
       setTestResult(data.result);
       qc.invalidateQueries({ queryKey: ["admin-payment-config"] });
     },
   });
+
+  function readCredentialFields(): { keyId: string; keySecret: string } {
+    if (testFormRef.current) {
+      const fd = new FormData(testFormRef.current);
+      const fromFormId = String(fd.get("key_id") ?? "").trim();
+      const fromFormSecret = String(fd.get("key_secret") ?? "").trim();
+      if (fromFormId || fromFormSecret) {
+        return { keyId: fromFormId, keySecret: fromFormSecret };
+      }
+    }
+    return { keyId: keyId.trim(), keySecret: keySecret.trim() };
+  }
 
   const branchToggleMutation = useMutation({
     mutationFn: async ({ locationId, enabled }: { locationId: string; enabled: boolean }) =>
@@ -205,18 +212,35 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
   }
 
   async function runTest(): Promise<boolean> {
+    const { keyId: testKeyId, keySecret: testKeySecret } = readCredentialFields();
+    if (!testKeyId || !testKeySecret) {
+      toast({
+        variant: "destructive",
+        title: "Key ID and Secret are required",
+        description: "Paste both from Razorpay Dashboard → Settings → API Keys.",
+      });
+      return false;
+    }
+    const prefix = mode === "live" ? "rzp_live_" : "rzp_test_";
+    if (!testKeyId.startsWith(prefix)) {
+      toast({
+        variant: "destructive",
+        title: `Key ID must start with ${prefix}`,
+      });
+      return false;
+    }
     try {
+      await saveCredentialsMutation.mutateAsync({
+        mode,
+        is_enabled: config.is_enabled,
+        credentials: { key_id: testKeyId, key_secret: testKeySecret },
+      });
+      setKeyId(testKeyId);
+      setKeySecret(testKeySecret);
       const data = await testMutation.mutateAsync();
       if (!data.result.ok) {
         toast({ variant: "destructive", title: "Connection failed", description: data.result.message });
         return false;
-      }
-      if (keyId.trim() && keySecret.trim()) {
-        await saveCredentialsMutation.mutateAsync({
-          mode,
-          is_enabled: config.is_enabled,
-          credentials: { key_id: keyId.trim(), key_secret: keySecret.trim() },
-        });
       }
       toast({ title: "Connection successful", description: data.result.message });
       return true;
@@ -394,6 +418,8 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
                   <Input
                     value={keyId}
                     onChange={(e) => setKeyId(e.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
                     placeholder={mode === "live" ? "rzp_live_..." : "rzp_test_..."}
                   />
                 </div>
@@ -403,6 +429,9 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
                     type="password"
                     value={keySecret}
                     onChange={(e) => setKeySecret(e.target.value)}
+                    autoComplete="new-password"
+                    spellCheck={false}
+                    className="font-mono text-sm"
                     placeholder="Paste secret (never shared after save)"
                   />
                 </div>
@@ -446,48 +475,69 @@ export default function RazorpaySetupWizard({ config, onComplete }: WizardProps)
             {step.id === "test" && (
               <>
                 <p className="text-sm text-muted-foreground">
-                  We&apos;ll verify your keys against the Razorpay API in <strong>{mode}</strong> mode.
-                  {config.public_key_masked && (
-                    <> Saved key: <code className="text-xs bg-muted px-1 rounded">{config.public_key_masked}</code>.</>
-                  )}
+                  We save your keys, then verify them against Razorpay in <strong>{mode}</strong> mode (same as
+                  checkout).
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  If the test fails, re-paste both Key ID and Secret from Razorpay Dashboard → Settings → API Keys
-                  (make sure they are both from {mode === "test" ? "Test" : "Live"} mode and still active).
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>Key ID</Label>
-                    <Input
-                      value={keyId}
-                      onChange={(e) => setKeyId(e.target.value)}
-                      placeholder={mode === "live" ? "rzp_live_..." : "rzp_test_..."}
-                    />
+                <form
+                  ref={testFormRef}
+                  key={`razorpay-test-${stepIdx}`}
+                  className="space-y-3"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void runTest();
+                  }}
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="razorpay-test-key-id">Key ID</Label>
+                      <Input
+                        id="razorpay-test-key-id"
+                        name="key_id"
+                        defaultValue={keyId}
+                        autoComplete="off"
+                        spellCheck={false}
+                        placeholder={mode === "live" ? "rzp_live_..." : "rzp_test_..."}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="razorpay-test-key-secret">Key Secret</Label>
+                      <div className="relative">
+                        <Input
+                          id="razorpay-test-key-secret"
+                          name="key_secret"
+                          type={showTestSecret ? "text" : "password"}
+                          defaultValue={keySecret}
+                          autoComplete="new-password"
+                          spellCheck={false}
+                          className="pr-10 font-mono text-sm"
+                          placeholder="Paste secret from Razorpay"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full px-3"
+                          onClick={() => setShowTestSecret((v) => !v)}
+                          tabIndex={-1}
+                        >
+                          {showTestSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Paste both keys fresh from Razorpay. Use the eye icon to confirm the secret looks correct (~24
+                        characters, no spaces).
+                      </p>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Key Secret</Label>
-                    <Input
-                      type="password"
-                      value={keySecret}
-                      onChange={(e) => setKeySecret(e.target.value)}
-                      placeholder="Required — paste secret again to test"
-                    />
-                  </div>
-                </div>
-                {!keySecret.trim() && (
-                  <p className="text-xs text-amber-600">
-                    Razorpay never shows the secret again after save. Paste the Key Secret here to test — both fields
-                    are required.
-                  </p>
-                )}
-                <Button onClick={() => void runTest()} disabled={testMutation.isPending}>
-                  {testMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <Zap className="h-4 w-4 mr-2" />
-                  )}
-                  Test connection
-                </Button>
+                  <Button type="submit" disabled={testMutation.isPending || saveCredentialsMutation.isPending}>
+                    {testMutation.isPending || saveCredentialsMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Zap className="h-4 w-4 mr-2" />
+                    )}
+                    Save &amp; test connection
+                  </Button>
+                </form>
                 {testResult && (
                   <p className={`text-sm ${testResult.ok ? "text-emerald-600" : "text-rose-500"}`}>
                     {testResult.message}

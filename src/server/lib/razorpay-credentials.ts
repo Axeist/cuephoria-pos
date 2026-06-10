@@ -10,6 +10,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decryptSecret } from "./payment-secrets.js";
+import { normalizePaymentCredential } from "./razorpay-auth.js";
 import type { PaymentMode } from "./payment-provider.js";
 import { supabaseServiceClient } from "../supabaseServer.js";
 
@@ -160,13 +161,13 @@ async function resolveOrgCredentials(
   if (!creds?.key_id || !creds.key_secret_enc) return null;
 
   try {
-    const keySecret = await decryptSecret(creds.key_secret_enc);
+    const keySecret = normalizePaymentCredential(await decryptSecret(creds.key_secret_enc));
     let webhookSecret: string | null = null;
     if (creds.webhook_secret_enc) {
-      webhookSecret = await decryptSecret(creds.webhook_secret_enc);
+      webhookSecret = normalizePaymentCredential(await decryptSecret(creds.webhook_secret_enc));
     }
     return {
-      keyId: creds.key_id.trim(),
+      keyId: normalizePaymentCredential(creds.key_id),
       keySecret,
       webhookSecret,
       isLive: activeMode === "live",
