@@ -51,9 +51,10 @@ type PaymentConfig = {
 type WizardProps = {
   config: PaymentConfig;
   onComplete: () => void;
+  initialStepIdx?: number;
 };
 
-const STEPS = [
+export const RAZORPAY_WIZARD_STEPS = [
   { id: "intro", label: "Overview" },
   { id: "account", label: "Razorpay account" },
   { id: "keys", label: "API keys" },
@@ -63,6 +64,8 @@ const STEPS = [
   { id: "booking", label: "Test booking" },
   { id: "live", label: "Go live" },
 ] as const;
+
+const STEPS = RAZORPAY_WIZARD_STEPS;
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { credentials: "include", ...init });
@@ -90,10 +93,13 @@ function inferModeFromKeyId(keyId: string): Mode | null {
   return null;
 }
 
-export default function RazorpaySetupWizard({ config, onComplete }: WizardProps) {
+export default function RazorpaySetupWizard({ config, onComplete, initialStepIdx = 0 }: WizardProps) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [stepIdx, setStepIdx] = React.useState(0);
+  const [stepIdx, setStepIdx] = React.useState(initialStepIdx);
+  React.useEffect(() => {
+    setStepIdx(initialStepIdx);
+  }, [initialStepIdx]);
   const [accountConfirmed, setAccountConfirmed] = React.useState(false);
   const [mode, setMode] = React.useState<Mode>(() => {
     const masked = config.public_key_masked ?? "";

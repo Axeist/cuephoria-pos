@@ -1,15 +1,11 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, Clock, Loader2, RefreshCcw, ShieldCheck, Zap } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, KeyRound, Loader2, Pencil, ShieldCheck, Zap } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import RazorpaySetupWizard from "@/components/settings/RazorpaySetupWizard";
+import RazorpaySetupWizard, { RAZORPAY_WIZARD_STEPS } from "@/components/settings/RazorpaySetupWizard";
 
 type Provider = "razorpay" | "stripe";
 type Mode = "test" | "live";
@@ -41,8 +37,6 @@ type PaymentConfig = {
 
 type ConfigResponse = { ok: true; configs: PaymentConfig[] };
 
-const PROVIDERS: Provider[] = ["razorpay"];
-
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { credentials: "include", ...init });
   const json = await response.json();
@@ -61,11 +55,16 @@ function prettyDate(iso: string | null): string {
   }
 }
 
+function wizardStepIndex(stepId: (typeof RAZORPAY_WIZARD_STEPS)[number]["id"]): number {
+  return RAZORPAY_WIZARD_STEPS.findIndex((s) => s.id === stepId);
+}
+
 export default function PaymentGatewaySettings() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [drafts, setDrafts] = React.useState<Record<string, PaymentConfig>>({});
   const [showWizard, setShowWizard] = React.useState(false);
+  const [wizardInitialStep, setWizardInitialStep] = React.useState(0);
   const [wizardDismissed, setWizardDismissed] = React.useState(false);
 
   const configQuery = useQuery({
@@ -76,7 +75,7 @@ export default function PaymentGatewaySettings() {
   React.useEffect(() => {
     if (!configQuery.data) return;
     const map: Record<string, PaymentConfig> = {};
-    for (const provider of PROVIDERS) {
+    for (const provider of ["razorpay"] as Provider[]) {
       const existing = configQuery.data.configs.find((c) => c.provider === provider);
       map[provider] =
         existing ??
@@ -124,7 +123,10 @@ export default function PaymentGatewaySettings() {
   }, [wizardDismissedKey]);
 
   React.useEffect(() => {
-    if (needsWizard) setShowWizard(true);
+    if (needsWizard) {
+      setWizardInitialStep(0);
+      setShowWizard(true);
+    }
   }, [needsWizard]);
 
   function dismissWizard() {
@@ -134,75 +136,33 @@ export default function PaymentGatewaySettings() {
     qc.invalidateQueries({ queryKey: ["admin-payment-config"] });
   }
 
-  function reopenWizard() {
+  function reopenWizard(stepId?: (typeof RAZORPAY_WIZARD_STEPS)[number]["id"]) {
+    setWizardInitialStep(stepId ? wizardStepIndex(stepId) : 0);
     setShowWizard(true);
     setWizardDismissed(false);
     if (wizardDismissedKey) localStorage.removeItem(wizardDismissedKey);
   }
 
-  const saveMutation = useMutation({
-    mutationFn: async (row: PaymentConfig) =>
-      fetchJson<{ ok: true }>("/api/admin/payment-config", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          provider: row.provider,
-          mode: row.mode,
-          is_enabled: row.is_enabled,
-          supported_currencies: row.supported_currencies,
-          is_international_enabled: row.is_international_enabled,
-          webhook_configured: row.webhook_configured,
-          settings: row.settings,
-        }),
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin-payment-config"] });
-      toast({ title: "Payment config saved" });
-    },
-    onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Save failed", description: err.message });
-    },
-  });
-
-  const actionMutation = useMutation({
-    mutationFn: async (args: { provider: Provider; mode?: Mode; action: "test-credentials" | "webhook-health" }) => {
-      if (args.action === "test-credentials" && args.provider === "razorpay") {
-        return fetchJson<{ ok: true; result?: { ok: boolean; message: string } }>(
-          "/api/razorpay/test-org-credentials",
-          {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ mode: args.mode }),
-          },
-        );
-      }
-      return fetchJson<{ ok: true; result?: { ok: boolean; message: string }; webhook?: { configured: boolean; last_event_at: string | null } }>(
-        "/api/admin/payment-config",
+  const testMutation = useMutation({
+    mutationFn: async (mode: Mode) =>
+      fetchJson<{ ok: true; result?: { ok: boolean; message: string } }>(
+        "/api/razorpay/test-org-credentials",
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify(args),
+          body: JSON.stringify({ mode }),
         },
-      );
-    },
-    onSuccess: (payload, args) => {
-      if (args.action === "test-credentials") {
-        const status = payload.result?.ok ? "Connection successful" : "Connection failed";
-        toast({
-          title: `${args.provider.toUpperCase()} ${status}`,
-          description: payload.result?.message,
-          variant: payload.result?.ok ? "default" : "destructive",
-        });
-      } else {
-        toast({
-          title: "Webhook health refreshed",
-          description: `Last event: ${prettyDate(payload.webhook?.last_event_at ?? null)}`,
-        });
-      }
+      ),
+    onSuccess: (payload) => {
+      toast({
+        title: payload.result?.ok ? "Connection successful" : "Connection failed",
+        description: payload.result?.message,
+        variant: payload.result?.ok ? "default" : "destructive",
+      });
       qc.invalidateQueries({ queryKey: ["admin-payment-config"] });
     },
     onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Action failed", description: err.message });
+      toast({ variant: "destructive", title: "Test failed", description: err.message });
     },
   });
 
@@ -227,9 +187,7 @@ export default function PaymentGatewaySettings() {
     );
   }
 
-  const updateProvider = (provider: Provider, updater: (cur: PaymentConfig) => PaymentConfig) => {
-    setDrafts((prev) => ({ ...prev, [provider]: updater(prev[provider]) }));
-  };
+  const showIntegratedRazorpay = razorpayConfig && !showWizard && !needsWizard;
 
   return (
     <div className="space-y-4">
@@ -247,162 +205,79 @@ export default function PaymentGatewaySettings() {
       </Card>
 
       {razorpayConfig && (showWizard || needsWizard) && (
-        <RazorpaySetupWizard config={razorpayConfig} onComplete={dismissWizard} />
+        <RazorpaySetupWizard
+          config={razorpayConfig}
+          onComplete={dismissWizard}
+          initialStepIdx={wizardInitialStep}
+        />
       )}
 
-      {razorpayConfig && !showWizard && !needsWizard && (
-        <div className="flex justify-end">
-          <Button variant="outline" size="sm" onClick={reopenWizard}>
-            {razorpayConfig.provider_ready ? "Edit Razorpay setup" : "Continue Razorpay setup"}
-          </Button>
-        </div>
-      )}
-
-      {PROVIDERS.map((provider) => {
-        const row = drafts[provider];
-        if (!row) return null;
-        const currencies = row.supported_currencies.join(", ");
-        const hideFlatCard = provider === "razorpay" && (showWizard || needsWizard);
-
-        if (hideFlatCard) return null;
-
-        return (
-          <Card key={provider}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Razorpay</CardTitle>
-                <div className="flex items-center gap-2">
-                  <Badge variant={row.provider_ready ? "default" : "secondary"}>
-                    {row.provider_ready ? "Ready" : "Needs setup"}
-                  </Badge>
-                  <Badge variant="outline">Active provider</Badge>
-                </div>
+      {showIntegratedRazorpay && razorpayConfig && (
+        <Card className="border-emerald-500/25 bg-emerald-500/5">
+          <CardHeader>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-1">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                  Razorpay integration complete
+                </CardTitle>
+                <CardDescription>
+                  Your workspace is connected for public booking online payments.
+                </CardDescription>
               </div>
-              <CardDescription className="flex flex-wrap items-center gap-3">
-                <span>Key: {row.public_key_masked || "Not configured"}</span>
-                <span>Secret: {row.has_secret ? "Saved" : "Missing"}</span>
-                <span>Webhook secret: {row.has_webhook_secret ? "Saved" : "Missing"}</span>
-                <span>Webhook events: {row.webhook_configured ? "Receiving" : "Not configured"}</span>
-                {row.platform_fallback_available && !row.credentials_configured && (
-                  <span className="text-amber-600">Platform env fallback active</span>
-                )}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Mode</Label>
-                  <Select
-                    value={row.mode}
-                    onValueChange={(value) =>
-                      updateProvider(provider, (cur) => ({ ...cur, mode: value as Mode }))
-                    }
-                    disabled={false}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="test">Test</SelectItem>
-                      <SelectItem value="live">Live</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Supported currencies (comma separated)</Label>
-                  <Input
-                    value={currencies}
-                    onChange={(e) =>
-                      updateProvider(provider, (cur) => ({
-                        ...cur,
-                        supported_currencies: e.target.value
-                          .split(",")
-                          .map((v) => v.trim().toUpperCase())
-                          .filter(Boolean),
-                      }))
-                    }
-                    placeholder="INR, USD"
-                  />
-                </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-600">
+                  Connected
+                </Badge>
+                <Badge variant="outline">{razorpayConfig.mode === "live" ? "Live mode" : "Test mode"}</Badge>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <p className="text-sm font-medium">Enable provider</p>
-                    <p className="text-xs text-muted-foreground">Required for public booking online pay.</p>
-                  </div>
-                  <Switch
-                    checked={row.is_enabled}
-                    onCheckedChange={(checked) =>
-                      updateProvider(provider, (cur) => ({ ...cur, is_enabled: checked }))
-                    }
-                  />
-                </div>
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <p className="text-sm font-medium">International enabled</p>
-                    <p className="text-xs text-muted-foreground">Mirror Razorpay dashboard activation status.</p>
-                  </div>
-                  <Switch
-                    checked={row.is_international_enabled}
-                    onCheckedChange={(checked) =>
-                      updateProvider(provider, (cur) => ({ ...cur, is_international_enabled: checked }))
-                    }
-                  />
-                </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div className="rounded-lg border bg-background/60 p-3">
+                <p className="text-xs text-muted-foreground mb-1">API key</p>
+                <p className="font-mono text-sm">
+                  {razorpayConfig.public_key_masked || "Saved — use Edit credentials to view or update"}
+                </p>
               </div>
-
-              <div className="text-xs text-muted-foreground">
-                Last webhook event: {prettyDate(row.webhook_last_event_at)}
+              <div className="rounded-lg border bg-background/60 p-3">
+                <p className="text-xs text-muted-foreground mb-1">Webhook</p>
+                <p className="text-sm">
+                  {razorpayConfig.webhook_configured
+                    ? `Configured · last event ${prettyDate(razorpayConfig.webhook_last_event_at)}`
+                    : "Optional — add in Edit credentials if not set yet"}
+                </p>
               </div>
+            </div>
 
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  onClick={() => saveMutation.mutate(row)}
-                  disabled={saveMutation.isPending}
-                >
-                  {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Save
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    actionMutation.mutate({
-                      provider,
-                      mode: row.mode,
-                      action: "test-credentials",
-                    })
-                  }
-                  disabled={actionMutation.isPending}
-                >
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button
+                variant="outline"
+                onClick={() => testMutation.mutate(razorpayConfig.mode)}
+                disabled={testMutation.isPending}
+              >
+                {testMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
                   <Zap className="h-4 w-4 mr-2" />
-                  Test connection
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => actionMutation.mutate({ provider, action: "webhook-health" })}
-                  disabled={actionMutation.isPending}
-                >
-                  <RefreshCcw className="h-4 w-4 mr-2" />
-                  Webhook health
-                </Button>
-                {provider === "razorpay" && (
-                  <Button variant="outline" onClick={() => setShowWizard(true)}>
-                    Setup wizard
-                  </Button>
                 )}
-                {row.provider_ready && (
-                  <span className="inline-flex items-center text-sm text-emerald-600 gap-1">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Config looks healthy
-                  </span>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+                Test connection
+              </Button>
+              <Button variant="outline" onClick={() => reopenWizard("keys")}>
+                <KeyRound className="h-4 w-4 mr-2" />
+                Edit credentials
+              </Button>
+              {razorpayConfig.mode === "test" && (
+                <Button variant="ghost" size="sm" onClick={() => reopenWizard("live")}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Switch to live keys
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-dashed border-muted-foreground/30 bg-muted/20">
         <CardHeader>
