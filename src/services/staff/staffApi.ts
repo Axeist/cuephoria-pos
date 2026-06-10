@@ -6,6 +6,7 @@ import type {
   StaffAttendance,
   StaffAuditEntry,
   StaffHoliday,
+  StaffLeavePolicy,
   StaffProfile,
   StaffScope,
   StaffStats,
@@ -267,6 +268,125 @@ export async function fetchAuditLog(
     throw error;
   }
   return (data ?? []) as StaffAuditEntry[];
+}
+
+export async function fetchLeavePolicies(scope: StaffScope): Promise<StaffLeavePolicy[]> {
+  assertScope(scope);
+  const { data, error } = await supabase
+    .from('staff_leave_policies')
+    .select('*')
+    .eq('organization_id', scope.organizationId)
+    .order('leave_type');
+  if (error) {
+    if (error.code === '42P01') return [];
+    throw error;
+  }
+  const rows = (data ?? []) as StaffLeavePolicy[];
+  if (scope.scope === 'location' && scope.locationId) {
+    return rows.filter((p) => !p.location_id || p.location_id === scope.locationId);
+  }
+  return rows;
+}
+
+export async function upsertLeavePolicy(
+  scope: StaffScope,
+  policy: Omit<StaffLeavePolicy, 'id' | 'created_at' | 'updated_at'> & { id?: string },
+): Promise<StaffLeavePolicy> {
+  assertScope(scope);
+  const payload = {
+    ...policy,
+    organization_id: scope.organizationId,
+    location_id: policy.location_id ?? scope.locationId,
+    updated_at: new Date().toISOString(),
+  };
+  if (policy.id) {
+    const { data, error } = await supabase
+      .from('staff_leave_policies')
+      .update(payload)
+      .eq('id', policy.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data as StaffLeavePolicy;
+  }
+  const { data, error } = await supabase
+    .from('staff_leave_policies')
+    .insert({ ...payload, created_at: new Date().toISOString() })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as StaffLeavePolicy;
+}
+
+export async function deleteLeavePolicy(id: string, scope: StaffScope): Promise<void> {
+  assertScope(scope);
+  const { error } = await supabase
+    .from('staff_leave_policies')
+    .delete()
+    .eq('id', id)
+    .eq('organization_id', scope.organizationId);
+  if (error) throw error;
+}
+
+export async function seedLeaveBalancesForStaff(
+  staffId: string,
+  organizationId: string,
+  year: number,
+  policies: StaffLeavePolicy[],
+): Promise<void> {
+  for (const policy of policies) {
+    const { error } = await supabase.from('staff_leave_balances').upsert(
+      {
+        staff_id: staffId,
+        organization_id: organizationId,
+        year,
+        leave_type: policy.leave_type,
+        allocated: policy.annual_quota,
+        used: 0,
+        remaining: policy.annual_quota,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'staff_id,year,leave_type' },
+    );
+    if (error && error.code !== '42P01') throw error;
+  }
+}
+
+export async function upsertHoliday(
+  scope: StaffScope,
+  holiday: Omit<StaffHoliday, 'id'> & { id?: string },
+): Promise<StaffHoliday> {
+  assertScope(scope);
+  const payload = {
+    organization_id: scope.organizationId,
+    location_id: holiday.location_id ?? scope.locationId,
+    date: holiday.date,
+    name: holiday.name,
+    is_paid: holiday.is_paid,
+  };
+  if (holiday.id) {
+    const { data, error } = await supabase
+      .from('staff_holidays')
+      .update(payload)
+      .eq('id', holiday.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data as StaffHoliday;
+  }
+  const { data, error } = await supabase.from('staff_holidays').insert(payload).select().single();
+  if (error) throw error;
+  return data as StaffHoliday;
+}
+
+export async function deleteHoliday(id: string, scope: StaffScope): Promise<void> {
+  assertScope(scope);
+  const { error } = await supabase
+    .from('staff_holidays')
+    .delete()
+    .eq('id', id)
+    .eq('organization_id', scope.organizationId);
+  if (error) throw error;
 }
 
 export { staffProfileId, staffProfileIds };

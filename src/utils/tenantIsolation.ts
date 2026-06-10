@@ -2,6 +2,10 @@
  * Tenant isolation helpers — prevent cross-workspace data bleed in browser caches.
  */
 
+import { clearAllStaffCaches } from '@/utils/staffCache';
+
+export { clearAllStaffCaches };
+
 /** Module-level customer memory cache lives in useCustomers; cleared on org switch. */
 let clearCustomerMemoryCache: (() => void) | null = null;
 
@@ -36,8 +40,6 @@ export function clearAllCustomerCaches(): void {
     /* ignore quota / private mode */
   }
 }
-
-export { clearAllStaffCaches } from '@/utils/staffCache';
 
 export function activeLocationStorageKey(organizationId: string): string {
   return `${LEGACY_LOCATION_KEY}_${organizationId}`;

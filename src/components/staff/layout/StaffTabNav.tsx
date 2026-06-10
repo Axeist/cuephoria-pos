@@ -8,6 +8,8 @@ import {
   DollarSign,
   CalendarDays,
   BarChart3,
+  BookOpen,
+  History,
   type LucideIcon,
 } from 'lucide-react';
 import type { StaffTabId } from '@/types/staff.types';
@@ -22,6 +24,9 @@ const TABS: { id: StaffTabId; label: string; icon: LucideIcon; shortLabel?: stri
   { id: 'requests', label: 'Requests', icon: FileText },
   { id: 'payroll', label: 'Payroll', icon: DollarSign },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
+  { id: 'policies', label: 'Policies', icon: BookOpen },
+  { id: 'holidays', label: 'Holidays', icon: CalendarDays, shortLabel: 'Holidays' },
+  { id: 'audit', label: 'Audit', icon: History },
 ];
 
 type Props = {

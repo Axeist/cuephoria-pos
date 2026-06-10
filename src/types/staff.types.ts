@@ -86,6 +86,19 @@ export type AttendanceStatus =
   | 'active'
   | null;
 
+export type StaffLeavePolicy = {
+  id: string;
+  organization_id: string;
+  location_id: string | null;
+  leave_type: string;
+  annual_quota: number;
+  accrual_mode: string;
+  carry_forward_max: number;
+  requires_approval: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type StaffTabId =
   | 'overview'
   | 'directory'
@@ -94,7 +107,10 @@ export type StaffTabId =
   | 'shifts'
   | 'requests'
   | 'payroll'
-  | 'reports';
+  | 'reports'
+  | 'policies'
+  | 'holidays'
+  | 'audit';
 
 export type StaffStats = {
   totalStaff: number;

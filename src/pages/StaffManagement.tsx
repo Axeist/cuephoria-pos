@@ -18,6 +18,9 @@ import StaffRequestsManagement from '@/components/staff/StaffRequestsManagement'
 import PayrollManagement from '@/components/staff/PayrollManagement';
 import ShiftRosterPanel from '@/components/staff/shifts/ShiftRosterPanel';
 import StaffReportsPanel from '@/components/staff/reports/StaffReportsPanel';
+import LeavePolicyPanel from '@/components/staff/policies/LeavePolicyPanel';
+import HolidayManagerPanel from '@/components/staff/policies/HolidayManagerPanel';
+import StaffAuditPanel from '@/components/staff/audit/StaffAuditPanel';
 import AdminRegularizationDialog from '@/components/staff/AdminRegularizationDialog';
 import StaffEmptyState from '@/components/staff/shared/StaffEmptyState';
 
@@ -154,6 +157,9 @@ const StaffManagementContent: React.FC = () => {
           />
         )}
         {activeTab === 'reports' && <StaffReportsPanel />}
+        {activeTab === 'policies' && <LeavePolicyPanel />}
+        {activeTab === 'holidays' && <HolidayManagerPanel />}
+        {activeTab === 'audit' && <StaffAuditPanel />}
       </div>
 
       <AdminRegularizationDialog
