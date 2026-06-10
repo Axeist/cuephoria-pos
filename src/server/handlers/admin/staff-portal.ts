@@ -23,6 +23,7 @@ function profilePayload(row: Record<string, unknown>) {
     monthlySalary: row.monthly_salary ?? 0,
     shiftStartTime: row.shift_start_time ?? null,
     shiftEndTime: row.shift_end_time ?? null,
+    defaultShiftHours: row.default_shift_hours ?? null,
     isActive: row.is_active !== false,
   };
 }

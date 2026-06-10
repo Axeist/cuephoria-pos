@@ -24,6 +24,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { resolveStaffHourlyRate, resolveStaffShiftHours } from '@/utils/staffEarnings';
 import { clearStaffPortalUnlock } from '@/utils/staffPortalSession';
 
 const StaffPortalContent: React.FC = () => {
@@ -80,6 +81,7 @@ const StaffPortalContent: React.FC = () => {
 
   return (
     <PortalShell
+      displayName={selectedStaff.full_name?.trim() || selectedStaff.username}
       username={selectedStaff.username}
       designation={selectedStaff.designation}
       onLock={() => {
@@ -164,7 +166,8 @@ const StaffPortalContent: React.FC = () => {
               clockInTime={currentShift.clock_in}
               breakStartTime={currentShift.break_start_time}
               breakDuration={currentShift.break_duration_minutes || 0}
-              hourlyRate={selectedStaff?.hourly_rate || 0}
+              hourlyRate={resolveStaffHourlyRate(selectedStaff ?? {})}
+              maxPaidHours={resolveStaffShiftHours(selectedStaff ?? {})}
               isOnBreak={isOnBreak}
             />
           )}

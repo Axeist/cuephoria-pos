@@ -9,6 +9,7 @@ interface RealTimeTimerProps {
   breakStartTime?: string;
   breakDuration: number;
   hourlyRate: number;
+  maxPaidHours?: number;
   isOnBreak: boolean;
 }
 
@@ -17,6 +18,7 @@ const RealTimeTimer: React.FC<RealTimeTimerProps> = ({
   breakStartTime,
   breakDuration,
   hourlyRate,
+  maxPaidHours,
   isOnBreak
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -43,7 +45,11 @@ const RealTimeTimer: React.FC<RealTimeTimerProps> = ({
       }
 
       const workingHours = Math.max(0, totalElapsedHours - (currentBreakMinutes / 60));
-      const earnings = workingHours * (hourlyRate || 0);
+      const paidHours =
+        maxPaidHours && maxPaidHours > 0
+          ? Math.min(workingHours, maxPaidHours)
+          : workingHours;
+      const earnings = paidHours * (hourlyRate || 0);
 
       return {
         hours: Math.floor(workingHours),

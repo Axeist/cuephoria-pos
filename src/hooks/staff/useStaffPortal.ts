@@ -10,20 +10,38 @@ import {
   getStaffPortalUnlock,
   setStaffPortalUnlocked,
 } from '@/utils/staffPortalSession';
+import { resolveStaffHourlyRate, resolveStaffShiftHours } from '@/utils/staffEarnings';
 
 function mapPortalProfileToStaff(profile: Record<string, unknown>) {
-  return {
+  const shift_start_time = profile.shiftStartTime as string | null | undefined;
+  const shift_end_time = profile.shiftEndTime as string | null | undefined;
+  const default_shift_hours =
+    (profile.defaultShiftHours as number | null | undefined) ??
+    resolveStaffShiftHours({ shift_start_time, shift_end_time });
+
+  const base = {
     user_id: profile.userId,
     username: profile.username,
     full_name: profile.fullName,
     designation: profile.designation,
     email: profile.email,
     location_id: profile.locationId,
-    hourly_rate: profile.hourlyRate,
     monthly_salary: profile.monthlySalary,
-    shift_start_time: profile.shiftStartTime,
-    shift_end_time: profile.shiftEndTime,
+    shift_start_time,
+    shift_end_time,
+    default_shift_hours,
     is_active: profile.isActive,
+  };
+
+  return {
+    ...base,
+    hourly_rate: resolveStaffHourlyRate({
+      hourly_rate: profile.hourlyRate as number | null | undefined,
+      monthly_salary: base.monthly_salary as number | null | undefined,
+      shift_start_time,
+      shift_end_time,
+      default_shift_hours,
+    }),
   };
 }
 
