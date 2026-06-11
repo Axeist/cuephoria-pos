@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { adminFetch } from "@/services/adminFetch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +31,7 @@ const StaffPortalPinGate: React.FC<StaffPortalPinGateProps> = ({
 
     setIsSubmitting(true);
     try {
-      const res = await fetch("/api/admin/staff-portal", {
+      const res = await adminFetch("/api/admin/staff-portal", {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },

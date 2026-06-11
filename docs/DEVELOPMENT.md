@@ -65,10 +65,22 @@ Clients are live. Every PR should answer:
 
 ## Deferred (do not start without plan update)
 
-- Slice 11 core ops RLS replacement
+- Slice 11 core ops RLS replacement — `coreOps` / `/api/admin/ops` proxy is ready, but
+  POS + public booking + customer dashboard still write ops tables via anon. Tighten only
+  after those surfaces are proxied (see SECURITY_ROLLOUT.md).
 - Customer portal auth hardening
 - Cafe partner auth hardening
-- Full CSRF token layer
+- `staff_*` deny-all RLS — portal + requests + payroll proxied; still blocked by the Staff
+  Management admin module (directory/attendance/shifts/notifications) on anon.
+
+## Security shipped
+
+- CSRF on mutating `/api/admin/*` — use `adminFetch` from `@/services/adminFetch`
+- Staff HR admin proxy — `/api/admin/staff-hr` (requests + payroll)
+- Staff self-service portal proxy — `/api/admin/staff-portal` (clock-in/out, breaks, all request types)
+- Core ops proxy (ready for incremental Slice 11 migration) — `/api/admin/ops` + `coreOps`
+- Staff HR/payroll RPCs revoked from anon — `20260811140000_security_revoke_staff_hr_rpc_anon.sql`
+- Rollout runbook — [SECURITY_ROLLOUT.md](./SECURITY_ROLLOUT.md)
 
 ## Key paths
 

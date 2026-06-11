@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Bill, CartItem, Customer, Product } from '@/types/pos.types';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { scopedTable, f, coreOpsQuery } from '@/services/coreOpsClient';
 import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
 import { deleteViaAdminApi } from '@/services/adminRecordsApi';
 import { invalidateLocationAnalyticsCache } from '@/hooks/useLocationAnalytics';
@@ -121,9 +121,7 @@ export const useBills = (
       return { data: [] as RawBillRow[] | null, error: null };
     }
     // ✅ Select only needed columns + include bill_items
-    const { data, error } = await supabase
-      .from('bills')
-      .select(`
+    const { data, error } = await scopedTable('bills', activeLocationId).select(`
         id,
         customer_id,
         subtotal,
@@ -149,12 +147,12 @@ export const useBills = (
           total,
           item_type
         )
-      `)
-      .eq('location_id', activeLocationId)
-      .order('created_at', { ascending: false })
-      .range(page * pageSize, (page + 1) * pageSize - 1);
+      `, {
+        order: { column: 'created_at', ascending: false },
+        range: [page * pageSize, (page + 1) * pageSize - 1],
+      });
 
-    return { data: (data as unknown as RawBillRow[] | null), error };
+    return { data: (data as unknown as RawBillRow[] | null), error: error ? { message: error.message } : null };
   };
 
   const fetchBillsPageWithRetry = async (page: number, pageSize: number, retries: number = 2) => {
@@ -413,7 +411,6 @@ export const useBills = (
 
       const billItemsToInsert = cart.map(item => ({
         bill_id: billData.id,
-        location_id: activeLocationId,
         item_id: item.id,
         name: getCartItemDisplayName(item),
         price: item.price,
@@ -424,13 +421,14 @@ export const useBills = (
 
       console.log('Inserting bill items:', billItemsToInsert);
 
-      const { error: itemsError } = await supabase
-        .from('bill_items')
-        .insert(billItemsToInsert);
+      const { error: itemsError } = await scopedTable('bill_items', activeLocationId)
+        .insertMany(billItemsToInsert);
 
       if (itemsError) {
         console.error('Error creating bill items:', itemsError);
-        await supabase.from('bills').delete().eq('id', billData.id);
+        await scopedTable('bills', activeLocationId).delete({
+          filters: [f.eq('id', billData.id)],
+        });
         throw new Error(`Failed to create bill items: ${itemsError.message}`);
       }
 
@@ -454,11 +452,10 @@ export const useBills = (
             total_spent: updatedCustomer.totalSpent
           };
 
-      const { error: customerError } = await supabase
-        .from('customers')
-        .update(customerUpdateData)
-        .eq('id', customer.id)
-        .eq('location_id', activeLocationId!);
+      const { error: customerError } = await scopedTable('customers', activeLocationId)
+        .update(customerUpdateData, {
+          filters: [f.eq('id', customer.id)],
+        });
 
       if (customerError) {
         console.error('Error updating customer:', customerError);
@@ -473,11 +470,10 @@ export const useBills = (
           if (product && product.category !== 'membership') {
             const newStock = Math.max(0, product.stock - item.quantity);
             
-            const { error: productError } = await supabase
-              .from('products')
-              .update({ stock: newStock })
-              .eq('id', product.id)
-              .eq('location_id', activeLocationId!);
+            const { error: productError } = await scopedTable('products', activeLocationId!)
+              .update({ stock: newStock }, {
+                filters: [f.eq('id', product.id)],
+              });
 
             if (productError) {
               console.error('Error updating product stock:', productError);
@@ -817,108 +813,12 @@ export const useBills = (
         });
         return true;
       }
-      console.warn('Server bill delete fallback:', server.error);
-
-      const { data: sessionItems } = await supabase
-        .from('bill_items')
-        .select('item_id')
-        .eq('bill_id', billId)
-        .eq('item_type', 'session');
-
-      const bookingIds = (sessionItems || []).map((item) => item.item_id).filter(Boolean);
-      let razorpayPaymentIds: string[] = [];
-      if (bookingIds.length > 0) {
-        const { data: linkedBookings } = await supabase
-          .from('bookings')
-          .select('payment_txn_id')
-          .in('id', bookingIds)
-          .eq('payment_mode', 'razorpay');
-
-        razorpayPaymentIds = [
-          ...new Set(
-            (linkedBookings || [])
-              .map((booking) => booking.payment_txn_id)
-              .filter((paymentId): paymentId is string => Boolean(paymentId)),
-          ),
-        ];
-      }
-
-      const { error: cashTransactionsError } = await supabase
-        .from('cash_transactions')
-        .delete()
-        .eq('bill_id', billId);
-
-      if (cashTransactionsError) {
-        console.error('Error deleting cash transactions:', cashTransactionsError);
-        throw new Error('Failed to delete related cash transactions');
-      }
-
-      console.log('Cash transactions deleted successfully');
-
-      const { error: itemsError } = await supabase
-        .from('bill_items')
-        .delete()
-        .eq('bill_id', billId);
-
-      if (itemsError) {
-        console.error('Error deleting bill items:', itemsError);
-        throw new Error('Failed to delete bill items');
-      }
-
-      console.log('Bill items deleted successfully');
-
-      const { error: billError } = await supabase
-        .from('bills')
-        .delete()
-        .eq('id', billId);
-
-      if (billError) {
-        console.error('Error deleting bill:', billError);
-        throw new Error('Failed to delete bill');
-      }
-
-      console.log('Bill deleted successfully');
-
-      if (razorpayPaymentIds.length > 0) {
-        const suppressedAt = new Date().toISOString();
-        for (const paymentId of razorpayPaymentIds) {
-          await supabase
-            .from('payment_orders')
-            .update({
-              bill_suppressed_at: suppressedAt,
-              materialized_bill_id: null,
-            })
-            .eq('provider', 'razorpay')
-            .eq('provider_payment_id', paymentId);
-        }
-      }
-
-      await supabase
-        .from('payment_orders')
-        .update({
-          bill_suppressed_at: new Date().toISOString(),
-          materialized_bill_id: null,
-        })
-        .eq('provider', 'razorpay')
-        .eq('materialized_bill_id', billId);
-
-      setBills(prevBills => {
-        const updated = prevBills.filter(bill => bill.id !== billId);
-        // ✅ Update cache
-        saveToCache(billsCacheKey, updated.slice(0, MAX_CACHED_BILLS));
-        return updated;
-      });
-      
-      // ✅ Invalidate cache
-      invalidateCache(billsCacheKey);
-
       toast({
-        title: 'Bill Deleted',
-        description: 'The bill has been deleted successfully',
-        variant: 'default',
+        title: 'Delete failed',
+        description: server.error || 'Could not delete bill on the server.',
+        variant: 'destructive',
       });
-
-      return true;
+      return false;
     } catch (error) {
       console.error('Error deleting bill:', error);
       toast({

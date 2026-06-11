@@ -33,6 +33,7 @@ import {
   type GoogleIdentity,
 } from "../../../googleOauth";
 import { supabaseServiceClient } from "../../../supabaseServer";
+import { generateCsrfToken, csrfCookieHeader } from "../../../lib/csrf";
 
 export const config = { runtime: "edge" };
 
@@ -238,6 +239,7 @@ export default async function handler(req: Request) {
     secure: true,
     sameSite: "Lax",
   });
+  const csrfCookie = csrfCookieHeader(generateCsrfToken(), maxAge);
 
   await supabase.from("audit_log").insert({
     actor_type: "admin_user",
@@ -248,5 +250,5 @@ export default async function handler(req: Request) {
 
   // Prefer the `next` from state if it looks like a safe path.
   const next = typeof state.next === "string" && state.next.startsWith("/") ? state.next : "/dashboard";
-  return redirect(`${base}${next}`, [clearStateCookie(), sessionCookie]);
+  return redirect(`${base}${next}`, [clearStateCookie(), sessionCookie, csrfCookie]);
 }

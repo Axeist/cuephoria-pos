@@ -1,3 +1,5 @@
+import { adminFetch } from "./adminFetch";
+
 export type AdminRecordType = "product" | "bill" | "booking";
 
 export async function deleteViaAdminApi(args: {
@@ -6,10 +8,8 @@ export async function deleteViaAdminApi(args: {
   locationId?: string;
 }): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await fetch("/api/admin/records", {
+    const res = await adminFetch("/api/admin/records", {
       method: "DELETE",
-      credentials: "include",
-      headers: { "content-type": "application/json" },
       body: JSON.stringify(args),
     });
     const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
@@ -25,10 +25,8 @@ export async function verifyAdminPinViaApi(args: {
   locationId: string;
 }): Promise<{ ok: boolean; skipped?: boolean; error?: string }> {
   try {
-    const res = await fetch("/api/admin/verify-pin", {
+    const res = await adminFetch("/api/admin/verify-pin", {
       method: "POST",
-      credentials: "include",
-      headers: { "content-type": "application/json" },
       body: JSON.stringify(args),
     });
     const json = (await res.json().catch(() => ({}))) as {
@@ -48,10 +46,8 @@ export async function callAnalyticsRpc<T>(
   params: Record<string, unknown>,
 ): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
   try {
-    const res = await fetch("/api/admin/analytics", {
+    const res = await adminFetch("/api/admin/analytics", {
       method: "POST",
-      credentials: "include",
-      headers: { "content-type": "application/json" },
       body: JSON.stringify({ rpc, params }),
     });
     const json = (await res.json().catch(() => ({}))) as {

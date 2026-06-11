@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { format } from 'date-fns';
 import { downloadAdminPayslip } from '@/services/staff/payrollPdf';
 import type { StaffProfile } from '@/types/staff.types';
 import { staffProfileIds } from '@/services/staff/staffMappers';
+import { fetchPayrollForMonth } from '@/services/staff/staffApi';
+import {
+  generateMonthlyPayroll,
+  revertPayroll,
+  addDeduction,
+  addAllowance,
+  approveAllPayroll,
+} from '@/services/staff/staffRpc';
 
 type UsePayrollOptions = {
   staffProfiles: StaffProfile[];
@@ -72,15 +79,8 @@ export function usePayroll({ staffProfiles, onRefresh }: UsePayrollOptions) {
   const fetchPayrollRecordsScoped = useCallback(async () => {
     setIsLoadingPayroll(true);
     try {
-      let q = supabase
-        .from('staff_payslip_view')
-        .select('*')
-        .eq('month', selectedMonth)
-        .eq('year', selectedYear);
-      const { data, error } = await q;
-      if (error) throw error;
-      const ids = new Set(scopedStaffIds);
-      setPayrollRecords((data || []).filter((r: { staff_id?: string }) => ids.has(r.staff_id ?? '')));
+      const data = await fetchPayrollForMonth(scopedStaffIds, selectedMonth, selectedYear);
+      setPayrollRecords(data || []);
     } catch (error: unknown) {
       console.error('Error fetching payroll:', error);
       toast({ title: 'Error', description: 'Failed to load payroll records', variant: 'destructive' });
@@ -95,14 +95,7 @@ export function usePayroll({ staffProfiles, onRefresh }: UsePayrollOptions) {
 
   const handleGeneratePayroll = async (staffId: string) => {
     try {
-      const { data, error } = await supabase.rpc('generate_monthly_payroll', {
-        p_staff_id: staffId,
-        p_month: selectedMonth,
-        p_year: selectedYear,
-        p_admin_username: user?.username || 'admin'
-      });
-
-      if (error) throw error;
+      await generateMonthlyPayroll(staffId, selectedMonth, selectedYear, user?.username || 'admin');
 
       toast({
         title: 'Success',
@@ -124,14 +117,7 @@ export function usePayroll({ staffProfiles, onRefresh }: UsePayrollOptions) {
     if (!regenerateStaffId) return;
 
     try {
-      const { data, error } = await supabase.rpc('generate_monthly_payroll', {
-        p_staff_id: regenerateStaffId,
-        p_month: selectedMonth,
-        p_year: selectedYear,
-        p_admin_username: 'admin'
-      });
-
-      if (error) throw error;
+      await generateMonthlyPayroll(regenerateStaffId, selectedMonth, selectedYear, 'admin');
 
       toast({
         title: 'Success',
@@ -154,12 +140,7 @@ export function usePayroll({ staffProfiles, onRefresh }: UsePayrollOptions) {
     if (!revertPayrollId) return;
 
     try {
-      const { error } = await supabase
-        .from('staff_payroll')
-        .delete()
-        .eq('id', revertPayrollId);
-
-      if (error) throw error;
+      await revertPayroll(revertPayrollId);
 
       toast({
         title: 'Success',
@@ -205,21 +186,17 @@ export function usePayroll({ staffProfiles, onRefresh }: UsePayrollOptions) {
         return;
       }
 
-      const { error } = await supabase
-        .from('staff_deductions')
-        .insert({
-          staff_id: selectedStaff.staff_id,
-          location_id: locationId,
-          deduction_type: deductionForm.type,
-          amount: parseFloat(deductionForm.amount),
-          reason: deductionForm.reason,
-          marked_by: user?.username || 'admin',
-          month: selectedMonth,
-          year: selectedYear,
-          deduction_date: new Date().toISOString().split('T')[0]
-        });
-
-      if (error) throw error;
+      await addDeduction({
+        staffId: selectedStaff.staff_id,
+        locationId,
+        deductionType: deductionForm.type,
+        amount: parseFloat(deductionForm.amount),
+        reason: deductionForm.reason,
+        markedBy: user?.username || 'admin',
+        month: selectedMonth,
+        year: selectedYear,
+        deductionDate: new Date().toISOString().split('T')[0],
+      });
 
       toast({
         title: 'Success',
@@ -261,20 +238,16 @@ export function usePayroll({ staffProfiles, onRefresh }: UsePayrollOptions) {
         return;
       }
 
-      const { error } = await supabase
-        .from('staff_allowances')
-        .insert({
-          staff_id: selectedStaff.staff_id,
-          location_id: locationId,
-          allowance_type: allowanceForm.type,
-          amount: parseFloat(allowanceForm.amount),
-          reason: allowanceForm.reason,
-          approved_by: user?.username || 'admin',
-          month: selectedMonth,
-          year: selectedYear
-        });
-
-      if (error) throw error;
+      await addAllowance({
+        staffId: selectedStaff.staff_id,
+        locationId,
+        allowanceType: allowanceForm.type,
+        amount: parseFloat(allowanceForm.amount),
+        reason: allowanceForm.reason,
+        approvedBy: user?.username || 'admin',
+        month: selectedMonth,
+        year: selectedYear,
+      });
 
       toast({
         title: 'Success',
@@ -299,18 +272,7 @@ export function usePayroll({ staffProfiles, onRefresh }: UsePayrollOptions) {
   const handleApproveAll = async () => {
     setIsApprovingAll(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const { error } = await supabase
-        .from('staff_payroll')
-        .update({
-          payment_status: 'paid',
-          payment_date: today,
-          payment_method: 'manual',
-        })
-        .eq('month', selectedMonth)
-        .eq('year', selectedYear);
-
-      if (error) throw error;
+      await approveAllPayroll(scopedStaffIds, selectedMonth, selectedYear);
 
       toast({
         title: 'Approved',

@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { Sparkles, Save, Loader2, MapPin } from 'lucide-react';
 import { useLocation } from '@/context/LocationContext';
+import { adminFetch } from '@/services/adminFetch';
 import {
   DEFAULT_POOL_BOOKING_ADDONS,
   POOL_BOOKING_ADDONS_SETTING_KEY,
@@ -55,7 +56,7 @@ const PoolBookingAddonsSettings: React.FC = () => {
 
   const upsertSetting = async () => {
     if (!activeLocationId) throw new Error('No branch selected');
-    const res = await fetch('/api/admin/booking-settings', {
+    const res = await adminFetch('/api/admin/booking-settings', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({

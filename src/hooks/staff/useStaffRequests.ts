@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import {
   format, differenceInDays, differenceInHours, startOfWeek, endOfWeek, subWeeks,
@@ -8,6 +7,17 @@ import {
 } from 'date-fns';
 import type { StaffProfile } from '@/types/staff.types';
 import { staffProfileIds, staffDisplayName, staffSecondaryUsername } from '@/services/staff/staffMappers';
+import { fetchAllRequests as fetchAllRequestsApi } from '@/services/staff/staffApi';
+import {
+  processLeaveApproval,
+  finalizeLeaveApproval,
+  rejectLeave,
+  processRegularization,
+  rejectRegularization,
+  processOtRequest,
+  processDoubleShiftRequest,
+  deleteStaffRequest,
+} from '@/services/staff/staffRpc';
 
 function staffRequestNames(profile: StaffProfile | undefined, fallbackId?: string) {
   if (!profile) {
@@ -123,20 +133,13 @@ export function useStaffRequests({ staffProfiles, onRefresh }: Options) {
       const startDateStr = format(dateRange.start, 'yyyy-MM-dd');
       const endDateStr = format(dateRange.end, 'yyyy-MM-dd');
       
-            // Fetch all leaves (pending, approved, rejected)
-      const { data: leaves, error: leavesError } = await supabase
-        .from('staff_leave_requests')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (leavesError) {
-        console.error('Error fetching leaves:', leavesError);
-        toast({
-          title: 'Error',
-          description: `Failed to fetch leave requests: ${leavesError.message}`,
-          variant: 'destructive'
-        });
-      }
+      const profileIds = staffProfileIds(staffProfiles);
+      const {
+        leaves,
+        regularizations,
+        overtime: otRequests,
+        doubleShifts: doubleShiftRequests,
+      } = await fetchAllRequestsApi(profileIds);
 
                         if (leaves && leaves.length > 0) {
         leaves.forEach((leave: any) => {
@@ -188,18 +191,6 @@ export function useStaffRequests({ staffProfiles, onRefresh }: Options) {
       } else {
               }
       
-            // Fetch all regularizations
-      const { data: regularizations, error: regError } = await supabase
-        .from('staff_attendance_regularization')
-        .select('*')
-        .gte('created_at', startDateStr)
-        .lte('created_at', endDateStr)
-        .order('created_at', { ascending: false });
-
-      if (regError) {
-        console.error('Error fetching regularizations:', regError);
-      }
-
       if (regularizations) {
         regularizations.forEach((reg: any) => {
           const createdAt = new Date(reg.created_at);
@@ -223,18 +214,6 @@ export function useStaffRequests({ staffProfiles, onRefresh }: Options) {
         });
       }
 
-      // Fetch all OT requests
-      const { data: otRequests, error: otError } = await supabase
-        .from('staff_overtime_requests')
-        .select('*')
-        .gte('created_at', startDateStr)
-        .lte('created_at', endDateStr)
-        .order('created_at', { ascending: false });
-
-      if (otError) {
-        console.error('Error fetching OT requests:', otError);
-      }
-
       if (otRequests) {
         otRequests.forEach((ot: any) => {
           const createdAt = new Date(ot.created_at);
@@ -256,17 +235,6 @@ export function useStaffRequests({ staffProfiles, onRefresh }: Options) {
             priority: daysOld > 3 ? 'high' : daysOld > 1 ? 'medium' : 'low'
           });
         });
-      }
-
-      // Fetch all double shift requests
-      const { data: doubleShiftRequests, error: dsError } = await supabase
-        .from('staff_double_shift_requests')
-        .select('*')
-        // NOTE: table uses `requested_at` (not `created_at`)
-        .order('requested_at', { ascending: false });
-
-      if (dsError) {
-        console.error('Error fetching double shift requests:', dsError);
       }
 
       if (doubleShiftRequests) {
@@ -415,87 +383,21 @@ export function useStaffRequests({ staffProfiles, onRefresh }: Options) {
     try {
       if (request.type === 'leave') {
         if (action === 'approve') {
-                    // Use the new function to process leave approval
-          const { data: rpcData, error: rpcError } = await supabase.rpc('process_leave_approval', {
-            p_leave_id: request.id,
-            p_action: 'approve'
-          });
-          
-          if (rpcError) {
-            console.error('Error in process_leave_approval RPC:', rpcError);
-            throw rpcError;
-          }
-          
-                    // Update with admin comments and reviewed_by
-          const { error } = await supabase
-            .from('staff_leave_requests')
-            .update({
-              reviewed_by: user?.username || 'admin',
-              remarks: adminComments || null
-            })
-            .eq('id', request.id);
-          if (error) {
-            console.error('Error updating leave request:', error);
-            throw error;
-          }
-          
-          // Verify attendance records were created
-          const { data: attendanceCheck, error: checkError } = await supabase
-            .from('staff_attendance')
-            .select('*')
-            .eq('staff_id', request.staffId)
-            .gte('date', request.data.start_date)
-            .lte('date', request.data.end_date)
-            .eq('status', 'leave');
-          
-                    if (checkError) {
-            console.error('Error checking attendance records:', checkError);
-          }
+          await processLeaveApproval(request.id, 'approve');
+          await finalizeLeaveApproval(request.id, user?.username || 'admin', adminComments || null);
         } else {
-          const { error } = await supabase
-            .from('staff_leave_requests')
-            .update({
-              status: 'rejected',
-              reviewed_at: new Date().toISOString(),
-              reviewed_by: user?.username || 'admin',
-              remarks: adminComments
-            })
-            .eq('id', request.id);
-          if (error) throw error;
+          await rejectLeave(request.id, user?.username || 'admin', adminComments || null);
         }
       } else if (request.type === 'regularization') {
         if (action === 'approve') {
-          const { error: rpcError } = await supabase.rpc('process_regularization', {
-            p_regularization_id: request.id,
-            p_action: 'approve'
-          });
-          if (rpcError) throw rpcError;
+          await processRegularization(request.id, 'approve');
         } else {
-          const { error } = await supabase
-            .from('staff_attendance_regularization')
-            .update({
-              status: 'rejected',
-              reviewed_at: new Date().toISOString(),
-              reviewed_by: user?.username || 'admin',
-              remarks: adminComments
-            })
-            .eq('id', request.id);
-          if (error) throw error;
+          await rejectRegularization(request.id, user?.username || 'admin', adminComments || null);
         }
       } else if (request.type === 'overtime') {
-        const { error: rpcError } = await supabase.rpc('process_ot_request', {
-          p_ot_request_id: request.id,
-          p_action: action,
-          p_remarks: adminComments || null
-        });
-        if (rpcError) throw rpcError;
+        await processOtRequest(request.id, action, adminComments || null);
       } else if (request.type === 'double-shift') {
-        const { error } = await supabase.rpc('process_double_shift_request', {
-          p_request_id: request.id,
-          p_action: action,
-          p_remarks: action === 'reject' ? adminComments : null
-        });
-        if (error) throw error;
+        await processDoubleShiftRequest(request.id, action, action === 'reject' ? adminComments : undefined);
       }
 
       toast({
@@ -546,12 +448,7 @@ export function useStaffRequests({ staffProfiles, onRefresh }: Options) {
           break;
       }
 
-      const { error } = await supabase
-        .from(tableName)
-        .delete()
-        .eq('id', selectedRequest.id);
-
-      if (error) throw error;
+      await deleteStaffRequest(tableName, selectedRequest.id);
 
       toast({
         title: 'Success',

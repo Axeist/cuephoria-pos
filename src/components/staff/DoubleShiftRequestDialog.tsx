@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { staffPortalCall, StaffPortalError } from '@/services/staff/staffPortalTransport';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon, Clock, User } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -74,14 +74,12 @@ const DoubleShiftRequestDialog: React.FC<DoubleShiftRequestDialogProps> = ({
 
       // Calculate estimated allowance
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const { data, error } = await supabase.rpc('calculate_double_shift_allowance', {
-        p_staff_id: staffId,
-        p_covered_staff_id: coveredStaffId,
-        p_covered_shift_hours: hours,
-        p_date: dateStr
+      const data = await staffPortalCall<number>('calculateDoubleShiftAllowance', {
+        coveredStaffId,
+        coveredShiftHours: hours,
+        date: dateStr,
       });
 
-      if (error) throw error;
       setEstimatedAllowance(data || 0);
     } catch (error: any) {
       console.error('Error calculating allowance:', error);
@@ -111,39 +109,16 @@ const DoubleShiftRequestDialog: React.FC<DoubleShiftRequestDialogProps> = ({
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      // Check if there's already a pending request for this date and staff
-      const { data: existing } = await supabase
-        .from('staff_double_shift_requests')
-        .select('id')
-        .eq('staff_id', staffId)
-        .eq('date', dateStr)
-        .eq('status', 'pending')
-        .maybeSingle();
-
-      if (existing) {
-        toast({
-          title: 'Request Already Exists',
-          description: 'You already have a pending double shift request for this date',
-          variant: 'destructive'
-        });
-        return;
-      }
-
-      const { error } = await supabase
-        .from('staff_double_shift_requests')
-        .insert({
-          staff_id: staffId,
-          covered_staff_id: coveredStaffId,
-          date: dateStr,
-          original_shift_start: currentStaff.shift_start_time,
-          original_shift_end: currentStaff.shift_end_time,
-          covered_shift_start: coveredStaff.shift_start_time,
-          covered_shift_end: coveredStaff.shift_end_time,
-          total_hours: calculatedHours,
-          reason: reason
-        });
-
-      if (error) throw error;
+      await staffPortalCall('submitDoubleShift', {
+        date: dateStr,
+        coveredStaffId,
+        originalShiftStart: currentStaff.shift_start_time,
+        originalShiftEnd: currentStaff.shift_end_time,
+        coveredShiftStart: coveredStaff.shift_start_time,
+        coveredShiftEnd: coveredStaff.shift_end_time,
+        totalHours: calculatedHours,
+        reason,
+      });
 
       toast({
         title: 'Success',
@@ -159,6 +134,14 @@ const DoubleShiftRequestDialog: React.FC<DoubleShiftRequestDialogProps> = ({
       onSuccess();
     } catch (error: any) {
       console.error('Error submitting double shift request:', error);
+      if (error instanceof StaffPortalError && /pending double shift/i.test(error.message)) {
+        toast({
+          title: 'Request Already Exists',
+          description: 'You already have a pending double shift request for this date',
+          variant: 'destructive'
+        });
+        return;
+      }
       toast({
         title: 'Error',
         description: error.message || 'Failed to submit double shift request',

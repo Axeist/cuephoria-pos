@@ -43,6 +43,7 @@ Production values go in **Vercel → Project → Settings → Environment Variab
 | `SECURITY_STRICT_PRICING` | `0` | `1` = reject booking/payment amount mismatches |
 | `WEBHOOK_SECRET` | unset | Required for `/api/webhooks/*` when set |
 | `WEBHOOK_AUTH_DISABLED` | `0` | `1` = local dev only, skip webhook auth |
+| `CSRF_DISABLED` | `0` | `1` = local dev only, skip admin CSRF checks |
 | `RBAC_ENFORCE_ROUTES` | server N/A | Use `VITE_RBAC_ENFORCE_ROUTES` on client |
 
 ## Rollout recommendation

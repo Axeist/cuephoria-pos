@@ -4,6 +4,7 @@ import type { Database } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { type WorkspaceMembershipBrief, parseWorkspaceMembershipsPayload } from '@/lib/tenantPortalLabels';
 import { clearAllCustomerCaches, removeLegacyGlobalLocationKey } from '@/utils/tenantIsolation';
+import { adminFetch, setAdminCsrfToken } from '@/services/adminFetch';
 
 interface AdminUser {
   id: string;
@@ -210,6 +211,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const json = await res.json();
         const u = json?.user;
         if (u?.id && u?.username) {
+          if (typeof json?.csrfToken === 'string') setAdminCsrfToken(json.csrfToken);
           setUser({
             id: u.id,
             username: u.username,
@@ -221,6 +223,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             loginEmail: u.email ?? null,
           });
         } else {
+          setAdminCsrfToken(null);
           setUser(null);
         }
       } catch (error) {
@@ -288,6 +291,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // ignore (private mode / denied storage)
         }
         setUser(adminUser);
+        if (typeof json.csrfToken === 'string') setAdminCsrfToken(json.csrfToken);
 
         const workspaceMemberships = parseWorkspaceMembershipsPayload(json.workspaceMemberships);
         const portalKindLabel =
@@ -348,6 +352,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           /* ignore */
         }
         setUser(adminUser);
+        if (typeof json.csrfToken === 'string') setAdminCsrfToken(json.csrfToken);
         return { ok: true };
       }
 
@@ -360,6 +365,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     fetch('/api/admin/logout', { method: 'POST' }).catch(() => {});
+    setAdminCsrfToken(null);
     clearAllCustomerCaches();
     removeLegacyGlobalLocationKey();
     setUser(null);
@@ -370,7 +376,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     newPassword: string,
   ): Promise<{ ok: true } | { ok: false; error: string }> => {
     try {
-      const res = await fetch('/api/admin/change-password', {
+      const res = await adminFetch('/api/admin/change-password', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         credentials: 'same-origin',
@@ -405,7 +411,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteLoginLog = async (logId: string): Promise<boolean> => {
     try {
-      const res = await fetch(`/api/admin/login-logs?id=${encodeURIComponent(logId)}`, {
+      const res = await adminFetch(`/api/admin/login-logs?id=${encodeURIComponent(logId)}`, {
         method: 'DELETE',
       });
       const json = await res.json();
@@ -443,7 +449,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false };
       }
 
-      const res = await fetch('/api/admin/users', {
+      const res = await adminFetch('/api/admin/users', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
@@ -507,7 +513,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.error('Only admins can regenerate portal PINs');
         return { success: false };
       }
-      const res = await fetch('/api/admin/users', {
+      const res = await adminFetch('/api/admin/users', {
         method: 'PATCH',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
@@ -535,7 +541,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.error('Only admins can create portal PINs');
         return { success: false };
       }
-      const res = await fetch('/api/admin/users', {
+      const res = await adminFetch('/api/admin/users', {
         method: 'PATCH',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
@@ -561,7 +567,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return [];
       }
       
-      const res = await fetch('/api/admin/users', { method: 'GET', credentials: 'same-origin' });
+      const res = await adminFetch('/api/admin/users', { method: 'GET', credentials: 'same-origin' });
       const json = await res.json();
       if (!json?.ok) {
         toast.error(json?.error || 'Error fetching users');
@@ -614,7 +620,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body.newPassword = updatedData.newPassword.trim();
       }
 
-      const res = await fetch('/api/admin/users', {
+      const res = await adminFetch('/api/admin/users', {
         method: 'PATCH',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
@@ -674,7 +680,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.error('Only admins can verify staff email');
         return false;
       }
-      const res = await fetch('/api/admin/users', {
+      const res = await adminFetch('/api/admin/users', {
         method: 'PATCH',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
@@ -703,7 +709,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.error('Only admins can resend verification email');
         return false;
       }
-      const res = await fetch('/api/admin/users', {
+      const res = await adminFetch('/api/admin/users', {
         method: 'PATCH',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
@@ -747,7 +753,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, {
+      const res = await adminFetch(`/api/admin/users?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
         credentials: 'same-origin',
       });

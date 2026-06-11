@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { staffPortalCall } from '@/services/staff/staffPortalTransport';
 import { Calendar as CalendarIcon, Clock, AlertCircle } from 'lucide-react';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -51,33 +51,13 @@ const OvertimeRequestDialog: React.FC<OvertimeRequestDialogProps> = ({
     try {
       const month = selectedDate.getMonth() + 1;
       const year = selectedDate.getFullYear();
-      
-      // Get overtime records that haven't been requested yet
-      const { data: otRecords, error: otError } = await supabase
-        .from('staff_overtime')
-        .select('*')
-        .eq('staff_id', staffId)
-        .eq('status', 'pending')
-        .gte('date', `${year}-${String(month).padStart(2, '0')}-01`)
-        .lt('date', `${year}-${String(month + 1).padStart(2, '0')}-01`);
 
-      if (otError) throw otError;
+      const { availableOTDays } = await staffPortalCall<{ availableOTDays: any[] }>('fetchOvertimePickerData', {
+        month,
+        year,
+      });
 
-      // Get already requested dates
-      const { data: requestedDates, error: reqError } = await supabase
-        .from('staff_overtime_requests')
-        .select('date')
-        .eq('staff_id', staffId)
-        .in('status', ['pending', 'approved'])
-        .gte('date', `${year}-${String(month).padStart(2, '0')}-01`)
-        .lt('date', `${year}-${String(month + 1).padStart(2, '0')}-01`);
-
-      if (reqError) throw reqError;
-
-      const requestedDateSet = new Set((requestedDates || []).map(r => r.date));
-      const available = (otRecords || []).filter(ot => !requestedDateSet.has(ot.date));
-      
-      setAvailableOTDays(available);
+      setAvailableOTDays(availableOTDays);
     } catch (error: any) {
       console.error('Error fetching OT days:', error);
     }
@@ -97,17 +77,11 @@ const OvertimeRequestDialog: React.FC<OvertimeRequestDialogProps> = ({
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      const { error } = await supabase
-        .from('staff_overtime_requests')
-        .insert({
-          staff_id: staffId,
-          date: dateStr,
-          overtime_hours: parseFloat(overtimeHours),
-          reason: reason,
-          overtime_amount: 100 // ₹100 per OT day
-        });
-
-      if (error) throw error;
+      await staffPortalCall('submitOvertime', {
+        date: dateStr,
+        overtimeHours: parseFloat(overtimeHours),
+        reason,
+      });
 
       toast({
         title: 'Success',

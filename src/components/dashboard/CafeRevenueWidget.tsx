@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { callAnalyticsRpc } from '@/services/adminRecordsApi';
-import { supabase } from '@/integrations/supabase/client';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { Coffee, TrendingUp, Users, BarChart2, ShoppingCart } from 'lucide-react';
 import { useLocation } from '@/context/LocationContext';
@@ -49,18 +48,8 @@ const CafeRevenueWidget: React.FC<CafeRevenueWidgetProps> = ({ startDate, endDat
           p_start: startDate?.toISOString() ?? null,
           p_end: endDate?.toISOString() ?? null,
         });
-        let row: CafeRevenueRpcRow | null = null;
-        if (viaApi.ok) {
-          row = viaApi.data;
-        } else {
-          const { data, error } = await supabase.rpc('get_cafe_revenue_stats', {
-            p_location_id: activeLocationId,
-            p_start: startDate?.toISOString() ?? null,
-            p_end: endDate?.toISOString() ?? null,
-          });
-          if (error) throw error;
-          row = data as CafeRevenueRpcRow | null;
-        }
+        if (!viaApi.ok) throw new Error(viaApi.error);
+        const row = viaApi.data;
         if (cancelled) return;
         const totalOrders = row?.total_orders ?? 0;
         const grossRevenue = Number(row?.gross_revenue ?? 0);

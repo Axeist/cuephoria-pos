@@ -75,19 +75,28 @@ const PinVerificationDialog: React.FC<PinVerificationDialogProps> = ({
     setIsVerifying(true);
     try {
       let verified = false;
-      if (activeLocationId) {
-        const server = await verifyAdminPinViaApi({
-          pin: values.pin,
-          locationId: activeLocationId,
+      if (!activeLocationId) {
+        toast({
+          title: 'Branch required',
+          description: 'Select a branch before verifying the admin PIN.',
+          variant: 'destructive',
         });
-        if (server.ok && !server.skipped) verified = true;
-        if (server.ok && server.skipped) verified = verifyAdminPin(values.pin);
-        if (!server.ok) {
-          const local = verifyAdminPin(values.pin);
-          if (local) verified = true;
-        }
-      } else {
-        verified = verifyAdminPin(values.pin);
+        return;
+      }
+      const server = await verifyAdminPinViaApi({
+        pin: values.pin,
+        locationId: activeLocationId,
+      });
+      if (server.ok && !server.skipped) verified = true;
+      if (server.ok && server.skipped) verified = verifyAdminPin(values.pin);
+
+      if (!server.ok) {
+        toast({
+          title: 'PIN check failed',
+          description: server.error || 'Could not verify PIN on the server.',
+          variant: 'destructive',
+        });
+        return;
       }
 
       if (!verified) {

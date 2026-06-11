@@ -22,6 +22,7 @@ import React, {
   useState,
 } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { setAdminCsrfToken } from "@/services/adminFetch";
 import { type WorkspaceMembershipBrief, parseWorkspaceMembershipsPayload } from "@/lib/tenantPortalLabels";
 import { isInternalOrganization } from "@/types/tenancy";
 
@@ -129,6 +130,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       try {
         const res = await fetch("/api/admin/me", { credentials: "same-origin" });
         const json = await res.json().catch(() => ({}));
+        if (typeof json?.csrfToken === "string") setAdminCsrfToken(json.csrfToken);
         if (!res.ok || !json?.ok) {
           throw new Error(json?.error || `Failed to load org (${res.status})`);
         }

@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { ADMIN_SESSION_COOKIE, cookieSerialize, getEnv, j, parseCookies, signAdminSession } from "../../adminApiUtils";
+import { ADMIN_SESSION_COOKIE, cookieSerialize, getEnv, j, jWithCookies, parseCookies, signAdminSession } from "../../adminApiUtils";
 import { verifyOauthState } from "../../googleOauth";
 import { clientIpFromRequest, rateLimit } from "../../platformApiUtils";
 import { appBaseUrl, sendEmail } from "../../email";
@@ -10,6 +10,7 @@ import {
 } from "../../passwordUtils";
 import { issueEmailToken } from "../../emailTokens";
 import { verifyTotpCode } from "../../totp";
+import { generateCsrfToken, csrfCookieHeader } from "../../lib/csrf";
 
 export const config = { runtime: "edge" };
 
@@ -171,6 +172,7 @@ export default async function handler(req: Request) {
         secure: true,
         sameSite: "Lax",
       });
+      const csrfToken = generateCsrfToken();
       const setCookie = cookieSerialize(ADMIN_SESSION_COOKIE, sessionToken, {
         maxAgeSeconds: 8 * 60 * 60,
         httpOnly: true,
@@ -178,14 +180,17 @@ export default async function handler(req: Request) {
         sameSite: "Lax",
         path: "/",
       });
+      const csrfCookie = csrfCookieHeader(csrfToken, 8 * 60 * 60);
 
       const headers = new Headers({ "content-type": "application/json; charset=utf-8" });
       headers.append("set-cookie", clearOauthTotp);
       headers.append("set-cookie", setCookie);
+      headers.append("set-cookie", csrfCookie);
       return new Response(
         JSON.stringify({
           ok: true,
           success: true,
+          csrfToken,
           user: {
             id: userRow.id,
             username: userRow.username,
@@ -572,6 +577,7 @@ export default async function handler(req: Request) {
       8 * 60 * 60,
     );
 
+    const csrfToken = generateCsrfToken();
     const setCookie = cookieSerialize(ADMIN_SESSION_COOKIE, sessionToken, {
       maxAgeSeconds: 8 * 60 * 60,
       httpOnly: true,
@@ -580,10 +586,11 @@ export default async function handler(req: Request) {
       path: "/",
     });
 
-    return j(
+    return jWithCookies(
       {
         ok: true,
         success: true,
+        csrfToken,
         portalKind,
         portalKindLabel,
         workspaceMemberships,
@@ -599,7 +606,7 @@ export default async function handler(req: Request) {
         },
       },
       200,
-      { "set-cookie": setCookie },
+      [setCookie, csrfCookieHeader(csrfToken, 8 * 60 * 60)],
     );
   } catch (err: unknown) {
     console.error("Admin login error:", err);

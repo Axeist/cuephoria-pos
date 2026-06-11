@@ -1,4 +1,5 @@
-import { ADMIN_SESSION_COOKIE, cookieSerialize, j } from "../../adminApiUtils";
+import { ADMIN_SESSION_COOKIE, cookieSerialize, j, jWithCookies } from "../../adminApiUtils";
+import { clearCsrfCookieHeader } from "../../lib/csrf";
 
 export const config = { runtime: "edge" };
 
@@ -15,6 +16,6 @@ export default async function handler(req: Request) {
     path: "/",
   });
 
-  return j({ ok: true }, 200, { "set-cookie": expired });
+  return jWithCookies({ ok: true }, 200, [expired, clearCsrfCookieHeader()]);
 }
 

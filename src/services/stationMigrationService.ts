@@ -1,3 +1,4 @@
+import { adminFetch } from '@/services/adminFetch';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface MigrateStationResult {
@@ -27,48 +28,28 @@ export async function migrateStationData(
   migratedBy?: string,
   locationId?: string,
 ): Promise<MigrateStationResult> {
-  if (locationId) {
-    const res = await fetch('/api/admin/station-migrate', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        oldStationIds,
-        newStationId,
-        migratedBy: migratedBy ?? null,
-        locationId,
-      }),
-    });
-    const json = (await res.json().catch(() => ({}))) as {
-      ok?: boolean;
-      data?: MigrateStationResult;
-      error?: string;
-    };
-    if (res.ok && json.ok && json.data) {
-      return json.data;
-    }
-    if (!res.ok && json.error) {
-      throw new Error(json.error);
-    }
+  if (!locationId) {
+    throw new Error('Branch (locationId) is required for station migration.');
   }
 
-  const { data, error } = await supabase.rpc('migrate_station_data', {
-    p_old_ids: oldStationIds,
-    p_new_station_id: newStationId,
-    p_migrated_by: migratedBy ?? null,
+  const res = await adminFetch('/api/admin/station-migrate', {
+    method: 'POST',
+    body: JSON.stringify({
+      oldStationIds,
+      newStationId,
+      migratedBy: migratedBy ?? null,
+      locationId,
+    }),
   });
-
-  if (error) {
-    console.error('migrateStationData:', error);
-    throw new Error(migrationErrorMessage(error));
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    data?: MigrateStationResult;
+    error?: string;
+  };
+  if (res.ok && json.ok && json.data) {
+    return json.data;
   }
-
-  const result = data as MigrateStationResult;
-  if (result.migration_version != null && result.migration_version < 5) {
-    console.warn('migrateStationData: outdated DB function (version', result.migration_version, ') — apply migration 20260805150000');
-  }
-
-  return result;
+  throw new Error(json.error || migrationErrorMessage({ message: `Migration failed (${res.status})` }));
 }
 
 export async function fetchMigratedOldStationIds(locationId: string): Promise<Set<string>> {

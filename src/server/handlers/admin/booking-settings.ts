@@ -48,8 +48,18 @@ export default async function handler(req: Request) {
 
     const orgLocationIds = await getOrganizationLocationIds(supabase, ctx.organizationId);
 
+    const access = await resolveWorkspaceAccess(supabase, {
+      adminUserId: sessionUser.id,
+      organizationId: ctx.organizationId,
+      isSuperAdmin: sessionUser.isSuperAdmin,
+      isAdmin: sessionUser.isAdmin,
+    });
+
     // GET: fetch booking settings for org branches (?location_id=uuid optional)
     if (req.method === "GET") {
+      const readGate = assertWorkspacePermission(access, "bookings.slots_configure");
+      if (isDenied(readGate)) return j({ ok: false, error: readGate.error }, 403);
+
       const url = new URL(req.url);
       const locationId = url.searchParams.get("location_id");
       let q = supabase.from("booking_settings").select("setting_key, setting_value, location_id");
@@ -69,12 +79,6 @@ export default async function handler(req: Request) {
 
     // PUT: upsert a single booking setting
     if (req.method === "PUT") {
-      const access = await resolveWorkspaceAccess(supabase, {
-        adminUserId: sessionUser.id,
-        organizationId: ctx.organizationId,
-        isSuperAdmin: sessionUser.isSuperAdmin,
-        isAdmin: sessionUser.isAdmin,
-      });
       const slotGate = assertWorkspacePermission(access, "bookings.slots_configure");
       if (isDenied(slotGate)) return j({ ok: false, error: slotGate.error }, 403);
 

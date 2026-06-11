@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Product } from '@/types/pos.types';
 import { supabase, handleSupabaseError, convertFromSupabaseProduct, convertToSupabaseProduct } from "@/integrations/supabase/client";
+import { scopedTable, f } from '@/services/coreOpsClient';
 import { useToast } from '@/hooks/use-toast';
 import { generateId } from '@/utils/pos.utils';
 import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
@@ -90,11 +91,9 @@ export const useProducts = () => {
       // ✅ Invalidate cache
       invalidateCache(productsCacheKey);
       
-      supabase
-        .from('products')
+      scopedTable('products', activeLocationId!)
         .insert({
           ...convertToSupabaseProduct(newProduct),
-          location_id: activeLocationId!,
         })
         .then(({ error }) => {
           if (error) {
@@ -166,11 +165,10 @@ export const useProducts = () => {
       // ✅ Invalidate cache
       invalidateCache(productsCacheKey);
       
-      supabase
-        .from('products')
-        .update(convertToSupabaseProduct(updatedProduct))
-        .eq('id', updatedProduct.id)
-        .eq('location_id', activeLocationId!)
+      scopedTable('products', activeLocationId!)
+        .update(convertToSupabaseProduct(updatedProduct), {
+          filters: [f.eq('id', updatedProduct.id)],
+        })
         .then(({ error }) => {
           if (error) {
             console.error('Error updating product in DB:', error);
@@ -180,12 +178,9 @@ export const useProducts = () => {
               description: `Product updated locally but failed to sync with database: ${error.message}`,
               variant: 'destructive'
             });
-            return supabase
-              .from('products')
-              .insert({
-                ...convertToSupabaseProduct(updatedProduct),
-                location_id: activeLocationId!,
-              });
+            return scopedTable('products', activeLocationId!).insert({
+              ...convertToSupabaseProduct(updatedProduct),
+            });
           } else {
             console.log('Product updated in DB:', updatedProduct.name);
             // Update cache after successful DB update
@@ -245,35 +240,19 @@ export const useProducts = () => {
         });
         if (server.ok) {
           console.log('Product deleted via server API:', id);
+          toast({
+            title: 'Success',
+            description: 'Product deleted successfully',
+          });
           return;
         }
-        console.warn('Server delete fallback:', server.error);
-        const { error } = await supabase
-          .from('products')
-          .delete()
-          .eq('id', id)
-          .eq('location_id', activeLocationId!);
-        if (error) {
-          console.error('Error deleting product from DB:', error);
-          setError(`Failed to delete product from database: ${error.message}`);
-          toast({
-            title: 'Database Sync Error',
-            description: `Product deleted locally but failed to sync with database: ${error.message}`,
-            variant: 'destructive'
-          });
-        } else {
-          setProducts(prev => {
-            const updated = prev.filter(p => p.id !== id);
-            saveToCache(productsCacheKey, updated);
-            return updated;
-          });
-        }
+        toast({
+          title: 'Delete failed',
+          description: server.error || 'Could not delete product on the server.',
+          variant: 'destructive',
+        });
+        void refreshFromDB(true);
       })();
-      
-      toast({
-        title: 'Success',
-        description: 'Product deleted successfully',
-      });
     } catch (error) {
       console.error('Error deleting product:', error);
       toast({
@@ -318,12 +297,10 @@ export const useProducts = () => {
       let firstBatchPainted = false;
 
       const fetchProductsPage = (p: number) =>
-        supabase
-          .from('products')
-          .select(selectFields)
-          .eq('location_id', activeLocationId)
-          .order('created_at', { ascending: false })
-          .range(p * pageSize, (p + 1) * pageSize - 1);
+        scopedTable('products', activeLocationId).select(selectFields, {
+          order: { column: 'created_at', ascending: false },
+          range: [p * pageSize, (p + 1) * pageSize - 1],
+        });
 
       while (!finished) {
         const pagesToFetch = Array.from({ length: PARALLEL_PAGES }, (_, i) => page + i);

@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "@/context/LocationContext";
 import { normalizeSecuritySettings } from "@/utils/securitySettings";
+import { adminFetch } from "@/services/adminFetch";
 
 export type {
   AppSettings,
@@ -124,7 +125,7 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
       ) as Partial<AppSettings>;
 
       if (activeLocationId) {
-        const res = await fetch("/api/admin/location-settings", {
+        const res = await adminFetch("/api/admin/location-settings", {
           method: "PUT",
           credentials: "same-origin",
           headers: { "content-type": "application/json" },

@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { buildPublicBookingUrl } from "@/utils/publicBookingUrl";
 import { BOOKING_ACCESS_KEYS, parseBookingSettingBool } from "@/utils/bookingAccessSettings";
 import PaymentProviderBrand from "@/components/settings/PaymentProviderBrand";
+import { adminFetch } from "@/services/adminFetch";
 
 type Mode = "test" | "live";
 
@@ -69,7 +70,7 @@ export const RAZORPAY_WIZARD_STEPS = [
 const STEPS = RAZORPAY_WIZARD_STEPS;
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { credentials: "include", ...init });
+  const response = await adminFetch(url, init);
   const text = await response.text();
   let json: { ok?: boolean; error?: string; result?: { ok: boolean; message: string } };
   try {

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { adminFetch } from '@/services/adminFetch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -78,7 +79,7 @@ const RolesAndPermissionsPanel: React.FC = () => {
   const loadRoles = useCallback(async (selectRoleId?: string) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/roles', { credentials: 'same-origin' });
+      const res = await adminFetch('/api/admin/roles', { credentials: 'same-origin' });
       const json = await res.json();
       if (!json?.ok) throw new Error(json?.error || 'Failed to load roles');
       const loaded: WorkspaceRole[] = json.roles ?? [];
@@ -108,7 +109,7 @@ const RolesAndPermissionsPanel: React.FC = () => {
   const loadRoleDetail = useCallback(async (roleId: string) => {
     setLoadingDetail(true);
     try {
-      const res = await fetch(`/api/admin/roles?roleId=${encodeURIComponent(roleId)}`, {
+      const res = await adminFetch(`/api/admin/roles?roleId=${encodeURIComponent(roleId)}`, {
         credentials: 'same-origin',
       });
       const json = await res.json();
@@ -174,7 +175,7 @@ const RolesAndPermissionsPanel: React.FC = () => {
     if (!selectedRoleId || !hasUnsavedChanges) return;
     setSaving(true);
     try {
-      const res = await fetch('/api/admin/roles', {
+      const res = await adminFetch('/api/admin/roles', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
@@ -230,7 +231,7 @@ const RolesAndPermissionsPanel: React.FC = () => {
     }
     setCreating(true);
     try {
-      const res = await fetch('/api/admin/roles', {
+      const res = await adminFetch('/api/admin/roles', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
@@ -271,7 +272,7 @@ const RolesAndPermissionsPanel: React.FC = () => {
     }
     setDeleting(true);
     try {
-      const res = await fetch('/api/admin/roles', {
+      const res = await adminFetch('/api/admin/roles', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },

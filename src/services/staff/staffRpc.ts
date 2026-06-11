@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { staffHrCall } from "./staffHrTransport";
 
 export async function generateMonthlyPayroll(
   staffId: string,
@@ -6,66 +6,106 @@ export async function generateMonthlyPayroll(
   year: number,
   adminUsername: string,
 ): Promise<string> {
-  const { data, error } = await supabase.rpc('generate_monthly_payroll', {
-    p_staff_id: staffId,
-    p_month: month,
-    p_year: year,
-    p_admin_username: adminUsername,
-  });
-  if (error) throw error;
-  return String(data);
+  return staffHrCall("generateMonthlyPayroll", { staffId, month, year, adminUsername });
 }
 
 export async function processLeaveApproval(
   requestId: string,
-  action: 'approve' | 'reject',
+  action: "approve" | "reject",
   remarks?: string,
 ): Promise<void> {
-  const { error } = await supabase.rpc('process_leave_approval', {
-    p_request_id: requestId,
-    p_action: action,
-    p_remarks: remarks ?? null,
-  });
-  if (error) throw error;
+  await staffHrCall("processLeaveApproval", { requestId, action, remarks });
 }
 
 export async function processRegularization(
   requestId: string,
-  action: 'approve' | 'reject',
+  action: "approve" | "reject",
   remarks?: string,
 ): Promise<void> {
-  const { error } = await supabase.rpc('process_regularization', {
-    p_request_id: requestId,
-    p_action: action,
-    p_remarks: remarks ?? null,
-  });
-  if (error) throw error;
+  await staffHrCall("processRegularization", { requestId, action, remarks });
 }
 
 export async function processOtRequest(
   requestId: string,
-  action: 'approve' | 'reject',
-  remarks?: string,
+  action: "approve" | "reject",
+  remarks?: string | null,
 ): Promise<void> {
-  const { error } = await supabase.rpc('process_ot_request', {
-    p_request_id: requestId,
-    p_action: action,
-    p_remarks: remarks ?? null,
-  });
-  if (error) throw error;
+  await staffHrCall("processOtRequest", { requestId, action, remarks });
 }
 
 export async function processDoubleShiftRequest(
   requestId: string,
-  action: 'approve' | 'reject',
+  action: "approve" | "reject",
   remarks?: string,
 ): Promise<void> {
-  const { error } = await supabase.rpc('process_double_shift_request', {
-    p_request_id: requestId,
-    p_action: action,
-    p_remarks: remarks ?? null,
-  });
-  if (error) throw error;
+  await staffHrCall("processDoubleShiftRequest", { requestId, action, remarks });
+}
+
+export async function finalizeLeaveApproval(
+  requestId: string,
+  reviewedBy: string,
+  remarks?: string | null,
+): Promise<void> {
+  await staffHrCall("finalizeLeaveApproval", { requestId, reviewedBy, remarks });
+}
+
+export async function rejectLeave(
+  requestId: string,
+  reviewedBy: string,
+  remarks?: string | null,
+): Promise<void> {
+  await staffHrCall("rejectLeave", { requestId, reviewedBy, remarks });
+}
+
+export async function rejectRegularization(
+  requestId: string,
+  reviewedBy: string,
+  remarks?: string | null,
+): Promise<void> {
+  await staffHrCall("rejectRegularization", { requestId, reviewedBy, remarks });
+}
+
+export async function deleteStaffRequest(table: string, id: string): Promise<void> {
+  await staffHrCall("deleteStaffRequest", { table, id });
+}
+
+export async function revertPayroll(payrollId: string): Promise<void> {
+  await staffHrCall("revertPayroll", { payrollId });
+}
+
+export async function addDeduction(input: {
+  staffId: string;
+  locationId: string;
+  deductionType: string;
+  amount: number;
+  reason: string;
+  markedBy: string;
+  month: number;
+  year: number;
+  deductionDate: string;
+}): Promise<void> {
+  await staffHrCall("addDeduction", { ...input });
+}
+
+export async function addAllowance(input: {
+  staffId: string;
+  locationId: string;
+  allowanceType: string;
+  amount: number;
+  reason: string;
+  approvedBy: string;
+  month: number;
+  year: number;
+}): Promise<void> {
+  await staffHrCall("addAllowance", { ...input });
+}
+
+export async function approveAllPayroll(
+  profileIds: string[],
+  month: number,
+  year: number,
+): Promise<void> {
+  await staffHrCall("approveAllPayroll", { profileIds, month, year });
 }
 
 export async function unlockPayroll(
@@ -74,19 +114,7 @@ export async function unlockPayroll(
   year: number,
   unlockedBy: string,
 ): Promise<void> {
-  const { error } = await supabase
-    .from('staff_payroll')
-    .update({
-      is_locked: false,
-      locked_at: null,
-      locked_by: null,
-      payment_status: 'pending',
-      notes: `Unlocked by ${unlockedBy}`,
-    })
-    .eq('staff_id', staffId)
-    .eq('month', month)
-    .eq('year', year);
-  if (error) throw error;
+  await staffHrCall("unlockPayroll", { staffId, month, year, unlockedBy });
 }
 
 export async function lockPayroll(
@@ -95,18 +123,7 @@ export async function lockPayroll(
   year: number,
   lockedBy: string,
 ): Promise<void> {
-  const { error } = await supabase
-    .from('staff_payroll')
-    .update({
-      is_locked: true,
-      locked_at: new Date().toISOString(),
-      locked_by: lockedBy,
-      payment_status: 'approved',
-    })
-    .eq('staff_id', staffId)
-    .eq('month', month)
-    .eq('year', year);
-  if (error) throw error;
+  await staffHrCall("lockPayroll", { staffId, month, year, lockedBy });
 }
 
 export async function logHrAudit(entry: {
@@ -118,16 +135,5 @@ export async function logHrAudit(entry: {
   entityId?: string | null;
   payload?: Record<string, unknown>;
 }): Promise<void> {
-  const { error } = await supabase.from('staff_hr_audit_log').insert({
-    organization_id: entry.organizationId,
-    location_id: entry.locationId ?? null,
-    actor_admin_user_id: entry.actorAdminUserId ?? null,
-    action: entry.action,
-    entity_type: entry.entityType,
-    entity_id: entry.entityId ?? null,
-    payload: entry.payload ?? {},
-  });
-  if (error && error.code !== '42P01') {
-    console.warn('staff_hr_audit_log insert failed:', error.message);
-  }
+  await staffHrCall("logHrAudit", { entry });
 }

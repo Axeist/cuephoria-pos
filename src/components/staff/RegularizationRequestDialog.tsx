@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { staffPortalCall } from '@/services/staff/staffPortalTransport';
 import { Calendar as CalendarIcon, Clock, AlertCircle } from 'lucide-react';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -62,15 +62,12 @@ const RegularizationRequestDialog: React.FC<RegularizationRequestDialogProps> = 
     try {
       const month = selectedDate.getMonth() + 1;
       const year = selectedDate.getFullYear();
-      
-      const { data, error: rpcError } = await supabase.rpc('check_regularization_limit', {
-        p_staff_id: staffId,
-        p_month: month,
-        p_year: year
+
+      const data = await staffPortalCall<boolean>('checkRegularizationLimit', {
+        month,
+        year,
       });
 
-      if (rpcError) throw rpcError;
-      
       const used = data === false ? 3 : 0;
       const remaining = 3 - used;
       setRemainingRegularizations(remaining);
@@ -137,19 +134,14 @@ const RegularizationRequestDialog: React.FC<RegularizationRequestDialogProps> = 
       const clockInTime = requestedClockIn ? new Date(`${dateStr}T${requestedClockIn}`).toISOString() : null;
       const clockOutTime = requestedClockOut ? new Date(`${dateStr}T${requestedClockOut}`).toISOString() : null;
 
-      const { error } = await supabase
-        .from('staff_attendance_regularization')
-        .insert({
-          staff_id: staffId,
-          date: dateStr,
-          regularization_type: regularizationType,
-          requested_clock_in: clockInTime,
-          requested_clock_out: clockOutTime,
-          leave_type: regularizationType === 'apply_leave' ? leaveType : null,
-          reason: reason
-        });
-
-      if (error) throw error;
+      await staffPortalCall('submitRegularization', {
+        date: dateStr,
+        regularizationType,
+        requestedClockIn: clockInTime,
+        requestedClockOut: clockOutTime,
+        leaveType: regularizationType === 'apply_leave' ? leaveType : null,
+        reason,
+      });
 
       toast({
         title: 'Success',

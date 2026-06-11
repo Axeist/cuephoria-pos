@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { staffPortalCall } from '@/services/staff/staffPortalTransport';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from 'date-fns';
@@ -102,18 +102,12 @@ const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('staff_leave_requests')
-        .insert({
-          staff_id: staffId,
-          start_date: format(startDate, 'yyyy-MM-dd'),
-          end_date: format(endDate, 'yyyy-MM-dd'),
-          leave_type: leaveType,
-          reason: reason.trim(),
-          status: 'pending'
-        });
-
-      if (error) throw error;
+      await staffPortalCall('submitLeave', {
+        startDate: format(startDate, 'yyyy-MM-dd'),
+        endDate: format(endDate, 'yyyy-MM-dd'),
+        leaveType,
+        reason: reason.trim(),
+      });
 
       toast({
         title: 'Success',

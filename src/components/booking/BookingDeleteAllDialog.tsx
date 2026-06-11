@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { deleteViaAdminApi } from '@/services/adminRecordsApi';
-import { supabase } from '@/integrations/supabase/client';
 
 interface BookingDeleteAllDialogProps {
   open: boolean;
@@ -38,20 +37,19 @@ export function BookingDeleteAllDialog({
     try {
       const ids = bookings.map((b) => b.id);
       const deletedIds: string[] = [];
+      const errors: string[] = [];
 
       for (const id of ids) {
         const server = await deleteViaAdminApi({ type: 'booking', id });
         if (server.ok) {
           deletedIds.push(id);
-          continue;
+        } else {
+          errors.push(server.error || id);
         }
-        await supabase.from('booking_views').delete().eq('booking_id', id);
-        const { data: row } = await supabase.from('bookings').delete().eq('id', id).select('id').maybeSingle();
-        if (row?.id) deletedIds.push(row.id);
       }
 
       if (deletedIds.length === 0) {
-        throw new Error('Bookings could not be deleted (no rows affected).');
+        throw new Error(errors[0] || 'Bookings could not be deleted on the server.');
       }
 
       if (deletedIds.length < ids.length) {
@@ -64,7 +62,7 @@ export function BookingDeleteAllDialog({
       onOpenChange(false);
     } catch (error) {
       console.error('Error deleting bookings:', error);
-      toast.error('Failed to delete bookings');
+      toast.error(error instanceof Error ? error.message : 'Failed to delete bookings');
     } finally {
       setLoading(false);
     }
@@ -78,18 +76,17 @@ export function BookingDeleteAllDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete all bookings</AlertDialogTitle>
           <AlertDialogDescription>
-            Delete all {count} booking{count !== 1 ? 's' : ''} for {customerName} in this group?
-            This cannot be undone.
+            Delete all {count} booking{count !== 1 ? 's' : ''} for {customerName}? This cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDeleteAll}
             disabled={loading}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            {loading ? 'Deleting...' : `Delete ${count} booking${count !== 1 ? 's' : ''}`}
+            {loading ? 'Deleting…' : 'Delete all'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Preview / post-deploy smoke checklist for Cuephoria POS.
+# Preview / post-deploy smoke checklist for Cuetronix POS.
 # Usage: PREVIEW_URL=https://your-preview.vercel.app ./scripts/smoke-preview.sh
 
 set -euo pipefail
@@ -30,7 +30,9 @@ check() {
 
 echo "Static / SPA"
 check "Home" "$BASE/"
-check "Login page" "$BASE/login"
+check "Admin login page" "$BASE/login"
+check "Customer login page (unchanged)" "$BASE/customer/login"
+check "Cafe login page (unchanged)" "$BASE/cafe/login"
 check "build-meta.json" "$BASE/build-meta.json"
 
 echo ""
@@ -46,7 +48,10 @@ echo "  [ ] Employee role: products delete hidden, reports tabs restricted"
 echo "  [ ] Public booking page loads"
 echo "  [ ] RBAC route log-only: check console for [RBAC] denied path (no redirect)"
 echo "  [ ] Staff HR tabs respect role permissions"
+echo "  [ ] Settings save (location, booking) — no CSRF 403"
+echo "  [ ] Customer/cafe login flows unchanged"
 echo ""
+echo "See docs/SECURITY_ROLLOUT.md for migration + flag rollout."
 
 if [[ "$fail" -gt 0 ]]; then
   echo "Automated checks: $pass passed, $fail failed"

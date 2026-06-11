@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { adminFetch } from "@/services/adminFetch";
 
 interface TotpStatus {
   ok: true;
@@ -64,7 +65,7 @@ export default function AccountSecurity() {
 
   const startM = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/admin/totp", {
+      const res = await adminFetch("/api/admin/totp", {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
@@ -83,7 +84,7 @@ export default function AccountSecurity() {
 
   const verifyM = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/admin/totp", {
+      const res = await adminFetch("/api/admin/totp", {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
@@ -107,7 +108,7 @@ export default function AccountSecurity() {
 
   const regenM = useMutation({
     mutationFn: async (codeArg: string) => {
-      const res = await fetch("/api/admin/totp", {
+      const res = await adminFetch("/api/admin/totp", {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
@@ -127,7 +128,7 @@ export default function AccountSecurity() {
 
   const disableM = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/admin/totp", {
+      const res = await adminFetch("/api/admin/totp", {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },

@@ -2,9 +2,11 @@ import {
   ADMIN_SESSION_COOKIE,
   isSessionRevoked,
   j,
+  jWithCookies,
   parseCookies,
   verifyAdminSession,
 } from "../../adminApiUtils";
+import { generateCsrfToken, csrfCookieHeader, CSRF_COOKIE } from "../../lib/csrf";
 import {
   DEFAULT_BILLING_ACCESS_GRACE_MINUTES,
   fetchBillingAccessGraceMinutes,
@@ -284,25 +286,35 @@ export default async function handler(req: Request) {
       console.warn("me.ts: non-fatal must_change lookup error", flagErr);
     }
 
-    return j(
-      {
-        ok: true,
-        user: {
-          ...user,
-          mustChangePassword,
-          displayName: profileRow?.display_name ?? null,
-          designation: profileRow?.designation ?? null,
-          email: profileRow?.email ?? null,
-        },
-        organization,
-        subscription,
-        entitlements,
-        billingAccessGraceMinutes:
-          billingAccessGraceMinutes ?? DEFAULT_BILLING_ACCESS_GRACE_MINUTES,
-        workspaceMemberships,
+    let csrfToken = cookies[CSRF_COOKIE];
+    let csrfSetCookie: string | undefined;
+    if (!csrfToken) {
+      csrfToken = generateCsrfToken();
+      csrfSetCookie = csrfCookieHeader(csrfToken);
+    }
+
+    const payload = {
+      ok: true,
+      csrfToken,
+      user: {
+        ...user,
+        mustChangePassword,
+        displayName: profileRow?.display_name ?? null,
+        designation: profileRow?.designation ?? null,
+        email: profileRow?.email ?? null,
       },
-      200,
-    );
+      organization,
+      subscription,
+      entitlements,
+      billingAccessGraceMinutes:
+        billingAccessGraceMinutes ?? DEFAULT_BILLING_ACCESS_GRACE_MINUTES,
+      workspaceMemberships,
+    };
+
+    if (csrfSetCookie) {
+      return jWithCookies(payload, 200, [csrfSetCookie]);
+    }
+    return j(payload, 200);
   } catch (err: unknown) {
     console.error("Admin session check error:", err);
     return j({ ok: false, error: String((err as Error)?.message || err) }, 500);

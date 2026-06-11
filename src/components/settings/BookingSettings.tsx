@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { adminFetch } from '@/services/adminFetch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -94,7 +95,7 @@ const BookingSettings = () => {
     description?: string
   ) => {
     if (!activeLocationId) throw new Error('No branch selected');
-    const res = await fetch('/api/admin/booking-settings', {
+    const res = await adminFetch('/api/admin/booking-settings', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ setting_key, setting_value, description, location_id: activeLocationId }),

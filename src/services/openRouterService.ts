@@ -17,6 +17,7 @@
  */
 
 import { buildAiSystemPrompt } from "@/utils/aiSystemPrompt";
+import { adminFetch } from "@/services/adminFetch";
 
 export type ChatRole = "system" | "user" | "assistant";
 
@@ -266,7 +267,7 @@ export async function streamChatCompletion(
         maxTokens: opts.maxTokens ?? 800,
       };
 
-  const res = await fetch(endpoint, {
+  const res = await (useDirect ? fetch : adminFetch)(endpoint, {
     method: "POST",
     headers,
     body: JSON.stringify(body),

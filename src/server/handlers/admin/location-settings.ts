@@ -8,6 +8,8 @@ import {
 } from "../../adminApiUtils";
 import { resolveOrgContext } from "../../orgContext";
 import { assertLocationOwnedByOrg } from "../../lib/payment-checkout-guards.js";
+import { assertWorkspacePermission, resolveWorkspaceAccess } from "../../lib/workspacePermissions";
+import { isDenied } from "../../lib/resultGuards";
 import { defaultAppSettings } from "../../../hooks/useAppSettings.types";
 
 export const config = { runtime: "edge" };
@@ -43,9 +45,19 @@ export default async function handler(req: Request) {
       return j({ ok: false, error: ctx.message || "Could not resolve workspace." }, ctx.status);
     }
 
+    const access = await resolveWorkspaceAccess(supabase, {
+      adminUserId: sessionUser.id,
+      organizationId: ctx.organizationId,
+      isSuperAdmin: sessionUser.isSuperAdmin,
+      isAdmin: sessionUser.isAdmin,
+    });
+
     const url = new URL(req.url);
 
     if (req.method === "GET") {
+      const viewGate = assertWorkspacePermission(access, "settings.general.view");
+      if (isDenied(viewGate)) return j({ ok: false, error: viewGate.error }, 403);
+
       const locationId = url.searchParams.get("location_id");
       if (!locationId) {
         return j({ ok: false, error: "Missing location_id" }, 400);
@@ -64,6 +76,9 @@ export default async function handler(req: Request) {
     }
 
     if (req.method === "PUT") {
+      const editGate = assertWorkspacePermission(access, "settings.general.edit");
+      if (isDenied(editGate)) return j({ ok: false, error: editGate.error }, 403);
+
       const body = await req.json().catch(() => ({}));
       const locationId = body.location_id as string | undefined;
       const updates = body.updates as Record<string, unknown> | undefined;

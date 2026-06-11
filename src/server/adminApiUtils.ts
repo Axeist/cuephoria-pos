@@ -8,6 +8,13 @@ export function j(body: unknown, status = 200, headers: Record<string, string> =
   });
 }
 
+/** Multiple Set-Cookie headers (session + CSRF). */
+export function jWithCookies(body: unknown, status: number, cookies: string[]): Response {
+  const headers = new Headers({ "content-type": "application/json; charset=utf-8" });
+  for (const c of cookies) headers.append("set-cookie", c);
+  return new Response(JSON.stringify(body), { status, headers });
+}
+
 // Edge-safe env getter (matches existing style in api/razorpay/*)
 export function getEnv(name: string): string | undefined {
   const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);

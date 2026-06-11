@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import jsPDF from 'jspdf';
@@ -11,6 +10,8 @@ import {
   setStaffPortalUnlocked,
 } from '@/utils/staffPortalSession';
 import { resolveStaffHourlyRate, resolveStaffShiftHours } from '@/utils/staffEarnings';
+import { staffPortalCall } from '@/services/staff/staffPortalTransport';
+import { adminFetch } from '@/services/adminFetch';
 
 function mapPortalProfileToStaff(profile: Record<string, unknown>) {
   const shift_start_time = profile.shiftStartTime as string | null | undefined;
@@ -89,7 +90,7 @@ export function useStaffPortal() {
       const unlockedStaffId = getStaffPortalUnlock(user.id);
       if (unlockedStaffId) {
         try {
-          const res = await fetch('/api/admin/staff-portal', { method: 'GET', credentials: 'same-origin' });
+          const res = await adminFetch('/api/admin/staff-portal', { method: 'GET', credentials: 'same-origin' });
           const json = await res.json();
           if (!cancelled && json?.ok && json.hasProfile && json.profile?.userId === unlockedStaffId) {
             setSelectedStaff(mapPortalProfileToStaff(json.profile));
@@ -103,7 +104,7 @@ export function useStaffPortal() {
       }
 
       try {
-        const res = await fetch('/api/admin/staff-portal', { method: 'GET', credentials: 'same-origin' });
+        const res = await adminFetch('/api/admin/staff-portal', { method: 'GET', credentials: 'same-origin' });
         const json = await res.json();
         if (cancelled) return;
 
@@ -168,7 +169,7 @@ export function useStaffPortal() {
       // Refresh pay fields from server so live earnings reflect latest salary
       let staffSnapshot = selectedStaff;
       try {
-        const res = await fetch('/api/admin/staff-portal', { method: 'GET', credentials: 'same-origin' });
+        const res = await adminFetch('/api/admin/staff-portal', { method: 'GET', credentials: 'same-origin' });
         const json = await res.json();
         if (json?.ok && json.hasProfile && json.profile) {
           staffSnapshot = mapPortalProfileToStaff(json.profile);
@@ -178,172 +179,31 @@ export function useStaffPortal() {
         /* keep cached profile */
       }
 
-      const hourlyRate = resolveStaffHourlyRate(staffSnapshot);
-      if (hourlyRate > 0) {
-        const { data: zeroEarnings } = await supabase
-          .from('staff_attendance')
-          .select('id, clock_out')
-          .eq('staff_id', staffSnapshot.user_id)
-          .not('clock_out', 'is', null)
-          .or('daily_earnings.is.null,daily_earnings.eq.0')
-          .limit(20);
+      const dashboard = await staffPortalCall<{
+        currentShift: any;
+        allAttendance: any[];
+        regularizationRequests: any[];
+        otRequests: any[];
+        doubleShiftRequests: any[];
+        allStaffProfiles: any[];
+        breakViolations: any[];
+        monthlyStats: any;
+        leaveRequests: any[];
+        leaveBalance: { paid: number; unpaid: number };
+        payslips: any[];
+      }>('fetchDashboard');
 
-        for (const row of zeroEarnings ?? []) {
-          if (!row.clock_out) continue;
-          await supabase
-            .from('staff_attendance')
-            .update({ clock_out: row.clock_out })
-            .eq('id', row.id);
-        }
-      }
-
-      // Any open shift (including stale shifts from prior days)
-      const { data: shift } = await supabase
-        .from('staff_attendance')
-        .select('*')
-        .eq('staff_id', selectedStaff.user_id)
-        .is('clock_out', null)
-        .not('clock_in', 'is', null)
-        .order('clock_in', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      setCurrentShift(shift);
-
-      // Fetch ALL attendance (last 100 records for filtering)
-      const { data: attendance } = await supabase
-        .from('staff_attendance')
-        .select('*')
-        .eq('staff_id', selectedStaff.user_id)
-        .order('date', { ascending: false })
-        .order('clock_in', { ascending: false })
-        .limit(100);
-
-      setAllAttendance(attendance || []);
-
-      // Fetch regularization requests
-      const { data: regRequests } = await supabase
-        .from('staff_attendance_regularization')
-        .select('*')
-        .eq('staff_id', selectedStaff.user_id)
-        .order('created_at', { ascending: false });
-
-      setRegularizationRequests(regRequests || []);
-
-      // Fetch OT requests
-      const { data: otReqs } = await supabase
-        .from('staff_overtime_requests')
-        .select('*')
-        .eq('staff_id', selectedStaff.user_id)
-        .order('created_at', { ascending: false });
-
-      setOtRequests(otReqs || []);
-
-      // Fetch double shift requests
-      const { data: dsReqs } = await supabase
-        .from('staff_double_shift_requests')
-        .select('*')
-        .eq('staff_id', selectedStaff.user_id)
-        .order('requested_at', { ascending: false });
-
-      setDoubleShiftRequests(dsReqs || []);
-
-      // Fetch colleagues at same branch for double-shift requests
-      const { data: allStaff } = await supabase
-        .from('staff_profiles')
-        .select('*')
-        .eq('is_active', true)
-        .eq('location_id', selectedStaff.location_id);
-
-      setAllStaffProfiles(allStaff || []);
-
-      // Fetch break violations
-      const { data: violations } = await supabase
-        .from('staff_break_violations')
-        .select('*')
-        .eq('staff_id', selectedStaff.user_id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      setBreakViolations(violations || []);
-
-      const currentMonth = new Date().getMonth() + 1;
-      const currentYear = new Date().getFullYear();
-      
-      // Calculate monthly stats including regularized attendance
-      const startOfMonth = format(new Date(currentYear, currentMonth - 1, 1), 'yyyy-MM-dd');
-      const endOfMonth = format(new Date(currentYear, currentMonth, 0), 'yyyy-MM-dd');
-      
-      const { data: attendanceStats } = await supabase
-        .from('staff_attendance')
-        .select('*')
-        .eq('staff_id', selectedStaff.user_id)
-        .gte('date', startOfMonth)
-        .lte('date', endOfMonth)
-        .in('status', ['completed', 'regularized', 'present', 'half_day', 'half_day_lop']);
-
-      // Calculate stats manually to include regularized attendance
-      const workingDays = (attendanceStats || []).filter(a => a.total_working_hours > 0).length;
-      const totalHours = (attendanceStats || []).reduce((sum, a) => sum + (a.total_working_hours || 0), 0);
-      const totalEarnings = (attendanceStats || []).reduce((sum, a) => sum + (a.daily_earnings || 0), 0);
-
-      setMonthlyStats({
-        days_worked: workingDays,
-        total_hours: totalHours,
-        total_earnings: totalEarnings
-      });
-
-      const { data: leaves } = await supabase
-        .from('staff_leave_requests')
-        .select('*')
-        .eq('staff_id', selectedStaff.user_id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      setLeaveRequests(leaves || []);
-
-      const { data: balanceRows } = await supabase
-        .from('staff_leave_balances')
-        .select('leave_type, remaining')
-        .eq('staff_id', selectedStaff.user_id)
-        .eq('year', currentYear);
-
-      if (balanceRows && balanceRows.length > 0) {
-        const paidRemaining = balanceRows
-          .filter((b) => b.leave_type !== 'unpaid_leave')
-          .reduce((sum, b) => sum + (Number(b.remaining) || 0), 0);
-        const unpaidRemaining = balanceRows
-          .filter((b) => b.leave_type === 'unpaid_leave')
-          .reduce((sum, b) => sum + (Number(b.remaining) || 0), 0);
-        setLeaveBalance({ paid: paidRemaining, unpaid: unpaidRemaining });
-      } else {
-        const approvedPaidLeaves = (leaves || []).filter(
-          l => l.status === 'approved' &&
-          l.leave_type !== 'unpaid_leave' &&
-          new Date(l.start_date).getFullYear() === currentYear
-        ).reduce((sum, l) => sum + (l.total_days || 0), 0);
-
-        const approvedUnpaidLeaves = (leaves || []).filter(
-          l => l.status === 'approved' &&
-          l.leave_type === 'unpaid_leave' &&
-          new Date(l.start_date).getFullYear() === currentYear
-        ).reduce((sum, l) => sum + (l.total_days || 0), 0);
-
-        setLeaveBalance({
-          paid: Math.max(0, 12 - approvedPaidLeaves),
-          unpaid: Math.max(0, 6 - approvedUnpaidLeaves),
-        });
-      }
-
-      const { data: payrollData } = await supabase
-        .from('staff_payslip_view')
-        .select('*')
-        .eq('staff_id', selectedStaff.user_id)
-        .order('year', { ascending: false })
-        .order('month', { ascending: false })
-        .limit(6);
-
-      setPayslips(payrollData || []);
+      setCurrentShift(dashboard.currentShift);
+      setAllAttendance(dashboard.allAttendance);
+      setRegularizationRequests(dashboard.regularizationRequests);
+      setOtRequests(dashboard.otRequests);
+      setDoubleShiftRequests(dashboard.doubleShiftRequests);
+      setAllStaffProfiles(dashboard.allStaffProfiles);
+      setBreakViolations(dashboard.breakViolations);
+      setMonthlyStats(dashboard.monthlyStats);
+      setLeaveRequests(dashboard.leaveRequests);
+      setLeaveBalance(dashboard.leaveBalance);
+      setPayslips(dashboard.payslips);
 
     } catch (error: any) {
       console.error('Error fetching staff data:', error);
@@ -361,78 +221,25 @@ export function useStaffPortal() {
     if (!selectedStaff?.user_id) return;
 
     try {
-      const today = format(new Date(), 'yyyy-MM-dd');
-
-      const { data: openShift } = await supabase
-        .from('staff_attendance')
-        .select('*')
-        .eq('staff_id', selectedStaff.user_id)
-        .is('clock_out', null)
-        .not('clock_in', 'is', null)
-        .order('clock_in', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (openShift) {
-        setCurrentShift(openShift);
+      const result = await staffPortalCall<{ ok: boolean; error?: string; currentShift?: any }>('clockIn');
+      if (!result.ok) {
+        if (result.currentShift) setCurrentShift(result.currentShift);
         toast({
-          title: 'Already clocked in',
-          description:
-            openShift.date === today
-              ? 'You are already on an active shift.'
-              : `You have an open shift from ${format(new Date(openShift.date), 'MMM dd')}. Clock out first.`,
-        });
-        return;
-      }
-
-      const { data: todayRecord } = await supabase
-        .from('staff_attendance')
-        .select('id, clock_out')
-        .eq('staff_id', selectedStaff.user_id)
-        .eq('date', today)
-        .maybeSingle();
-
-      if (todayRecord?.clock_out) {
-        toast({
-          title: 'Shift already completed',
-          description: 'You have already clocked out for today.',
+          title: result.error?.includes('already') || result.error?.includes('Already') ? 'Already clocked in' : 'Error',
+          description: result.error || 'Failed to clock in',
           variant: 'destructive',
         });
         return;
       }
 
-      const now = new Date().toISOString();
-      const { data: inserted, error } = await supabase
-        .from('staff_attendance')
-        .insert({
-          staff_id: selectedStaff.user_id,
-          date: today,
-          clock_in: now,
-          status: 'active',
-          location_id: selectedStaff.location_id,
-        })
-        .select('*')
-        .single();
-
-      if (error) throw error;
-
-      setCurrentShift(inserted);
-
-      toast({
-        title: 'Clocked In',
-        description: 'Have a great shift!',
-      });
-
+      if (result.currentShift) setCurrentShift(result.currentShift);
+      toast({ title: 'Clocked In', description: 'Have a great shift!' });
       await fetchStaffData();
     } catch (error: any) {
       console.error('Error clocking in:', error);
-      const message =
-        error?.code === '23505'
-          ? 'You already have an attendance record for today.'
-          : error.message || 'Failed to clock in';
       toast({
         title: 'Error',
-        description: message,
+        description: error.message || 'Failed to clock in',
         variant: 'destructive',
       });
     }
@@ -442,46 +249,16 @@ export function useStaffPortal() {
     if (!currentShift) return;
 
     try {
-      const now = new Date().toISOString();
-      let breakDuration = currentShift.break_duration_minutes || 0;
-
-      if (currentShift.break_start_time && !currentShift.break_end_time) {
-        const breakStart = new Date(currentShift.break_start_time);
-        const breakEnd = new Date(now);
-        breakDuration += Math.floor((breakEnd.getTime() - breakStart.getTime()) / 60000);
-      }
-
-      const { error } = await supabase
-        .from('staff_attendance')
-        .update({
-          clock_out: now,
-          break_duration_minutes: breakDuration,
-          break_end_time: currentShift.break_start_time && !currentShift.break_end_time ? now : currentShift.break_end_time
-        })
-        .eq('id', currentShift.id);
-
-      if (error) throw error;
-
-      await supabase
-        .from('active_breaks')
-        .update({ is_active: false, break_end: now })
-        .eq('attendance_id', currentShift.id)
-        .eq('is_active', true);
-
+      await staffPortalCall('clockOut', { attendanceId: currentShift.id });
       setCurrentShift(null);
-
-      toast({
-        title: 'Clocked Out',
-        description: 'Shift ended successfully',
-      });
-
+      toast({ title: 'Clocked Out', description: 'Shift ended successfully' });
       await fetchStaffData();
     } catch (error: any) {
       console.error('Error clocking out:', error);
       toast({
         title: 'Error',
         description: error.message || 'Failed to clock out',
-        variant: 'destructive'
+        variant: 'destructive',
       });
     }
   };
@@ -490,48 +267,29 @@ export function useStaffPortal() {
     if (!currentShift) return;
 
     try {
-      const now = new Date().toISOString();
-
-      const { data: conflicts } = await supabase.rpc('check_break_conflict', {
-        staff_uuid: selectedStaff.user_id,
-        break_start_time: now
+      const result = await staffPortalCall<{ ok: boolean; error?: string }>('startBreak', {
+        attendanceId: currentShift.id,
       });
-
-      if (conflicts) {
+      if (!result.ok) {
         toast({
           title: 'Break Conflict',
-          description: 'Another staff member is currently on break',
-          variant: 'destructive'
+          description: result.error || 'Could not start break',
+          variant: 'destructive',
         });
         return;
       }
 
-      await supabase
-        .from('staff_attendance')
-        .update({ break_start_time: now })
-        .eq('id', currentShift.id);
-
-      await supabase
-        .from('active_breaks')
-        .insert({
-          staff_id: selectedStaff.user_id,
-          attendance_id: currentShift.id,
-          break_start: now,
-          is_active: true
-        });
-
       toast({
         title: 'Break Started',
-        description: 'Enjoy your break! Remember: max 1 hour per day'
+        description: 'Enjoy your break! Remember: max 1 hour per day',
       });
-
       fetchStaffData();
     } catch (error: any) {
       console.error('Error starting break:', error);
       toast({
         title: 'Error',
         description: error.message || 'Failed to start break',
-        variant: 'destructive'
+        variant: 'destructive',
       });
     }
   };
@@ -540,37 +298,22 @@ export function useStaffPortal() {
     if (!currentShift) return;
 
     try {
-      const now = new Date().toISOString();
-      const breakStart = new Date(currentShift.break_start_time);
-      const breakEnd = new Date(now);
-      const breakMinutes = Math.floor((breakEnd.getTime() - breakStart.getTime()) / 60000);
-      const totalBreak = (currentShift.break_duration_minutes || 0) + breakMinutes;
+      const result = await staffPortalCall<{ breakMinutes: number; totalBreak: number; exceeded: boolean }>(
+        'endBreak',
+        { attendanceId: currentShift.id },
+      );
 
-      await supabase
-        .from('staff_attendance')
-        .update({
-          break_end_time: now,
-          break_duration_minutes: totalBreak
-        })
-        .eq('id', currentShift.id);
-
-      await supabase
-        .from('active_breaks')
-        .update({ is_active: false, break_end: now })
-        .eq('attendance_id', currentShift.id)
-        .eq('is_active', true);
-
-      if (totalBreak > 60) {
+      if (result.exceeded) {
         toast({
           title: '⚠️ Break Time Exceeded',
-          description: `Total break: ${totalBreak} minutes. Maximum allowed is 60 minutes. Penalty may be applied.`,
+          description: `Total break: ${result.totalBreak} minutes. Maximum allowed is 60 minutes. Penalty may be applied.`,
           variant: 'destructive',
-          duration: 10000
+          duration: 10000,
         });
       } else {
         toast({
           title: 'Break Ended',
-          description: `Break duration: ${breakMinutes} minutes`
+          description: `Break duration: ${result.breakMinutes} minutes`,
         });
       }
 
@@ -580,7 +323,7 @@ export function useStaffPortal() {
       toast({
         title: 'Error',
         description: error.message || 'Failed to end break',
-        variant: 'destructive'
+        variant: 'destructive',
       });
     }
   };
@@ -589,18 +332,8 @@ export function useStaffPortal() {
     if (!deleteLeaveId) return;
 
     try {
-      const { error } = await supabase
-        .from('staff_leave_requests')
-        .delete()
-        .eq('id', deleteLeaveId);
-
-      if (error) throw error;
-
-      toast({
-        title: 'Success',
-        description: 'Leave request deleted successfully'
-      });
-
+      await staffPortalCall('deleteLeave', { leaveId: deleteLeaveId });
+      toast({ title: 'Success', description: 'Leave request deleted successfully' });
       setDeleteLeaveId(null);
       fetchStaffData();
     } catch (error: any) {
@@ -608,7 +341,7 @@ export function useStaffPortal() {
       toast({
         title: 'Error',
         description: error.message || 'Failed to delete leave request',
-        variant: 'destructive'
+        variant: 'destructive',
       });
     }
   };

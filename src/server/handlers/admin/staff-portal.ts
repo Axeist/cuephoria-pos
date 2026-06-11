@@ -9,6 +9,7 @@ import { supabaseServiceClient } from "../../supabaseServer";
 import { resolveOrgContext } from "../../orgContext";
 import { assertEntitlement } from "../../lib/entitlements.js";
 import { resolveStaffHourlyRate } from "../../../utils/staffEarnings.js";
+import * as ops from "../../lib/staffPortalOps";
 
 export const config = { runtime: "edge" };
 
@@ -43,14 +44,80 @@ function profilePayload(row: Record<string, unknown>) {
   };
 }
 
+type OpArgs = Record<string, unknown>;
+
+const HANDLERS: Record<string, (profile: ops.PortalProfile, args: OpArgs) => Promise<unknown>> = {
+  fetchDashboard: (p) => ops.fetchPortalDashboard(p.user_id, p.location_id),
+  clockIn: (p) => ops.clockIn(p),
+  clockOut: (p, a) => ops.clockOut(p, String(a.attendanceId ?? "")),
+  startBreak: (p, a) => ops.startBreak(p, String(a.attendanceId ?? "")),
+  endBreak: (p, a) => ops.endBreak(p, String(a.attendanceId ?? "")),
+  deleteLeave: (p, a) => ops.deleteLeave(p, String(a.leaveId ?? "")),
+  submitLeave: (p, a) =>
+    ops.submitLeave(p, {
+      startDate: String(a.startDate ?? ""),
+      endDate: String(a.endDate ?? ""),
+      leaveType: String(a.leaveType ?? ""),
+      reason: String(a.reason ?? ""),
+    }),
+  checkRegularizationLimit: (p, a) =>
+    ops.checkRegularizationLimit(p, Number(a.month), Number(a.year)),
+  submitRegularization: (p, a) =>
+    ops.submitRegularization(p, {
+      date: String(a.date ?? ""),
+      regularizationType: String(a.regularizationType ?? ""),
+      requestedClockIn: (a.requestedClockIn as string | null) ?? null,
+      requestedClockOut: (a.requestedClockOut as string | null) ?? null,
+      leaveType: (a.leaveType as string | null) ?? null,
+      reason: String(a.reason ?? ""),
+    }),
+  fetchOvertimePickerData: (p, a) =>
+    ops.fetchOvertimePickerData(p, Number(a.month), Number(a.year)),
+  submitOvertime: (p, a) =>
+    ops.submitOvertime(p, {
+      date: String(a.date ?? ""),
+      overtimeHours: Number(a.overtimeHours),
+      reason: String(a.reason ?? ""),
+      overtimeAmount: a.overtimeAmount != null ? Number(a.overtimeAmount) : undefined,
+    }),
+  calculateDoubleShiftAllowance: (p, a) =>
+    ops.calculateDoubleShiftAllowance(
+      p,
+      String(a.coveredStaffId ?? ""),
+      Number(a.coveredShiftHours),
+      String(a.date ?? ""),
+    ),
+  submitDoubleShift: (p, a) =>
+    ops.submitDoubleShift(p, {
+      date: String(a.date ?? ""),
+      coveredStaffId: String(a.coveredStaffId ?? ""),
+      originalShiftStart: (a.originalShiftStart as string | null) ?? null,
+      originalShiftEnd: (a.originalShiftEnd as string | null) ?? null,
+      coveredShiftStart: (a.coveredShiftStart as string | null) ?? null,
+      coveredShiftEnd: (a.coveredShiftEnd as string | null) ?? null,
+      totalHours: Number(a.totalHours),
+      reason: String(a.reason ?? ""),
+    }),
+};
+
+async function resolveLinkedProfile(adminUserId: string) {
+  const supabase = supabaseServiceClient("cuephoria-staff-portal");
+  const { data: profile, error } = await supabase
+    .from("staff_profiles")
+    .select("*")
+    .eq("admin_user_id", adminUserId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (error) throw error;
+  return profile;
+}
+
 export default async function handler(req: Request) {
   try {
     const cookies = parseCookies(req.headers.get("cookie"));
     const token = cookies[ADMIN_SESSION_COOKIE];
     const sessionUser = token ? await verifyAdminSession(token) : null;
     if (!sessionUser) return j({ ok: false, error: "Unauthorized" }, 401);
-
-    const supabase = supabaseServiceClient("cuephoria-staff-portal");
 
     const ctx = await resolveOrgContext(req);
     if ("code" in ctx) {
@@ -60,14 +127,7 @@ export default async function handler(req: Request) {
     if (staffGate) return staffGate;
 
     if (req.method === "GET") {
-      const { data: profile, error } = await supabase
-        .from("staff_profiles")
-        .select("*")
-        .eq("admin_user_id", sessionUser.id)
-        .eq("is_active", true)
-        .maybeSingle();
-
-      if (error) return j({ ok: false, error: error.message }, 500);
+      const profile = await resolveLinkedProfile(sessionUser.id);
       if (!profile) {
         return j(
           {
@@ -79,51 +139,57 @@ export default async function handler(req: Request) {
         );
       }
 
-      const { data: loc } = await supabase
-        .from("locations")
-        .select("organization_id")
-        .eq("id", profile.location_id as string)
-        .maybeSingle();
-
-      if (loc?.organization_id && loc.organization_id !== ctx.organizationId) {
-        return j({ ok: false, error: "Staff profile is not in this workspace." }, 403);
+      const portalProfile = await ops.resolvePortalProfile(sessionUser.id);
+      if (!portalProfile) {
+        return j({ ok: true, hasProfile: false }, 200);
       }
+      await ops.assertProfileInOrg(portalProfile, ctx.organizationId);
 
       return j({ ok: true, hasProfile: true, profile: profilePayload(profile) }, 200);
     }
 
     if (req.method === "POST") {
-      const body = await req.json().catch(() => ({}));
-      const pin = String(body?.pin ?? "").trim();
-      if (!pin) return j({ ok: false, error: "Enter your portal PIN." }, 400);
+      const body = (await req.json().catch(() => ({}))) as {
+        pin?: string;
+        op?: string;
+        args?: OpArgs;
+      };
 
-      const { data: profile, error } = await supabase
-        .from("staff_profiles")
-        .select("*")
-        .eq("admin_user_id", sessionUser.id)
-        .eq("is_active", true)
-        .maybeSingle();
+      if (typeof body.pin === "string" && body.pin.trim() && !body.op) {
+        const pin = body.pin.trim();
+        const profile = await resolveLinkedProfile(sessionUser.id);
+        if (!profile) {
+          return j({ ok: false, error: "No staff profile linked to your account." }, 404);
+        }
 
-      if (error) return j({ ok: false, error: error.message }, 500);
-      if (!profile) {
+        const portalProfile = await ops.resolvePortalProfile(sessionUser.id);
+        if (!portalProfile) {
+          return j({ ok: false, error: "No staff profile linked to your account." }, 404);
+        }
+        await ops.assertProfileInOrg(portalProfile, ctx.organizationId);
+
+        if (!(await verifyPortalPin(profile.portal_pin as string, pin))) {
+          return j({ ok: false, error: "Incorrect PIN. Check with your manager if you forgot it." }, 403);
+        }
+
+        return j({ ok: true, profile: profilePayload(profile) }, 200);
+      }
+
+      const op = typeof body.op === "string" ? body.op.trim() : "";
+      if (!op) return j({ ok: false, error: "Missing op or pin." }, 400);
+
+      const portalProfile = await ops.resolvePortalProfile(sessionUser.id);
+      if (!portalProfile) {
         return j({ ok: false, error: "No staff profile linked to your account." }, 404);
       }
+      await ops.assertProfileInOrg(portalProfile, ctx.organizationId);
 
-      const { data: loc } = await supabase
-        .from("locations")
-        .select("organization_id")
-        .eq("id", profile.location_id as string)
-        .maybeSingle();
+      const run = HANDLERS[op];
+      if (!run) return j({ ok: false, error: `Unknown staff portal op: ${op}` }, 400);
 
-      if (loc?.organization_id && loc.organization_id !== ctx.organizationId) {
-        return j({ ok: false, error: "Staff profile is not in this workspace." }, 403);
-      }
-
-      if (!(await verifyPortalPin(profile.portal_pin as string, pin))) {
-        return j({ ok: false, error: "Incorrect PIN. Check with your manager if you forgot it." }, 403);
-      }
-
-      return j({ ok: true, profile: profilePayload(profile) }, 200);
+      const args = body.args && typeof body.args === "object" ? body.args : {};
+      const data = await run(portalProfile, args);
+      return j({ ok: true, data }, 200);
     }
 
     return j({ ok: false, error: "Method not allowed" }, 405);

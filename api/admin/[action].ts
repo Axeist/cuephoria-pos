@@ -15,7 +15,9 @@
  * dynamic `import()` of local files at runtime.
  */
 
+import { j } from "../../src/server/adminApiUtils";
 import { runDispatcher } from "../../src/server/dispatcherUtils";
+import { verifyAdminCsrf } from "../../src/server/lib/csrf";
 
 import aiChat from "../../src/server/handlers/admin/ai-chat";
 import emailHealth from "../../src/server/handlers/admin/email-health";
@@ -33,6 +35,7 @@ import me from "../../src/server/handlers/admin/me";
 import resetPassword from "../../src/server/handlers/admin/reset-password";
 import sendVerification from "../../src/server/handlers/admin/send-verification";
 import totp from "../../src/server/handlers/admin/totp";
+import staffHr from "../../src/server/handlers/admin/staff-hr";
 import staffPortal from "../../src/server/handlers/admin/staff-portal";
 import permissions from "../../src/server/handlers/admin/permissions";
 import roles from "../../src/server/handlers/admin/roles";
@@ -42,6 +45,7 @@ import verifyPin from "../../src/server/handlers/admin/verify-pin";
 import verifyEmail from "../../src/server/handlers/admin/verify-email";
 import records from "../../src/server/handlers/admin/records";
 import analytics from "../../src/server/handlers/admin/analytics";
+import ops from "../../src/server/handlers/admin/ops";
 
 export const config = { runtime: "edge" };
 
@@ -64,6 +68,7 @@ const routes: Record<string, Handler> = {
   "reset-password": resetPassword,
   "send-verification": sendVerification,
   "totp": totp,
+  "staff-hr": staffHr,
   "staff-portal": staffPortal,
   "permissions": permissions,
   "roles": roles,
@@ -73,8 +78,15 @@ const routes: Record<string, Handler> = {
   "verify-pin": verifyPin,
   "records": records,
   "analytics": analytics,
+  "ops": ops,
 };
 
 export default async function dispatcher(req: Request): Promise<Response> {
+  const { pathname } = new URL(req.url);
+  const segment = pathname.split("/").filter(Boolean).pop() ?? "";
+  const csrf = verifyAdminCsrf(req, segment);
+  if (csrf.ok === false) {
+    return j({ ok: false, error: csrf.error }, 403);
+  }
   return runDispatcher(req, routes, "admin");
 }

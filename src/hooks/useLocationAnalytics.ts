@@ -6,7 +6,6 @@ import {
   startOfMonth,
   subDays,
 } from 'date-fns';
-import { supabase } from '@/integrations/supabase/client';
 import { callAnalyticsRpc } from '@/services/adminRecordsApi';
 import { useLocation } from '@/context/LocationContext';
 
@@ -16,9 +15,7 @@ async function analyticsRpc<T>(
 ): Promise<{ data: T | null; error: { message: string } | null }> {
   const viaApi = await callAnalyticsRpc<T>(name, params);
   if (viaApi.ok) return { data: viaApi.data, error: null };
-  const { data, error } = await supabase.rpc(name, params);
-  if (error) return { data: null, error: { message: error.message } };
-  return { data: data as T, error: null };
+  return { data: null, error: { message: viaApi.error } };
 }
 
 export type BusinessSummaryStats = {

@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
 import { useLocation } from '@/context/LocationContext';
+import { adminFetch } from '@/services/adminFetch';
 import { cn } from '@/lib/utils';
 import {
   BOOKING_ACCESS_KEYS,
@@ -337,7 +338,7 @@ export default function BookingManagement() {
     const slot = `${locationId}:${key}`;
     setSavingAccessKey(slot);
     try {
-      const res = await fetch('/api/admin/booking-settings', {
+      const res = await adminFetch('/api/admin/booking-settings', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({

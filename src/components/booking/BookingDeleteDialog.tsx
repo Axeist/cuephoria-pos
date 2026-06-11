@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { deleteViaAdminApi } from '@/services/adminRecordsApi';
-import { supabase } from '@/integrations/supabase/client';
 
 interface Booking {
   id: string;
@@ -27,44 +26,15 @@ export function BookingDeleteDialog({ open, onOpenChange, booking, onBookingDele
     setLoading(true);
     try {
       const server = await deleteViaAdminApi({ type: 'booking', id: booking.id });
-      if (server.ok) {
-        toast.success('Booking deleted successfully');
-        onBookingDeleted(booking.id);
-        onOpenChange(false);
-        return;
+      if (!server.ok) {
+        throw new Error(server.error || 'Could not delete booking on the server.');
       }
-
-      // Fallback: direct Supabase (legacy path until RPC revoke soak completes)
-      const { error: viewsError } = await supabase
-        .from('booking_views')
-        .delete()
-        .eq('booking_id', booking.id);
-
-      if (viewsError) {
-        console.warn('Error deleting booking views:', viewsError);
-        // Continue with booking deletion even if views deletion fails
-      }
-
-      // Then delete the booking and verify a row was actually removed.
-      // RLS-denied deletes can otherwise look like "success" with zero rows affected.
-      const { data: deletedBooking, error } = await supabase
-        .from('bookings')
-        .delete()
-        .eq('id', booking.id)
-        .select('id')
-        .maybeSingle();
-
-      if (error) throw error;
-      if (!deletedBooking?.id) {
-        throw new Error('Booking could not be deleted (no rows affected).');
-      }
-
       toast.success('Booking deleted successfully');
       onBookingDeleted(booking.id);
       onOpenChange(false);
     } catch (error) {
       console.error('Error deleting booking:', error);
-      toast.error('Failed to delete booking');
+      toast.error(error instanceof Error ? error.message : 'Failed to delete booking');
     } finally {
       setLoading(false);
     }
