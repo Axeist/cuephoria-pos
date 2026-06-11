@@ -2,6 +2,7 @@
 import React, { Suspense, useEffect, useState } from "react";
 import { lazyWithRetry as lazy } from "@/utils/lazyWithRetry";
 import { AppBootRecovery } from "@/components/AppBootRecovery";
+import { markAppBootSuccessful } from "@/utils/chunkRecovery";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -414,7 +415,15 @@ const SplashController = () => {
   }, [user]);
 
   if (!show) return null;
-  return <SplashScreen variant={variant} onDone={() => setShow(false)} />;
+  return (
+    <SplashScreen
+      variant={variant}
+      onDone={() => {
+        setShow(false);
+        markAppBootSuccessful();
+      }}
+    />
+  );
 };
 
 const App = () => {

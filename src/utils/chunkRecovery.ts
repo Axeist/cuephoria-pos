@@ -15,10 +15,12 @@ export const CHUNK_RECOVERY_GUARD_KEY = "__cuephoria_chunk_recovery_v2";
 
 const MAX_RELOAD_ATTEMPTS = 3;
 const RELOAD_WINDOW_MS = 60_000;
+const MIN_RELOAD_INTERVAL_MS = 4_000;
 
 type RecoveryGuard = {
   attempts: number;
   windowStart: number;
+  lastReloadAt?: number;
 };
 
 function readGuard(): RecoveryGuard {
@@ -51,9 +53,23 @@ export function clearChunkRecoveryGuard(): void {
   }
 }
 
-/** Call once after a successful app boot so later chunk errors can reload again. */
+/** Call once after splash / initial boot completes so later chunk errors can reload again. */
 export function markAppBootSuccessful(): void {
   clearChunkRecoveryGuard();
+  stripRecoveryQueryParam();
+}
+
+/** Remove cache-bust query param after a successful boot. */
+export function stripRecoveryQueryParam(): void {
+  try {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("_v")) return;
+    url.searchParams.delete("_v");
+    const next = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState(null, "", next || url.pathname);
+  } catch {
+    /* ignore */
+  }
 }
 
 export function getAppBuildId(): string {
@@ -120,7 +136,19 @@ export function tryChunkRecoveryReload(
     return false;
   }
 
+  if (
+    !options?.force &&
+    guard.lastReloadAt &&
+    now - guard.lastReloadAt < MIN_RELOAD_INTERVAL_MS
+  ) {
+    console.warn(
+      `[chunk-recover] suppressed rapid reload (${now - guard.lastReloadAt}ms): ${reason}`,
+    );
+    return false;
+  }
+
   guard.attempts += 1;
+  guard.lastReloadAt = now;
   guard.windowStart = guard.windowStart || now;
   writeGuard(guard);
 

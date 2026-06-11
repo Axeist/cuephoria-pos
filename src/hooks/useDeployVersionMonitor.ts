@@ -38,8 +38,6 @@ export function useDeployVersionMonitor(enabled = true): void {
     };
     document.addEventListener("visibilitychange", onVisible);
 
-    void check();
-
     return () => {
       cancelled = true;
       window.clearInterval(interval);

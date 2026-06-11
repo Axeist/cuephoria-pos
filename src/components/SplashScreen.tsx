@@ -1,11 +1,8 @@
-import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { CUETRONIX_ASSETS } from "@/branding/assets";
 import CuephoriaTechAttribution from "@/components/branding/CuephoriaTechAttribution";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { lazyWithRetry as lazy } from "@/utils/lazyWithRetry";
-
-const AmbientScene3D = lazy(() => import("@/components/landing/AmbientScene3D"));
 
 export type SplashVariant = "boot" | "login_success";
 
@@ -51,6 +48,33 @@ const GRADIENT_FALLBACK =
   "radial-gradient(900px 700px at 85% 15%, rgba(236,72,153,0.22), transparent 60%)," +
   "radial-gradient(1200px 900px at 50% 100%, rgba(59,130,246,0.18), transparent 60%)," +
   "linear-gradient(180deg, #07030f 0%, #0a0414 55%, #07030f 100%)";
+
+type AmbientSceneProps = { mobile: boolean };
+
+/** Load 3D splash background without triggering chunk-recovery reloads on failure. */
+function SplashAmbientBackground({ mobile }: AmbientSceneProps) {
+  const [Scene, setScene] = useState<React.ComponentType<AmbientSceneProps> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void import("@/components/landing/AmbientScene3D")
+      .then((mod) => {
+        if (!cancelled) setScene(() => mod.default);
+      })
+      .catch(() => {
+        /* fall back to gradient — do not hard-reload the page */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!Scene) {
+    return <div className="absolute inset-0" style={{ background: GRADIENT_FALLBACK }} />;
+  }
+
+  return <Scene mobile={mobile} />;
+}
 
 const SEGMENTS = 12;
 
@@ -164,9 +188,7 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
       {/* Galaxy */}
       <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
         {motion ? (
-          <Suspense fallback={<div className="absolute inset-0" style={{ background: GRADIENT_FALLBACK }} />}>
-            <AmbientScene3D mobile={isMobile} />
-          </Suspense>
+          <SplashAmbientBackground mobile={isMobile} />
         ) : (
           <div className="absolute inset-0" style={{ background: GRADIENT_FALLBACK }} />
         )}
