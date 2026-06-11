@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, CalendarDays, CheckCircle2, LifeBuoy, ShieldCheck, Sparkles, Clock, Headphones, Rocket } from "lucide-react";
+import { ArrowRight, CalendarDays, CheckCircle2, LifeBuoy, Mail, Phone, ShieldCheck, Sparkles, Clock, Headphones, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 declare global {
@@ -15,6 +15,13 @@ declare global {
 
 const CALENDLY_URL =
   "https://calendly.com/cuephoriatech/30min?background_color=0f091a&text_color=ffffff&primary_color=b850f2";
+
+const CONTACT = {
+  sales: "sales@cuephoriatech.in",
+  support: "support@cuephoriatech.in",
+  phone: "+91 8667637565",
+  phoneHref: "tel:+918667637565",
+} as const;
 
 const CALL_OUTCOMES = [
   "Audit your current booking and counter workflow",
@@ -165,7 +172,7 @@ const FinalCtaSection: React.FC = () => {
                   className="h-13 rounded-xl bg-white px-7 text-base font-bold text-[#1a0a2e] shadow-2xl shadow-fuchsia-600/30 hover:bg-gray-50">
                   Start free trial <ArrowRight size={18} className="ml-2" />
                 </Button>
-                <a href="mailto:hello@cuetronix.com?subject=Cuetronix%20demo%20request"
+                <a href={`mailto:${CONTACT.sales}?subject=Cuetronix%20demo%20request`}
                   className="inline-flex h-13 items-center justify-center gap-2 rounded-xl border border-white/20 px-7 text-base font-semibold text-white transition-colors hover:bg-white/10">
                   <LifeBuoy size={18} /> Email instead
                 </a>
@@ -197,6 +204,35 @@ const FinalCtaSection: React.FC = () => {
               <p className="mt-1.5 text-sm leading-relaxed text-gray-400">
                 Live product walkthrough, migration discussion, or launch planning for your venue.
               </p>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-5 sm:gap-y-2">
+                <a
+                  href={`mailto:${CONTACT.sales}`}
+                  className="inline-flex items-center gap-2 text-sm text-gray-300 transition-colors hover:text-white"
+                >
+                  <Mail size={14} className="shrink-0 text-fuchsia-300" />
+                  <span>
+                    <span className="text-white/45">Sales:</span> {CONTACT.sales}
+                  </span>
+                </a>
+                <a
+                  href={`mailto:${CONTACT.support}`}
+                  className="inline-flex items-center gap-2 text-sm text-gray-300 transition-colors hover:text-white"
+                >
+                  <Mail size={14} className="shrink-0 text-violet-300" />
+                  <span>
+                    <span className="text-white/45">Support:</span> {CONTACT.support}
+                  </span>
+                </a>
+                <a
+                  href={CONTACT.phoneHref}
+                  className="inline-flex items-center gap-2 text-sm text-gray-300 transition-colors hover:text-white"
+                >
+                  <Phone size={14} className="shrink-0 text-emerald-300" />
+                  <span>
+                    <span className="text-white/45">Call:</span> {CONTACT.phone}
+                  </span>
+                </a>
+              </div>
             </div>
             <div className="px-5 pt-4 pb-2 sm:px-6 sm:pt-5 sm:pb-3">
               <div
