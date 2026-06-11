@@ -16,7 +16,10 @@ interface ProductTabsProps {
   onDelete: (id: string) => void;
   onAddProduct: () => void;
   showManagementActions?: boolean;
-  isAdmin?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  canRestock?: boolean;
+  requiresPinForDelete?: boolean;
 }
 
 const ProductTabs: React.FC<ProductTabsProps> = ({
@@ -29,7 +32,10 @@ const ProductTabs: React.FC<ProductTabsProps> = ({
   onDelete,
   onAddProduct,
   showManagementActions = false,
-  isAdmin = false
+  canEdit = false,
+  canDelete = false,
+  canRestock = false,
+  requiresPinForDelete = false,
 }) => {
   const isMobile = useIsMobile();
   // Get unique categories from products
@@ -53,7 +59,10 @@ const ProductTabs: React.FC<ProductTabsProps> = ({
           <ProductCard
             key={product.id}
             product={product}
-            isAdmin={isAdmin}
+            canEdit={canEdit}
+            canDelete={canDelete}
+            canRestock={canRestock}
+            requiresPinForDelete={requiresPinForDelete}
             onEdit={onEdit}
             onRestock={onRestock}
             onDelete={onDelete}

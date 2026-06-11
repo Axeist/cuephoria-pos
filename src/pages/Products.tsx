@@ -42,11 +42,13 @@ const ProductsPage: React.FC = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { can } = usePermissions();
-  const canManageProducts =
-    can('products.create') ||
-    can('products.edit') ||
-    can('products.delete') ||
-    can('products.stock_adjust');
+  const canCreateProduct = can('products.create');
+  const canEditProduct = can('products.edit');
+  const canDeleteProduct = can('products.delete');
+  const canAdjustStock = can('products.stock_adjust');
+  const showManagementActions =
+    canEditProduct || canDeleteProduct || canAdjustStock;
+  const requiresPinForDelete = canDeleteProduct && !user?.isAdmin;
   const isSuperAdmin = user?.isSuperAdmin || false;
   const performedByLabel = user?.displayName || user?.username || 'Unknown User';
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
@@ -118,6 +120,7 @@ const ProductsPage: React.FC = () => {
   ).length;
 
   const handleOpenDialog = () => {
+    if (!canCreateProduct) return;
     setIsEditMode(false);
     setSelectedProduct(null);
     setFormError(null);
@@ -125,6 +128,7 @@ const ProductsPage: React.FC = () => {
   };
 
   const handleEditProduct = (product: Product) => {
+    if (!canEditProduct) return;
     setIsEditMode(true);
     setSelectedProduct(product);
     setFormError(null);
@@ -132,6 +136,7 @@ const ProductsPage: React.FC = () => {
   };
 
   const handleRestockProduct = (product: Product) => {
+    if (!canAdjustStock) return;
     setRestockProduct(product);
     setIsRestockOpen(true);
   };
@@ -168,6 +173,7 @@ const ProductsPage: React.FC = () => {
   };
 
   const handleDeleteProduct = (id: string) => {
+    if (!canDeleteProduct) return;
     try {
       deleteProduct(id);
       toast({
@@ -352,10 +358,14 @@ const ProductsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
         <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Products</h2>
         <div className="flex flex-wrap gap-2">
-          <ProductSalesExport />
-          <StockExport />
-          
-          {/* Stock Logs Viewer Button */}
+          {(canEditProduct || canAdjustStock) && (
+            <>
+              <ProductSalesExport />
+              <StockExport />
+            </>
+          )}
+
+          {canAdjustStock && (
           <Sheet open={stockLogsOpen} onOpenChange={setStockLogsOpen}>
             <SheetTrigger asChild>
               <Button variant="outline" className="h-10">
@@ -375,8 +385,9 @@ const ProductsPage: React.FC = () => {
               </div>
             </SheetContent>
           </Sheet>
-          
-          {/* Category Management Button */}
+          )}
+
+          {canEditProduct && (
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" className="h-10">
@@ -396,11 +407,13 @@ const ProductsPage: React.FC = () => {
               </div>
             </SheetContent>
           </Sheet>
-          
-          {/* Add Product Button */}
+          )}
+
+          {canCreateProduct && (
           <Button onClick={handleOpenDialog} className="h-10">
             <Plus className="h-4 w-4 mr-2" /> Add Product
           </Button>
+          )}
         </div>
       </div>
 
@@ -475,8 +488,11 @@ const ProductsPage: React.FC = () => {
           onRestock={handleRestockProduct}
           onDelete={handleDeleteProduct}
           onAddProduct={handleOpenDialog}
-          showManagementActions={true}
-          isAdmin={canManageProducts}
+          showManagementActions={showManagementActions}
+          canEdit={canEditProduct}
+          canDelete={canDeleteProduct}
+          canRestock={canAdjustStock}
+          requiresPinForDelete={requiresPinForDelete}
         />
       </div>
     </div>

@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { usePOS, Product } from '@/context/POSContext';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { ShoppingCart, Edit, Trash, Clock, GraduationCap, Lock, Truck } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
 import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { getRestockHeadroom } from '@/utils/productStock.utils';
@@ -12,7 +11,11 @@ import { getCategoryCardStyle } from '@/utils/colorTheme.utils';
 
 interface ProductCardProps {
   product: Product;
-  isAdmin?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  canRestock?: boolean;
+  /** When true, delete still requires PIN for non-admin login users. */
+  requiresPinForDelete?: boolean;
   onEdit?: (product: Product) => void;
   onRestock?: (product: Product) => void;
   onDelete?: (id: string) => void;
@@ -22,7 +25,10 @@ interface ProductCardProps {
 
 const ProductCard: React.FC<ProductCardProps> = ({ 
   product, 
-  isAdmin = false,
+  canEdit = false,
+  canDelete = false,
+  canRestock = false,
+  requiresPinForDelete = false,
   onEdit,
   onRestock,
   onDelete,
@@ -30,7 +36,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
   showManagementActions = false
 }) => {
   const { addToCart, isStudentDiscount, setIsStudentDiscount, cart, categoryMeta } = usePOS();
-  const { user } = useAuth();
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
 
   // Define categories that shouldn't show buying/selling price info
@@ -38,8 +43,11 @@ const ProductCard: React.FC<ProductCardProps> = ({
   const shouldShowPricingFields = !hidePricingFieldsCategories.includes(product.category);
 
   const handleDelete = () => {
-    if (onDelete) {
+    if (!canDelete || !onDelete) return;
+    if (requiresPinForDelete) {
       requestPinVerification(() => onDelete(product.id));
+    } else {
+      onDelete(product.id);
     }
   };
 
@@ -199,7 +207,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
         <CardFooter className="mt-auto pt-2">
           {showManagementActions ? (
             <div className="flex w-full flex-col gap-2">
-              {product.category !== 'membership' && onRestock && getRestockHeadroom(product) !== 0 && (
+              {canRestock && product.category !== 'membership' && onRestock && getRestockHeadroom(product) !== 0 && (
                 <Button
                   variant="default"
                   size="sm"
@@ -209,28 +217,34 @@ const ProductCard: React.FC<ProductCardProps> = ({
                   <Truck className="h-4 w-4 mr-2" /> Restock
                 </Button>
               )}
-              <div className="flex w-full space-x-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="flex-1 justify-center"
-                  onClick={() => onEdit && onEdit(product)}
-                >
-                  <Edit className="h-4 w-4 mr-2" /> Edit
-                </Button>
-                <Button 
-                  variant="destructive" 
-                  size="sm" 
-                  className="flex-1 justify-center relative"
-                  onClick={handleDelete}
-                  title={!isAdmin ? "PIN verification required for staff" : "Delete product"}
-                >
-                  <Trash className="h-4 w-4 mr-2" /> Delete
-                  {!isAdmin && (
-                    <Lock className="h-3 w-3 absolute -top-1 -right-1 text-amber-500" />
+              {(canEdit || canDelete) && (
+                <div className="flex w-full space-x-2">
+                  {canEdit && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1 justify-center"
+                      onClick={() => onEdit && onEdit(product)}
+                    >
+                      <Edit className="h-4 w-4 mr-2" /> Edit
+                    </Button>
                   )}
-                </Button>
-              </div>
+                  {canDelete && (
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      className="flex-1 justify-center relative"
+                      onClick={handleDelete}
+                      title={requiresPinForDelete ? "PIN verification required" : "Delete product"}
+                    >
+                      <Trash className="h-4 w-4 mr-2" /> Delete
+                      {requiresPinForDelete && (
+                        <Lock className="h-3 w-3 absolute -top-1 -right-1 text-amber-500" />
+                      )}
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <Button 

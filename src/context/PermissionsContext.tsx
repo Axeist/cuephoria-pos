@@ -11,6 +11,10 @@ import { useOrganizationOptional } from '@/context/OrganizationContext';
 import type { PermissionMeta } from '@/constants/permissionCatalog';
 import type { SystemRoleSlug } from '@/constants/permissionCatalog';
 import {
+  DEFAULT_ROLE_PERMISSIONS,
+  legacyRoleSlug,
+} from '@/constants/permissionCatalog';
+import {
   canShowMyPortalSidebar,
   canShowStaffManagementSidebar,
 } from '@/utils/workspacePermissionsClient';
@@ -37,6 +41,30 @@ type PermissionsContextValue = {
 };
 
 const PermissionsContext = createContext<PermissionsContextValue | undefined>(undefined);
+
+function resolveClientPermissions(opts: {
+  permissions: string[];
+  bypass: boolean;
+  role: WorkspaceRoleInfo;
+  user: { isSuperAdmin?: boolean; isAdmin?: boolean } | null;
+}): string[] {
+  if (opts.bypass || opts.permissions.length > 0) return opts.permissions;
+
+  const roleSlug = opts.role?.slug;
+  if (roleSlug && roleSlug in DEFAULT_ROLE_PERMISSIONS) {
+    return [...DEFAULT_ROLE_PERMISSIONS[roleSlug as SystemRoleSlug]];
+  }
+
+  if (opts.user) {
+    const slug = legacyRoleSlug({
+      isSuperAdmin: !!opts.user.isSuperAdmin,
+      isAdmin: !!opts.user.isAdmin,
+    });
+    return [...DEFAULT_ROLE_PERMISSIONS[slug]];
+  }
+
+  return [];
+}
 
 export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -65,11 +93,28 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const res = await fetch('/api/admin/permissions', { credentials: 'same-origin' });
       const json = await res.json();
       if (json?.ok) {
-        setPermissions(json.permissions ?? []);
-        setRole(json.role ?? null);
+        const bypassFlag = !!json.bypass;
+        const roleInfo = (json.role ?? null) as WorkspaceRoleInfo;
+        const perms = resolveClientPermissions({
+          permissions: json.permissions ?? [],
+          bypass: bypassFlag,
+          role: roleInfo,
+          user,
+        });
+        setPermissions(perms);
+        setRole(roleInfo);
         setHasStaffProfile(!!json.hasStaffProfile);
-        setBypass(!!json.bypass);
+        setBypass(bypassFlag);
         setCatalog(json.catalog ?? []);
+      } else if (user) {
+        const slug = legacyRoleSlug({
+          isSuperAdmin: !!user.isSuperAdmin,
+          isAdmin: !!user.isAdmin,
+        });
+        setPermissions([...DEFAULT_ROLE_PERMISSIONS[slug]]);
+        setRole({ id: '', name: slug, slug, isSystem: true });
+        setHasStaffProfile(false);
+        setBypass(false);
       } else {
         setPermissions([]);
         setRole(null);
@@ -77,7 +122,16 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setBypass(false);
       }
     } catch {
-      setPermissions([]);
+      if (user) {
+        const slug = legacyRoleSlug({
+          isSuperAdmin: !!user.isSuperAdmin,
+          isAdmin: !!user.isAdmin,
+        });
+        setPermissions([...DEFAULT_ROLE_PERMISSIONS[slug]]);
+        setRole({ id: '', name: slug, slug, isSystem: true });
+      } else {
+        setPermissions([]);
+      }
     } finally {
       setIsLoading(false);
     }

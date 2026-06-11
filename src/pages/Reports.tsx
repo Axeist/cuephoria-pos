@@ -7,7 +7,7 @@ import { DateRange } from 'react-day-picker';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Gift, Wallet, CreditCard, X, Save, CircleDollarSign, MapPin, Globe, Lock } from 'lucide-react';
+import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Gift, Wallet, CreditCard, X, Save, CircleDollarSign, MapPin, Globe } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,8 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useAuth } from '@/context/AuthContext';
-import { usePermission } from '@/context/PermissionsContext';
+import { usePermission, usePermissions } from '@/context/PermissionsContext';
 import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
@@ -62,9 +61,10 @@ function SessionDeleteDialog({
   sessionId: string;
   onDelete: (id: string) => void | Promise<void>;
 }) {
-  const { user } = useAuth();
   const canDeleteRecord = usePermission('reports.delete_record');
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
+
+  if (!canDeleteRecord) return null;
 
   const handleDelete = () => {
     requestPinVerification(() => void onDelete(sessionId));
@@ -75,14 +75,11 @@ function SessionDeleteDialog({
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/30 relative"
+        className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/30"
         onClick={handleDelete}
-        title={!canDeleteRecord ? 'PIN verification required for staff' : 'Delete session'}
+        title="Delete session"
       >
         <Trash2 className="h-4 w-4" />
-        {!canDeleteRecord && (
-          <Lock className="h-3 w-3 absolute -top-0.5 -right-0.5 text-amber-500" />
-        )}
         <span className="sr-only">Delete session</span>
       </Button>
 
@@ -116,6 +113,15 @@ const ReportsPage: React.FC = () => {
   
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const { can } = usePermissions();
+  const canViewBills = can('reports.bills');
+  const canViewCustomers = can('reports.customers');
+  const canViewSessions = can('reports.sessions');
+  const canViewSummary = can('reports.summary');
+  const canExportReports = can('reports.export');
+  const canDeleteRecord = can('reports.delete_record');
+  const canEditBill = canExportReports;
+  const canCreditRealise = can('pos.credit_sale');
   const { activeLocationId, activeLocation, reportScope, setReportScope } = useLocation();
 
   // ============================================================
@@ -138,6 +144,21 @@ const ReportsPage: React.FC = () => {
   });
   const [dateRangeKey, setDateRangeKey] = useState<string>('thisMonth');
   const [activeTab, setActiveTab] = useState<'bills' | 'customers' | 'sessions' | 'summary'>('bills');
+  const allowedTabs = useMemo(() => {
+    const tabs: Array<'bills' | 'customers' | 'sessions' | 'summary'> = [];
+    if (canViewBills) tabs.push('bills');
+    if (canViewCustomers) tabs.push('customers');
+    if (canViewSessions) tabs.push('sessions');
+    if (canViewSummary) tabs.push('summary');
+    return tabs;
+  }, [canViewBills, canViewCustomers, canViewSessions, canViewSummary]);
+
+  useEffect(() => {
+    if (allowedTabs.length === 0) return;
+    if (!allowedTabs.includes(activeTab)) {
+      setActiveTab(allowedTabs[0]);
+    }
+  }, [allowedTabs, activeTab]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [billSearchQuery, setBillSearchQuery] = useState<string>('');
   const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>('all');
@@ -713,6 +734,7 @@ const ReportsPage: React.FC = () => {
 
   // Function to handle downloading reports as Excel
   const handleDownloadReport = useCallback(() => {
+    if (!canExportReports) return;
     console.log('Downloading report with date range:', date);
     switch (activeTab) {
       case 'bills':
@@ -783,7 +805,7 @@ const ReportsPage: React.FC = () => {
       default:
         console.log(`Exporting ${activeTab} report`);
     }
-  }, [activeTab, date, sortedBills, filteredData, summaryMetrics, getCustomerName, getCustomerPhone, getCustomerTotalSpent, getCustomerPlayTime]);
+  }, [activeTab, date, sortedBills, filteredData, summaryMetrics, getCustomerName, getCustomerPhone, getCustomerTotalSpent, getCustomerPlayTime, canExportReports]);
 
   // Handle session deletion
   const handleDeleteSession = useCallback(async (sessionId: string) => {
@@ -1337,6 +1359,7 @@ const ReportsPage: React.FC = () => {
           </p>
           
           <div className="mt-4 flex flex-col sm:flex-row sm:flex-wrap gap-2 items-stretch sm:items-center">
+            {canCreditRealise && (
             <Button
               type="button"
               variant={creditRealiseMode ? 'default' : 'outline'}
@@ -1351,14 +1374,15 @@ const ReportsPage: React.FC = () => {
               <CircleDollarSign className="h-4 w-4 mr-2" />
               {creditRealiseMode ? 'Exit realise mode' : 'Realise credit'}
             </Button>
-            {creditRealiseMode && (
+            )}
+            {canCreditRealise && creditRealiseMode && (
               <span className="text-sm text-gray-400 self-center">
                 {creditBillsFiltered.length} credit bill{creditBillsFiltered.length !== 1 ? 's' : ''} in view · {selectedCreditIds.size} selected
               </span>
             )}
           </div>
 
-          {creditRealiseMode && (
+          {canCreditRealise && creditRealiseMode && (
             <div className="mt-4 flex flex-col lg:flex-row lg:flex-wrap gap-2 p-3 rounded-lg border border-orange-900/40 bg-orange-950/20">
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="secondary" size="sm" onClick={selectAllCreditFiltered} disabled={creditBillsFiltered.length === 0}>
@@ -1553,8 +1577,8 @@ const ReportsPage: React.FC = () => {
                   getCustomerName={getCustomerName}
                   getCustomerPhone={getCustomerPhone}
                   searchTerm={billSearchQuery}
-                  onEdit={handleEditBill}
-                  onDelete={handleDeleteBill}
+                  onEdit={canEditBill ? handleEditBill : undefined}
+                  onDelete={canDeleteRecord ? handleDeleteBill : undefined}
                   creditRealiseMode={creditRealiseMode}
                   creditSelected={selectedCreditIds.has(bill.id)}
                   onCreditSelectToggle={toggleCreditRowSelect}
@@ -1924,7 +1948,7 @@ const ReportsPage: React.FC = () => {
       <BusinessSummaryReport
         startDate={date?.from}
         endDate={date?.to}
-        onDownload={handleDownloadReport}
+        onDownload={canExportReports ? handleDownloadReport : undefined}
       />
       
       {/* Complimentary Insights Widget - Moved to bottom with matching theme */}
@@ -2115,15 +2139,18 @@ const ReportsPage: React.FC = () => {
             </PopoverContent>
           </Popover>
           
+          {canExportReports && (
           <Button onClick={handleDownloadReport} className="gap-2 btn-gradient border-0 text-white text-xs sm:text-sm flex-1 sm:flex-initial">
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">Export</span>
             <span className="sm:hidden">Export</span>
           </Button>
+          )}
         </div>
       </div>
       
       <div className="bg-white/[0.06] border border-white/10 rounded-xl p-1 flex gap-2 overflow-x-auto scrollbar-hide">
+        {canViewBills && (
         <Button
           onClick={() => setActiveTab('bills')}
           variant={activeTab === 'bills' ? 'default' : 'ghost'}
@@ -2138,6 +2165,8 @@ const ReportsPage: React.FC = () => {
           </svg>
           Bills
         </Button>
+        )}
+        {canViewCustomers && (
         <Button
           onClick={() => setActiveTab('customers')}
           variant={activeTab === 'customers' ? 'default' : 'ghost'}
@@ -2150,6 +2179,8 @@ const ReportsPage: React.FC = () => {
           </svg>
           Customers
         </Button>
+        )}
+        {canViewSessions && (
         <Button
           onClick={() => setActiveTab('sessions')}
           variant={activeTab === 'sessions' ? 'default' : 'ghost'}
@@ -2161,6 +2192,8 @@ const ReportsPage: React.FC = () => {
           </svg>
           Sessions
         </Button>
+        )}
+        {canViewSummary && (
         <Button
           onClick={() => setActiveTab('summary')}
           variant={activeTab === 'summary' ? 'default' : 'ghost'}
@@ -2172,6 +2205,7 @@ const ReportsPage: React.FC = () => {
           </svg>
           Summary
         </Button>
+        )}
       </div>
       
       <div className="space-y-6">
