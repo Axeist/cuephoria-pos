@@ -4,7 +4,7 @@ import {
   DEFAULT_ROLE_PERMISSIONS,
   legacyRoleSlug,
   type SystemRoleSlug,
-} from "../../constants/permissionCatalog";
+} from "../constants/permissionCatalog";
 
 export type ResolvedWorkspaceAccess = {
   permissions: string[];
