@@ -1,23 +1,114 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffHR } from '@/context/StaffHRContext';
 import StaffEmptyState from '@/components/staff/shared/StaffEmptyState';
-import { syncMissingRostersFromProfiles } from '@/services/staff/staffApi';
+import { forceSyncRostersFromProfiles, syncMissingRostersFromProfiles, syncStalePlaceholderRosters } from '@/services/staff/staffApi';
 import {
+  DEFAULT_SHIFT_END,
   ROSTER_WEEK_DAYS,
   buildWeeklyScheduleFromProfile,
-  formatShiftRange,
+  formatShiftRangeCompact,
+  mapStoredScheduleRow,
   mergeSchedulesWithProfileDefaults,
   normalizeShiftTime,
   toDbShiftTime,
   type RosterScheduleRow,
 } from '@/utils/staffRoster';
-import { CalendarDays, RefreshCw, Save } from 'lucide-react';
+import { CalendarDays, Clock, RefreshCw, Save } from 'lucide-react';
 import StaffProfileLabel from '@/components/staff/shared/StaffProfileLabel';
 import { staffDisplayName } from '@/services/staff/staffMappers';
+import { cn } from '@/lib/utils';
+import type { StaffProfile } from '@/types/staff.types';
+
+type DayShiftCellProps = {
+  label: string;
+  staffName: string;
+  start: string;
+  end: string;
+  customized: boolean;
+  onChange: (start: string, end: string) => void;
+};
+
+const DayShiftCell: React.FC<DayShiftCellProps> = ({
+  label,
+  staffName,
+  start,
+  end,
+  customized,
+  onChange,
+}) => {
+  const [open, setOpen] = useState(false);
+  const [draftStart, setDraftStart] = useState(start);
+  const [draftEnd, setDraftEnd] = useState(end);
+
+  useEffect(() => {
+    if (open) {
+      setDraftStart(start);
+      setDraftEnd(end);
+    }
+  }, [open, start, end]);
+
+  const apply = () => {
+    onChange(draftStart, draftEnd);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`${staffName} ${label} shift`}
+          className={cn(
+            'flex flex-col items-center justify-center gap-0.5 rounded-lg border px-1 py-2 min-h-[52px] w-full transition-colors',
+            'hover:border-primary/40 hover:bg-primary/5',
+            customized
+              ? 'border-primary/30 bg-primary/10'
+              : 'border-border/40 bg-muted/20',
+          )}
+        >
+          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {label}
+          </span>
+          <span className="text-[11px] font-medium leading-tight text-foreground text-center">
+            {formatShiftRangeCompact(start, end)}
+          </span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-3" align="center">
+        <p className="text-xs font-medium text-foreground mb-3">{label} shift</p>
+        <div className="space-y-2">
+          <label className="block space-y-1">
+            <span className="text-[11px] text-muted-foreground">Start</span>
+            <Input
+              type="time"
+              value={draftStart}
+              onChange={(e) => setDraftStart(e.target.value)}
+              className="h-9 glass-card border-border/50"
+            />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-[11px] text-muted-foreground">End</span>
+            <Input
+              type="time"
+              value={draftEnd}
+              onChange={(e) => setDraftEnd(e.target.value)}
+              className="h-9 glass-card border-border/50"
+            />
+          </label>
+        </div>
+        <Button size="sm" className="w-full mt-3 h-8" onClick={apply}>
+          Apply
+        </Button>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 const ShiftRosterPanel: React.FC = () => {
   const { toast } = useToast();
@@ -48,7 +139,9 @@ const ShiftRosterPanel: React.FC = () => {
         .select('*')
         .in('staff_id', staffIds);
       if (error) throw error;
-      const stored = (data ?? []) as RosterScheduleRow[];
+      const stored = (data ?? []).map((row) =>
+        mapStoredScheduleRow(row as Record<string, unknown>),
+      );
       setSchedules(mergeSchedulesWithProfileDefaults(stored, activeProfiles));
     } catch (e) {
       console.error(e);
@@ -63,12 +156,20 @@ const ShiftRosterPanel: React.FC = () => {
     setSyncing(true);
     try {
       const added = await syncMissingRostersFromProfiles(activeProfiles, staffScope.locationId);
-      if (added > 0) {
+      const fixed = await syncStalePlaceholderRosters(activeProfiles, staffScope.locationId);
+      if (added > 0 || fixed > 0) {
         await loadSchedules();
-        toast({
-          title: 'Roster applied',
-          description: `Default shifts from staff profiles applied (${added} day slots).`,
-        });
+        if (fixed > 0) {
+          toast({
+            title: 'Roster updated',
+            description: 'Placeholder shifts were replaced with profile shift times.',
+          });
+        } else if (added > 0) {
+          toast({
+            title: 'Roster applied',
+            description: `Default shifts from staff profiles applied (${added} day slots).`,
+          });
+        }
       }
     } catch (e) {
       console.error(e);
@@ -88,25 +189,55 @@ const ShiftRosterPanel: React.FC = () => {
   const getSchedule = (staffId: string, day: number) =>
     schedules.find((s) => s.staff_id === staffId && s.day_of_week === day);
 
-  const updateLocal = (staffId: string, day: number, field: 'shift_start' | 'shift_end', value: string) => {
+  const profileShift = (staff: StaffProfile) => ({
+    start: normalizeShiftTime(staff.shift_start_time),
+    end: normalizeShiftTime(staff.shift_end_time, DEFAULT_SHIFT_END),
+  });
+
+  const upsertLocalRow = (
+    staffId: string,
+    day: number,
+    shift_start: string,
+    shift_end: string,
+  ) => {
     setSchedules((prev) => {
       const existing = prev.find((s) => s.staff_id === staffId && s.day_of_week === day);
       if (existing) {
         return prev.map((s) =>
-          s.staff_id === staffId && s.day_of_week === day ? { ...s, [field]: value } : s,
+          s.staff_id === staffId && s.day_of_week === day
+            ? { ...s, shift_start, shift_end }
+            : s,
         );
       }
-      const staff = activeProfiles.find((p) => p.user_id === staffId);
       return [
         ...prev,
-        {
+        { staff_id: staffId, day_of_week: day, shift_start, shift_end, is_active: true },
+      ];
+    });
+  };
+
+  const updateDay = (staffId: string, day: number, start: string, end: string) => {
+    upsertLocalRow(staffId, day, start, end);
+  };
+
+  const applyToAllDays = (staffId: string, start: string, end: string) => {
+    setSchedules((prev) => {
+      const rest = prev.filter((s) => s.staff_id !== staffId);
+      const existingByDay = new Map(
+        prev.filter((s) => s.staff_id === staffId).map((s) => [s.day_of_week, s]),
+      );
+      const rows = ROSTER_WEEK_DAYS.map((_, day) => {
+        const existing = existingByDay.get(day);
+        return {
+          id: existing?.id,
           staff_id: staffId,
           day_of_week: day,
-          shift_start: field === 'shift_start' ? value : normalizeShiftTime(staff?.shift_start_time),
-          shift_end: field === 'shift_end' ? value : normalizeShiftTime(staff?.shift_end_time, '23:00'),
+          shift_start: start,
+          shift_end: end,
           is_active: true,
-        },
-      ];
+        };
+      });
+      return [...rest, ...rows];
     });
   };
 
@@ -118,6 +249,27 @@ const ShiftRosterPanel: React.FC = () => {
       ...prev.filter((s) => s.staff_id !== staffId),
       ...defaults,
     ]);
+  };
+
+  const handleApplyProfileShifts = async () => {
+    if (!staffScope?.locationId) return;
+    setSyncing(true);
+    try {
+      const written = await forceSyncRostersFromProfiles(activeProfiles, staffScope.locationId);
+      await loadSchedules();
+      toast({
+        title: 'Profile shifts applied',
+        description:
+          written > 0
+            ? `Updated weekly roster for ${activeProfiles.length} staff member(s).`
+            : 'All rosters already match profile shift times.',
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Sync failed';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const handleSave = async () => {
@@ -173,15 +325,15 @@ const ShiftRosterPanel: React.FC = () => {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground max-w-xl">
-          Weekly shifts are seeded from each staff member&apos;s profile shift times (set at creation or in
-          Directory → Edit). Adjust individual days below if needed.
+          Set each staff member&apos;s default weekly shift. Tap a day to customize it, or use
+          &ldquo;Apply profile shifts&rdquo; to reset all days from Directory → Edit.
         </p>
         <div className="flex flex-wrap gap-2 shrink-0">
           <Button
             variant="outline"
             size="sm"
             className="border-border/50"
-            onClick={() => void autoSyncFromProfiles()}
+            onClick={() => void handleApplyProfileShifts()}
             disabled={syncing}
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
@@ -201,77 +353,95 @@ const ShiftRosterPanel: React.FC = () => {
             Weekly roster
           </CardTitle>
           <CardDescription className="text-sm">
-            {activeProfiles.length} staff · tap Reset to restore profile default for one person
+            {activeProfiles.length} staff · highlighted days differ from the default shift
           </CardDescription>
         </CardHeader>
-        <CardContent className="overflow-x-auto -mx-1 px-1">
-          <table className="w-full text-sm min-w-[640px] border-collapse">
-            <thead>
-              <tr className="border-b border-border/50 text-muted-foreground text-left">
-                <th className="py-2 pr-3 font-medium text-xs sticky left-0 bg-card/80 backdrop-blur-sm min-w-[140px]">
-                  Staff
-                </th>
-                {ROSTER_WEEK_DAYS.map((d) => (
-                  <th key={d} className="py-2 px-1 font-medium text-xs text-center w-[88px]">
-                    {d}
-                  </th>
-                ))}
-                <th className="py-2 pl-2 font-medium text-xs w-[72px]" />
-              </tr>
-            </thead>
-            <tbody>
-              {activeProfiles.map((staff) => (
-                <tr key={staff.user_id} className="border-b border-border/30">
-                  <td className="py-2 pr-3 sticky left-0 bg-card/80 backdrop-blur-sm">
+        <CardContent className="space-y-4">
+          {activeProfiles.map((staff) => {
+            const { start: profileStart, end: profileEnd } = profileShift(staff);
+
+            const dayShifts = ROSTER_WEEK_DAYS.map((_, day) => {
+              const row = getSchedule(staff.user_id, day);
+              return {
+                start: normalizeShiftTime(row?.shift_start ?? profileStart),
+                end: normalizeShiftTime(row?.shift_end ?? profileEnd, DEFAULT_SHIFT_END),
+              };
+            });
+            const allSame = dayShifts.every(
+              (d) => d.start === dayShifts[0].start && d.end === dayShifts[0].end,
+            );
+            const weekStart = allSame ? dayShifts[0].start : profileStart;
+            const weekEnd = allSame ? dayShifts[0].end : profileEnd;
+
+            return (
+              <div
+                key={staff.user_id}
+                className="rounded-xl border border-border/40 bg-background/40 p-4 space-y-3"
+              >
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  <div className="min-w-0">
                     <StaffProfileLabel
                       staff={staff}
                       nameClassName="text-sm font-medium text-foreground"
                       subClassName="text-xs text-muted-foreground"
                     />
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">
-                      {formatShiftRange(staff.shift_start_time, staff.shift_end_time)}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Profile default: {formatShiftRangeCompact(profileStart, profileEnd)}
                     </p>
-                  </td>
-                  {ROSTER_WEEK_DAYS.map((_, day) => {
-                    const row = getSchedule(staff.user_id, day);
-                    const start = normalizeShiftTime(row?.shift_start ?? staff.shift_start_time);
-                    const end = normalizeShiftTime(row?.shift_end ?? staff.shift_end_time, '23:00');
-                    return (
-                      <td key={day} className="py-1.5 px-0.5 align-top">
-                        <div className="flex flex-col gap-0.5">
-                          <input
-                            type="time"
-                            aria-label={`${staffDisplayName(staff)} ${ROSTER_WEEK_DAYS[day]} start`}
-                            className="theme-menu-trigger w-full text-xs px-1.5 py-1 rounded-md h-8"
-                            value={start}
-                            onChange={(e) => updateLocal(staff.user_id, day, 'shift_start', e.target.value)}
-                          />
-                          <input
-                            type="time"
-                            aria-label={`${staffDisplayName(staff)} ${ROSTER_WEEK_DAYS[day]} end`}
-                            className="theme-menu-trigger w-full text-xs px-1.5 py-1 rounded-md h-8"
-                            value={end}
-                            onChange={(e) => updateLocal(staff.user_id, day, 'shift_end', e.target.value)}
-                          />
-                        </div>
-                      </td>
-                    );
-                  })}
-                  <td className="py-2 pl-1">
+                  </div>
+
+                  <div className="flex flex-wrap items-end gap-2 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-primary shrink-0" />
+                      <Input
+                        type="time"
+                        aria-label={`${staffDisplayName(staff)} default start`}
+                        value={weekStart}
+                        onChange={(e) => applyToAllDays(staff.user_id, e.target.value, weekEnd)}
+                        className="h-9 w-[118px] glass-card border-border/50 text-sm"
+                      />
+                      <span className="text-xs text-muted-foreground">to</span>
+                      <Input
+                        type="time"
+                        aria-label={`${staffDisplayName(staff)} default end`}
+                        value={weekEnd}
+                        onChange={(e) => applyToAllDays(staff.user_id, weekStart, e.target.value)}
+                        className="h-9 w-[118px] glass-card border-border/50 text-sm"
+                      />
+                    </div>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="text-xs h-8 px-2 text-muted-foreground hover:text-foreground"
+                      className="text-xs h-9 px-2 text-muted-foreground hover:text-foreground"
                       onClick={() => applyProfileToStaff(staff.user_id)}
                     >
                       Reset
                     </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
+                  {ROSTER_WEEK_DAYS.map((label, day) => {
+                    const { start, end } = dayShifts[day];
+                    const customized = start !== profileStart || end !== profileEnd;
+
+                    return (
+                      <DayShiftCell
+                        key={day}
+                        label={label}
+                        staffName={staffDisplayName(staff)}
+                        start={start}
+                        end={end}
+                        customized={customized}
+                        onChange={(s, e) => updateDay(staff.user_id, day, s, e)}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </CardContent>
       </Card>
     </div>

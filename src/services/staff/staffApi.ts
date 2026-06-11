@@ -1,4 +1,11 @@
 import { supabase } from '@/integrations/supabase/client';
+import {
+  DEFAULT_SHIFT_END,
+  DEFAULT_SHIFT_START,
+  isLegacyPlaceholderSchedule,
+  mapStoredScheduleRow,
+  normalizeShiftTime,
+} from '@/utils/staffRoster';
 import type {
   ActiveShift,
   LeaveBalance,
@@ -477,6 +484,58 @@ export async function syncMissingRostersFromProfiles(
       { onlyIfMissing: true },
     );
   }
+  return total;
+}
+
+/** Overwrite all weekly schedule rows from each staff profile shift times. */
+export async function forceSyncRostersFromProfiles(
+  profiles: StaffProfile[],
+  locationId: string | null,
+): Promise<number> {
+  if (!locationId) return 0;
+  let total = 0;
+  for (const p of profiles.filter((s) => s.is_active && s.shift_start_time && s.shift_end_time)) {
+    total += await syncRosterFromProfile(
+      p.user_id,
+      locationId,
+      p.shift_start_time!.substring(0, 5),
+      p.shift_end_time!.substring(0, 5),
+    );
+  }
+  return total;
+}
+
+/** Fix rows still on the 11:00–23:00 placeholder when the profile has real shift times. */
+export async function syncStalePlaceholderRosters(
+  profiles: StaffProfile[],
+  locationId: string | null,
+): Promise<number> {
+  if (!locationId) return 0;
+  let total = 0;
+
+  for (const p of profiles.filter((s) => s.is_active && s.shift_start_time && s.shift_end_time)) {
+    const profileStart = normalizeShiftTime(p.shift_start_time);
+    const profileEnd = normalizeShiftTime(p.shift_end_time, DEFAULT_SHIFT_END);
+    if (profileStart === DEFAULT_SHIFT_START && profileEnd === DEFAULT_SHIFT_END) continue;
+
+    const { data } = await supabase
+      .from('staff_work_schedules')
+      .select('*')
+      .eq('staff_id', p.user_id);
+
+    if (!data?.length) continue;
+
+    const rows = data.map((row) => mapStoredScheduleRow(row as Record<string, unknown>));
+    if (!isLegacyPlaceholderSchedule(rows)) continue;
+
+    total += await syncRosterFromProfile(
+      p.user_id,
+      locationId,
+      profileStart,
+      profileEnd,
+    );
+  }
+
   return total;
 }
 
