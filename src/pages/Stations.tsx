@@ -208,7 +208,8 @@ const Stations = () => {
     customerId: string,
     customerName: string,
     couponCode: string | undefined,
-    sessions: MultiSessionStartItem[]
+    sessions: MultiSessionStartItem[],
+    customStartTime?: Date
   ) => {
     let started = 0;
     const failed: string[] = [];
@@ -226,7 +227,8 @@ const Stations = () => {
           item.perPersonRate,
           item.plannedDurationMinutes,
           item.prepaidBooking,
-          sessionGroupId
+          sessionGroupId,
+          customStartTime
         );
         started += 1;
       } catch {

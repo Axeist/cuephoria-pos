@@ -15,7 +15,10 @@ import {
   ShieldCheck,
   Users,
   Gamepad2,
+  UserPlus,
+  History,
 } from 'lucide-react';
+import AddCustomerDialog from '@/components/customers/AddCustomerDialog';
 import { usePOS, Customer } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
 import { CurrencyDisplay } from '@/components/ui/currency';
@@ -41,6 +44,14 @@ import {
 import { useBranchCoupons } from '@/hooks/useBranchCoupons';
 import { getStationTheme } from '@/utils/stationTheme';
 import type { Station } from '@/types/pos.types';
+import {
+  defaultCustomStartTime,
+  formatCustomStartBoundsHint,
+  formatElapsedSinceStart,
+  getCustomStartTimeBounds,
+  parseCustomSessionStartTime,
+  toDatetimeLocalInputValue,
+} from '@/utils/sessionStartTime.utils';
 
 const isLateNight = () => new Date().getHours() < 6;
 
@@ -61,7 +72,8 @@ interface MultiStartSessionDialogProps {
     customerId: string,
     customerName: string,
     couponCode: string | undefined,
-    sessions: MultiSessionStartItem[]
+    sessions: MultiSessionStartItem[],
+    customStartTime?: Date
   ) => Promise<void>;
 }
 
@@ -92,7 +104,16 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
   const [stationBookings, setStationBookings] = useState<Record<string, StationBookingRow[]>>({});
   const [prepaidByStation, setPrepaidByStation] = useState<Record<string, PrepaidBookingLink | null>>({});
   const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [addCustomerOpen, setAddCustomerOpen] = useState(false);
+  const [useCustomStartTime, setUseCustomStartTime] = useState(false);
+  const [customStartTimeInput, setCustomStartTimeInput] = useState('');
   const dialogWasOpenRef = useRef(false);
+  const customStartBounds = useMemo(
+    () => getCustomStartTimeBounds(new Date()),
+    [open, useCustomStartTime, customStartTimeInput]
+  );
+  const customStartMinInput = toDatetimeLocalInputValue(customStartBounds.min);
+  const customStartMaxInput = toDatetimeLocalInputValue(customStartBounds.max);
 
   const slotDuration = stations[0]?.slotDuration;
   const durationPresets = getDurationPresets(slotDuration);
@@ -116,6 +137,8 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
     setCustomerSearchQuery('');
     setStationBookings({});
     setPrepaidByStation({});
+    setUseCustomStartTime(false);
+    setCustomStartTimeInput('');
   }, [open, slotDuration, stations]);
 
   useEffect(() => {
@@ -181,6 +204,7 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
     setPrepaidByStation((prev) => ({ ...prev, [stationId]: link }));
     if (link) {
       setPlannedDuration((d) => Math.max(d, link.durationMinutes));
+      setSelectedCoupon('none');
     }
   };
 
@@ -257,6 +281,14 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
     setPlayerCounts((prev) => ({ ...prev, [stationId]: count }));
   };
 
+  const customStartPreview =
+    useCustomStartTime && customStartTimeInput
+      ? (() => {
+          const parsed = parseCustomSessionStartTime(customStartTimeInput);
+          return parsed.ok ? formatElapsedSinceStart(parsed.date) : null;
+        })()
+      : null;
+
   const handleConfirm = async () => {
     if (!selectedCustomer) {
       toast({
@@ -265,6 +297,20 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
         variant: 'destructive',
       });
       return;
+    }
+
+    let customStartTime: Date | undefined;
+    if (useCustomStartTime) {
+      const parsed = parseCustomSessionStartTime(customStartTimeInput);
+      if (!parsed.ok) {
+        toast({
+          title: 'Invalid start time',
+          description: parsed.message,
+          variant: 'destructive',
+        });
+        return;
+      }
+      customStartTime = parsed.date;
     }
 
     setSubmitting(true);
@@ -281,7 +327,13 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
         };
       });
 
-      await onConfirm(selectedCustomer.id, selectedCustomer.name, couponCode, sessions);
+      await onConfirm(
+        selectedCustomer.id,
+        selectedCustomer.name,
+        couponCode,
+        sessions,
+        customStartTime
+      );
       void hapticImpact('heavy').catch(() => {});
       onOpenChange(false);
     } catch {
@@ -413,10 +465,68 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
 
           {/* Customer */}
           <div className="space-y-3">
-            <Label className="text-base font-medium flex items-center gap-2">
-              <UserIcon className="h-4 w-4" />
-              Customer
-            </Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-base font-medium flex items-center gap-2">
+                <UserIcon className="h-4 w-4" />
+                Select Customer
+              </Label>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  variant={useCustomStartTime ? 'default' : 'outline'}
+                  size="sm"
+                  className={
+                    useCustomStartTime
+                      ? 'h-8 text-xs bg-cuephoria-purple hover:bg-cuephoria-purple/90'
+                      : 'h-8 text-xs border-cuephoria-purple/30 text-cuephoria-lightpurple'
+                  }
+                  onClick={() => {
+                    setUseCustomStartTime((on) => {
+                      const next = !on;
+                      if (next && !customStartTimeInput) {
+                        setCustomStartTimeInput(toDatetimeLocalInputValue(defaultCustomStartTime()));
+                      }
+                      return next;
+                    });
+                  }}
+                >
+                  <History className="h-3.5 w-3.5 mr-1" />
+                  Custom start time
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs border-cuephoria-purple/30 text-cuephoria-lightpurple"
+                  onClick={() => setAddCustomerOpen(true)}
+                >
+                  <UserPlus className="h-3.5 w-3.5 mr-1" />
+                  Add customer
+                </Button>
+              </div>
+            </div>
+
+            {useCustomStartTime && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 space-y-2">
+                <Label htmlFor="multi-custom-start-time" className="text-sm font-medium text-amber-100">
+                  When did play actually start?
+                </Label>
+                <Input
+                  id="multi-custom-start-time"
+                  type="datetime-local"
+                  min={customStartMinInput}
+                  max={customStartMaxInput}
+                  value={customStartTimeInput}
+                  onChange={(e) => setCustomStartTimeInput(e.target.value)}
+                  className="h-9 max-w-xs"
+                />
+                <p className="text-xs text-amber-200/75">
+                  {formatCustomStartBoundsHint()}. Timer and billing start from this moment
+                  {customStartPreview ? ` (${customStartPreview})` : ''} for all stations in this group.
+                </p>
+              </div>
+            )}
+
             {!selectedCustomer ? (
               <>
                 <div className="relative">
@@ -428,7 +538,7 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
                     onChange={(e) => setCustomerSearchQuery(e.target.value)}
                   />
                 </div>
-                <div className="max-h-[200px] overflow-y-auto border rounded-lg p-2 bg-muted/20">
+                <div className="max-h-[300px] overflow-y-auto border rounded-lg p-2 bg-muted/20">
                   {filteredCustomers.length > 0 ? (
                     <div className="space-y-2">
                       {filteredCustomers.map((customer) => (
@@ -438,8 +548,17 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
                           onClick={() => setSelectedCustomer(customer)}
                           className="w-full text-left p-3 rounded-md hover:bg-cuephoria-purple/10 border border-transparent hover:border-cuephoria-purple/30 transition-all"
                         >
-                          <p className="font-medium">{customer.name}</p>
-                          <p className="text-sm text-muted-foreground">{customer.phone}</p>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium">{customer.name}</p>
+                              <p className="text-sm text-muted-foreground">{customer.phone}</p>
+                            </div>
+                            {customer.isMember && (
+                              <span className="text-xs bg-cuephoria-purple/20 text-cuephoria-purple px-2 py-1 rounded-full">
+                                Member
+                              </span>
+                            )}
+                          </div>
                         </button>
                       ))}
                     </div>
@@ -449,29 +568,35 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
                 </div>
               </>
             ) : (
-              <div className="border rounded-lg p-4 bg-cuephoria-purple/5 border-cuephoria-purple/30 flex justify-between items-start">
-                <div>
-                  <p className="font-medium text-lg">{selectedCustomer.name}</p>
-                  <p className="text-sm text-muted-foreground">{selectedCustomer.phone}</p>
+              <div className="border rounded-lg p-4 bg-cuephoria-purple/5 border-cuephoria-purple/30">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-lg">{selectedCustomer.name}</p>
+                    <p className="text-sm text-muted-foreground">{selectedCustomer.phone}</p>
+                    {selectedCustomer.isMember && (
+                      <span className="text-xs bg-green-500/20 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full mt-1 inline-block">
+                        Member
+                      </span>
+                    )}
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedCustomer(null)}>
+                    Change
+                  </Button>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedCustomer(null)}>
-                  Change
-                </Button>
               </div>
             )}
           </div>
 
           {selectedCustomer && (
-            <div className="space-y-2">
-              <Label className="text-base font-medium">Today&apos;s pre-paid bookings</Label>
+            <div className="space-y-3">
+              <Label className="text-base font-medium">Today&apos;s bookings (per station)</Label>
               {bookingsLoading ? (
-                <p className="text-xs text-muted-foreground">Checking bookings for each station…</p>
+                <p className="text-xs text-muted-foreground">Checking today&apos;s paid bookings for each station…</p>
               ) : (
                 stationPricing.map((row) => (
-                  <div key={`prepaid-${row.station.id}`}>
-                    <p className="mb-1 text-xs font-medium text-muted-foreground">{row.station.name}</p>
+                  <div key={`prepaid-${row.station.id}`} className="space-y-1.5">
+                    <p className="text-sm font-medium text-muted-foreground">{row.station.name}</p>
                     <PrepaidBookingNotice
-                      compact
                       loading={false}
                       bookings={stationBookings[row.station.id] ?? []}
                       selectedBookingId={
@@ -482,6 +607,8 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
                       onSelectBooking={(bookingId, link) =>
                         handlePrepaidSelect(row.station.id, bookingId, link)
                       }
+                      stationType={row.station.type}
+                      slotDuration={row.station.slotDuration}
                     />
                   </div>
                 ))
@@ -561,6 +688,15 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
           </Button>
         </DialogFooter>
       </ResponsiveDialogContent>
+
+      <AddCustomerDialog
+        open={addCustomerOpen}
+        onOpenChange={setAddCustomerOpen}
+        onAdded={(customer) => {
+          setSelectedCustomer(customer);
+          setCustomerSearchQuery(customer.name);
+        }}
+      />
 
       <PinVerificationDialog
         open={showPinDialog}
