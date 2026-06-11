@@ -111,7 +111,16 @@ export function isChunkLoadError(reason: unknown): boolean {
 }
 
 function isAssetChunkUrl(url: string): boolean {
-  return url.includes("/assets/") && /\.(js|mjs|css)(\?|$)/i.test(url);
+  try {
+    const parsed = new URL(url, window.location.origin);
+    if (parsed.origin !== window.location.origin) return false;
+    return (
+      parsed.pathname.startsWith("/assets/") &&
+      /\.(js|mjs|css)$/i.test(parsed.pathname)
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
