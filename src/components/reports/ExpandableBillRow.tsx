@@ -94,9 +94,10 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
   const customerPhone = getCustomerPhone ? getCustomerPhone(bill.customerId) : '';
   const customer = customers.find(c => c.id === bill.customerId);
   
-  const isComplimentary = bill.paymentMethod?.toLowerCase() === 'complimentary';
+  const paymentMethod = (bill.paymentMethod || '').toLowerCase().trim();
+  const isComplimentary = paymentMethod === 'complimentary';
   const isSplit = bill.isSplitPayment || (bill.splitPayment && bill.splitPayment.length > 0);
-  const isCredit = bill.paymentMethod === 'credit';
+  const isCredit = paymentMethod === 'credit';
 
   const matchesSearch = !searchTerm || 
     customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -151,13 +152,21 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
         } ${creditRealiseMode && isCredit && creditSelected ? 'bg-orange-950/15' : ''}`}
       >
         {creditRealiseMode && (
-          <TableCell className="w-10 align-middle" onClick={(e) => e.stopPropagation()}>
+          <TableCell className="w-10 align-middle">
             {isCredit ? (
-              <Checkbox
-                checked={creditSelected}
-                onCheckedChange={(v) => onCreditSelectToggle?.(bill.id, v === true)}
-                aria-label="Select credit bill"
-              />
+              <div
+                className="flex items-center justify-center"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <Checkbox
+                  checked={creditSelected}
+                  onCheckedChange={(checked) => {
+                    onCreditSelectToggle?.(bill.id, checked === true);
+                  }}
+                  aria-label="Select credit bill"
+                />
+              </div>
             ) : null}
           </TableCell>
         )}
@@ -225,7 +234,7 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
               <Gift className="h-3 w-3 mr-1" />
               Complimentary
             </Badge>
-          ) : bill.paymentMethod === 'razorpay' ? (
+          ) : paymentMethod === 'razorpay' ? (
             <Badge className="bg-indigo-900/30 text-indigo-300 border-indigo-600">
               <CreditCard className="h-3 w-3 mr-1" />
               Razorpay
@@ -236,15 +245,15 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
             </Badge>
           ) : (
             <Badge variant="outline" className={
-              bill.paymentMethod === 'upi'
+              paymentMethod === 'upi'
                 ? "bg-blue-900/30 text-blue-400 border-blue-800"
-                : bill.paymentMethod === 'credit'
+                : isCredit
                 ? "bg-orange-900/30 text-orange-400 border-orange-800"
                 : "bg-green-900/30 text-green-400 border-green-800"
             }>
-              {bill.paymentMethod === 'upi' 
-                ? 'UPI' 
-                : bill.paymentMethod === 'credit'
+              {paymentMethod === 'upi'
+                ? 'UPI'
+                : isCredit
                 ? 'Credit'
                 : 'Cash'}
             </Badge>

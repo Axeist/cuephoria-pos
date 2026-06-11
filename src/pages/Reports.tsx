@@ -55,6 +55,9 @@ import { computeSalesWidgetsFromBills } from '@/utils/reportBillMetrics';
 type SortField = 'date' | 'total' | 'customer' | 'subtotal' | 'discount';
 type SortDirection = 'asc' | 'desc' | null;
 
+const isCreditPayment = (method: string | undefined | null) =>
+  (method || '').toLowerCase().trim() === 'credit';
+
 function SessionDeleteDialog({
   sessionId,
   onDelete,
@@ -627,7 +630,7 @@ const ReportsPage: React.FC = () => {
   }, [filteredData.filteredBills, sortField, sortDirection, getCustomerName]);
 
   const creditBillsFiltered = useMemo(
-    () => sortedBills.filter((b) => b.paymentMethod === 'credit'),
+    () => sortedBills.filter((b) => isCreditPayment(b.paymentMethod)),
     [sortedBills]
   );
 
@@ -881,7 +884,7 @@ const ReportsPage: React.FC = () => {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const [creditRealiseMode, setCreditRealiseMode] = useState(false);
-  const [selectedCreditIds, setSelectedCreditIds] = useState<Set<string>>(() => new Set());
+  const [selectedCreditBillIds, setSelectedCreditBillIds] = useState<string[]>([]);
   const [singleRealiseBill, setSingleRealiseBill] = useState<Bill | null>(null);
   const [singleRealiseMode, setSingleRealiseMode] = useState<'cash' | 'upi' | 'split'>('cash');
   const [singleSplitCash, setSingleSplitCash] = useState(0);
@@ -1259,33 +1262,33 @@ const ReportsPage: React.FC = () => {
   }, []);
 
   const toggleCreditRowSelect = useCallback((billId: string, selected: boolean) => {
-    setSelectedCreditIds((prev) => {
-      const next = new Set(prev);
-      if (selected) next.add(billId);
-      else next.delete(billId);
-      return next;
+    setSelectedCreditBillIds((prev) => {
+      if (selected) {
+        return prev.includes(billId) ? prev : [...prev, billId];
+      }
+      return prev.filter((id) => id !== billId);
     });
   }, []);
 
   const selectAllCreditFiltered = useCallback(() => {
-    setSelectedCreditIds(new Set(creditBillsFiltered.map((b) => b.id)));
+    setSelectedCreditBillIds(creditBillsFiltered.map((b) => b.id));
   }, [creditBillsFiltered]);
 
   const selectAllCreditOnPage = useCallback(() => {
-    setSelectedCreditIds((prev) => {
+    setSelectedCreditBillIds((prev) => {
       const next = new Set(prev);
       paginatedData.bills.forEach((b) => {
-        if (b.paymentMethod === 'credit') next.add(b.id);
+        if (isCreditPayment(b.paymentMethod)) next.add(b.id);
       });
-      return next;
+      return Array.from(next);
     });
   }, [paginatedData.bills]);
 
-  const clearCreditSelection = useCallback(() => setSelectedCreditIds(new Set()), []);
+  const clearCreditSelection = useCallback(() => setSelectedCreditBillIds([]), []);
 
   const setCreditRealiseModeOn = useCallback((on: boolean) => {
     setCreditRealiseMode(on);
-    if (!on) setSelectedCreditIds(new Set());
+    if (!on) setSelectedCreditBillIds([]);
   }, []);
 
   const openSingleRealise = useCallback((bill: Bill) => {
@@ -1312,7 +1315,7 @@ const ReportsPage: React.FC = () => {
 
   const runBulkRealise = useCallback(
     async (mode: 'cash' | 'upi' | 'split') => {
-      const ids = Array.from(selectedCreditIds);
+      const ids = [...selectedCreditBillIds];
       if (ids.length === 0) {
         toast({
           title: 'No bills selected',
@@ -1327,7 +1330,7 @@ const ReportsPage: React.FC = () => {
       try {
         for (const id of ids) {
           const bill = sortedBills.find((b) => b.id === id);
-          if (!bill || bill.paymentMethod !== 'credit') continue;
+          if (!bill || !isCreditPayment(bill.paymentMethod)) continue;
           const updated = await realiseCreditPayment(bill, mode, { silent: true });
           if (updated) {
             ok++;
@@ -1342,12 +1345,12 @@ const ReportsPage: React.FC = () => {
               : `Recorded ${ok} bill(s) as ${mode === 'split' ? 'split (cash + UPI)' : mode.toUpperCase()}.`,
           variant: fail > 0 ? 'destructive' : 'default',
         });
-        if (ok > 0) setSelectedCreditIds(new Set());
+        if (ok > 0) setSelectedCreditBillIds([]);
       } finally {
         setIsBulkRealising(false);
       }
     },
-    [selectedCreditIds, sortedBills, realiseCreditPayment, patchReportBill, toast]
+    [selectedCreditBillIds, sortedBills, realiseCreditPayment, patchReportBill, toast]
   );
 
   // Reset pagination when tab or filters change
@@ -1377,10 +1380,10 @@ const ReportsPage: React.FC = () => {
 
   // Bills tab
   const renderBillsTab = () => {
-    const pageCreditBills = paginatedData.bills.filter((b) => b.paymentMethod === 'credit');
+    const pageCreditBills = paginatedData.bills.filter((b) => isCreditPayment(b.paymentMethod));
     const pageCreditIds = pageCreditBills.map((b) => b.id);
     const allPageCreditSelected =
-      pageCreditIds.length > 0 && pageCreditIds.every((id) => selectedCreditIds.has(id));
+      pageCreditIds.length > 0 && pageCreditIds.every((id) => selectedCreditBillIds.includes(id));
     const tableLeadCol = creditRealiseMode ? 1 : 0;
     const tableColSpan = 11 + tableLeadCol;
 
@@ -1420,7 +1423,7 @@ const ReportsPage: React.FC = () => {
             )}
             {canCreditRealise && creditRealiseMode && (
               <span className="text-sm text-gray-400 self-center">
-                {creditBillsFiltered.length} credit bill{creditBillsFiltered.length !== 1 ? 's' : ''} in view · {selectedCreditIds.size} selected
+                {creditBillsFiltered.length} credit bill{creditBillsFiltered.length !== 1 ? 's' : ''} in view · {selectedCreditBillIds.length} selected
               </span>
             )}
           </div>
@@ -1434,22 +1437,22 @@ const ReportsPage: React.FC = () => {
                 <Button type="button" variant="secondary" size="sm" onClick={selectAllCreditOnPage} disabled={pageCreditIds.length === 0}>
                   Add page to selection
                 </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={clearCreditSelection} disabled={selectedCreditIds.size === 0}>
+                <Button type="button" variant="ghost" size="sm" onClick={clearCreditSelection} disabled={selectedCreditBillIds.length === 0}>
                   Clear selection
                 </Button>
               </div>
               <div className="flex flex-wrap gap-2 lg:ml-auto">
-                <Button type="button" size="sm" variant="outline" disabled={selectedCreditIds.size === 0 || isBulkRealising} onClick={() => runBulkRealise('cash')}>
+                <Button type="button" size="sm" variant="outline" disabled={selectedCreditBillIds.length === 0 || isBulkRealising} onClick={() => runBulkRealise('cash')}>
                   Bulk → Cash
                 </Button>
-                <Button type="button" size="sm" variant="outline" disabled={selectedCreditIds.size === 0 || isBulkRealising} onClick={() => runBulkRealise('upi')}>
+                <Button type="button" size="sm" variant="outline" disabled={selectedCreditBillIds.length === 0 || isBulkRealising} onClick={() => runBulkRealise('upi')}>
                   Bulk → UPI
                 </Button>
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  disabled={selectedCreditIds.size === 0 || isBulkRealising}
+                  disabled={selectedCreditBillIds.length === 0 || isBulkRealising}
                   onClick={() => runBulkRealise('split')}
                   title="Each bill split ~50/50 cash and UPI"
                 >
@@ -1542,11 +1545,9 @@ const ReportsPage: React.FC = () => {
                         onCheckedChange={(v) => {
                           if (v === true) selectAllCreditOnPage();
                           else {
-                            setSelectedCreditIds((prev) => {
-                              const next = new Set(prev);
-                              pageCreditIds.forEach((id) => next.delete(id));
-                              return next;
-                            });
+                            setSelectedCreditBillIds((prev) =>
+                              prev.filter((id) => !pageCreditIds.includes(id))
+                            );
                           }
                         }}
                         aria-label="Select all credit bills on this page"
@@ -1623,7 +1624,7 @@ const ReportsPage: React.FC = () => {
                   onEdit={canEditBill ? handleEditBill : undefined}
                   onDelete={canDeleteRecord ? handleDeleteBill : undefined}
                   creditRealiseMode={creditRealiseMode}
-                  creditSelected={selectedCreditIds.has(bill.id)}
+                  creditSelected={selectedCreditBillIds.includes(bill.id)}
                   onCreditSelectToggle={toggleCreditRowSelect}
                   onRealiseSingle={openSingleRealise}
                   tableColSpan={tableColSpan}
