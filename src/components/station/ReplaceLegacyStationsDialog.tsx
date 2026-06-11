@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS } from '@/context/POSContext';
+import { useLocation } from '@/context/LocationContext';
 import { migrateStationData } from '@/services/stationMigrationService';
 import { isLegacyControllerStation } from '@/utils/stationPricing';
 import { stationTypeLabel } from '@/utils/stationTypeUtils';
@@ -31,6 +32,7 @@ const ReplaceLegacyStationsDialog: React.FC<ReplaceLegacyStationsDialogProps> = 
 }) => {
   const { toast } = useToast();
   const { stations, refreshStations } = usePOS();
+  const { activeLocationId } = useLocation();
   const [targetStationId, setTargetStationId] = useState('');
   const [selectedLegacyIds, setSelectedLegacyIds] = useState<string[]>([]);
   const [isMigrating, setIsMigrating] = useState(false);
@@ -89,7 +91,12 @@ const ReplaceLegacyStationsDialog: React.FC<ReplaceLegacyStationsDialogProps> = 
 
     setIsMigrating(true);
     try {
-      const result = await migrateStationData(selectedLegacyIds, targetStationId);
+      const result = await migrateStationData(
+        selectedLegacyIds,
+        targetStationId,
+        undefined,
+        activeLocationId ?? undefined,
+      );
       toast({
         title: 'Migration complete',
         description: `Moved ${result.sessions_updated} session(s) and ${result.bookings_updated} booking(s). Removed ${result.migrated_stations} legacy station(s).`,

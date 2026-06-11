@@ -1,0 +1,44 @@
+---
+description: Production SaaS safety — live clients, zero breakage, premediation required
+alwaysApply: true
+---
+
+# Production safety (Cuephoria POS / Cuetronix)
+
+This is a **live multi-tenant SaaS**. Paying clients use POS, bookings, and HR daily. Regressions cost revenue.
+
+## Before any change
+
+1. State **which live flows** are affected (POS checkout, booking pay, staff login, reports, HR).
+2. State **rollback** (revert commit or env flag to flip).
+3. Keep diffs **minimal** — no unrelated refactors.
+
+## Never touch (prototype modules)
+
+- `src/pages/CustomerLogin.tsx`, `src/utils/customerAuth.ts`, customer session/localStorage
+- `src/server/handlers/cafe/login.ts`, `src/server/cafeApiUtils.ts`, cafe session cookies
+- `cafe_*` tables and RLS migrations
+- Do not tighten Slice 11 ops RLS (`20260501100000_slice11_ops_rls_staged.sql`) without an explicit task
+
+## Non-breaking patterns
+
+- **Additive first**: new `/api/admin/*` handlers before removing client Supabase paths
+- **Env flags**: strict enforcement off until soak (`SECURITY_STRICT_PRICING`, `RBAC_ENFORCE_ROUTES`)
+- **Log-only first**: log mismatches before hard-reject
+- **Dual-path**: keep Supabase client fallback during soak when adding server APIs
+- **One phase per PR**; Preview deploy + smoke test before production
+
+## Secrets
+
+- Never commit `.env` files
+- Never put `SUPABASE_SERVICE_ROLE_KEY` in `VITE_*` variables
+- Document new env vars in `.env.example` and `docs/ENVIRONMENT.md`
+
+## New features checklist
+
+- Destructive UI → `usePermission()` / `can()` from `PermissionsContext`
+- New mutations → prefer server handler + `assertWorkspacePermission`
+- New permission keys → `permissionCatalog.ts` + migration seed + `DEFAULT_ROLE_PERMISSIONS`
+- New migrations → new file only; never edit applied migrations
+
+See `AGENTS.md` and `docs/DEVELOPMENT.md`.

@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { PAYMENT_ORDER_PENDING_TTL_MS } from "../lib/payment-order-ttl.js";
+import { validateBookingPrices } from "../lib/bookingPriceValidation.js";
 
 function getEnv(name: string): string | undefined {
   const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
@@ -103,6 +104,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       typeof locationIdRaw === "string" && locationIdRaw.length > 0 ? locationIdRaw : null;
     if (!location_id) {
       return j(res, { ok: false, error: "Missing location_id (branch)" }, 400);
+    }
+
+    const slotsToBookEarly = Array.isArray(selectedSlots) && selectedSlots.length > 0
+      ? selectedSlots
+      : (selectedSlot ? [selectedSlot] : []);
+
+    const priceCheck = await validateBookingPrices(supabase, {
+      location_id,
+      selectedStations: selectedStations ?? [],
+      selectedSlots: slotsToBookEarly,
+      originalPrice: Number(originalPrice ?? 0),
+      discount: Number(discount ?? 0),
+      finalPrice: Number(finalPrice ?? 0),
+    });
+    if (!priceCheck.ok) {
+      return j(res, { ok: false, error: priceCheck.message ?? "Invalid booking price" }, 400);
     }
 
     // Validate required fields

@@ -21,6 +21,7 @@ import {
   type VercelRequest,
   type VercelResponse,
 } from "../../src/server/lib/node-dispatcher.js";
+import { verifyWebhookSecret } from "../../src/server/lib/webhookAuth.js";
 
 // Razorpay SDK / Supabase client require Node.js runtime. Give the heavier
 // handlers (elevenlabs-booking, check-availability) the same 30s timeout that
@@ -58,6 +59,13 @@ async function loadHandler(action: string): Promise<NodeHandler | null> {
 
 export default async function dispatcher(req: VercelRequest, res: VercelResponse) {
   try {
+    const auth = verifyWebhookSecret(req);
+    if (!auth.ok) {
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      return res.status(401).json({ ok: false, error: auth.error });
+    }
+
     const action = getAction(req);
     const handler = await loadHandler(action);
     if (!handler) {

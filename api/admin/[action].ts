@@ -37,7 +37,10 @@ import staffPortal from "../../src/server/handlers/admin/staff-portal";
 import permissions from "../../src/server/handlers/admin/permissions";
 import roles from "../../src/server/handlers/admin/roles";
 import users from "../../src/server/handlers/admin/users";
-import verifyEmail from "../../src/server/handlers/admin/verify-email";
+import stationMigrate from "../../src/server/handlers/admin/station-migrate";
+import verifyPin from "../../src/server/handlers/admin/verify-pin";
+import records from "../../src/server/handlers/admin/records";
+import analytics from "../../src/server/handlers/admin/analytics";
 
 export const config = { runtime: "edge" };
 
@@ -65,6 +68,10 @@ const routes: Record<string, Handler> = {
   "roles": roles,
   "users": users,
   "verify-email": verifyEmail,
+  "station-migrate": stationMigrate,
+  "verify-pin": verifyPin,
+  "records": records,
+  "analytics": analytics,
 };
 
 export default async function dispatcher(req: Request): Promise<Response> {

@@ -30,7 +30,11 @@
     {
       "source": "/((?!api/|assets/).*)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, max-age=0" }
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, max-age=0" },
+        {
+          "key": "Content-Security-Policy-Report-Only",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://openrouter.ai https://api.razorpay.com https://*.vercel.app; frame-src 'self' https://api.razorpay.com; object-src 'none'; base-uri 'self'; form-action 'self'"
+        }
       ]
     }
   ],

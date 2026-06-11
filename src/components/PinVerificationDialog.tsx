@@ -12,6 +12,8 @@ import {
   ADMIN_PIN_MIN_LENGTH,
   useAdminPin,
 } from "@/hooks/useAdminPin";
+import { useLocation } from "@/context/LocationContext";
+import { verifyAdminPinViaApi } from "@/services/adminRecordsApi";
 
 type PinFormValues = { pin: string };
 
@@ -33,6 +35,7 @@ const PinVerificationDialog: React.FC<PinVerificationDialogProps> = ({
   const { toast } = useToast();
   const [isVerifying, setIsVerifying] = useState(false);
   const { verifyAdminPin, expectedPinLength, loading: pinLoading } = useAdminPin();
+  const { activeLocationId } = useLocation();
 
   const pinSchema = useMemo(
     () =>
@@ -71,7 +74,23 @@ const PinVerificationDialog: React.FC<PinVerificationDialogProps> = ({
 
     setIsVerifying(true);
     try {
-      if (!verifyAdminPin(values.pin)) {
+      let verified = false;
+      if (activeLocationId) {
+        const server = await verifyAdminPinViaApi({
+          pin: values.pin,
+          locationId: activeLocationId,
+        });
+        if (server.ok && !server.skipped) verified = true;
+        if (server.ok && server.skipped) verified = verifyAdminPin(values.pin);
+        if (!server.ok) {
+          const local = verifyAdminPin(values.pin);
+          if (local) verified = true;
+        }
+      } else {
+        verified = verifyAdminPin(values.pin);
+      }
+
+      if (!verified) {
         toast({
           title: "Incorrect PIN",
           description: "The PIN you entered does not match this branch's admin PIN.",

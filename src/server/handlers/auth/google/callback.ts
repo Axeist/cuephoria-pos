@@ -37,6 +37,7 @@ import { supabaseServiceClient } from "../../../supabaseServer";
 export const config = { runtime: "edge" };
 
 const STATE_COOKIE = "cuetronix_oauth_state";
+const OAUTH_TOTP_COOKIE = "cuetronix_oauth_totp";
 const SIGNUP_TICKET_TTL = 10 * 60; // seconds
 
 /**
@@ -193,6 +194,29 @@ export default async function handler(req: Request) {
   }
   if (!memberships || memberships.length === 0) {
     return redirect(`${base}/login?oauth_error=no_workspace`, [clearStateCookie()]);
+  }
+
+  const { data: totpRow } = await supabase
+    .from("admin_user_totp")
+    .select("confirmed_at")
+    .eq("admin_user_id", user.id)
+    .maybeSingle();
+
+  if (totpRow?.confirmed_at) {
+    const pending = await signOauthState({
+      nonce: user.id,
+      intent: "oauth_totp",
+      next: typeof state.next === "string" && state.next.startsWith("/") ? state.next : "/dashboard",
+      iat: Math.floor(Date.now() / 1000),
+    });
+    const totpCookie = cookieSerialize(OAUTH_TOTP_COOKIE, pending, {
+      maxAgeSeconds: 5 * 60,
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "Lax",
+    });
+    return redirect(`${base}/login?oauth_totp=1`, [clearStateCookie(), totpCookie]);
   }
 
   // 5) Existing user with active workspace → issue session cookie.

@@ -1401,7 +1401,7 @@ function multiModelEnsemble(
       confidence: 0,
       trend: 'stable' as const,
       confidenceFactors: {},
-      modelUsed: `Cuephoria Quantum AI`,
+      modelUsed: `Cuetronix AI`,
       allModels: [],
       ensembleAgreement: 0,
       superModelWeights: {}
@@ -1522,7 +1522,7 @@ function multiModelEnsemble(
     confidence: Math.max(weightedAvgConfidence, superModelConfidence),
     trend: superModelTrend,
     confidenceFactors: bestModelFull.confidenceFactors,
-    modelUsed: `Cuephoria Quantum AI`,
+    modelUsed: `Cuetronix AI`,
     allModels: weights.map(m => ({
       name: m.name,
       forecast: m.forecast,
@@ -1677,7 +1677,7 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       predictionConfidence: ensembleResult.confidence,
       trendDirection: ensembleResult.trend,
       confidenceFactors: ensembleResult.confidenceFactors,
-      algorithmUsed: 'Cuephoria Quantum AI',
+      algorithmUsed: 'Cuetronix AI',
       macdTrend: macd.trend,
       daysOfData: daysWithData,
       allModels: ensembleResult.allModels,

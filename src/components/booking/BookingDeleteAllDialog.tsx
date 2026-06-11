@@ -10,6 +10,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
+import { deleteViaAdminApi } from '@/services/adminRecordsApi';
 import { supabase } from '@/integrations/supabase/client';
 
 interface BookingDeleteAllDialogProps {
@@ -36,25 +37,19 @@ export function BookingDeleteAllDialog({
     setLoading(true);
     try {
       const ids = bookings.map((b) => b.id);
+      const deletedIds: string[] = [];
 
-      const { error: viewsError } = await supabase
-        .from('booking_views')
-        .delete()
-        .in('booking_id', ids);
-
-      if (viewsError) {
-        console.warn('Error deleting booking views:', viewsError);
+      for (const id of ids) {
+        const server = await deleteViaAdminApi({ type: 'booking', id });
+        if (server.ok) {
+          deletedIds.push(id);
+          continue;
+        }
+        await supabase.from('booking_views').delete().eq('booking_id', id);
+        const { data: row } = await supabase.from('bookings').delete().eq('id', id).select('id').maybeSingle();
+        if (row?.id) deletedIds.push(row.id);
       }
 
-      const { data: deletedRows, error } = await supabase
-        .from('bookings')
-        .delete()
-        .in('id', ids)
-        .select('id');
-
-      if (error) throw error;
-
-      const deletedIds = (deletedRows ?? []).map((row) => row.id);
       if (deletedIds.length === 0) {
         throw new Error('Bookings could not be deleted (no rows affected).');
       }

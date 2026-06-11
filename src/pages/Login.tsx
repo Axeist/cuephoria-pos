@@ -54,7 +54,7 @@ const FEATURE_PILLS = [
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isLoading: authLoading, login } = useAuth();
+  const { user, isLoading: authLoading, login, completeOAuthTotp } = useAuth();
   const locationState = location.state as LocationState;
   const loginNext =
     typeof locationState?.from === "string" && locationState.from.startsWith("/") ? locationState.from : "";
@@ -63,7 +63,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [totpPhase, setTotpPhase] = useState<{ isAdminLogin: boolean } | null>(null);
+  const [totpPhase, setTotpPhase] = useState<{ isAdminLogin: boolean; oauthGoogle?: boolean } | null>(null);
   const [totpCode, setTotpCode] = useState("");
   const [manualLoginOpen, setManualLoginOpen] = useState(false);
   const [verificationHint, setVerificationHint] = useState<string | null>(null);
@@ -102,6 +102,16 @@ const Login = () => {
     window.history.replaceState({}, "", q ? `${location.pathname}?${q}` : location.pathname);
   }, [location.search, location.pathname]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("oauth_totp") !== "1") return;
+    setTotpPhase({ isAdminLogin: true, oauthGoogle: true });
+    setManualLoginOpen(true);
+    params.delete("oauth_totp");
+    const q = params.toString();
+    window.history.replaceState({}, "", q ? `${location.pathname}?${q}` : location.pathname);
+  }, [location.search, location.pathname]);
+
   const toggleManualLogin = () => {
     if (manualLoginOpen) {
       if (totpPhase) {
@@ -118,7 +128,7 @@ const Login = () => {
     e.preventDefault();
     if (submitting || authLoading) return;
     const trimmed = email.trim();
-    if (!trimmed || !password) {
+    if (!totpPhase?.oauthGoogle && (!trimmed || !password)) {
       appToast.error("Enter your email and password.");
       return;
     }
@@ -132,7 +142,9 @@ const Login = () => {
         const useBackup =
           normalized.length >= 8 && /^[A-Z0-9]+$/i.test(normalized) && !/^\d{6}$/.test(normalized);
         const second = useBackup ? { backupCode: normalized.toUpperCase() } : { totpCode: tc };
-        const r = await login(trimmed, password, totpPhase.isAdminLogin, {}, second);
+        const r = totpPhase.oauthGoogle
+          ? await completeOAuthTotp(second)
+          : await login(trimmed, password, totpPhase.isAdminLogin, {}, second);
         if (r.ok) {
           toastTenantWorkspaceSummary(r);
           setTotpPhase(null);
@@ -435,8 +447,9 @@ const Login = () => {
                   {totpPhase ? (
                     <div className="space-y-2">
                       <p className="text-xs leading-relaxed text-violet-200/90">
-                        This account has 2FA enabled. Enter a code from your authenticator app, or a one-time backup
-                        code.
+                        {totpPhase.oauthGoogle
+                          ? "Google sign-in verified. Enter your authenticator code or a one-time backup code to finish."
+                          : "This account has 2FA enabled. Enter a code from your authenticator app, or a one-time backup code."}
                       </p>
                       <Label htmlFor="login-totp" className="text-gray-300">
                         Authenticator code
@@ -460,7 +473,7 @@ const Login = () => {
                         }}
                         className="text-xs text-violet-300 hover:text-fuchsia-300"
                       >
-                        ← Back to email &amp; password
+                        {totpPhase.oauthGoogle ? "← Cancel Google sign-in" : "← Back to email & password"}
                       </button>
                     </div>
                   ) : (

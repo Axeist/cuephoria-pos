@@ -8,7 +8,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
-import { PermissionsProvider, usePermissionsOptional } from "@/context/PermissionsContext";
+import { PermissionsProvider, usePermissions } from "@/context/PermissionsContext";
+import { SIDEBAR_PERMISSIONS } from "@/constants/permissionCatalog";
 import { LocationProvider } from "@/context/LocationContext";
 import { AppSettingsProvider } from "@/context/AppSettingsContext";
 import { POSHydrationObserver } from "@/context/POSHydrationContext";
@@ -158,20 +159,112 @@ interface ProtectedRouteProps {
   bare?: boolean;
 }
 
+function rbacEnforceMode(): "off" | "log" | "enforce" {
+  const v = import.meta.env.VITE_RBAC_ENFORCE_ROUTES;
+  if (v === "0" || v === "false") return "off";
+  if (v === "1" || v === "true") return "enforce";
+  return "log";
+}
+
+/** Runs inside PermissionsProvider — route + module permission gates. */
+const ProtectedAppShell: React.FC<{ permission?: string; bare?: boolean }> = ({
+  permission,
+  bare = false,
+}) => {
+  const { user } = useAuth();
+  const { can, isLoading, bypass } = usePermissions();
+  const location = useLocation();
+  const isMobile = useIsMobile();
+
+  const firstSegment = location.pathname.split("/").filter(Boolean)[0];
+  const modulePath = firstSegment ? `/${firstSegment}` : "";
+  const modulePerm = modulePath ? SIDEBAR_PERMISSIONS[modulePath] : undefined;
+  const requiredPerm = permission ?? modulePerm;
+
+  if (requiredPerm && !bypass) {
+    if (isLoading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-cuephoria-dark">
+          <div className="animate-spin-slow h-10 w-10 rounded-full border-4 border-cuephoria-lightpurple border-t-transparent" />
+        </div>
+      );
+    }
+    if (!can(requiredPerm)) {
+      const mode = rbacEnforceMode();
+      if (mode === "enforce") {
+        return <Navigate to="/dashboard" replace />;
+      }
+      if (mode === "log") {
+        console.warn("[RBAC] denied path (log-only):", location.pathname, requiredPerm);
+      }
+    }
+  }
+
+  if (user?.mustChangePassword && location.pathname !== "/account/change-password") {
+    return <Navigate to="/account/change-password" replace />;
+  }
+
+  return (
+    <OnboardingGate>
+      <SubscriptionGate>
+        <BrandingProvider>
+          <LocationProvider>
+            <AppSettingsProvider>
+              <POSHydrationObserver>
+                <POSProvider>
+                  <ExpenseProvider>
+                    <BookingNotificationProvider>
+                      {bare ? (
+                        <div className="app-ambient min-h-screen w-full overflow-x-clip">
+                          <PageTransition />
+                        </div>
+                      ) : (
+                        <SidebarProvider
+                          defaultOpen={false}
+                          style={
+                            {
+                              "--sidebar-width-icon": "3.75rem",
+                            } as React.CSSProperties
+                          }
+                        >
+                          <div className="app-ambient flex min-h-screen w-full overflow-x-clip relative">
+                            <AppSidebar />
+                            <SidebarTourOverlay />
+                            <div className="flex-1 flex flex-col overflow-x-clip min-w-0">
+                              <AppHeader />
+                              <main
+                                id="app-main"
+                                tabIndex={-1}
+                                className={`flex-1 pb-16 sm:pb-0 outline-none ${isMobile ? "pt-[64px]" : ""}`}
+                              >
+                                <PageTransition />
+                              </main>
+                            </div>
+                            <PostLoginViewModeDialog />
+                          </div>
+                        </SidebarProvider>
+                      )}
+                    </BookingNotificationProvider>
+                  </ExpenseProvider>
+                </POSProvider>
+              </POSHydrationObserver>
+            </AppSettingsProvider>
+          </LocationProvider>
+        </BrandingProvider>
+      </SubscriptionGate>
+    </OnboardingGate>
+  );
+};
+
 // Enhanced Protected route component that checks for authentication
-const ProtectedRoute = ({ 
+const ProtectedRoute = ({
   requireAdmin = false,
   requireStaffOnly = false,
   permission,
   bare = false,
 }: ProtectedRouteProps) => {
   const { user, isLoading } = useAuth();
-  const perms = usePermissionsOptional();
   const location = useLocation();
-  const isMobile = useIsMobile();
-  // Allow any route to opt in to bare/pop-out mode via a `?focus=1` query
-  // param — this way `window.open('/chat-ai?focus=1')` works without
-  // duplicating route definitions.
   const bareFromQuery = new URLSearchParams(location.search).get("focus") === "1";
   const isBare = bare || bareFromQuery;
 
@@ -195,80 +288,10 @@ const ProtectedRoute = ({
     return <Navigate to="/dashboard" replace />;
   }
 
-  if (permission && perms && !perms.isLoading && !perms.can(permission)) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  if (permission && perms?.isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-cuephoria-dark">
-        <div className="animate-spin-slow h-10 w-10 rounded-full border-4 border-cuephoria-lightpurple border-t-transparent" />
-      </div>
-    );
-  }
-
-  // Force a password rotation before anything else is reachable.
-  if (user.mustChangePassword && location.pathname !== "/account/change-password") {
-    return <Navigate to="/account/change-password" replace />;
-  }
-
   return (
     <OrganizationProvider>
       <PermissionsProvider>
-      <OnboardingGate>
-        <SubscriptionGate>
-          <BrandingProvider>
-            <LocationProvider>
-              <AppSettingsProvider>
-              <POSHydrationObserver>
-              <POSProvider>
-              <ExpenseProvider>
-                <BookingNotificationProvider>
-                  {isBare ? (
-                    /* Bare / pop-out mode: chrome-less viewport. Providers
-                       above still wrap the page so data hooks keep working. */
-                    <div className="app-ambient min-h-screen w-full overflow-x-clip">
-                      <PageTransition />
-                    </div>
-                  ) : (
-                    <SidebarProvider
-                      defaultOpen={false}
-                      style={
-                        {
-                          "--sidebar-width-icon": "3.75rem",
-                        } as React.CSSProperties
-                      }
-                    >
-                      <div className="app-ambient flex min-h-screen w-full overflow-x-clip relative">
-                        <AppSidebar />
-                        <SidebarTourOverlay />
-                        <div className="flex-1 flex flex-col overflow-x-clip min-w-0">
-                          <AppHeader />
-                          <main
-                            id="app-main"
-                            tabIndex={-1}
-                            className={`flex-1 pb-16 sm:pb-0 outline-none ${isMobile ? 'pt-[64px]' : ''}`}
-                          >
-                            <PageTransition />
-                          </main>
-                        </div>
-                        {/* First-time post-sign-in view-mode prompt.
-                            Renders only on mobile devices the first time the
-                            user signs in on this device. Desktop / tablet
-                            users won't see it unless they opt in via settings. */}
-                        <PostLoginViewModeDialog />
-                      </div>
-                    </SidebarProvider>
-                  )}
-                </BookingNotificationProvider>
-              </ExpenseProvider>
-              </POSProvider>
-              </POSHydrationObserver>
-              </AppSettingsProvider>
-            </LocationProvider>
-          </BrandingProvider>
-        </SubscriptionGate>
-      </OnboardingGate>
+        <ProtectedAppShell permission={permission} bare={isBare} />
       </PermissionsProvider>
     </OrganizationProvider>
   );

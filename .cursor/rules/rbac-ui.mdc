@@ -1,0 +1,30 @@
+---
+description: RBAC UI gates — usePermission for actions, not isAdmin
+globs: "{src/pages/**/*.tsx,src/components/**/*.tsx}"
+alwaysApply: false
+---
+
+# RBAC in UI
+
+## Use workspace permissions
+
+```tsx
+import { usePermissions, usePermission } from '@/context/PermissionsContext';
+
+const { can } = usePermissions();
+const canDelete = usePermission('products.delete');
+```
+
+Permission keys: `src/server/constants/permissionCatalog.ts`
+
+## Rules
+
+- Hide destructive/export buttons when `!can('key')` — do not rely on PIN alone
+- PIN supplements RBAC for floor staff; it does not replace missing permissions
+- Do not use `user?.isAdmin` for access control (OK for PIN bypass display only)
+- Gate handlers: early-return if `!can('key')` even when button is hidden
+
+## Route-level
+
+Main modules should match `SIDEBAR_PERMISSIONS` via `ProtectedRoute permission="..."`.
+`PermissionsProvider` must wrap permission checks in `App.tsx`.

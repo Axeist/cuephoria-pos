@@ -115,6 +115,9 @@ interface AuthContextType {
     metadata?: LoginMetadata,
     second?: { totpCode?: string; backupCode?: string },
   ) => Promise<LoginResult>;
+  completeOAuthTotp: (
+    second: { totpCode?: string; backupCode?: string },
+  ) => Promise<LoginResult>;
   logout: () => void;
   isLoading: boolean;
   changePassword: (currentPassword: string, newPassword: string) => Promise<{ ok: true } | { ok: false; error: string }>;
@@ -304,6 +307,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Login error:', error);
       return { ok: false, error: error instanceof Error ? error.message : 'Login failed' };
+    }
+  };
+
+  const completeOAuthTotp = async (
+    second: { totpCode?: string; backupCode?: string } = {},
+  ): Promise<LoginResult> => {
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          oauthTotpComplete: true,
+          ...(second.totpCode ? { totpCode: second.totpCode } : {}),
+          ...(second.backupCode ? { backupCode: second.backupCode } : {}),
+        }),
+      });
+      const json = await res.json();
+
+      if (json?.requireTotp) {
+        return { ok: false, requireTotp: true, error: json?.error };
+      }
+
+      const loginSuccess = !!json?.success;
+      if (loginSuccess && json?.user?.id) {
+        const adminUser = {
+          id: json.user.id,
+          username: json.user.username,
+          isAdmin: !!json.user.isAdmin,
+          isSuperAdmin: !!json.user.isSuperAdmin,
+          mustChangePassword: !!json.user.mustChangePassword,
+          displayName: json.user.displayName ?? null,
+          designation: json.user.designation ?? null,
+          loginEmail: json.user.email ?? null,
+        };
+        try {
+          sessionStorage.setItem("gh_show_login_splash_v1", "1");
+        } catch {
+          /* ignore */
+        }
+        setUser(adminUser);
+        return { ok: true };
+      }
+
+      return { ok: false, error: json?.error };
+    } catch (error) {
+      console.error('OAuth TOTP error:', error);
+      return { ok: false, error: error instanceof Error ? error.message : '2FA failed' };
     }
   };
 
@@ -717,7 +768,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <AuthContext.Provider value={{ 
       user, 
-      login, 
+      login,
+      completeOAuthTotp,
       logout, 
       isLoading, 
       changePassword,

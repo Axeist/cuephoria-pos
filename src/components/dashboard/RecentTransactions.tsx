@@ -51,6 +51,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useLocation as useLocationCtx } from '@/context/LocationContext';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
+import { usePermissions } from '@/context/PermissionsContext';
 
 interface RecentTransactionsProps {
   className?: string;
@@ -105,6 +106,9 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   const { activeLocationId } = useLocationCtx();
   
   const { toast } = useToast();
+  const { can } = usePermissions();
+  const canVoidBill = can('pos.void_bill');
+  const canDeleteRecord = can('reports.delete_record');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [billToDelete, setBillToDelete] = useState<Bill | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -384,12 +388,13 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   }, [isEditDialogOpen, isAddItemDialogOpen]);
   
   const handleDeleteClick = (bill: Bill) => {
+    if (!canDeleteRecord) return;
     setBillToDelete(bill);
     setIsConfirmOpen(true);
   };
   
   const handleConfirmDelete = async () => {
-    if (!billToDelete) return;
+    if (!billToDelete || !canDeleteRecord) return;
     
     setIsDeleting(true);
     try {
@@ -407,6 +412,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   };
   
   const handleEditClick = (bill: Bill) => {
+    if (!canVoidBill) return;
     console.log('RecentTransactions: Edit clicked for bill:', bill.id);
     
     // Set all editing states first
@@ -796,6 +802,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                         <CurrencyDisplay amount={bill.total} />
                       </div>
                       <div className="flex space-x-1">
+                        {canVoidBill && (
                         <Button 
                           variant="ghost" 
                           size="icon" 
@@ -805,6 +812,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
+                        )}
+                        {canDeleteRecord && (
                         <Button 
                           variant="ghost" 
                           size="icon" 
@@ -814,6 +823,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
+                        )}
                       </div>
                     </div>
                   </div>

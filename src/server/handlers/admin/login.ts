@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
-import { ADMIN_SESSION_COOKIE, cookieSerialize, getEnv, j, signAdminSession } from "../../adminApiUtils";
+import { ADMIN_SESSION_COOKIE, cookieSerialize, getEnv, j, parseCookies, signAdminSession } from "../../adminApiUtils";
+import { verifyOauthState } from "../../googleOauth";
+import { clientIpFromRequest, rateLimit } from "../../platformApiUtils";
 import { appBaseUrl, sendEmail } from "../../email";
 import {
   constantTimeStringEquals,
@@ -10,6 +12,8 @@ import { issueEmailToken } from "../../emailTokens";
 import { verifyTotpCode } from "../../totp";
 
 export const config = { runtime: "edge" };
+
+const OAUTH_TOTP_COOKIE = "cuetronix_oauth_totp";
 
 function need(name: string): string {
   const v = getEnv(name);
@@ -48,6 +52,16 @@ export default async function handler(req: Request) {
     return j({ ok: false, error: "Method not allowed" }, 405);
   }
 
+  const ip = clientIpFromRequest(req);
+  const rl = rateLimit(`adminlogin:${ip}`, { windowMs: 60_000, max: 20, blockMs: 5 * 60_000 });
+  if (!rl.allowed) {
+    return j(
+      { ok: false, error: "Too many login attempts. Try again later." },
+      429,
+      { "retry-after": String(rl.retryAfterSec) },
+    );
+  }
+
   try {
     const serviceKey = getSupabaseServiceRoleKey();
     if (!serviceKey) {
@@ -67,6 +81,126 @@ export default async function handler(req: Request) {
     });
 
     const payload = await req.json().catch(() => ({}));
+    const cookies = parseCookies(req.headers.get("cookie"));
+
+    if (payload.oauthTotpComplete) {
+      const pendingToken = cookies[OAUTH_TOTP_COOKIE];
+      const totpCode = typeof payload?.totpCode === "string" ? payload.totpCode.trim() : "";
+      const backupCode = typeof payload?.backupCode === "string" ? payload.backupCode.trim() : "";
+      if (!pendingToken) {
+        return j({ ok: false, error: "Google sign-in session expired. Try again." }, 401);
+      }
+      const pending = await verifyOauthState(pendingToken);
+      if (!pending || pending.intent !== "oauth_totp" || !pending.nonce) {
+        return j({ ok: false, error: "Invalid Google sign-in session." }, 401);
+      }
+      if (!totpCode && !backupCode) {
+        return j({ ok: true, success: false, requireTotp: true }, 200);
+      }
+
+      const userId = pending.nonce;
+      const { data: userRow, error: userErr } = await supabase
+        .from("admin_users")
+        .select("id, username, is_admin, is_super_admin, password_version, display_name, designation, email, must_change_password")
+        .eq("id", userId)
+        .maybeSingle();
+      if (userErr || !userRow) {
+        return j({ ok: false, error: "Account not found." }, 404);
+      }
+
+      const { data: totpRow } = await supabase
+        .from("admin_user_totp")
+        .select("id, secret, last_counter, confirmed_at")
+        .eq("admin_user_id", userRow.id)
+        .maybeSingle();
+      if (!totpRow?.confirmed_at) {
+        return j({ ok: false, error: "2FA is not enabled for this account." }, 400);
+      }
+
+      let totpOk = false;
+      if (totpCode) {
+        const counter = await verifyTotpCode(totpRow.secret, totpCode, {
+          lastCounter: totpRow.last_counter,
+        });
+        if (counter !== null) {
+          totpOk = true;
+          await supabase
+            .from("admin_user_totp")
+            .update({ last_counter: counter, last_used_at: new Date().toISOString() })
+            .eq("id", totpRow.id);
+        }
+      } else if (backupCode) {
+        const { data: codes } = await supabase
+          .from("admin_user_totp_backup_codes")
+          .select("id, code_hash")
+          .eq("admin_user_id", userRow.id)
+          .is("consumed_at", null);
+        for (const c of codes ?? []) {
+          if (await verifyPassword(backupCode.replace(/\s+/g, "").toUpperCase(), c.code_hash).catch(() => false)) {
+            totpOk = true;
+            await supabase
+              .from("admin_user_totp_backup_codes")
+              .update({ consumed_at: new Date().toISOString() })
+              .eq("id", c.id);
+            break;
+          }
+        }
+      }
+      if (!totpOk) {
+        return j(
+          { ok: true, success: false, requireTotp: true, error: "Invalid 2FA code." },
+          200,
+        );
+      }
+
+      const sessionToken = await signAdminSession(
+        {
+          id: userRow.id,
+          username: userRow.username,
+          isAdmin: !!userRow.is_admin,
+          isSuperAdmin: !!userRow.is_super_admin,
+          passwordVersion:
+            typeof userRow.password_version === "number" ? userRow.password_version : 1,
+        },
+        8 * 60 * 60,
+      );
+      const clearOauthTotp = cookieSerialize(OAUTH_TOTP_COOKIE, "", {
+        maxAgeSeconds: 0,
+        path: "/",
+        httpOnly: true,
+        secure: true,
+        sameSite: "Lax",
+      });
+      const setCookie = cookieSerialize(ADMIN_SESSION_COOKIE, sessionToken, {
+        maxAgeSeconds: 8 * 60 * 60,
+        httpOnly: true,
+        secure: true,
+        sameSite: "Lax",
+        path: "/",
+      });
+
+      const headers = new Headers({ "content-type": "application/json; charset=utf-8" });
+      headers.append("set-cookie", clearOauthTotp);
+      headers.append("set-cookie", setCookie);
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          success: true,
+          user: {
+            id: userRow.id,
+            username: userRow.username,
+            isAdmin: !!userRow.is_admin,
+            isSuperAdmin: !!userRow.is_super_admin,
+            mustChangePassword: !!userRow.must_change_password,
+            displayName: userRow.display_name ?? null,
+            designation: userRow.designation ?? null,
+            email: userRow.email ?? null,
+          },
+        }),
+        { status: 200, headers },
+      );
+    }
+
     const rawIdentifier = String(payload?.email ?? payload?.username ?? "").trim();
     const password = String(payload?.password || "");
     const isAdminLogin = !!payload?.isAdminLogin;

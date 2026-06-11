@@ -10,7 +10,7 @@ const SupportBanner: React.FC = () => (
         <span>
           Stuck during billing or setup? Search this page first, then ask{' '}
           <Link to="/chat-ai" className="font-semibold text-white underline-offset-2 hover:underline">
-            Cuephoria AI
+            Cuetronix AI
           </Link>
           . Still blocked? Contact your workspace admin with a screenshot and the last button you
           clicked.

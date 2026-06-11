@@ -275,7 +275,7 @@ function RazorpayPoweredBy({ className = "" }: { className?: string }) {
 // Status metadata — single source of truth for badges + copy
 // ---------------------------------------------------------------------------
 
-const PLATFORM_NAME = "Cuephoria POS";
+const PLATFORM_NAME = "Cuetronix";
 const RAZORPAY_THEME = "#3399cc";
 
 const STATUS_META: Record<

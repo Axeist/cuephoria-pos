@@ -4,6 +4,7 @@ import { supabase, handleSupabaseError, convertFromSupabaseProduct, convertToSup
 import { useToast } from '@/hooks/use-toast';
 import { generateId } from '@/utils/pos.utils';
 import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
+import { deleteViaAdminApi } from '@/services/adminRecordsApi';
 import { useLocation } from '@/context/LocationContext';
 
 export const useProducts = () => {
@@ -235,31 +236,39 @@ export const useProducts = () => {
       
       // ✅ Invalidate cache
       invalidateCache(productsCacheKey);
-      
-      supabase
-        .from('products')
-        .delete()
-        .eq('id', id)
-        .eq('location_id', activeLocationId!)
-        .then(({ error }) => {
-          if (error) {
-            console.error('Error deleting product from DB:', error);
-            setError(`Failed to delete product from database: ${error.message}`);
-            toast({
-              title: 'Database Sync Error',
-              description: `Product deleted locally but failed to sync with database: ${error.message}`,
-              variant: 'destructive'
-            });
-          } else {
-            console.log('Product deleted from DB:', id);
-            // Update cache after successful DB delete
-            setProducts(prev => {
-              const updated = prev.filter(p => p.id !== id);
-              saveToCache(productsCacheKey, updated);
-              return updated;
-            });
-          }
+
+      void (async () => {
+        const server = await deleteViaAdminApi({
+          type: 'product',
+          id,
+          locationId: activeLocationId!,
         });
+        if (server.ok) {
+          console.log('Product deleted via server API:', id);
+          return;
+        }
+        console.warn('Server delete fallback:', server.error);
+        const { error } = await supabase
+          .from('products')
+          .delete()
+          .eq('id', id)
+          .eq('location_id', activeLocationId!);
+        if (error) {
+          console.error('Error deleting product from DB:', error);
+          setError(`Failed to delete product from database: ${error.message}`);
+          toast({
+            title: 'Database Sync Error',
+            description: `Product deleted locally but failed to sync with database: ${error.message}`,
+            variant: 'destructive'
+          });
+        } else {
+          setProducts(prev => {
+            const updated = prev.filter(p => p.id !== id);
+            saveToCache(productsCacheKey, updated);
+            return updated;
+          });
+        }
+      })();
       
       toast({
         title: 'Success',

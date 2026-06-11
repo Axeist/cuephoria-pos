@@ -1,5 +1,5 @@
 /**
- * Cuephoria AI — tenant-themed, immersive, multi-model assistant.
+ * Cuetronix AI — tenant-themed, immersive, multi-model assistant.
  *
  * High-level architecture:
  * - Data: `fetchBusinessSnapshot()` (Supabase-backed, compact)
@@ -151,7 +151,7 @@ function buildSystemPrompt(
   userName: string | null,
   tenantName: string | null,
 ): string {
-  const headline = `You are Cuephoria AI — an operational assistant for ${
+  const headline = `You are Cuetronix AI — an operational assistant for ${
     tenantName ?? "a gaming-cafe / arcade"
   }. You answer questions about the business using the DATA block below.`;
 
@@ -384,16 +384,7 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
       setMessages(nextHistory);
       setIsStreaming(true);
 
-      const system = buildSystemPrompt(
-        snapshot,
-        settings.customInstructions,
-        user?.username ?? null,
-        tenantName,
-      );
-      const turns: ChatTurn[] = [
-        { role: "system", content: system },
-        ...buildHistoryTurns([...messages, userMsg]),
-      ];
+      const turns: ChatTurn[] = buildHistoryTurns([...messages, userMsg]);
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -427,6 +418,12 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
       try {
         const result = await streamChatCompletion({
           messages: turns,
+          systemContext: {
+            snapshotText: snapshot.text,
+            customInstructions: settings.customInstructions,
+            userName: user?.username ?? null,
+            tenantName,
+          },
           model: settings.modelId,
           apiKeyOverride: settings.apiKey,
           maxTokens: settings.maxTokens,
@@ -625,7 +622,7 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="truncate text-[15px] font-bold leading-none">
-                  {tenantName ? `${tenantName} AI` : "Cuephoria AI"}
+                  {tenantName ? `${tenantName} AI` : "Cuetronix AI"}
                 </h1>
                 <Badge
                   variant="outline"
@@ -874,7 +871,7 @@ const Welcome: React.FC<WelcomeProps> = ({ userName, disabled, onPick }) => {
                   "linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)",
               }}
             >
-              Welcome to Cuephoria AI
+              Welcome to Cuetronix AI
             </span>
           )}
         </h2>

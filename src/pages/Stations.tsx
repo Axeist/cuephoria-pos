@@ -29,6 +29,7 @@ import { type Station } from '@/types/pos.types';
 import { prefetchPOS } from '@/utils/viewTransition';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/context/PermissionsContext';
 import { generateId } from '@/utils/pos.utils';
 import type { MultiSessionStartItem } from '@/components/station/MultiStartSessionDialog';
 import {
@@ -64,6 +65,9 @@ const typeSortWeight = (type: string) => {
 const Stations = () => {
   const { stations, startSession, refreshStations, reorderStations } = usePOS();
   const { toast } = useToast();
+  const { can } = usePermissions();
+  const canConfigureStations = can('stations.configure');
+  const canMultiStart = can('stations.multi_start');
   const { activeLocation, activeLocationId } = useLocation();
   const { stationTypes } = useStationTypes();
   const [openAddDialog, setOpenAddDialog] = useState(false);
@@ -325,7 +329,7 @@ const Stations = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
-            {selectionMode && selectedStations.length > 0 && (
+            {canMultiStart && selectionMode && selectedStations.length > 0 && (
               <>
                 <span className="hidden text-xs text-muted-foreground sm:inline">
                   {selectedStations.length} selected
@@ -348,6 +352,7 @@ const Stations = () => {
                 </Button>
               </>
             )}
+            {canMultiStart && (
             <Button
               size="sm"
               variant={selectionMode ? 'default' : 'outline'}
@@ -360,14 +365,20 @@ const Stations = () => {
               <Users className="mr-1.5 h-3.5 w-3.5" />
               {selectionMode ? 'Cancel select' : 'Group start'}
             </Button>
+            )}
+            {canConfigureStations && (
             <Button size="sm" variant="outline" onClick={() => setOpenReplaceDialog(true)}>
               <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
               Legacy
             </Button>
+            )}
+            {canConfigureStations && (
             <Button size="sm" variant="outline" onClick={() => setOpenTypesDialog(true)}>
               <Layers className="mr-1.5 h-3.5 w-3.5" />
               Types
             </Button>
+            )}
+            {canConfigureStations && (
             <Button
               size="sm"
               className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
@@ -378,6 +389,7 @@ const Stations = () => {
               <Plus className="mr-1.5 h-3.5 w-3.5" />
               Add Station
             </Button>
+            )}
           </div>
         </div>
 

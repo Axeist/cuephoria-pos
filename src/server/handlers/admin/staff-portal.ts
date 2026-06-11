@@ -4,7 +4,7 @@ import {
   parseCookies,
   verifyAdminSession,
 } from "../../adminApiUtils";
-import { portalPinsMatch } from "../../staffPortalPin";
+import { verifyPortalPin } from "../../lib/pinHash";
 import { supabaseServiceClient } from "../../supabaseServer";
 import { resolveOrgContext } from "../../orgContext";
 import { assertEntitlement } from "../../lib/entitlements.js";
@@ -119,7 +119,7 @@ export default async function handler(req: Request) {
         return j({ ok: false, error: "Staff profile is not in this workspace." }, 403);
       }
 
-      if (!portalPinsMatch(profile.portal_pin as string, pin)) {
+      if (!(await verifyPortalPin(profile.portal_pin as string, pin))) {
         return j({ ok: false, error: "Incorrect PIN. Check with your manager if you forgot it." }, 403);
       }
 

@@ -23,6 +23,8 @@ import {
   reassignHoldSessionToProviderOrderId,
   resolveLocationIdForCheckout,
 } from "../lib/checkout-slot-hold.js";
+import { validateBookingPrices } from "../lib/bookingPriceValidation.js";
+import { isStrictPricingEnabled } from "../lib/securityFlags.js";
 
 // Increase timeout to 30 seconds to handle Razorpay API calls
 export const config = {
@@ -242,6 +244,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const overlap = await assertNoConfirmedBookingOverlap(supabase, normalized, locationId);
         if (!overlap.ok) {
           return j(res, { ok: false, conflict: true, error: overlap.message }, 409);
+        }
+        const priceCheck = await validateBookingPrices(supabase, {
+          location_id: locationId,
+          selectedStations: normalized.selectedStations,
+          selectedSlots: normalized.slots.map((s) => ({
+            start_time: s.start_time,
+            end_time: s.end_time,
+          })),
+          originalPrice: normalized.pricing.original,
+          discount: normalized.pricing.discount,
+          finalPrice: normalized.pricing.final,
+        });
+        if (!priceCheck.ok) {
+          return j(res, { ok: false, error: priceCheck.message ?? "Invalid booking price" }, 400);
+        }
+        const amountNum = Number(amount);
+        if (
+          Math.abs(amountNum - normalized.pricing.final) > 2 &&
+          isStrictPricingEnabled()
+        ) {
+          return j(
+            res,
+            { ok: false, error: "Payment amount does not match booking total." },
+            400,
+          );
+        }
+        if (Math.abs(amountNum - normalized.pricing.final) > 2) {
+          console.warn("[security/pricing] razorpay amount mismatch", {
+            amount: amountNum,
+            expected: normalized.pricing.final,
+          });
         }
         holdSessionId = newCheckoutHoldSessionId();
         const expiresAtIso = new Date(Date.now() + PAYMENT_ORDER_PENDING_TTL_MS).toISOString();

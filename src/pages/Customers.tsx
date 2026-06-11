@@ -13,6 +13,7 @@ import { usePOS, Customer } from '@/context/POSContext';
 import CustomerCard from '@/components/CustomerCard';
 import CustomerInsightWidgets from '@/components/customers/CustomerInsightWidgets';
 import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/context/PermissionsContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useLocation as useLocationCtx } from '@/context/LocationContext';
 
@@ -80,6 +81,12 @@ const Customers = () => {
   });
   
   const { toast } = useToast();
+  const { can } = usePermissions();
+  const canCreateCustomer = can('customers.create');
+  const canEditCustomer = can('customers.edit');
+  const canDeleteCustomer = can('customers.delete');
+  const canExportCustomers = can('customers.export');
+  const canEditMembership = can('customers.membership_edit');
 
   let posContext;
   try {
@@ -253,11 +260,13 @@ const Customers = () => {
   };
 
   const handleOpenDialog = () => {
+    if (!canCreateCustomer) return;
     resetForm();
     setIsDialogOpen(true);
   };
 
   const handleEditCustomer = (customer: Customer) => {
+    if (!canEditCustomer) return;
     setIsEditMode(true);
     setSelectedCustomer(customer);
 
@@ -274,6 +283,7 @@ const Customers = () => {
   };
 
   const handleDeleteCustomer = (id: string) => {
+    if (!canDeleteCustomer) return;
     deleteCustomer(id);
     toast({
       title: 'Customer Deleted',
@@ -710,9 +720,11 @@ const Customers = () => {
             </Button>
           )}
           
+          {canExportCustomers && (
           <Button variant="outline" onClick={exportCustomers}>
             <Download className="h-4 w-4 mr-2" /> Export
           </Button>
+          )}
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -741,9 +753,11 @@ const Customers = () => {
             </DropdownMenuContent>
           </DropdownMenu>
           
+          {canCreateCustomer && (
           <Button onClick={handleOpenDialog}>
             <Plus className="h-4 w-4 mr-2" /> Add Customer
           </Button>
+          )}
         </div>
       </div>
 
@@ -807,7 +821,8 @@ const Customers = () => {
                 <Switch 
                   id="member" 
                   checked={formState.isMember} 
-                  onCheckedChange={handleSwitchChange} 
+                  onCheckedChange={handleSwitchChange}
+                  disabled={!canEditMembership}
                 />
                 <Label htmlFor="member">Is Member</Label>
               </div>
@@ -1104,8 +1119,8 @@ const Customers = () => {
               <CustomerCard
                 key={customer.id}
                 customer={customer}
-                onEdit={handleEditCustomer}
-                onDelete={handleDeleteCustomer}
+                onEdit={canEditCustomer ? handleEditCustomer : undefined}
+                onDelete={canDeleteCustomer ? handleDeleteCustomer : undefined}
               />
             ))}
           </div>
@@ -1143,9 +1158,11 @@ const Customers = () => {
               Clear Search & Filters
             </Button>
           )}
+          {canCreateCustomer && (
           <Button className="mt-4" onClick={handleOpenDialog}>
             <Plus className="h-4 w-4 mr-2" /> Add Customer
           </Button>
+          )}
         </div>
       )}
     </div>

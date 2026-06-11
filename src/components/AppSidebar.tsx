@@ -165,7 +165,7 @@ const AppSidebar: React.FC = () => {
     : [];
 
   const tailItems = filterByPermission([
-    ...(canPlan('premium_modules_enabled') ? [{ icon: Bot, label: 'Cuephoria AI', path: '/chat-ai' }] : []),
+    ...(canPlan('premium_modules_enabled') ? [{ icon: Bot, label: 'Cuetronix AI', path: '/chat-ai' }] : []),
     ...(can('settings.subscription.view')
       ? [{ icon: CreditCard, label: 'Subscription', path: '/subscription' }]
       : []),

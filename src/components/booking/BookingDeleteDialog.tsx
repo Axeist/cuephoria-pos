@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
+import { deleteViaAdminApi } from '@/services/adminRecordsApi';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Booking {
@@ -25,7 +26,15 @@ export function BookingDeleteDialog({ open, onOpenChange, booking, onBookingDele
 
     setLoading(true);
     try {
-      // First, delete any related booking_views records
+      const server = await deleteViaAdminApi({ type: 'booking', id: booking.id });
+      if (server.ok) {
+        toast.success('Booking deleted successfully');
+        onBookingDeleted(booking.id);
+        onOpenChange(false);
+        return;
+      }
+
+      // Fallback: direct Supabase (legacy path until RPC revoke soak completes)
       const { error: viewsError } = await supabase
         .from('booking_views')
         .delete()

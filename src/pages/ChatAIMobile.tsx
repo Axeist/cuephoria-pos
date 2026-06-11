@@ -1,5 +1,5 @@
 /**
- * Cuephoria AI — mobile-first chat surface.
+ * Cuetronix AI — mobile-first chat surface.
  *
  * Rendered automatically when:
  *   - the viewport is < 768px, OR
@@ -116,7 +116,7 @@ function buildSystemPrompt(
   userName: string | null,
   tenantName: string | null,
 ): string {
-  const headline = `You are Cuephoria AI — an operational assistant for ${
+  const headline = `You are Cuetronix AI — an operational assistant for ${
     tenantName ?? "a gaming-cafe / arcade"
   }. You answer questions about the business using the DATA block below.`;
 
@@ -306,16 +306,7 @@ const ChatAIMobile: React.FC = () => {
       setInput("");
       setIsStreaming(true);
 
-      const system = buildSystemPrompt(
-        snapshot,
-        settings.customInstructions,
-        user?.username ?? null,
-        tenantName,
-      );
-      const turns: ChatTurn[] = [
-        { role: "system", content: system },
-        ...buildHistoryTurns([...messages, userMsg]),
-      ];
+      const turns: ChatTurn[] = buildHistoryTurns([...messages, userMsg]);
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -344,6 +335,12 @@ const ChatAIMobile: React.FC = () => {
       try {
         const result = await streamChatCompletion({
           messages: turns,
+          systemContext: {
+            snapshotText: snapshot.text,
+            customInstructions: settings.customInstructions,
+            userName: user?.username ?? null,
+            tenantName,
+          },
           model: settings.modelId,
           apiKeyOverride: settings.apiKey,
           maxTokens: settings.maxTokens,
@@ -515,7 +512,7 @@ const ChatAIMobile: React.FC = () => {
           <div className="min-w-0 text-center">
             <div className="flex items-center justify-center gap-1.5">
               <h1 className="truncate text-[13.5px] font-bold leading-none">
-                {tenantName ? `${tenantName} AI` : "Cuephoria AI"}
+                {tenantName ? `${tenantName} AI` : "Cuetronix AI"}
               </h1>
               <Badge
                 variant="outline"

@@ -2,7 +2,7 @@ import { CapacitorConfig } from '@capacitor/core';
 
 const config: CapacitorConfig = {
   appId: 'com.cuephoria.pos',
-  appName: 'Cuephoria',
+  appName: 'Cuetronix',
   webDir: 'dist',
   server: {
     androidScheme: 'https',

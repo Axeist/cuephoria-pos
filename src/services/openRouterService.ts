@@ -1,5 +1,5 @@
 /**
- * OpenRouter client for the Cuephoria AI assistant.
+ * OpenRouter client for the Cuetronix AI assistant.
  *
  * - Talks directly to https://openrouter.ai/api/v1/chat/completions
  * - Supports server-sent-event (SSE) streaming so the UI can render tokens
@@ -15,6 +15,8 @@
  *   conversation history only has short user/assistant turns.
  * - Smaller default `max_tokens` (800) prevents runaway replies.
  */
+
+import { buildAiSystemPrompt } from "@/utils/aiSystemPrompt";
 
 export type ChatRole = "system" | "user" | "assistant";
 
@@ -159,8 +161,18 @@ function getProxyUrl(): string {
 }
 
 export interface StreamChatOptions {
-  /** Full conversation turns (system + user/assistant). */
+  /** Conversation turns (user/assistant only when using the server proxy). */
   messages: ChatTurn[];
+  /**
+   * Business snapshot + operator extras for the server-built system prompt.
+   * Required when routing through `/api/admin/ai-chat`.
+   */
+  systemContext?: {
+    snapshotText?: string;
+    customInstructions?: string;
+    userName?: string | null;
+    tenantName?: string | null;
+  };
   /** Model id from `AI_MODELS` (or any OpenRouter model id). */
   model?: string;
   /** User-supplied key override. Falls back to VITE_OPENROUTER_API_KEY. */
@@ -213,6 +225,15 @@ export async function streamChatCompletion(
     ? "https://openrouter.ai/api/v1/chat/completions"
     : getProxyUrl();
 
+  const historyOnly = opts.messages.filter((m) => m.role !== "system");
+  const clientSystem = opts.messages.find((m) => m.role === "system");
+  const directMessages =
+    clientSystem != null
+      ? opts.messages
+      : opts.systemContext
+        ? [{ role: "system" as const, content: buildAiSystemPrompt(opts.systemContext) }, ...historyOnly]
+        : opts.messages;
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -220,7 +241,7 @@ export async function streamChatCompletion(
     headers.Authorization = `Bearer ${directKey}`;
     headers["HTTP-Referer"] =
       typeof window !== "undefined" ? window.location.origin : "https://cuephoria.app";
-    headers["X-Title"] = "Cuephoria AI";
+    headers["X-Title"] = "Cuetronix AI";
   }
 
   // The proxy expects a slightly flatter shape (camelCase `maxTokens`) so it
@@ -229,7 +250,7 @@ export async function streamChatCompletion(
   const body = useDirect
     ? {
         model,
-        messages: opts.messages,
+        messages: directMessages,
         stream: true,
         // OpenAI-compatible hint — makes OpenRouter emit a final chunk with
         // `usage` populated so we can cost-track per request.
@@ -239,7 +260,8 @@ export async function streamChatCompletion(
       }
     : {
         model,
-        messages: opts.messages,
+        messages: historyOnly,
+        systemContext: opts.systemContext,
         temperature: opts.temperature ?? 0.3,
         maxTokens: opts.maxTokens ?? 800,
       };

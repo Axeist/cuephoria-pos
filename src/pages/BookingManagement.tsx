@@ -27,6 +27,7 @@ import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useBookingNotifications } from '@/context/BookingNotificationContext';
+import { usePermissions } from '@/context/PermissionsContext';
 import { isBookingStaffNotification } from '@/types/staffNotification.types';
 import {
   Calendar, Search, Filter, Download, Phone, Mail, Plus, Clock, MapPin, ChevronDown, ChevronRight, Users,
@@ -271,6 +272,13 @@ export default function BookingManagement() {
 
   // Branch / location context
   const { activeLocationId, activeLocation, locations } = useLocation();
+  const { can } = usePermissions();
+  const permCreateBooking = can('bookings.create');
+  const permEditBooking = can('bookings.edit');
+  const permCancelBooking = can('bookings.cancel');
+  const permReconciliation = can('bookings.reconciliation');
+  const permManageCoupons = can('bookings.coupons_manage');
+  const permConfigureSlots = can('bookings.slots_configure');
   const [branchView, setBranchView] = useState<'current' | 'all'>('current');
 
   type BranchAccess = { publicBooking: boolean; onlinePayment: boolean };
@@ -325,6 +333,7 @@ export default function BookingManagement() {
     key: typeof BOOKING_ACCESS_KEYS.publicBooking | typeof BOOKING_ACCESS_KEYS.onlinePayment,
     value: boolean
   ) => {
+    if (!permConfigureSlots) return;
     const slot = `${locationId}:${key}`;
     setSavingAccessKey(slot);
     try {
@@ -1582,17 +1591,20 @@ export default function BookingManagement() {
     };
   }, [bookings, allBookings, filters]);
 
-  const handleEditBooking = (booking: Booking) => { 
-    setSelectedBooking(booking); 
-    setEditDialogOpen(true); 
+  const handleEditBooking = (booking: Booking) => {
+    if (!permEditBooking) return;
+    setSelectedBooking(booking);
+    setEditDialogOpen(true);
   };
 
-  const handleDeleteBooking = (booking: Booking) => { 
-    setSelectedBooking(booking); 
-    setDeleteDialogOpen(true); 
+  const handleDeleteBooking = (booking: Booking) => {
+    if (!permCancelBooking) return;
+    setSelectedBooking(booking);
+    setDeleteDialogOpen(true);
   };
 
   const handleDeleteAllBookings = (bookingsForGroup: Booking[]) => {
+    if (!permCancelBooking) return;
     setBookingsToDeleteAll(bookingsForGroup);
     setDeleteAllDialogOpen(true);
   };
@@ -1997,6 +2009,7 @@ export default function BookingManagement() {
               {branchView === 'all' ? 'All Branches' : 'This Branch'}
             </Button>
           )}
+          {permCreateBooking && (
           <Button
             className="flex items-center gap-2"
             onClick={() => {
@@ -2018,6 +2031,7 @@ export default function BookingManagement() {
             <Plus className="h-4 w-4" />
             New Booking
           </Button>
+          )}
         </div>
       </div>
 
@@ -2086,6 +2100,7 @@ export default function BookingManagement() {
                           id={`pub-${loc.id}`}
                           checked={acc.publicBooking}
                           disabled={
+                            !permConfigureSlots ||
                             savingAccessKey === `${loc.id}:${BOOKING_ACCESS_KEYS.publicBooking}`
                           }
                           onCheckedChange={(c) =>
@@ -2113,6 +2128,7 @@ export default function BookingManagement() {
                           id={`pay-${loc.id}`}
                           checked={acc.onlinePayment}
                           disabled={
+                            !permConfigureSlots ||
                             savingAccessKey === `${loc.id}:${BOOKING_ACCESS_KEYS.onlinePayment}`
                           }
                           onCheckedChange={(c) =>
@@ -2138,8 +2154,8 @@ export default function BookingManagement() {
           getDateLabel={getDateLabel}
           getStationTypeLabel={getStationTypeLabel}
           calculateRevenue={calculateRevenue}
-          onEdit={handleEditBooking}
-          onDelete={handleDeleteBooking}
+          onEdit={permEditBooking ? handleEditBooking : undefined}
+          onDelete={permCancelBooking ? handleDeleteBooking : undefined}
         />
       )}
 
@@ -2379,9 +2395,13 @@ export default function BookingManagement() {
               <TabsTrigger value="overview" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Overview</TabsTrigger>
               <TabsTrigger value="revenue" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Revenue</TabsTrigger>
               <TabsTrigger value="customers" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Customers</TabsTrigger>
-              <TabsTrigger value="coupons" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Coupons & Marketing</TabsTrigger>
               <TabsTrigger value="stations" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Stations</TabsTrigger>
+              {permManageCoupons && (
+              <TabsTrigger value="coupons" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Coupons & Marketing</TabsTrigger>
+              )}
+              {permReconciliation && (
               <TabsTrigger value="reconciliation" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Reconciliation</TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
@@ -3651,7 +3671,7 @@ export default function BookingManagement() {
                                         })()}
                                       </div>
                                     </CollapsibleTrigger>
-                                    {groupByCustomer && bookingsForGroup.length > 0 && (
+                                    {groupByCustomer && bookingsForGroup.length > 0 && permCancelBooking && (
                                       <Button
                                         type="button"
                                         size="sm"
@@ -3805,12 +3825,16 @@ export default function BookingManagement() {
                                                     </div>
                                                     
                                                     <div className="flex gap-1 ml-4">
+                                                      {permEditBooking && (
                                                       <Button size="sm" variant="outline" onClick={() => handleEditBooking(booking)}>
                                                         <Edit2 className="h-3 w-3" />
                                                       </Button>
+                                                      )}
+                                                      {permCancelBooking && (
                                                       <Button size="sm" variant="outline" onClick={() => handleDeleteBooking(booking)}>
                                                         <Trash2 className="h-3 w-3" />
                                                       </Button>
+                                                      )}
                                                     </div>
                                                   </div>
                                                 </div>

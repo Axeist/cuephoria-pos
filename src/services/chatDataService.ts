@@ -1,5 +1,5 @@
 /**
- * Compact business-data snapshot for the Cuephoria AI chat.
+ * Compact business-data snapshot for the Cuetronix AI chat.
  *
  * Design goals:
  * - Pull broad signal (sales, bookings, customers, products, stations,

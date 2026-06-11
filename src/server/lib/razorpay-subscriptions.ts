@@ -421,7 +421,7 @@ export async function ensureRazorpayPlanAmount(args: {
   const cycleLabel = args.cycle === "year" ? "Yearly" : "Monthly";
   const created = await createRazorpayPlan({
     name: `${args.planName} (${cycleLabel})`,
-    description: `Cuephoria POS ${args.planCode} ${cycleLabel}`,
+    description: `Cuetronix ${args.planCode} ${cycleLabel}`,
     amountInr: args.expectedAmountInr,
     cycle: args.cycle,
     notes: {

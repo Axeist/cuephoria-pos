@@ -7,7 +7,19 @@ import {
   subDays,
 } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
+import { callAnalyticsRpc } from '@/services/adminRecordsApi';
 import { useLocation } from '@/context/LocationContext';
+
+async function analyticsRpc<T>(
+  name: string,
+  params: Record<string, unknown>,
+): Promise<{ data: T | null; error: { message: string } | null }> {
+  const viaApi = await callAnalyticsRpc<T>(name, params);
+  if (viaApi.ok) return { data: viaApi.data, error: null };
+  const { data, error } = await supabase.rpc(name, params);
+  if (error) return { data: null, error: { message: error.message } };
+  return { data: data as T, error: null };
+}
 
 export type BusinessSummaryStats = {
   grossIncome: number;
@@ -355,7 +367,7 @@ export function useLocationAnalytics(options?: Options) {
       globalFetchKey = key;
       globalFetchPromise = (async () => {
         const rpcs: Promise<{ data: unknown; error: unknown }>[] = [
-          supabase.rpc('get_business_summary_stats', {
+          analyticsRpc('get_business_summary_stats', {
             p_location_id: activeLocationId,
             p_start: pStart,
             p_end: pEnd,
@@ -366,46 +378,46 @@ export function useLocationAnalytics(options?: Options) {
             p_month_start: dayBounds.monthStart.toISOString(),
             p_month_end: dayBounds.monthEnd.toISOString(),
           }),
-          supabase.rpc('get_daily_revenue_series', {
+          analyticsRpc('get_daily_revenue_series', {
             p_location_id: activeLocationId,
             p_days: dailyDays,
             p_start: pStart,
             p_end: pEnd,
           }),
-          supabase.rpc('get_payment_breakdown_stats', {
+          analyticsRpc('get_payment_breakdown_stats', {
             p_location_id: activeLocationId,
             p_start: pStart,
             p_end: pEnd,
           }),
-          supabase.rpc('get_top_customers', {
+          analyticsRpc('get_top_customers', {
             p_location_id: activeLocationId,
             p_start: pStart,
             p_end: pEnd,
             p_limit: 12,
             p_sort_by: 'spend',
           }),
-          supabase.rpc('get_top_customers', {
+          analyticsRpc('get_top_customers', {
             p_location_id: activeLocationId,
             p_start: pStart,
             p_end: pEnd,
             p_limit: 5,
             p_sort_by: 'count',
           }),
-          supabase.rpc('get_gaming_revenue_breakdown', {
+          analyticsRpc('get_gaming_revenue_breakdown', {
             p_location_id: activeLocationId,
             p_start: pStart,
             p_end: pEnd,
           }),
-          supabase.rpc('get_canteen_product_sales', {
+          analyticsRpc('get_canteen_product_sales', {
             p_location_id: activeLocationId,
             p_start: pStart,
             p_end: pEnd,
           }),
-          supabase.rpc('get_hourly_revenue_distribution', {
+          analyticsRpc('get_hourly_revenue_distribution', {
             p_location_id: activeLocationId,
             p_days: dailyDays,
           }),
-          supabase.rpc('get_product_performance', {
+          analyticsRpc('get_product_performance', {
             p_location_id: activeLocationId,
             p_start: pStart,
             p_end: pEnd,
@@ -415,7 +427,7 @@ export function useLocationAnalytics(options?: Options) {
 
         if (includeBillMetrics) {
           rpcs.push(
-            supabase.rpc('get_bill_aggregate_metrics', {
+            analyticsRpc('get_bill_aggregate_metrics', {
               p_location_id: activeLocationId,
               p_start: pStart,
               p_end: pEnd,

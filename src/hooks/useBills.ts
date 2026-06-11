@@ -3,6 +3,7 @@ import { Bill, CartItem, Customer, Product } from '@/types/pos.types';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
+import { deleteViaAdminApi } from '@/services/adminRecordsApi';
 import { invalidateLocationAnalyticsCache } from '@/hooks/useLocationAnalytics';
 import { useLocation } from '@/context/LocationContext';
 import { usePOSHydration } from '@/context/POSHydrationContext';
@@ -800,6 +801,23 @@ export const useBills = (
   const deleteBill = async (billId: string, customerId: string): Promise<boolean> => {
     try {
       console.log('Starting bill deletion for bill ID:', billId);
+
+      const server = await deleteViaAdminApi({ type: 'bill', id: billId });
+      if (server.ok) {
+        setBills(prevBills => {
+          const updated = prevBills.filter(bill => bill.id !== billId);
+          saveToCache(billsCacheKey, updated.slice(0, MAX_CACHED_BILLS));
+          return updated;
+        });
+        invalidateCache(billsCacheKey);
+        toast({
+          title: 'Bill Deleted',
+          description: 'The bill has been deleted successfully',
+          variant: 'default',
+        });
+        return true;
+      }
+      console.warn('Server bill delete fallback:', server.error);
 
       const { data: sessionItems } = await supabase
         .from('bill_items')

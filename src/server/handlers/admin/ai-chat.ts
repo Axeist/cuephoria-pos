@@ -23,6 +23,7 @@ import {
 } from "../../adminApiUtils";
 import { resolveOrgContext } from "../../orgContext";
 import { assertEntitlement } from "../../lib/entitlements.js";
+import { buildAiSystemPrompt, type AiSystemContext } from "../../lib/aiSystemPrompt";
 
 export const config = { runtime: "edge" };
 
@@ -49,6 +50,8 @@ const MAX_MESSAGES = 24; // safety net — client already caps at ~10 turns + sy
 
 interface ClientPayload {
   messages?: Array<{ role: string; content: string }>;
+  /** Structured context for the server-built system prompt (never trust client `role: system`). */
+  systemContext?: AiSystemContext;
   model?: string;
   temperature?: number;
   maxTokens?: number;
@@ -102,8 +105,18 @@ export default async function handler(req: Request): Promise<Response> {
     return badRequest("Invalid JSON body");
   }
 
-  const messages = Array.isArray(body.messages) ? body.messages : [];
-  if (messages.length === 0) return badRequest("`messages` must be a non-empty array");
+  const rawMessages = Array.isArray(body.messages) ? body.messages : [];
+  if (rawMessages.length === 0) return badRequest("`messages` must be a non-empty array");
+
+  const strippedSystemCount = rawMessages.filter((m) => m?.role === "system").length;
+  if (strippedSystemCount > 0) {
+    console.warn("[ai-chat] stripped client system messages:", strippedSystemCount);
+  }
+
+  const messages = rawMessages.filter((m) => m?.role !== "system");
+  if (messages.length === 0) {
+    return badRequest("`messages` must include at least one user or assistant turn");
+  }
   if (messages.length > MAX_MESSAGES) {
     return badRequest(`Too many messages (max ${MAX_MESSAGES})`);
   }
@@ -112,11 +125,18 @@ export default async function handler(req: Request): Promise<Response> {
       !m ||
       typeof m !== "object" ||
       typeof m.content !== "string" ||
-      (m.role !== "system" && m.role !== "user" && m.role !== "assistant")
+      (m.role !== "user" && m.role !== "assistant")
     ) {
-      return badRequest("Each message must be { role: system|user|assistant, content: string }");
+      return badRequest("Each message must be { role: user|assistant, content: string }");
     }
   }
+
+  const systemCtx =
+    body.systemContext && typeof body.systemContext === "object" ? body.systemContext : {};
+  const upstreamMessages = [
+    { role: "system" as const, content: buildAiSystemPrompt(systemCtx) },
+    ...messages,
+  ];
 
   const requestedModel = typeof body.model === "string" ? body.model : DEFAULT_MODEL;
   const model = ALLOWED_MODELS.has(requestedModel) ? requestedModel : DEFAULT_MODEL;
@@ -138,11 +158,11 @@ export default async function handler(req: Request): Promise<Response> {
       "content-type": "application/json",
       authorization: `Bearer ${apiKey}`,
       "HTTP-Referer": new URL(req.url).origin,
-      "X-Title": "Cuephoria AI",
+      "X-Title": "Cuetronix AI",
     },
     body: JSON.stringify({
       model,
-      messages,
+      messages: upstreamMessages,
       stream: true,
       // Ensure OpenRouter emits a final chunk with `usage` populated so the
       // client can track token + cost per request.

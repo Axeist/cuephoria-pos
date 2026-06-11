@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generatePortalPin } from "./staffPortalPin";
+import { hashPortalPin } from "./lib/pinHash";
 import { shiftHoursFromTimes } from "../utils/staffEarnings.js";
 
 export type StaffProfileCreateFields = {
@@ -66,7 +67,8 @@ export async function createStaffProfileForLoginUser(
     portalPin?: string;
   } & StaffProfileCreateFields,
 ): Promise<{ profile: StaffProfileRow; portalPin: string } | { error: string }> {
-  const portalPin = opts.portalPin ?? generatePortalPin();
+  const portalPinPlain = opts.portalPin ?? generatePortalPin();
+  const portalPinStored = await hashPortalPin(portalPinPlain);
   const fullName = opts.displayName.trim() || opts.loginUsername.trim();
   const designation = opts.designation.trim() || "Staff";
   const usernameBase = opts.loginUsername.trim() || opts.email.split("@")[0] || "staff";
@@ -90,7 +92,7 @@ export async function createStaffProfileForLoginUser(
 
   const record = {
     admin_user_id: opts.adminUserId,
-    portal_pin: portalPin,
+    portal_pin: portalPinStored,
     username,
     full_name: fullName,
     designation,
@@ -129,7 +131,7 @@ export async function createStaffProfileForLoginUser(
   }));
   await supabase.from("staff_work_schedules").insert(scheduleRows);
 
-  return { profile, portalPin };
+  return { profile, portalPin: portalPinPlain };
 }
 
 export async function syncStaffProfileFromAdminUser(
@@ -180,7 +182,7 @@ export async function ensureStaffProfileForLoginUser(
     .maybeSingle();
 
   if (existing?.portal_pin) {
-    return { portalPin: String(existing.portal_pin), created: false };
+    return { portalPin: "******", created: false };
   }
 
   const { data: adminUser, error: auErr } = await supabase
@@ -237,15 +239,16 @@ export async function regenerateStaffPortalPin(
   supabase: SupabaseClient,
   adminUserId: string,
 ): Promise<{ portalPin: string } | { error: string }> {
-  const portalPin = generatePortalPin();
+  const portalPinPlain = generatePortalPin();
+  const portalPinStored = await hashPortalPin(portalPinPlain);
   const { data, error } = await supabase
     .from("staff_profiles")
-    .update({ portal_pin: portalPin })
+    .update({ portal_pin: portalPinStored })
     .eq("admin_user_id", adminUserId)
     .select("portal_pin")
     .maybeSingle();
 
   if (error) return { error: error.message };
   if (!data?.portal_pin) return { error: "No staff profile linked to this account." };
-  return { portalPin: String(data.portal_pin) };
+  return { portalPin: portalPinPlain };
 }

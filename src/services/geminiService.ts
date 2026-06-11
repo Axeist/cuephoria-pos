@@ -21,7 +21,7 @@ export interface ChatResponse {
 }
 
 // System prompt for the AI
-const SYSTEM_PROMPT = `You are Cuephoria AI, an intelligent assistant for a gaming cafe/arcade business management system.
+const SYSTEM_PROMPT = `You are Cuetronix AI, an intelligent assistant for a gaming cafe/arcade business management system.
 
 You receive compact business data in this format:
 - TODAY: Sales count, Revenue, Cash/UPI counts, Bookings count

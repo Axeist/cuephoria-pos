@@ -1,5 +1,5 @@
 /**
- * Local-storage backed settings for the Cuephoria AI assistant.
+ * Local-storage backed settings for the Cuetronix AI assistant.
  *
  * We intentionally store only the bits the user should be able to override
  * from the in-app settings dialog:

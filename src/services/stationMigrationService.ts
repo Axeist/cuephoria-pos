@@ -24,8 +24,34 @@ function migrationErrorMessage(error: { message?: string; details?: string; hint
 export async function migrateStationData(
   oldStationIds: string[],
   newStationId: string,
-  migratedBy?: string
+  migratedBy?: string,
+  locationId?: string,
 ): Promise<MigrateStationResult> {
+  if (locationId) {
+    const res = await fetch('/api/admin/station-migrate', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        oldStationIds,
+        newStationId,
+        migratedBy: migratedBy ?? null,
+        locationId,
+      }),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      data?: MigrateStationResult;
+      error?: string;
+    };
+    if (res.ok && json.ok && json.data) {
+      return json.data;
+    }
+    if (!res.ok && json.error) {
+      throw new Error(json.error);
+    }
+  }
+
   const { data, error } = await supabase.rpc('migrate_station_data', {
     p_old_ids: oldStationIds,
     p_new_station_id: newStationId,

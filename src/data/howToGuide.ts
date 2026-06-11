@@ -630,7 +630,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   },
   {
     id: 'ai',
-    title: 'Cuephoria AI assistant',
+    title: 'Cuetronix AI assistant',
     subtitle: 'Ask questions about ops, reports, and setup',
     icon: 'bot',
     tags: ['ai', 'chat', 'help', 'assistant'],
@@ -638,8 +638,8 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     path: '/chat-ai',
     steps: [
       {
-        title: 'Open Cuephoria AI',
-        detail: 'Sidebar → Cuephoria AI. Ask in plain English about features or troubleshooting.',
+        title: 'Open Cuetronix AI',
+        detail: 'Sidebar → Cuetronix AI. Ask in plain English about features or troubleshooting.',
       },
       {
         title: 'Good prompts',
@@ -651,7 +651,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         detail: 'This page = official SOP. AI = quick answers. Still verify money actions manually.',
       },
     ],
-    links: [{ label: 'Cuephoria AI', path: '/chat-ai' }],
+    links: [{ label: 'Cuetronix AI', path: '/chat-ai' }],
   },
   {
     id: 'subscription',
@@ -833,7 +833,7 @@ export const GUIDE_FAQS: GuideFaq[] = [
     tags: ['staff', 'payroll'],
   },
   {
-    q: 'What is Cuephoria AI for?',
+    q: 'What is Cuetronix AI for?',
     a: 'In-app chat for how-to questions and ops queries. Use alongside this Training Hub for official procedures.',
     tags: ['ai'],
   },
