@@ -102,6 +102,7 @@ const Customers = () => {
 
   const {
     customers = [],
+    addCustomer = async () => null,
     updateCustomer = () => {},
     deleteCustomer = () => {},
     exportCustomers = () => {}
@@ -452,50 +453,29 @@ const Customers = () => {
           return;
         }
 
-        // ✅ Insert with correct field name: custom_id
-        const insertData: any = {
+        // Route creation through POS addCustomer so the new customer is pushed
+        // into shared state immediately (optimistic setCustomers), instead of
+        // waiting for a realtime refetch. addCustomer also handles duplicate
+        // detection and location scoping, and surfaces its own success toast.
+        const created = await addCustomer({
+          customerId: customerID,
           name: name.trim(),
           phone: normalizedPhone,
-          email: email?.trim() || null,
-          custom_id: customerID,          // ✅ FIXED: custom_id
-          is_member: isMember,
-          loyalty_points: 0,
-          total_spent: 0,
-          total_play_time: 0,
-          location_id: activeLocationId,
-        };
-
-        if (isMember) {
-          if (membershipExpiryDate) {
-            insertData.membership_expiry_date = new Date(membershipExpiryDate).toISOString();
-          }
-          if (membershipHoursLeft) {
-            insertData.membership_hours_left = parseInt(membershipHoursLeft, 10);
-          }
-        }
-
-        console.log('Inserting data:', insertData);
-
-        const { data, error: insertError } = await supabase
-          .from('customers')
-          .insert([insertData])
-          .select('*')
-          .single();
-
-        if (insertError) {
-          console.error('Supabase insert error:', insertError);
-          throw insertError;
-        }
-
-        toast({
-          title: 'Customer Added',
-          description: `Customer ${customerID} has been added successfully.`
+          email: email?.trim() || undefined,
+          isMember,
+          membershipExpiryDate:
+            isMember && membershipExpiryDate ? new Date(membershipExpiryDate) : undefined,
+          membershipHoursLeft:
+            isMember && membershipHoursLeft ? parseInt(membershipHoursLeft, 10) : undefined,
+          loyaltyPoints: 0,
+          totalSpent: 0,
+          totalPlayTime: 0,
         });
 
-        // Bust cache – the realtime subscription will fire immediately and re-fetch,
-        // so no full page reload is needed.
-        localStorage.removeItem(`cuephoria_customers_cache_${activeLocationId}`);
-        localStorage.removeItem(`cuephoria_customers_cache_ts_${activeLocationId}`);
+        if (!created) {
+          // addCustomer already surfaced an error / duplicate toast.
+          return;
+        }
 
         setIsDialogOpen(false);
         resetForm();
