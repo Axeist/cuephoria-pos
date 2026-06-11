@@ -39,6 +39,7 @@ import roles from "../../src/server/handlers/admin/roles";
 import users from "../../src/server/handlers/admin/users";
 import stationMigrate from "../../src/server/handlers/admin/station-migrate";
 import verifyPin from "../../src/server/handlers/admin/verify-pin";
+import verifyEmail from "../../src/server/handlers/admin/verify-email";
 import records from "../../src/server/handlers/admin/records";
 import analytics from "../../src/server/handlers/admin/analytics";
 
