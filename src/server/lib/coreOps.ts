@@ -179,20 +179,27 @@ function applyFilters<Q extends { eq: Function; neq: Function; in: Function; gte
   return q;
 }
 
-async function scopeQueryToLocations(
+/**
+ * Resolve location scoping into filters applied AFTER the action verb.
+ *
+ * supabase-js filter methods (`eq`, `in`, ...) only exist on the builder
+ * returned by `.select()`/`.update()`/`.delete()`, not on the bare
+ * `from(table)` query builder. Returning filters (instead of mutating a bare
+ * builder) lets the caller apply scoping in the correct position.
+ */
+async function resolveLocationScope(
   supabase: SupabaseClient,
-  query: ReturnType<SupabaseClient["from"]>,
   table: CoreOpTable,
   organizationId: string,
   locationId: string | undefined,
   orgWide: boolean,
   access: ResolvedWorkspaceAccess,
 ): Promise<
-  | { ok: true; query: ReturnType<SupabaseClient["from"]> }
+  | { ok: true; filters: CoreOpFilter[] }
   | { ok: false; error: string; status: number }
 > {
   if (!LOCATION_SCOPED.has(table)) {
-    return { ok: true, query };
+    return { ok: true, filters: [] };
   }
 
   if (locationId) {
@@ -200,7 +207,7 @@ async function scopeQueryToLocations(
     if (isDenied(owned)) {
       return { ok: false, error: owned.message, status: 404 };
     }
-    return { ok: true, query: query.eq("location_id", locationId) };
+    return { ok: true, filters: [{ op: "eq", column: "location_id", value: locationId }] };
   }
 
   if (orgWide) {
@@ -216,7 +223,7 @@ async function scopeQueryToLocations(
     if (ids.length === 0) {
       return { ok: false, error: "No branches in this workspace.", status: 404 };
     }
-    return { ok: true, query: query.in("location_id", ids) };
+    return { ok: true, filters: [{ op: "in", column: "location_id", values: ids }] };
   }
 
   return { ok: false, error: "Missing locationId", status: 400 };
@@ -260,10 +267,8 @@ export async function executeCoreOp(
   }
 
   const supabase = supabaseAdmin();
-  let query = supabase.from(table);
-  const scoped = await scopeQueryToLocations(
+  const scoped = await resolveLocationScope(
     supabase,
-    query,
     table,
     ctx.organizationId,
     locationId,
@@ -271,14 +276,15 @@ export async function executeCoreOp(
     ctx.access,
   );
   if (!scoped.ok) return scoped;
-  query = scoped.query;
 
-  const filters = payload.filters;
+  // Location scope must be applied AFTER the action verb (select/update/delete)
+  // because supabase-js filter methods don't exist on the bare from() builder.
+  const filters: CoreOpFilter[] = [...scoped.filters, ...(payload.filters ?? [])];
   const selectStr = payload.select ?? "*";
 
   try {
     if (action === "select") {
-      let q = applyFilters(query.select(selectStr), filters);
+      let q = applyFilters(supabase.from(table).select(selectStr), filters);
       if (payload.order?.column) {
         q = q.order(payload.order.column, {
           ascending: payload.order.ascending ?? true,
@@ -318,7 +324,7 @@ export async function executeCoreOp(
       if (isDenied(owned)) return { ok: false, error: owned.message, status: 404 };
 
       const prepared = rows.map((r) => injectLocationOnWrite(table, locationId, r));
-      let q = query.insert(prepared);
+      let q = supabase.from(table).insert(prepared);
       if (payload.select) q = q.select(payload.select);
       if (payload.single) {
         const { data, error } = await q.single();
@@ -334,7 +340,7 @@ export async function executeCoreOp(
       if (!payload.row || typeof payload.row !== "object") {
         return { ok: false, error: "Missing row for update", status: 400 };
       }
-      let q = applyFilters(query.update(payload.row), filters);
+      let q = applyFilters(supabase.from(table).update(payload.row), filters);
       if (payload.select) q = q.select(payload.select);
       if (payload.single) {
         const { data, error } = await q.single();
@@ -347,7 +353,7 @@ export async function executeCoreOp(
     }
 
     if (action === "delete") {
-      let q = applyFilters(query.delete(), filters);
+      let q = applyFilters(supabase.from(table).delete(), filters);
       if (payload.select) q = q.select(payload.select);
       const { data, error } = await q;
       if (error) return { ok: false, error: error.message, status: 500 };
