@@ -1231,7 +1231,7 @@ async function sandboxSwitchPlanAction(
     confirm: body.confirm === true,
   });
 
-  if (!result.ok) {
+  if (result.ok === false) {
     return j(
       { ok: false, error: result.error, warnings: result.warnings },
       result.status,

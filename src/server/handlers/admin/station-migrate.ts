@@ -9,6 +9,7 @@ import {
 import { resolveOrgContext } from "../../orgContext";
 import { assertWorkspacePermission, resolveWorkspaceAccess } from "../../lib/workspacePermissions";
 import { assertLocationOwnedByOrg } from "../../lib/payment-checkout-guards.js";
+import { isDenied } from "../../lib/resultGuards";
 
 export const config = { runtime: "edge" };
 
@@ -43,7 +44,7 @@ export default async function handler(req: Request): Promise<Response> {
       isAdmin: sessionUser.isAdmin,
     });
     const gate = assertWorkspacePermission(access, "stations.configure");
-    if (!gate.ok) return j({ ok: false, error: gate.error }, 403);
+    if (isDenied(gate)) return j({ ok: false, error: gate.error }, 403);
 
     const body = (await req.json().catch(() => ({}))) as {
       oldStationIds?: string[];
@@ -60,7 +61,7 @@ export default async function handler(req: Request): Promise<Response> {
 
     const supabase = supabaseAdmin();
     const owned = await assertLocationOwnedByOrg(supabase, locationId, ctx.organizationId);
-    if (!owned.ok) return j({ ok: false, error: owned.message }, 404);
+    if (isDenied(owned)) return j({ ok: false, error: owned.message }, 404);
 
     const { data, error } = await supabase.rpc("migrate_station_data", {
       p_old_ids: oldStationIds,

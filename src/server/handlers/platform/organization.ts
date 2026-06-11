@@ -99,7 +99,7 @@ async function getDetail(req: Request, id: string): Promise<Response> {
         .eq("organization_id", id)
         .order("created_at", { ascending: true });
       if (retry.error) return j({ ok: false, error: retry.error.message }, 500);
-      membershipRows = retry.data;
+      membershipRows = retry.data as unknown as typeof membershipRes.data;
     }
 
     const sub = subRes.data as

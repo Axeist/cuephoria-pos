@@ -60,7 +60,7 @@ async function loadHandler(action: string): Promise<NodeHandler | null> {
 export default async function dispatcher(req: VercelRequest, res: VercelResponse) {
   try {
     const auth = verifyWebhookSecret(req);
-    if (!auth.ok) {
+    if (auth.ok === false) {
       res.setHeader("Content-Type", "application/json; charset=utf-8");
       res.setHeader("Access-Control-Allow-Origin", "*");
       return res.status(401).json({ ok: false, error: auth.error });

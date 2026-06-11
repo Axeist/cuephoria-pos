@@ -1,12 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertLocationOwnedByOrg, getOrganizationLocationIds } from "./payment-checkout-guards.js";
+import { isDenied } from "./resultGuards";
 
 export async function deleteProductRecord(
   supabase: SupabaseClient,
   args: { organizationId: string; productId: string; locationId: string },
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   const owned = await assertLocationOwnedByOrg(supabase, args.locationId, args.organizationId);
-  if (!owned.ok) return { ok: false, error: owned.message, status: 404 };
+  if (isDenied(owned)) return { ok: false, error: owned.message, status: 404 };
 
   const { data: product } = await supabase
     .from("products")

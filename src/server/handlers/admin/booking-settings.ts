@@ -10,6 +10,7 @@ import { resolveOrgContext } from "../../orgContext";
 import { assertEntitlement } from "../../lib/entitlements.js";
 import { assertWorkspacePermission, resolveWorkspaceAccess } from "../../lib/workspacePermissions";
 import { assertLocationOwnedByOrg, getOrganizationLocationIds } from "../../lib/payment-checkout-guards.js";
+import { isDenied } from "../../lib/resultGuards";
 
 export const config = { runtime: "edge" };
 
@@ -75,7 +76,7 @@ export default async function handler(req: Request) {
         isAdmin: sessionUser.isAdmin,
       });
       const slotGate = assertWorkspacePermission(access, "bookings.slots_configure");
-      if (!slotGate.ok) return j({ ok: false, error: slotGate.error }, 403);
+      if (isDenied(slotGate)) return j({ ok: false, error: slotGate.error }, 403);
 
       const body = await req.json().catch(() => ({}));
       const { setting_key, setting_value, description, location_id } = body;

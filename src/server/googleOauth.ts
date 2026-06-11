@@ -20,7 +20,7 @@ import { getEnv, needEnv } from "./adminApiUtils";
 
 export interface OauthStatePayload {
   nonce: string;
-  intent: "login" | "signup";
+  intent: "login" | "signup" | "oauth_totp";
   next: string;
   iat: number;
 }

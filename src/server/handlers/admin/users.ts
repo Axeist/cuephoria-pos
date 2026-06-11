@@ -24,6 +24,7 @@ import {
   resolveWorkspaceAccess,
   roleNeedsStaffProfile,
 } from "../../lib/workspacePermissions";
+import { isDenied } from "../../lib/resultGuards";
 import type { SystemRoleSlug } from "../../constants/permissionCatalog";
 
 export const config = { runtime: "edge" };
@@ -209,7 +210,7 @@ export default async function handler(req: Request) {
         isAdmin: sessionUser.isAdmin,
       });
       const viewGate = assertWorkspacePermission(access, "settings.team.view");
-      if (!viewGate.ok) return j({ ok: false, error: viewGate.error }, 403);
+      if (isDenied(viewGate)) return j({ ok: false, error: viewGate.error }, 403);
 
       const { data: memberRows, error: memberErr } = await ctx.supabase
         .from("org_memberships")
@@ -253,12 +254,12 @@ export default async function handler(req: Request) {
         .order("username", { ascending: true });
 
       if (usersQuery.error?.message?.includes("is_platform_backdoor") || usersQuery.error?.message?.includes("is_sandbox_user")) {
-        usersQuery = await supabase
+        usersQuery = (await supabase
           .from("admin_users")
           .select("id, username, email, email_verified_at, display_name, designation, is_admin, is_super_admin")
           .in("id", allowedIds)
           .order("is_admin", { ascending: false })
-          .order("username", { ascending: true });
+          .order("username", { ascending: true })) as typeof usersQuery;
       }
 
       const { data: users, error: usersErr } = usersQuery;
@@ -404,7 +405,7 @@ export default async function handler(req: Request) {
         isAdmin: sessionUser.isAdmin,
       });
       const createGate = assertWorkspacePermission(access, "settings.team.create");
-      if (!createGate.ok) return j({ ok: false, error: createGate.error }, 403);
+      if (isDenied(createGate)) return j({ ok: false, error: createGate.error }, 403);
 
       const body = await req.json().catch(() => ({}));
       const username = String(body?.username || "").trim();
@@ -658,7 +659,7 @@ export default async function handler(req: Request) {
         isAdmin: sessionUser.isAdmin,
       });
       const editGate = assertWorkspacePermission(access, "settings.team.edit");
-      if (!editGate.ok) return j({ ok: false, error: editGate.error }, 403);
+      if (isDenied(editGate)) return j({ ok: false, error: editGate.error }, 403);
 
       /** Create or regenerate staff portal PIN (staff accounts only). */
       if (body.regeneratePortalPin === true || body.ensureStaffProfile === true) {
@@ -1146,7 +1147,7 @@ export default async function handler(req: Request) {
         isAdmin: sessionUser.isAdmin,
       });
       const deleteGate = assertWorkspacePermission(access, "settings.team.delete");
-      if (!deleteGate.ok) return j({ ok: false, error: deleteGate.error }, 403);
+      if (isDenied(deleteGate)) return j({ ok: false, error: deleteGate.error }, 403);
 
       const url = new URL(req.url);
       const id = url.searchParams.get("id");

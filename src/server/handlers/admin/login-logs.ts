@@ -8,6 +8,7 @@ import {
 } from "../../adminApiUtils";
 import { resolveOrgContext } from "../../orgContext";
 import { assertWorkspacePermission, resolveWorkspaceAccess } from "../../lib/workspacePermissions";
+import { isDenied } from "../../lib/resultGuards";
 
 export const config = { runtime: "edge" };
 
@@ -46,7 +47,7 @@ export default async function handler(req: Request) {
       isAdmin: sessionUser.isAdmin,
     });
     const viewGate = assertWorkspacePermission(access, "audit.login_logs.view");
-    if (!viewGate.ok) return j({ ok: false, error: viewGate.error }, 403);
+    if (isDenied(viewGate)) return j({ ok: false, error: viewGate.error }, 403);
 
     const serviceKey = getSupabaseServiceRoleKey();
     if (!serviceKey) {

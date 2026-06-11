@@ -22,7 +22,7 @@ export async function hashPortalPin(pin: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(pin), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations: DEFAULT_ITERATIONS, hash: "SHA-256" },
+    { name: "PBKDF2", salt: salt as BufferSource, iterations: DEFAULT_ITERATIONS, hash: "SHA-256" },
     keyMaterial,
     256,
   );
@@ -46,7 +46,7 @@ export async function verifyPortalPin(stored: string | null | undefined, entered
   const expected = base64UrlDecode(parts[3]);
   const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(norm), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
+    { name: "PBKDF2", salt: salt as BufferSource, iterations, hash: "SHA-256" },
     keyMaterial,
     256,
   );

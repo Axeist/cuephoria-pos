@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { PAYMENT_ORDER_PENDING_TTL_MS } from "../../src/server/lib/payment-order-ttl.ts";
+import { PAYMENT_ORDER_PENDING_TTL_MS } from "../../src/server/lib/payment-order-ttl.js";
 import { resolveBookingSlotConfigForLocation } from "../../src/server/lib/resolveBookingSlotConfigForLocation.js";
 import { validateAndMergeGridSlots } from "../../src/utils/bookingSlotConfig.js";
 
@@ -114,7 +114,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })),
       slotConfig,
     );
-    if (!merged.ok) {
+    if (merged.ok === false) {
       return j(res, { ok: false, error: merged.error }, 400);
     }
 

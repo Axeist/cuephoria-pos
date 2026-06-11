@@ -20,7 +20,7 @@ function profilePayload(row: Record<string, unknown>) {
     row.default_shift_hours != null ? Number(row.default_shift_hours) : null;
 
   const payFields = {
-    hourly_rate: row.hourly_rate,
+    hourly_rate: Number(row.hourly_rate ?? 0),
     monthly_salary: monthlySalary,
     shift_start_time: shiftStart,
     shift_end_time: shiftEnd,

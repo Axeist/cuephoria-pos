@@ -28,6 +28,7 @@ import {
 import { verifyOauthState } from "../../googleOauth";
 import { usernameFromEmail } from "../../lib/tenantUsername";
 import { ensureTenantSignupEmailAvailable } from "../../lib/reclaimOrphanTenantAdmin";
+import { isDenied } from "../../lib/resultGuards";
 import { ensureWorkspaceBackdoorAccess } from "../../workspaceBackdoor";
 import { appBaseUrl, sendEmail } from "../../email";
 
@@ -124,7 +125,7 @@ export default async function handler(req: Request) {
 
     const googleEmail = identity.email.trim().toLowerCase();
     const emailGate = await ensureTenantSignupEmailAvailable(supabase, googleEmail, "signup-google");
-    if (!emailGate.ok) {
+    if (isDenied(emailGate)) {
       if (emailGate.reason === "db_error") {
         return j({ ok: false, error: "Could not verify email availability. Try again in a moment." }, 500);
       }

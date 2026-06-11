@@ -13,6 +13,7 @@ import {
   deleteBookingRecord,
   deleteProductRecord,
 } from "../../lib/adminRecordDeletes";
+import { isDenied } from "../../lib/resultGuards";
 
 export const config = { runtime: "edge" };
 
@@ -62,7 +63,7 @@ export default async function handler(req: Request): Promise<Response> {
 
     if (type === "product") {
       const perm = assertWorkspacePermission(access, "products.delete");
-      if (!perm.ok) return j({ ok: false, error: perm.error }, 403);
+      if (isDenied(perm)) return j({ ok: false, error: perm.error }, 403);
       const locationId = typeof body.locationId === "string" ? body.locationId.trim() : "";
       if (!locationId) return j({ ok: false, error: "Missing locationId" }, 400);
       const result = await deleteProductRecord(supabase, {
@@ -70,32 +71,32 @@ export default async function handler(req: Request): Promise<Response> {
         productId: id,
         locationId,
       });
-      if (!result.ok) return j({ ok: false, error: result.error }, result.status);
+      if (isDenied(result)) return j({ ok: false, error: result.error }, result.status);
       return j({ ok: true }, 200);
     }
 
     if (type === "bill") {
       const deletePerm = assertWorkspacePermission(access, "reports.delete_record");
       const voidPerm = assertWorkspacePermission(access, "pos.void_bill");
-      if (!deletePerm.ok && !voidPerm.ok) {
+      if (isDenied(deletePerm) && isDenied(voidPerm)) {
         return j({ ok: false, error: deletePerm.error }, 403);
       }
       const result = await deleteBillRecord(supabase, {
         organizationId: ctx.organizationId,
         billId: id,
       });
-      if (!result.ok) return j({ ok: false, error: result.error }, result.status);
+      if (isDenied(result)) return j({ ok: false, error: result.error }, result.status);
       return j({ ok: true }, 200);
     }
 
     if (type === "booking") {
       const perm = assertWorkspacePermission(access, "bookings.cancel");
-      if (!perm.ok) return j({ ok: false, error: perm.error }, 403);
+      if (isDenied(perm)) return j({ ok: false, error: perm.error }, 403);
       const result = await deleteBookingRecord(supabase, {
         organizationId: ctx.organizationId,
         bookingId: id,
       });
-      if (!result.ok) return j({ ok: false, error: result.error }, result.status);
+      if (isDenied(result)) return j({ ok: false, error: result.error }, result.status);
       return j({ ok: true }, 200);
     }
 

@@ -13,6 +13,7 @@ import {
   coercePinProtectionEnabled,
   normalizeAdminPin,
 } from "../../../utils/securitySettings";
+import { isDenied } from "../../lib/resultGuards";
 
 export const config = { runtime: "edge" };
 
@@ -51,7 +52,7 @@ export default async function handler(req: Request): Promise<Response> {
 
     const supabase = supabaseAdmin();
     const owned = await assertLocationOwnedByOrg(supabase, locationId, ctx.organizationId);
-    if (!owned.ok) return j({ ok: false, error: owned.message }, 404);
+    if (isDenied(owned)) return j({ ok: false, error: owned.message }, 404);
 
     const { data: rows, error } = await supabase
       .from("location_settings")
