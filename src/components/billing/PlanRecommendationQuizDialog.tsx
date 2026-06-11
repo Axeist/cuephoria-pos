@@ -123,6 +123,7 @@ export default function PlanRecommendationQuizDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        hideCloseButton
         className="border-white/10 text-white sm:max-w-lg"
         style={{
           background:
@@ -142,7 +143,7 @@ export default function PlanRecommendationQuizDialog({
 
         {step === "intro" && (
           <>
-            <DialogHeader className="text-left pr-8">
+            <DialogHeader className="text-left">
               <div className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
                 <Sparkles className="h-5 w-5 text-[color:var(--brand-accent-hex)]" />
               </div>
@@ -171,7 +172,7 @@ export default function PlanRecommendationQuizDialog({
 
         {step === "question" && currentQuestion && (
           <>
-            <DialogHeader className="text-left pr-8">
+            <DialogHeader className="text-left">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">
                 Question {questionIndex + 1} of {totalQuestions}
               </p>
@@ -222,7 +223,7 @@ export default function PlanRecommendationQuizDialog({
 
         {step === "result" && result && (
           <>
-            <DialogHeader className="text-left pr-8">
+            <DialogHeader className="text-left">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-300/90">
                 Our recommendation
               </p>
