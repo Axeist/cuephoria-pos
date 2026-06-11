@@ -49,6 +49,7 @@ import type { StationMaintenancePeriod } from '@/types/stationMaintenance.types'
 import { getMaintenanceDurationMinutes } from '@/utils/stationMaintenance.utils';
 import { useLocationAnalytics } from '@/hooks/useLocationAnalytics';
 import { buildReportSummaryMetrics } from '@/utils/reportSummaryMetrics';
+import { computeSalesWidgetsFromBills } from '@/utils/reportBillMetrics';
 
 // Add types for sorting
 type SortField = 'date' | 'total' | 'customer' | 'subtotal' | 'discount';
@@ -134,6 +135,7 @@ const ReportsPage: React.FC = () => {
   const [reportSessionsLoading, setReportSessionsLoading] = useState(false);
   const [reportMaintenanceLoading, setReportMaintenanceLoading] = useState(false);
   const [reportBillsError, setReportBillsError] = useState<string | null>(null);
+  const [reportBillsRefreshKey, setReportBillsRefreshKey] = useState(0);
   const [reportSessionsError, setReportSessionsError] = useState<string | null>(null);
 
   // Set default range to "this month"
@@ -244,7 +246,45 @@ const ReportsPage: React.FC = () => {
     return () => {
       signal.cancelled = true;
     };
-  }, [needsBills, date?.from, date?.to, reportScope, activeLocationId]);
+  }, [needsBills, date?.from, date?.to, reportScope, activeLocationId, reportBillsRefreshKey]);
+
+  // Realtime: keep Bills tab widgets + transaction history in sync with new/edited bills.
+  useEffect(() => {
+    if (activeTab !== 'bills' || !date?.from || !date?.to) return;
+
+    const allLocations = reportScope === 'all';
+    let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const changeConfig: {
+      event: '*';
+      schema: 'public';
+      table: 'bills';
+      filter?: string;
+    } = {
+      event: '*',
+      schema: 'public',
+      table: 'bills',
+    };
+    if (!allLocations && activeLocationId) {
+      changeConfig.filter = `location_id=eq.${activeLocationId}`;
+    }
+
+    const channel = supabase
+      .channel(`reports-bills-${activeLocationId ?? 'all'}-${reportScope}`)
+      .on('postgres_changes', changeConfig, () => {
+        if (refreshTimeout) clearTimeout(refreshTimeout);
+        refreshTimeout = setTimeout(() => {
+          invalidateReportCache('bills');
+          setReportBillsRefreshKey((k) => k + 1);
+        }, 300);
+      })
+      .subscribe();
+
+    return () => {
+      if (refreshTimeout) clearTimeout(refreshTimeout);
+      supabase.removeChannel(channel);
+    };
+  }, [activeTab, date?.from, date?.to, activeLocationId, reportScope]);
 
   // Load sessions for the selected range (only when Sessions or Summary tab is active)
   useEffect(() => {
@@ -499,31 +539,34 @@ const ReportsPage: React.FC = () => {
     };
   }, [billsForReports, customers, sessionsForReports, maintenanceForReports, stationNameById, date, searchQuery, billSearchQuery, paymentTypeFilter]);
 
-  // Same filters as filteredData but on debounced bills — keeps SalesWidgets/summary stable while loading
-  const debouncedFilteredBills = useMemo(() => {
-    let list = debouncedReportBills;
-    if (billSearchQuery.trim()) {
+  const filterBillsBySearch = useCallback(
+    (list: Bill[]) => {
+      if (!billSearchQuery.trim()) return list;
       const query = billSearchQuery.toLowerCase().trim();
-      list = list.filter(bill => {
-        const customer = customers.find(c => c.id === bill.customerId);
+      return list.filter((bill) => {
+        const customer = customers.find((c) => c.id === bill.customerId);
         return (
           bill.id.toLowerCase().includes(query) ||
-          (customer && (
-            customer.name.toLowerCase().includes(query) ||
-            (customer.email && customer.email.toLowerCase().includes(query)) ||
-            customer.phone.includes(query)
-          ))
+          (customer &&
+            (customer.name.toLowerCase().includes(query) ||
+              (customer.email && customer.email.toLowerCase().includes(query)) ||
+              customer.phone.includes(query)))
         );
       });
-    }
-    if (paymentTypeFilter !== 'all') {
-      list = list.filter(bill => {
-        if (paymentTypeFilter === 'split') return Boolean(bill.isSplitPayment);
-        return (bill.paymentMethod || '').toLowerCase() === paymentTypeFilter.toLowerCase();
-      });
-    }
-    return list;
-  }, [debouncedReportBills, billSearchQuery, paymentTypeFilter, customers]);
+    },
+    [billSearchQuery, customers],
+  );
+
+  // Bills backing the sales widgets: same date/location dataset as the table, search only (no payment filter).
+  const widgetSourceBills = useMemo(
+    () => filterBillsBySearch(debouncedReportBills),
+    [debouncedReportBills, filterBillsBySearch],
+  );
+
+  const billsTabWidgetData = useMemo(
+    () => computeSalesWidgetsFromBills(widgetSourceBills, products),
+    [widgetSourceBills, products],
+  );
 
   // Calculate customer play time and total spent
   const getCustomerPlayTime = useCallback((customerId: string) => {
@@ -1344,11 +1387,11 @@ const ReportsPage: React.FC = () => {
     return (
     <div className="space-y-4">
       <SalesWidgets
-        billMetrics={reportAnalytics.billMetrics}
-        payment={reportAnalytics.payment}
-        gaming={reportAnalytics.gaming}
-        loading={reportAnalytics.loading}
-        error={reportAnalytics.error}
+        billMetrics={billsTabWidgetData.billMetrics}
+        payment={billsTabWidgetData.payment}
+        gaming={billsTabWidgetData.gaming}
+        loading={reportBillsLoading && (reportBills?.length ?? 0) === 0}
+        error={reportBillsError}
       />
       <div className="glass-card border-white/10 rounded-2xl overflow-hidden">
         <div className="p-6">
