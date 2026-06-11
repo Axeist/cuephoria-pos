@@ -1,2 +1,12 @@
-/** Settings → Team panel (renamed from StaffManagement to avoid collision with HR page). */
-export { default } from './StaffManagement';
+/** Settings → Team panel: roles matrix + member management. */
+import RolesAndPermissionsPanel from './RolesAndPermissionsPanel';
+import StaffManagement from './StaffManagement';
+
+export default function TeamManagement() {
+  return (
+    <>
+      <RolesAndPermissionsPanel />
+      <StaffManagement />
+    </>
+  );
+}

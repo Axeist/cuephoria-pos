@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/context/PermissionsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,15 +20,30 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { isAdminLoginRoleSlug, roleNeedsStaffProfile } from '@/utils/workspacePermissionsClient';
 
 interface LocationInfo {
   id: string;
   name: string;
   slug: string;
   short_code: string;
+}
+
+interface WorkspaceRoleOption {
+  id: string;
+  name: string;
+  slug: string | null;
+  description: string | null;
+  is_system: boolean;
 }
 
 interface StaffUser {
@@ -42,6 +58,13 @@ interface StaffUser {
   locations: LocationInfo[];
   portalPin?: string | null;
   staffProfileUserId?: string | null;
+  workspaceRoleId?: string | null;
+  workspaceRole?: {
+    id: string;
+    name: string;
+    slug: string | null;
+    isSystem: boolean;
+  } | null;
 }
 
 const SLUG_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
@@ -81,7 +104,10 @@ const StaffManagement: React.FC = () => {
   const [newShiftStart, setNewShiftStart] = useState('11:00');
   const [newShiftEnd, setNewShiftEnd] = useState('23:00');
   const [showNewPassword, setShowNewPassword] = useState(false);
-  const [userRole, setUserRole] = useState<'admin' | 'staff'>('staff');
+  const [workspaceRoles, setWorkspaceRoles] = useState<WorkspaceRoleOption[]>([]);
+  const [selectedRoleId, setSelectedRoleId] = useState('');
+  const [editRoleId, setEditRoleId] = useState('');
+  const [rolePreviewCount, setRolePreviewCount] = useState<number | null>(null);
   const [newIsSuperAdmin, setNewIsSuperAdmin] = useState(false);
   const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -91,7 +117,6 @@ const StaffManagement: React.FC = () => {
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editDesignation, setEditDesignation] = useState('');
   const [editIsSuperAdmin, setEditIsSuperAdmin] = useState(false);
-  const [editUserRole, setEditUserRole] = useState<'admin' | 'staff'>('staff');
   const [editLocationIds, setEditLocationIds] = useState<string[]>([]);
   const [editPassword, setEditPassword] = useState('');
   const [showEditPassword, setShowEditPassword] = useState(false);
@@ -107,11 +132,36 @@ const StaffManagement: React.FC = () => {
     regenerateStaffPortalPin,
     ensureStaffPortalPin,
   } = useAuth();
+  const { can } = usePermissions();
   const [newPortalPin, setNewPortalPin] = useState<string | null>(null);
   const { toast } = useToast();
 
+  const defaultEmployeeRoleId = workspaceRoles.find((r) => r.slug === 'employee')?.id ?? workspaceRoles[0]?.id ?? '';
+
+  const selectedRole = workspaceRoles.find((r) => r.id === selectedRoleId);
+  const selectedRoleSlug = selectedRole?.slug ?? 'employee';
+  const needsStaffFields = roleNeedsStaffProfile(selectedRoleSlug, newIsSuperAdmin);
+
+  const loadRolePreview = useCallback(async (roleId: string) => {
+    if (!roleId) {
+      setRolePreviewCount(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/roles?roleId=${encodeURIComponent(roleId)}`, {
+        credentials: 'same-origin',
+      });
+      const json = await res.json();
+      if (json?.ok) {
+        setRolePreviewCount(Array.isArray(json.permissions) ? json.permissions.length : 0);
+      }
+    } catch {
+      setRolePreviewCount(null);
+    }
+  }, []);
+
   const loadStaffMembers = async () => {
-    if (!user?.isAdmin) return;
+    if (!can('settings.team.view')) return;
     try {
       const res = await fetch('/api/admin/users', { method: 'GET', credentials: 'same-origin' });
       const json = await res.json();
@@ -125,6 +175,12 @@ const StaffManagement: React.FC = () => {
           })),
         );
         setAllLocations(locs.filter(isFranchiseLocation));
+        const roles: WorkspaceRoleOption[] = json.workspaceRoles ?? [];
+        setWorkspaceRoles(roles);
+        if (!selectedRoleId) {
+          const employeeRole = roles.find((r) => r.slug === 'employee') ?? roles[0];
+          if (employeeRole?.id) setSelectedRoleId(employeeRole.id);
+        }
       } else {
         toast({
           title: 'Error',
@@ -137,7 +193,15 @@ const StaffManagement: React.FC = () => {
     }
   };
 
-  useEffect(() => { loadStaffMembers(); }, [user]);
+  useEffect(() => { loadStaffMembers(); }, [user?.id]);
+
+  useEffect(() => {
+    if (selectedRoleId) void loadRolePreview(selectedRoleId);
+  }, [selectedRoleId, loadRolePreview]);
+
+  useEffect(() => {
+    if (editRoleId) void loadRolePreview(editRoleId);
+  }, [editRoleId, loadRolePreview]);
 
   const toggleLocation = (id: string, current: string[], setter: (v: string[]) => void) => {
     setter(current.includes(id) ? current.filter(x => x !== id) : [...current, id]);
@@ -152,7 +216,7 @@ const StaffManagement: React.FC = () => {
       toast({ title: 'Error', description: 'Assign at least one branch', variant: 'destructive' });
       return;
     }
-    if (userRole === 'staff' && !newIsSuperAdmin) {
+    if (needsStaffFields) {
       if (!newDisplayName.trim()) {
         toast({ title: 'Error', description: 'Full name is required for staff', variant: 'destructive' });
         return;
@@ -166,18 +230,26 @@ const StaffManagement: React.FC = () => {
         return;
       }
     }
+    const roleId = newIsSuperAdmin
+      ? workspaceRoles.find((r) => r.slug === 'owner')?.id ?? selectedRoleId
+      : selectedRoleId || defaultEmployeeRoleId;
+    const roleSlug =
+      workspaceRoles.find((r) => r.id === roleId)?.slug ?? selectedRoleSlug;
+    const isAdminLogin = newIsSuperAdmin || isAdminLoginRoleSlug(roleSlug);
+
     setIsLoading(true);
     try {
-      const result = await addStaffMember(newUsername, newPassword, userRole === 'admin', newIsSuperAdmin, selectedLocationIds, {
+      const result = await addStaffMember(newUsername, newPassword, isAdminLogin, newIsSuperAdmin, selectedLocationIds, {
         displayName: newDisplayName.trim(),
         designation: newDesignation.trim(),
         phone: newPhone.trim() || undefined,
-        monthlySalary: userRole === 'staff' ? parseFloat(newMonthlySalary) : undefined,
+        monthlySalary: needsStaffFields ? parseFloat(newMonthlySalary) : undefined,
         shiftStartTime: newShiftStart,
         shiftEndTime: newShiftEnd,
+        workspaceRoleId: roleId,
       });
       if (result.success) {
-        if (result.portalPin && userRole === 'staff') {
+        if (result.portalPin && needsStaffFields) {
           setNewPortalPin(result.portalPin);
         }
         resetAddForm();
@@ -195,7 +267,7 @@ const StaffManagement: React.FC = () => {
     setEditDisplayName(staff.displayName ?? '');
     setEditDesignation(staff.designation ?? '');
     setEditIsSuperAdmin(staff.isSuperAdmin);
-    setEditUserRole(staff.isAdmin ? 'admin' : 'staff');
+    setEditRoleId(staff.workspaceRoleId ?? staff.workspaceRole?.id ?? defaultEmployeeRoleId);
     setEditLocationIds(staff.locations.map(l => l.id));
     setEditPassword('');
     setShowEditPassword(false);
@@ -210,12 +282,16 @@ const StaffManagement: React.FC = () => {
     }
     setIsLoading(true);
     try {
+      const editRole = workspaceRoles.find((r) => r.id === editRoleId);
+      const editSlug = editRole?.slug ?? 'employee';
+      const isAdminLogin = editIsSuperAdmin || isAdminLoginRoleSlug(editSlug);
       const success = await updateStaffMember(editingStaff.id, {
         username: editUsername,
         displayName: editDisplayName,
         designation: editDesignation,
         isSuperAdmin: editIsSuperAdmin,
-        isAdmin: editIsSuperAdmin || editUserRole === 'admin',
+        isAdmin: isAdminLogin,
+        workspaceRoleId: editRoleId,
         locationIds: editIsSuperAdmin ? [] : editLocationIds,
         ...(isChangingPassword && editPassword.trim() ? { newPassword: editPassword.trim() } : {}),
       });
@@ -303,7 +379,7 @@ const StaffManagement: React.FC = () => {
     setNewShiftStart('11:00');
     setNewShiftEnd('23:00');
     setShowNewPassword(false);
-    setUserRole('staff');
+    setSelectedRoleId(defaultEmployeeRoleId);
     setNewIsSuperAdmin(false);
     setSelectedLocationIds([]);
   };
@@ -317,7 +393,7 @@ const StaffManagement: React.FC = () => {
         ).toFixed(2)
       : '0.00';
 
-  if (!user?.isAdmin) {
+  if (!can('settings.team.view')) {
     return (
       <Card className="glass-card border-border/50">
         <CardContent className="pt-6">
@@ -381,10 +457,10 @@ const StaffManagement: React.FC = () => {
           <DialogContent className={dialogSheet}>
             <DialogHeader>
               <DialogTitle className="text-2xl gradient-text">
-                {userRole === 'staff' && !newIsSuperAdmin ? 'Add Staff Member' : 'Add New User'}
+                {needsStaffFields ? 'Add Staff Member' : 'Add New User'}
               </DialogTitle>
               <DialogDescription>
-                {userRole === 'staff' && !newIsSuperAdmin
+                {needsStaffFields
                   ? 'Create login, HR profile, portal PIN, and weekly shift roster in one step. A verification email is sent for Google sign-in.'
                   : 'Create login email and a temporary password. We email a verification link — after they open it, they can sign in with Google using the same email.'}
               </DialogDescription>
@@ -394,22 +470,34 @@ const StaffManagement: React.FC = () => {
               {/* Role */}
               <div className="space-y-2">
                 <Label className={formLabel}>
-                  <Shield className="h-4 w-4" /> Role
+                  <Shield className="h-4 w-4" /> Workspace role
                 </Label>
-                <RadioGroup value={userRole} onValueChange={(v) => setUserRole(v as 'admin' | 'staff')}>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="admin" id="r-admin" />
-                    <Label htmlFor="r-admin" className="flex items-center gap-2 cursor-pointer">
-                      <Shield className="h-4 w-4 text-amber-500" /> Admin
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="staff" id="r-staff" />
-                    <Label htmlFor="r-staff" className="flex items-center gap-2 cursor-pointer">
-                      <User className="h-4 w-4" /> Staff
-                    </Label>
-                  </div>
-                </RadioGroup>
+                {newIsSuperAdmin ? (
+                  <p className="text-xs text-amber-300/80 px-1">Super admins are assigned the Owner role.</p>
+                ) : (
+                  <>
+                    <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
+                      <SelectTrigger className={formInput}>
+                        <SelectValue placeholder="Select a role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {workspaceRoles.map((role) => (
+                          <SelectItem key={role.id} value={role.id}>
+                            {role.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedRole?.description && (
+                      <p className="text-xs text-muted-foreground">{selectedRole.description}</p>
+                    )}
+                    {rolePreviewCount != null && (
+                      <p className="text-xs text-muted-foreground">
+                        {rolePreviewCount} permission{rolePreviewCount === 1 ? '' : 's'} enabled for this role
+                      </p>
+                    )}
+                  </>
+                )}
               </div>
 
               {/* Super Admin toggle — only shown to super admins */}
@@ -457,7 +545,7 @@ const StaffManagement: React.FC = () => {
 
               <div className="space-y-2">
                 <Label className={formLabel}>
-                  <IdCard className="h-4 w-4" /> Full name{userRole === 'staff' && !newIsSuperAdmin ? ' *' : ''}
+                  <IdCard className="h-4 w-4" /> Full name{needsStaffFields ? ' *' : ''}
                 </Label>
                 <Input
                   value={newDisplayName}
@@ -470,7 +558,7 @@ const StaffManagement: React.FC = () => {
 
               <div className="space-y-2">
                 <Label className={formLabel}>
-                  <Briefcase className="h-4 w-4" /> Designation{userRole === 'staff' && !newIsSuperAdmin ? ' *' : ''}
+                  <Briefcase className="h-4 w-4" /> Designation{needsStaffFields ? ' *' : ''}
                 </Label>
                 <Input
                   value={newDesignation}
@@ -487,7 +575,7 @@ const StaffManagement: React.FC = () => {
                 <Input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="staff@yourbusiness.com" className={formInput} />
               </div>
 
-              {userRole === 'staff' && !newIsSuperAdmin && (
+              {needsStaffFields && (
                 <>
                   <div className="space-y-2">
                     <Label className={formLabel}>
@@ -577,7 +665,7 @@ const StaffManagement: React.FC = () => {
             <DialogFooter className="gap-2 sm:gap-0">
               <Button variant="outline" onClick={() => setIsAddingStaff(false)} className="border-border/50">Cancel</Button>
               <Button onClick={handleAddStaff} disabled={isLoading} className="btn-gradient border-0">
-                {isLoading ? 'Adding...' : `Add ${userRole === 'admin' ? 'Admin' : 'Staff'}`}
+                {isLoading ? 'Adding...' : 'Add member'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -665,27 +753,21 @@ const StaffManagement: React.FC = () => {
                   </div>
                 ) : editingStaff.id === user?.id ? (
                   <Badge variant="secondary" className="w-fit">
-                    {editingStaff.isAdmin ? 'Admin' : 'Staff'} (your account)
+                    {editingStaff.workspaceRole?.name ?? (editingStaff.isAdmin ? 'Admin' : 'Staff')} (your account)
                   </Badge>
                 ) : (
-                  <RadioGroup
-                    value={editUserRole}
-                    onValueChange={(v) => setEditUserRole(v as 'admin' | 'staff')}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="admin" id="edit-r-admin" />
-                      <Label htmlFor="edit-r-admin" className="flex items-center gap-2 cursor-pointer">
-                        <Shield className="h-4 w-4 text-amber-500" /> Admin
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="staff" id="edit-r-staff" />
-                      <Label htmlFor="edit-r-staff" className="flex items-center gap-2 cursor-pointer">
-                        <User className="h-4 w-4" /> Staff
-                        <span className="text-[10px] text-muted-foreground">(gets My Portal PIN)</span>
-                      </Label>
-                    </div>
-                  </RadioGroup>
+                  <Select value={editRoleId} onValueChange={setEditRoleId}>
+                    <SelectTrigger className={formInput}>
+                      <SelectValue placeholder="Select a role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {workspaceRoles.map((role) => (
+                        <SelectItem key={role.id} value={role.id}>
+                          {role.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
 
                 {user.isSuperAdmin && (
@@ -695,8 +777,9 @@ const StaffManagement: React.FC = () => {
                       onCheckedChange={(v) => {
                       setEditIsSuperAdmin(!!v);
                       if (v) {
-                        setEditUserRole('admin');
                         setEditLocationIds([]);
+                        const ownerRole = workspaceRoles.find((r) => r.slug === 'owner');
+                        if (ownerRole) setEditRoleId(ownerRole.id);
                       }
                     }}
                       className="border-amber-400/50"
@@ -796,7 +879,7 @@ const StaffManagement: React.FC = () => {
                         variant="secondary"
                         className={`text-[10px] h-5 ${staff.isAdmin ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : ''}`}
                       >
-                        {staff.isAdmin ? 'Admin' : 'Staff'}
+                        {staff.workspaceRole?.name ?? (staff.isAdmin ? 'Admin' : 'Staff')}
                       </Badge>
                       {staff.isSuperAdmin && (
                         <Badge className="text-[10px] h-5 bg-amber-400/10 text-amber-300 border-amber-400/30">

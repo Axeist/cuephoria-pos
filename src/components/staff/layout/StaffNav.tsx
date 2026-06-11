@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { StaffTabId } from '@/types/staff.types';
+import { HR_TAB_PERMISSIONS } from '@/constants/permissionCatalog';
 import { cn } from '@/lib/utils';
 
 export type StaffNavItem = {
@@ -86,18 +87,22 @@ type DesktopProps = {
   activeTab: StaffTabId;
   onChange: (tab: StaffTabId) => void;
   pendingBadge?: number;
+  canAccess?: (tab: StaffTabId) => boolean;
 };
 
-export function StaffNavDesktop({ activeTab, onChange, pendingBadge }: DesktopProps) {
+export function StaffNavDesktop({ activeTab, onChange, pendingBadge, canAccess }: DesktopProps) {
   return (
     <nav className="space-y-5" aria-label="Staff sections">
-      {STAFF_NAV_GROUPS.map((group) => (
+      {STAFF_NAV_GROUPS.map((group) => {
+        const items = canAccess ? group.items.filter((item) => canAccess(item.id)) : group.items;
+        if (items.length === 0) return null;
+        return (
         <div key={group.label} className="space-y-1">
           <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
             {group.label}
           </p>
           <ul className="space-y-0.5">
-            {group.items.map((item) => {
+            {items.map((item) => {
               const Icon = item.icon;
               const active = activeTab === item.id;
               return (
@@ -132,16 +137,18 @@ export function StaffNavDesktop({ activeTab, onChange, pendingBadge }: DesktopPr
             })}
           </ul>
         </div>
-      ))}
+        );
+      })}
     </nav>
   );
 }
 
-export function StaffNavMobile({ activeTab, onChange, pendingBadge }: DesktopProps) {
+export function StaffNavMobile({ activeTab, onChange, pendingBadge, canAccess }: DesktopProps) {
+  const items = canAccess ? ALL_ITEMS.filter((item) => canAccess(item.id)) : ALL_ITEMS;
   return (
     <div className="lg:hidden -mx-1 overflow-x-auto scrollbar-hide">
       <div className="flex gap-1.5 px-1 pb-1 min-w-max">
-        {ALL_ITEMS.map((item) => {
+        {items.map((item) => {
           const Icon = item.icon;
           const active = activeTab === item.id;
           return (
@@ -174,3 +181,5 @@ export function StaffNavMobile({ activeTab, onChange, pendingBadge }: DesktopPro
 export function useStaffNavLabel(tab: StaffTabId): string {
   return useMemo(() => ALL_ITEMS.find((i) => i.id === tab)?.label ?? tab, [tab]);
 }
+
+export { HR_TAB_PERMISSIONS };

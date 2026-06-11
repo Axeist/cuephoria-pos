@@ -42,7 +42,7 @@ const ActionButtonSection: React.FC = () => {
         label={isMobile ? "Reports" : "View Reports"}
         path="/reports"
         iconColor="text-[#EC4899]"
-        requiresAdmin={true}
+        permissionKey="reports.view"
       />
     </div>
   );

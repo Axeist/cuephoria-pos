@@ -20,6 +20,7 @@ import StockExport from '@/components/product/StockExport';
 import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/context/PermissionsContext';
 import AdvancedFilters from '@/components/product/AdvancedFilters';
 import StockLogsViewer from '@/components/product/StockLogsViewer';
 import RestockDialog from '@/components/product/RestockDialog';
@@ -40,7 +41,12 @@ const ProductsPage: React.FC = () => {
   const { resetToInitialProducts, refreshFromDB } = useProducts();
   const { toast } = useToast();
   const { user } = useAuth();
-  const isAdmin = user?.isAdmin || false;
+  const { can } = usePermissions();
+  const canManageProducts =
+    can('products.create') ||
+    can('products.edit') ||
+    can('products.delete') ||
+    can('products.stock_adjust');
   const isSuperAdmin = user?.isSuperAdmin || false;
   const performedByLabel = user?.displayName || user?.username || 'Unknown User';
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
@@ -470,7 +476,7 @@ const ProductsPage: React.FC = () => {
           onDelete={handleDeleteProduct}
           onAddProduct={handleOpenDialog}
           showManagementActions={true}
-          isAdmin={isAdmin}
+          isAdmin={canManageProducts}
         />
       </div>
     </div>

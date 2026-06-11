@@ -18,6 +18,13 @@ import {
 } from "../../staffProfileSync";
 import { supabaseServiceClient, SupabaseConfigError } from "../../supabaseServer";
 import { assertEntitlement, assertFeatureLimit } from "../../lib/entitlements.js";
+import {
+  assertWorkspacePermission,
+  isAdminLoginRoleSlug,
+  resolveWorkspaceAccess,
+  roleNeedsStaffProfile,
+} from "../../lib/workspacePermissions";
+import type { SystemRoleSlug } from "../../constants/permissionCatalog";
 
 export const config = { runtime: "edge" };
 
@@ -47,6 +54,54 @@ function normalizeAdminEmail(explicit: unknown, username: string): string | null
 }
 
 const VERIFY_TTL_MINUTES = 60 * 24;
+
+async function resolveRoleSlugById(
+  supabase: SupabaseClient,
+  organizationId: string,
+  roleId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("workspace_roles")
+    .select("slug")
+    .eq("id", roleId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  return (data?.slug as string | null) ?? null;
+}
+
+async function resolveDefaultRoleId(
+  supabase: SupabaseClient,
+  organizationId: string,
+  slug: SystemRoleSlug,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("workspace_roles")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("slug", slug)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
+async function assignWorkspaceRole(
+  supabase: SupabaseClient,
+  opts: {
+    adminUserId: string;
+    roleId: string;
+    assignedBy: string;
+  },
+): Promise<{ error?: string }> {
+  const { error } = await supabase.from("admin_user_roles").upsert(
+    {
+      admin_user_id: opts.adminUserId,
+      role_id: opts.roleId,
+      assigned_by: opts.assignedBy,
+      assigned_at: new Date().toISOString(),
+    },
+    { onConflict: "admin_user_id" },
+  );
+  return error ? { error: error.message } : {};
+}
 
 /** Sends the same verification link as /api/admin/send-verification (new staff must verify before Google sign-in). */
 async function sendAdminVerificationEmail(opts: {
@@ -116,7 +171,7 @@ export default async function handler(req: Request) {
     const cookies = parseCookies(req.headers.get("cookie"));
     const token = cookies[ADMIN_SESSION_COOKIE];
     const sessionUser = token ? await verifyAdminSession(token) : null;
-    if (!sessionUser?.isAdmin) return j({ ok: false, error: "Unauthorized" }, 401);
+    if (!sessionUser) return j({ ok: false, error: "Unauthorized" }, 401);
 
     const serviceKey = getSupabaseServiceRoleKey();
     if (!serviceKey) {
@@ -147,7 +202,16 @@ export default async function handler(req: Request) {
         );
       }
 
-      const { data: memberRows, error: memberErr } = await supabase
+      const access = await resolveWorkspaceAccess(ctx.supabase, {
+        adminUserId: sessionUser.id,
+        organizationId: ctx.organizationId,
+        isSuperAdmin: sessionUser.isSuperAdmin,
+        isAdmin: sessionUser.isAdmin,
+      });
+      const viewGate = assertWorkspacePermission(access, "settings.team.view");
+      if (!viewGate.ok) return j({ ok: false, error: viewGate.error }, 403);
+
+      const { data: memberRows, error: memberErr } = await ctx.supabase
         .from("org_memberships")
         .select("admin_user_id")
         .eq("organization_id", ctx.organizationId);
@@ -156,13 +220,27 @@ export default async function handler(req: Request) {
 
       const allowedIds = (memberRows ?? []).map((r) => r.admin_user_id).filter(Boolean);
       if (allowedIds.length === 0) {
-        const { data: allLocsEmpty } = await supabase
+        const { data: allLocsEmpty } = await ctx.supabase
           .from("locations")
           .select("id, name, slug, short_code")
           .eq("organization_id", ctx.organizationId)
           .eq("is_active", true)
           .order("sort_order", { ascending: true });
-        return j({ ok: true, users: [], allLocations: allLocsEmpty ?? [] }, 200);
+        const { data: workspaceRolesEmpty } = await ctx.supabase
+          .from("workspace_roles")
+          .select("id, name, slug, description, is_system")
+          .eq("organization_id", ctx.organizationId)
+          .order("is_system", { ascending: false })
+          .order("name");
+        return j(
+          {
+            ok: true,
+            users: [],
+            allLocations: allLocsEmpty ?? [],
+            workspaceRoles: workspaceRolesEmpty ?? [],
+          },
+          200,
+        );
       }
 
       let usersQuery = await supabase
@@ -191,6 +269,41 @@ export default async function handler(req: Request) {
       );
 
       const userIds = filteredUsers.map((u) => u.id);
+
+      const roleByAdminId: Record<
+        string,
+        { id: string; name: string; slug: string | null; isSystem: boolean }
+      > = {};
+      if (userIds.length > 0) {
+        const { data: roleRows } = await ctx.supabase
+          .from("admin_user_roles")
+          .select(
+            "admin_user_id, role_id, workspace_roles:role_id ( id, name, slug, is_system )",
+          )
+          .in("admin_user_id", userIds);
+        for (const row of roleRows ?? []) {
+          const embedded = row.workspace_roles as
+            | { id: string; name: string; slug: string | null; is_system: boolean }
+            | { id: string; name: string; slug: string | null; is_system: boolean }[]
+            | null;
+          const role = Array.isArray(embedded) ? embedded[0] : embedded;
+          if (role && row.admin_user_id) {
+            roleByAdminId[row.admin_user_id] = {
+              id: role.id,
+              name: role.name,
+              slug: role.slug,
+              isSystem: role.is_system,
+            };
+          }
+        }
+      }
+
+      const { data: workspaceRoles } = await ctx.supabase
+        .from("workspace_roles")
+        .select("id, name, slug, description, is_system")
+        .eq("organization_id", ctx.organizationId)
+        .order("is_system", { ascending: false })
+        .order("name");
 
       const staffPinByAdminId: Record<
         string,
@@ -239,6 +352,7 @@ export default async function handler(req: Request) {
 
       const result = filteredUsers.map((u) => {
         const staffLink = staffPinByAdminId[u.id];
+        const workspaceRole = roleByAdminId[u.id] ?? null;
         return {
           id: u.id,
           username: u.username,
@@ -251,21 +365,75 @@ export default async function handler(req: Request) {
           locations: userLocations[u.id] ?? [],
           portalPin: staffLink?.portalPin ?? null,
           staffProfileUserId: staffLink?.staffProfileUserId ?? null,
+          workspaceRoleId: workspaceRole?.id ?? null,
+          workspaceRole,
         };
       });
 
-      return j({ ok: true, users: result, allLocations: allLocs ?? [] }, 200);
+      return j(
+        {
+          ok: true,
+          users: result,
+          allLocations: allLocs ?? [],
+          workspaceRoles: workspaceRoles ?? [],
+        },
+        200,
+      );
     }
 
     // ─── POST (create) ───────────────────────────────────────────────────────
     if (req.method === "POST") {
+      const ctx = await resolveOrgContext(req);
+      if ("code" in ctx) {
+        return j(
+          {
+            ok: false,
+            error:
+              ctx.code === "no_org"
+                ? "Your session has no workspace — open the correct venue first, then add users."
+                : ctx.message || "Could not resolve workspace.",
+          },
+          ctx.status,
+        );
+      }
+
+      const access = await resolveWorkspaceAccess(ctx.supabase, {
+        adminUserId: sessionUser.id,
+        organizationId: ctx.organizationId,
+        isSuperAdmin: sessionUser.isSuperAdmin,
+        isAdmin: sessionUser.isAdmin,
+      });
+      const createGate = assertWorkspacePermission(access, "settings.team.create");
+      if (!createGate.ok) return j({ ok: false, error: createGate.error }, 403);
+
       const body = await req.json().catch(() => ({}));
       const username = String(body?.username || "").trim();
       const password = String(body?.password || "");
-      const isAdmin = !!body?.isAdmin;
+      let isAdmin = !!body?.isAdmin;
       // Only a super-admin can create another super-admin
       const isSuperAdmin = sessionUser.isSuperAdmin ? !!body?.isSuperAdmin : false;
       const locationIds: string[] = Array.isArray(body?.locationIds) ? body.locationIds : [];
+
+      const workspaceRoleIdInput =
+        typeof body?.workspaceRoleId === "string" ? body.workspaceRoleId.trim() : "";
+      let roleSlug: string | null = null;
+      let resolvedRoleId: string | null = null;
+
+      if (workspaceRoleIdInput) {
+        roleSlug = await resolveRoleSlugById(ctx.supabase, ctx.organizationId, workspaceRoleIdInput);
+        if (!roleSlug) return j({ ok: false, error: "Invalid workspace role." }, 400);
+        resolvedRoleId = workspaceRoleIdInput;
+      } else {
+        roleSlug = isSuperAdmin ? "owner" : isAdmin ? "venue_admin" : "employee";
+        resolvedRoleId = await resolveDefaultRoleId(
+          ctx.supabase,
+          ctx.organizationId,
+          roleSlug as SystemRoleSlug,
+        );
+      }
+
+      isAdmin = isSuperAdmin || isAdminLoginRoleSlug(roleSlug);
+      const createStaffProfile = roleNeedsStaffProfile(roleSlug, isSuperAdmin);
 
       if (!username || !password) return j({ ok: false, error: "Missing username/password" }, 400);
       if (password.length < 8) return j({ ok: false, error: "Password must be at least 8 characters." }, 400);
@@ -308,7 +476,7 @@ export default async function handler(req: Request) {
       const staffShiftEnd =
         typeof body?.shiftEndTime === "string" ? body.shiftEndTime.trim() : "23:00";
 
-      if (!isAdmin && !isSuperAdmin && (!staffMonthlySalary || staffMonthlySalary <= 0)) {
+      if (createStaffProfile && (!staffMonthlySalary || staffMonthlySalary <= 0)) {
         return j(
           { ok: false, error: "Monthly salary is required when creating a staff account." },
           400,
@@ -337,20 +505,6 @@ export default async function handler(req: Request) {
 
       if (insertErr || !newUser) return j({ ok: false, error: insertErr?.message ?? "Insert failed" }, 500);
 
-      const ctx = await resolveOrgContext(req);
-      if ("code" in ctx) {
-        await supabase.from("admin_users").delete().eq("id", newUser.id);
-        return j(
-          {
-            ok: false,
-            error:
-              ctx.code === "no_org"
-                ? "Your session has no workspace — open the correct venue first, then add users."
-                : ctx.message || "Could not resolve workspace for this user.",
-          },
-          ctx.status,
-        );
-      }
       if (ctx.isSuspended) {
         await supabase.from("admin_users").delete().eq("id", newUser.id);
         return j(
@@ -363,7 +517,7 @@ export default async function handler(req: Request) {
         );
       }
 
-      if (!isAdmin && !isSuperAdmin) {
+      if (createStaffProfile) {
         const staffGate = await assertEntitlement(ctx, "staff_hr_enabled");
         if (staffGate) {
           await supabase.from("admin_users").delete().eq("id", newUser.id);
@@ -390,6 +544,18 @@ export default async function handler(req: Request) {
       if (memInsertErr) {
         await supabase.from("admin_users").delete().eq("id", newUser.id);
         return j({ ok: false, error: memInsertErr.message }, 500);
+      }
+
+      if (resolvedRoleId) {
+        const assignResult = await assignWorkspaceRole(supabase, {
+          adminUserId: newUser.id,
+          roleId: resolvedRoleId,
+          assignedBy: sessionUser.id,
+        });
+        if (assignResult.error) {
+          await supabase.from("admin_users").delete().eq("id", newUser.id);
+          return j({ ok: false, error: assignResult.error }, 500);
+        }
       }
 
       // Assign locations (only branches in this workspace)
@@ -434,7 +600,7 @@ export default async function handler(req: Request) {
       let portalPin: string | null = null;
       let staffProfileUserId: string | null = null;
 
-      if (!isAdmin && !isSuperAdmin && locs.length > 0) {
+      if (createStaffProfile && locs.length > 0) {
         const profileResult = await createStaffProfileForLoginUser(supabase, {
           adminUserId: newUser.id,
           email: emailNorm,
@@ -480,6 +646,20 @@ export default async function handler(req: Request) {
     if (req.method === "PATCH") {
       const body = await req.json().catch(() => ({}));
 
+      const ctx = await resolveOrgContext(req);
+      if ("code" in ctx) {
+        return j({ ok: false, error: ctx.message || "Could not resolve workspace." }, ctx.status);
+      }
+
+      const access = await resolveWorkspaceAccess(ctx.supabase, {
+        adminUserId: sessionUser.id,
+        organizationId: ctx.organizationId,
+        isSuperAdmin: sessionUser.isSuperAdmin,
+        isAdmin: sessionUser.isAdmin,
+      });
+      const editGate = assertWorkspacePermission(access, "settings.team.edit");
+      if (!editGate.ok) return j({ ok: false, error: editGate.error }, 403);
+
       /** Create or regenerate staff portal PIN (staff accounts only). */
       if (body.regeneratePortalPin === true || body.ensureStaffProfile === true) {
         const targetId = String(body.id || "").trim();
@@ -500,11 +680,6 @@ export default async function handler(req: Request) {
             },
             400,
           );
-        }
-
-        const ctx = await resolveOrgContext(req);
-        if ("code" in ctx) {
-          return j({ ok: false, error: ctx.message || "Could not resolve workspace." }, ctx.status);
         }
 
         const locHint = Array.isArray(body?.locationIds) ? body.locationIds[0] : undefined;
@@ -756,6 +931,32 @@ export default async function handler(req: Request) {
         update.is_admin = body.isAdmin;
       }
 
+      const workspaceRoleIdPatch =
+        typeof body?.workspaceRoleId === "string" ? body.workspaceRoleId.trim() : "";
+      if (workspaceRoleIdPatch) {
+        if (id === sessionUser.id) {
+          return j({ ok: false, error: "You cannot change your own role." }, 400);
+        }
+        const roleSlug = await resolveRoleSlugById(
+          ctx.supabase,
+          ctx.organizationId,
+          workspaceRoleIdPatch,
+        );
+        if (!roleSlug) return j({ ok: false, error: "Invalid workspace role." }, 400);
+
+        const assignResult = await assignWorkspaceRole(supabase, {
+          adminUserId: id,
+          roleId: workspaceRoleIdPatch,
+          assignedBy: sessionUser.id,
+        });
+        if (assignResult.error) return j({ ok: false, error: assignResult.error }, 500);
+
+        update.is_admin = isAdminLoginRoleSlug(roleSlug);
+      }
+
+      const roleMembershipChanged =
+        typeof body?.isAdmin === "boolean" || !!workspaceRoleIdPatch;
+
       if (Object.keys(update).length > 0) {
         const { error: updateErr } = await supabase.from("admin_users").update(update).eq("id", id);
         if (updateErr) return j({ ok: false, error: updateErr.message }, 500);
@@ -767,23 +968,17 @@ export default async function handler(req: Request) {
         });
       }
 
-      if (typeof body?.isAdmin === "boolean") {
-        const ctx = await resolveOrgContext(req);
-        if ("code" in ctx) {
-          return j(
-            {
-              ok: false,
-              error:
-                ctx.code === "no_org"
-                  ? "Your session has no workspace — open the correct venue first, then update roles."
-                  : ctx.message || "Could not resolve workspace.",
-            },
-            ctx.status,
-          );
-        }
+      if (roleMembershipChanged) {
+        const effectiveIsAdmin =
+          typeof update.is_admin === "boolean"
+            ? update.is_admin
+            : typeof body?.isAdmin === "boolean"
+              ? body.isAdmin
+              : false;
 
         const orgRole: "admin" | "staff" =
-          body.isAdmin || (typeof update.is_super_admin === "boolean" && update.is_super_admin)
+          effectiveIsAdmin ||
+          (typeof update.is_super_admin === "boolean" && update.is_super_admin)
             ? "admin"
             : "staff";
         const { error: memRoleErr } = await supabase.from("org_memberships").upsert(
@@ -796,7 +991,7 @@ export default async function handler(req: Request) {
         );
         if (memRoleErr) return j({ ok: false, error: memRoleErr.message }, 500);
 
-        if (!body.isAdmin) {
+        if (!effectiveIsAdmin) {
           const locHint = Array.isArray(body?.locationIds) ? body.locationIds[0] : undefined;
           const ensured = await ensureStaffProfileForLoginUser(supabase, {
             adminUserId: id,
@@ -812,20 +1007,6 @@ export default async function handler(req: Request) {
       // Update location assignments if provided
       if (Array.isArray(body?.locationIds)) {
         const locationIds: string[] = body.locationIds;
-
-        const ctx = await resolveOrgContext(req);
-        if ("code" in ctx) {
-          return j(
-            {
-              ok: false,
-              error:
-                ctx.code === "no_org"
-                  ? "Your session has no workspace — open the correct venue first, then update branch access."
-                  : ctx.message || "Could not resolve workspace.",
-            },
-            ctx.status,
-          );
-        }
 
         const { data: patchTarget, error: patchTargetErr } = await supabase
           .from("admin_users")
@@ -953,6 +1134,20 @@ export default async function handler(req: Request) {
 
     // ─── DELETE ──────────────────────────────────────────────────────────────
     if (req.method === "DELETE") {
+      const ctx = await resolveOrgContext(req);
+      if ("code" in ctx) {
+        return j({ ok: false, error: ctx.message || "Could not resolve workspace." }, ctx.status);
+      }
+
+      const access = await resolveWorkspaceAccess(ctx.supabase, {
+        adminUserId: sessionUser.id,
+        organizationId: ctx.organizationId,
+        isSuperAdmin: sessionUser.isSuperAdmin,
+        isAdmin: sessionUser.isAdmin,
+      });
+      const deleteGate = assertWorkspacePermission(access, "settings.team.delete");
+      if (!deleteGate.ok) return j({ ok: false, error: deleteGate.error }, 403);
+
       const url = new URL(req.url);
       const id = url.searchParams.get("id");
       if (!id) return j({ ok: false, error: "Missing id" }, 400);

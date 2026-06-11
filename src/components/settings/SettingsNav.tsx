@@ -18,7 +18,9 @@ export type SettingsNavItem = {
   label: string;
   description?: string;
   icon: LucideIcon;
+  /** @deprecated use permissionKey */
   adminOnly?: boolean;
+  permissionKey?: string;
 };
 
 export type SettingsNavGroup = {
@@ -30,14 +32,14 @@ type Props = {
   groups: SettingsNavGroup[];
   activeTab: SettingsTabId;
   onSelect: (id: SettingsTabId) => void;
-  isAdmin: boolean;
+  canAccess: (item: SettingsNavItem) => boolean;
 };
 
-export default function SettingsNav({ groups, activeTab, onSelect, isAdmin }: Props) {
+export default function SettingsNav({ groups, activeTab, onSelect, canAccess }: Props) {
   return (
     <nav className="space-y-6" aria-label="Settings sections">
       {groups.map((group) => {
-        const visible = group.items.filter((item) => !item.adminOnly || isAdmin);
+        const visible = group.items.filter((item) => canAccess(item));
         if (visible.length === 0) return null;
         return (
           <div key={group.label} className="space-y-1">

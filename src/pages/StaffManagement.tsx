@@ -1,11 +1,14 @@
 // src/pages/StaffManagement.tsx
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { UserPlus } from 'lucide-react';
 import { StaffHRProvider, useStaffHR } from '@/context/StaffHRContext';
 import { useOrganizationOptional } from '@/context/OrganizationContext';
 import { useLocation } from '@/context/LocationContext';
+import { usePermissions } from '@/context/PermissionsContext';
+import { HR_TAB_PERMISSIONS } from '@/constants/permissionCatalog';
+import type { StaffTabId } from '@/types/staff.types';
 import StaffLocationBanner from '@/components/staff/layout/StaffLocationBanner';
 import StaffBranchScopeToggle from '@/components/staff/layout/StaffBranchScopeToggle';
 import StaffStatGrid from '@/components/staff/layout/StaffStatGrid';
@@ -44,6 +47,26 @@ const StaffManagementContent: React.FC = () => {
     setActiveTab,
     refresh,
   } = useStaffHR();
+  const { can } = usePermissions();
+
+  const canAccessStaffTab = (tab: StaffTabId) => {
+    const key = HR_TAB_PERMISSIONS[tab];
+    return key ? can(key) : true;
+  };
+
+  const visibleTabs = useMemo(
+    () =>
+      (Object.keys(HR_TAB_PERMISSIONS) as StaffTabId[]).filter((tab) =>
+        canAccessStaffTab(tab),
+      ),
+    [can],
+  );
+
+  useEffect(() => {
+    if (visibleTabs.length > 0 && !visibleTabs.includes(activeTab)) {
+      setActiveTab(visibleTabs[0]);
+    }
+  }, [activeTab, visibleTabs, setActiveTab]);
 
   const [showAdminRegularizationDialog, setShowAdminRegularizationDialog] = useState(false);
 
@@ -111,6 +134,7 @@ const StaffManagementContent: React.FC = () => {
         activeTab={activeTab}
         onChange={setActiveTab}
         pendingBadge={stats.pendingRequests}
+        canAccess={canAccessStaffTab}
       />
 
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
@@ -120,6 +144,7 @@ const StaffManagementContent: React.FC = () => {
               activeTab={activeTab}
               onChange={setActiveTab}
               pendingBadge={stats.pendingRequests}
+              canAccess={canAccessStaffTab}
             />
           </div>
         </aside>
@@ -134,7 +159,7 @@ const StaffManagementContent: React.FC = () => {
                 {STAFF_SECTION_META[activeTab].description}
               </p>
             </header>
-        {activeTab === 'overview' && (
+        {activeTab === 'overview' && canAccessStaffTab('overview') && (
           <StaffOverview
             staffProfiles={profiles}
             activeShifts={activeShifts}
@@ -143,14 +168,14 @@ const StaffManagementContent: React.FC = () => {
             onRefresh={refresh}
           />
         )}
-        {activeTab === 'directory' && (
+        {activeTab === 'directory' && canAccessStaffTab('directory') && (
           <StaffDirectory
             staffProfiles={profiles}
             isLoading={isLoading}
             onRefresh={refresh}
           />
         )}
-        {activeTab === 'attendance' && (
+        {activeTab === 'attendance' && canAccessStaffTab('attendance') && (
           <AttendanceManagement
             staffProfiles={profiles}
             activeShifts={activeShifts}
@@ -158,32 +183,32 @@ const StaffManagementContent: React.FC = () => {
             onRefresh={refresh}
           />
         )}
-        {activeTab === 'calendar' && (
+        {activeTab === 'calendar' && canAccessStaffTab('calendar') && (
           <AttendanceCalendarView
             staffProfiles={profiles}
             isLoading={isLoading}
             onRefresh={refresh}
           />
         )}
-        {activeTab === 'shifts' && <ShiftRosterPanel />}
-        {activeTab === 'requests' && (
+        {activeTab === 'shifts' && canAccessStaffTab('shifts') && <ShiftRosterPanel />}
+        {activeTab === 'requests' && canAccessStaffTab('requests') && (
           <StaffRequestsManagement
             staffProfiles={profiles}
             isLoading={isLoading}
             onRefresh={refresh}
           />
         )}
-        {activeTab === 'payroll' && (
+        {activeTab === 'payroll' && canAccessStaffTab('payroll') && (
           <PayrollManagement
             staffProfiles={profiles}
             isLoading={isLoading}
             onRefresh={refresh}
           />
         )}
-        {activeTab === 'reports' && <StaffReportsPanel />}
-        {activeTab === 'policies' && <LeavePolicyPanel />}
-        {activeTab === 'holidays' && <HolidayManagerPanel />}
-        {activeTab === 'audit' && <StaffAuditPanel />}
+        {activeTab === 'reports' && canAccessStaffTab('reports') && <StaffReportsPanel />}
+        {activeTab === 'policies' && canAccessStaffTab('policies') && <LeavePolicyPanel />}
+        {activeTab === 'holidays' && canAccessStaffTab('holidays') && <HolidayManagerPanel />}
+        {activeTab === 'audit' && canAccessStaffTab('audit') && <StaffAuditPanel />}
           </div>
         </main>
       </div>

@@ -5,6 +5,7 @@ import { LucideIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/context/PermissionsContext';
 import { toast } from 'sonner';
 
 interface ActionButtonProps {
@@ -13,7 +14,9 @@ interface ActionButtonProps {
   path: string;
   iconColor: string;
   description?: string;
+  /** @deprecated use permissionKey */
   requiresAdmin?: boolean;
+  permissionKey?: string;
 }
 
 const ActionButton: React.FC<ActionButtonProps> = ({
@@ -21,13 +24,21 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   label,
   path,
   iconColor,
-  requiresAdmin = false
+  requiresAdmin = false,
+  permissionKey,
 }) => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { user } = useAuth();
+  const { can } = usePermissions();
   
   const handleClick = () => {
+    if (permissionKey && !can(permissionKey)) {
+      toast.error("You don't have permission to access this feature", {
+        description: "Ask a manager or owner to grant access in Settings → Team → Roles.",
+      });
+      return;
+    }
     if (requiresAdmin && !user?.isAdmin) {
       toast.error("You don't have permission to access this feature", {
         description: "Please contact an administrator for access"

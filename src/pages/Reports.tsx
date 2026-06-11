@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from '@/context/AuthContext';
+import { usePermission } from '@/context/PermissionsContext';
 import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
@@ -62,7 +63,7 @@ function SessionDeleteDialog({
   onDelete: (id: string) => void | Promise<void>;
 }) {
   const { user } = useAuth();
-  const isAdmin = user?.isAdmin || false;
+  const canDeleteRecord = usePermission('reports.delete_record');
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
 
   const handleDelete = () => {
@@ -76,10 +77,10 @@ function SessionDeleteDialog({
         size="icon"
         className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/30 relative"
         onClick={handleDelete}
-        title={!isAdmin ? 'PIN verification required for staff' : 'Delete session'}
+        title={!canDeleteRecord ? 'PIN verification required for staff' : 'Delete session'}
       >
         <Trash2 className="h-4 w-4" />
-        {!isAdmin && (
+        {!canDeleteRecord && (
           <Lock className="h-3 w-3 absolute -top-0.5 -right-0.5 text-amber-500" />
         )}
         <span className="sr-only">Delete session</span>

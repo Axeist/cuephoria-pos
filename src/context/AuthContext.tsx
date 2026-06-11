@@ -131,6 +131,7 @@ interface AuthContextType {
       monthlySalary?: number;
       shiftStartTime?: string;
       shiftEndTime?: string;
+      workspaceRoleId?: string;
     },
   ) => Promise<{ success: boolean; portalPin?: string | null }>;
   regenerateStaffPortalPin: (id: string) => Promise<{ success: boolean; portalPin?: string | null }>;
@@ -138,7 +139,7 @@ interface AuthContextType {
   updateStaffMember: (
     id: string,
     data: Partial<
-      AdminUser & { locationIds: string[]; newPassword?: string; displayName?: string | null; designation?: string | null; isAdmin?: boolean }
+      AdminUser & { locationIds: string[]; newPassword?: string; displayName?: string | null; designation?: string | null; isAdmin?: boolean; workspaceRoleId?: string }
     >,
   ) => Promise<boolean>;
   ensureStaffPortalPin: (id: string, locationIds?: string[]) => Promise<{ success: boolean; portalPin?: string | null }>;
@@ -382,6 +383,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       monthlySalary?: number;
       shiftStartTime?: string;
       shiftEndTime?: string;
+      workspaceRoleId?: string;
     },
   ): Promise<{ success: boolean; portalPin?: string | null }> => {
     try {
@@ -407,6 +409,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           monthlySalary: profile?.monthlySalary,
           shiftStartTime: profile?.shiftStartTime,
           shiftEndTime: profile?.shiftEndTime,
+          workspaceRoleId: profile?.workspaceRoleId,
         }),
       });
       const json = await res.json();
@@ -537,7 +540,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateStaffMember = async (
     id: string,
     updatedData: Partial<
-      AdminUser & { locationIds: string[]; newPassword?: string; displayName?: string | null; designation?: string | null; isAdmin?: boolean }
+      AdminUser & { locationIds: string[]; newPassword?: string; displayName?: string | null; designation?: string | null; isAdmin?: boolean; workspaceRoleId?: string }
     >,
   ): Promise<boolean> => {
     try {
@@ -552,6 +555,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (typeof updatedData.designation === "string") body.designation = updatedData.designation;
       if (typeof updatedData.isSuperAdmin === 'boolean') body.isSuperAdmin = updatedData.isSuperAdmin;
       if (typeof updatedData.isAdmin === 'boolean') body.isAdmin = updatedData.isAdmin;
+      if (typeof updatedData.workspaceRoleId === 'string' && updatedData.workspaceRoleId.trim()) {
+        body.workspaceRoleId = updatedData.workspaceRoleId.trim();
+      }
       if (Array.isArray(updatedData.locationIds)) body.locationIds = updatedData.locationIds;
       if (typeof updatedData.newPassword === 'string' && updatedData.newPassword.trim()) {
         body.newPassword = updatedData.newPassword.trim();

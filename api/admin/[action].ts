@@ -34,6 +34,8 @@ import resetPassword from "../../src/server/handlers/admin/reset-password";
 import sendVerification from "../../src/server/handlers/admin/send-verification";
 import totp from "../../src/server/handlers/admin/totp";
 import staffPortal from "../../src/server/handlers/admin/staff-portal";
+import permissions from "../../src/server/handlers/admin/permissions";
+import roles from "../../src/server/handlers/admin/roles";
 import users from "../../src/server/handlers/admin/users";
 import verifyEmail from "../../src/server/handlers/admin/verify-email";
 
@@ -59,6 +61,8 @@ const routes: Record<string, Handler> = {
   "send-verification": sendVerification,
   "totp": totp,
   "staff-portal": staffPortal,
+  "permissions": permissions,
+  "roles": roles,
   "users": users,
   "verify-email": verifyEmail,
 };

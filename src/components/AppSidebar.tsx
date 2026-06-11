@@ -37,6 +37,8 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/context/PermissionsContext';
+import { SIDEBAR_PERMISSIONS } from '@/constants/permissionCatalog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useViewMode } from '@/context/ViewModeContext';
 import { Button } from '@/components/ui/button';
@@ -69,6 +71,9 @@ const AppSidebar: React.FC = () => {
   const queryClient = useQueryClient();
   const isAdmin = user?.isAdmin || false;
   const isSuperAdmin = user?.isSuperAdmin || false;
+  const { can, showStaffManagement, showMyPortal, role: workspaceRole, isLoading: permsLoading } =
+    usePermissions();
+  const { can: canPlan } = useEntitlements();
 
   const prefetchBilling = useCallback(() => {
     void queryClient.prefetchQuery({
@@ -84,7 +89,7 @@ const AppSidebar: React.FC = () => {
       staleTime: 60_000,
     });
   }, [queryClient]);
-  const roleLabel = isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff';
+  const roleLabel = workspaceRole?.name || (isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff');
   const showName = (user?.displayName?.trim() || user?.username || '').trim();
   const footerSubtitle = [user?.designation?.trim(), roleLabel].filter(Boolean).join(' · ');
 
@@ -130,29 +135,47 @@ const AppSidebar: React.FC = () => {
     };
   }, []);
 
-  if (!user || shouldHide) return null;
+  const filterByPermission = <T extends { path: string }>(items: T[]): T[] => {
+    if (permsLoading) return items;
+    return items.filter((item) => {
+      const required = SIDEBAR_PERMISSIONS[item.path];
+      return !required || can(required);
+    });
+  };
 
-  const { can } = useEntitlements();
-
-  const baseMenuItems = [
+  const baseMenuItems = filterByPermission([
     { icon: Home, label: 'Dashboard', path: '/dashboard' },
     { icon: ShoppingCart, label: 'POS', path: '/pos' },
     { icon: Clock, label: 'Gaming Stations', path: '/stations' },
     { icon: Package, label: 'Products', path: '/products' },
     { icon: Users, label: 'Customers', path: '/customers' },
     { icon: BarChart2, label: 'Reports', path: '/reports' },
-    ...(can('bookings_enabled') ? [{ icon: Calendar, label: 'Bookings', path: '/booking-management' }] : []),
-  ];
+    ...(canPlan('bookings_enabled') ? [{ icon: Calendar, label: 'Bookings', path: '/booking-management' }] : []),
+  ]);
 
-  const menuItems = [
-    ...baseMenuItems,
-    ...(isAdmin && can('staff_hr_enabled') ? [{ icon: Users2, label: 'Staff Management', path: '/staff' }] : []),
-    ...(!isAdmin && can('staff_hr_enabled') ? [{ icon: UserCircle, label: 'My Portal', path: '/staff-portal' }] : []),
-    ...(can('premium_modules_enabled') ? [{ icon: Bot, label: 'Cuephoria AI', path: '/chat-ai' }] : []),
-    ...(isAdmin ? [{ icon: CreditCard, label: 'Subscription', path: '/subscription' }] : []),
+  const hrItems = canPlan('staff_hr_enabled')
+    ? [
+        ...(showStaffManagement
+          ? [{ icon: Users2, label: 'Staff Management', path: '/staff' as const }]
+          : []),
+        ...(showMyPortal
+          ? [{ icon: UserCircle, label: 'My Portal', path: '/staff-portal' as const }]
+          : []),
+      ]
+    : [];
+
+  const tailItems = filterByPermission([
+    ...(canPlan('premium_modules_enabled') ? [{ icon: Bot, label: 'Cuephoria AI', path: '/chat-ai' }] : []),
+    ...(can('settings.subscription.view')
+      ? [{ icon: CreditCard, label: 'Subscription', path: '/subscription' }]
+      : []),
     { icon: Settings, label: 'Settings', path: '/settings' },
     { icon: BookOpen, label: 'How to Use', path: '/how-to-use' },
-  ];
+  ]);
+
+  const menuItems = [...baseMenuItems, ...hrItems, ...tailItems];
+
+  if (!user || shouldHide) return null;
 
   const BrandLogo = (
     <div

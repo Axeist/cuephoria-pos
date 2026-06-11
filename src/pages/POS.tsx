@@ -37,6 +37,7 @@ import {
 } from '@/utils/cartItem.utils';
 import type { CartItem } from '@/types/pos.types';
 import { useAuth } from '@/context/AuthContext';
+import { usePermission } from '@/context/PermissionsContext';
 import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 
@@ -106,13 +107,13 @@ const POS = () => {
   const [useCustomDateTime, setUseCustomDateTime] = useState(false);
 
   const { user } = useAuth();
-  const isAdmin = user?.isAdmin || false;
+  const canApplyDiscount = usePermission('pos.discount');
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
 
   // Late-night (post midnight) discount lock
   const isLateNight = () => new Date().getHours() < 6;
   const [discountPinUnlocked, setDiscountPinUnlocked] = useState(false);
-  const discountLocked = isLateNight() && !discountPinUnlocked && !isAdmin;
+  const discountLocked = isLateNight() && !discountPinUnlocked && !canApplyDiscount;
 
   const handleDiscountUnlock = () => {
     requestPinVerification(() => setDiscountPinUnlocked(true));

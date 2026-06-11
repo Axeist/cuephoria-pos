@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { PermissionsProvider, usePermissionsOptional } from "@/context/PermissionsContext";
 import { LocationProvider } from "@/context/LocationContext";
 import { AppSettingsProvider } from "@/context/AppSettingsContext";
 import { POSHydrationObserver } from "@/context/POSHydrationContext";
@@ -147,6 +148,8 @@ const queryClient = new QueryClient({
 interface ProtectedRouteProps {
   requireAdmin?: boolean;
   requireStaffOnly?: boolean;
+  /** Minimum workspace permission key (e.g. `hr.view`). Super-admin bypass applies. */
+  permission?: string;
   /**
    * Render children with all data providers (Auth/POS/Location/etc.) but
    * WITHOUT the sidebar + top header chrome. Used by the AI pop-out window
@@ -159,9 +162,11 @@ interface ProtectedRouteProps {
 const ProtectedRoute = ({ 
   requireAdmin = false,
   requireStaffOnly = false,
+  permission,
   bare = false,
 }: ProtectedRouteProps) => {
   const { user, isLoading } = useAuth();
+  const perms = usePermissionsOptional();
   const location = useLocation();
   const isMobile = useIsMobile();
   // Allow any route to opt in to bare/pop-out mode via a `?focus=1` query
@@ -190,6 +195,18 @@ const ProtectedRoute = ({
     return <Navigate to="/dashboard" replace />;
   }
 
+  if (permission && perms && !perms.isLoading && !perms.can(permission)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (permission && perms?.isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-cuephoria-dark">
+        <div className="animate-spin-slow h-10 w-10 rounded-full border-4 border-cuephoria-lightpurple border-t-transparent" />
+      </div>
+    );
+  }
+
   // Force a password rotation before anything else is reachable.
   if (user.mustChangePassword && location.pathname !== "/account/change-password") {
     return <Navigate to="/account/change-password" replace />;
@@ -197,6 +214,7 @@ const ProtectedRoute = ({
 
   return (
     <OrganizationProvider>
+      <PermissionsProvider>
       <OnboardingGate>
         <SubscriptionGate>
           <BrandingProvider>
@@ -251,6 +269,7 @@ const ProtectedRoute = ({
           </BrandingProvider>
         </SubscriptionGate>
       </OnboardingGate>
+      </PermissionsProvider>
     </OrganizationProvider>
   );
 };
@@ -524,7 +543,7 @@ const App = () => {
                     }
                   />
                 )}
-                <Route element={<ProtectedRoute requireAdmin />}>
+                <Route element={<ProtectedRoute permission="audit.login_logs.view" />}>
                   <Route
                     path="/login-logs"
                     element={
@@ -898,7 +917,7 @@ const App = () => {
                   />
                 </Route>
 
-                <Route element={<ProtectedRoute requireAdmin />}>
+                <Route element={<ProtectedRoute permission="hr.view" />}>
                   <Route
                     path="/staff"
                     element={
@@ -911,7 +930,7 @@ const App = () => {
                   />
                 </Route>
 
-                <Route element={<ProtectedRoute requireStaffOnly />}>
+                <Route element={<ProtectedRoute />}>
                   <Route
                     path="/staff-portal"
                     element={

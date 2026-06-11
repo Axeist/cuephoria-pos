@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/context/PermissionsContext';
+import { SETTINGS_TAB_PERMISSIONS } from '@/constants/permissionCatalog';
 import TeamManagement from '@/components/admin/TeamManagement';
 import {
   Store,
@@ -86,13 +88,14 @@ const NAV_GROUPS: SettingsNavGroup[] = [
         label: 'Locations',
         description: 'Branches and short codes',
         icon: MapPin,
-        adminOnly: true,
+        permissionKey: 'settings.branches.view',
       },
       {
         id: 'booking',
         label: 'Online booking',
         description: 'Coupons, add-ons, popups',
         icon: CalendarCheck,
+        permissionKey: 'bookings.view',
       },
     ],
   },
@@ -104,21 +107,21 @@ const NAV_GROUPS: SettingsNavGroup[] = [
         label: 'Branding',
         description: 'Logo, colors, public look',
         icon: Palette,
-        adminOnly: true,
+        permissionKey: 'settings.branding.view',
       },
       {
         id: 'subscription',
         label: 'Subscription',
         description: 'Plan and billing cycle',
         icon: ShieldCheck,
-        adminOnly: true,
+        permissionKey: 'settings.subscription.view',
       },
       {
         id: 'payments',
         label: 'Payments',
         description: 'Razorpay for online checkout',
         icon: CreditCard,
-        adminOnly: true,
+        permissionKey: 'settings.payments.view',
       },
     ],
   },
@@ -130,7 +133,7 @@ const NAV_GROUPS: SettingsNavGroup[] = [
         label: 'Team members',
         description: 'Staff logins and access',
         icon: Users,
-        adminOnly: true,
+        permissionKey: 'settings.team.view',
       },
     ],
   },
@@ -142,12 +145,14 @@ const NAV_GROUPS: SettingsNavGroup[] = [
         label: 'Tournaments',
         description: 'Brackets and winners',
         icon: Trophy,
+        permissionKey: 'settings.tournaments.view',
       },
       {
         id: 'leaderboard',
         label: 'Leaderboard',
         description: 'Rankings and history',
         icon: Award,
+        permissionKey: 'settings.tournaments.view',
       },
     ],
   },
@@ -203,6 +208,7 @@ function SettingsSectionHeader({ title, description }: { title: string; descript
 
 const Settings = () => {
   const { user } = useAuth();
+  const { can, bypass } = usePermissions();
   const isAdmin = user?.isAdmin || false;
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
@@ -220,6 +226,18 @@ const Settings = () => {
     normalizedTab && (SETTINGS_TABS as readonly string[]).includes(normalizedTab)
       ? (normalizedTab as SettingsTabId)
       : 'general';
+
+  const setActiveTab = (tab: SettingsTabId) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('tab', tab);
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
   const [loading, setLoading] = useState(false);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -237,8 +255,12 @@ const Settings = () => {
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
   const { activeLocationId, activeLocation } = useLocation();
 
-  const setActiveTab = (tab: SettingsTabId) => {
-    setSearchParams(tab === 'general' ? {} : { tab });
+  const canAccessSettingsItem = (item: { adminOnly?: boolean; permissionKey?: string; id: SettingsTabId }) => {
+    if (bypass) return true;
+    const key = item.permissionKey ?? SETTINGS_TAB_PERMISSIONS[item.id];
+    if (key) return can(key);
+    if (item.adminOnly) return isAdmin;
+    return true;
   };
 
   const sectionMeta = SECTION_META[activeTab];
@@ -429,35 +451,43 @@ const Settings = () => {
   };
 
   const renderContent = () => {
+    if (!canAccessSettingsItem({ id: activeTab, label: '', icon: Store })) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          You do not have permission to view this settings section.
+        </p>
+      );
+    }
+
     switch (activeTab) {
       case 'general':
         return (
           <div className="space-y-6 -mt-2">
-            {isAdmin && <OrganizationSettings embedded section="identity" />}
+            {can('settings.branding.view') && <OrganizationSettings embedded section="identity" />}
             <GeneralSettings />
           </div>
         );
 
       case 'branding':
-        return isAdmin ? <WorkspaceBrandingPanel /> : null;
+        return can('settings.branding.view') ? <WorkspaceBrandingPanel /> : null;
 
       case 'subscription':
-        return isAdmin ? <WorkspaceSubscriptionPanel /> : null;
+        return can('settings.subscription.view') ? <WorkspaceSubscriptionPanel /> : null;
 
       case 'branches':
-        return isAdmin ? <BranchManagementSettings /> : null;
+        return can('settings.branches.view') ? <BranchManagementSettings /> : null;
 
       case 'booking':
-        return <BookingSettings />;
+        return can('bookings.view') ? <BookingSettings /> : null;
 
       case 'payments':
-        return isAdmin ? <PaymentGatewaySettings /> : null;
+        return can('settings.payments.view') ? <PaymentGatewaySettings /> : null;
 
       case 'team':
-        return isAdmin ? <TeamManagement /> : null;
+        return can('settings.team.view') ? <TeamManagement /> : null;
 
       case 'tournaments':
-        return (
+        return can('settings.tournaments.view') ? (
           <div className="space-y-6 -mt-2">
             {managingTournament ? (
               <div className="space-y-4">
@@ -559,10 +589,10 @@ const Settings = () => {
               tournamentName={selectedTournamentForHistory?.name || ''}
             />
           </div>
-        );
+        ) : null;
 
       case 'leaderboard':
-        return (
+        return can('settings.tournaments.view') ? (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <p className="text-sm text-muted-foreground">
@@ -574,10 +604,10 @@ const Settings = () => {
                     variant="destructive"
                     className="gap-2"
                     disabled={resetting}
-                    title={!isAdmin ? 'PIN verification required for staff' : 'Reset leaderboard'}
+                    title={!canResetLeaderboard ? 'PIN verification required for staff' : 'Reset leaderboard'}
                   >
                     <RotateCcw className="h-4 w-4" />
-                    {!isAdmin && <Lock className="h-3 w-3 text-amber-500" />}
+                    {!canResetLeaderboard && <Lock className="h-3 w-3 text-amber-500" />}
                     {resetting ? 'Resetting…' : 'Reset leaderboard'}
                   </Button>
                 </AlertDialogTrigger>
@@ -592,7 +622,7 @@ const Settings = () => {
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
-                      onClick={isAdmin ? handleResetLeaderboard : handleResetLeaderboardWithPin}
+                      onClick={canResetLeaderboard ? handleResetLeaderboard : handleResetLeaderboardWithPin}
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
                       Reset Leaderboard
@@ -604,14 +634,18 @@ const Settings = () => {
 
             <TournamentLeaderboard />
           </div>
-        );
+        ) : null;
 
       default:
         return null;
     }
   };
 
-  const mobileNavItems = NAV_GROUPS.flatMap((g) => g.items).filter((item) => !item.adminOnly || isAdmin);
+  const canResetLeaderboard = can('settings.leaderboard.reset');
+
+  const mobileNavItems = NAV_GROUPS.flatMap((g) => g.items).filter((item) =>
+    canAccessSettingsItem(item),
+  );
 
   return (
     <div className="min-h-[calc(100vh-4rem)]">
@@ -676,7 +710,7 @@ const Settings = () => {
               groups={NAV_GROUPS}
               activeTab={activeTab}
               onSelect={setActiveTab}
-              isAdmin={isAdmin}
+              canAccess={canAccessSettingsItem}
             />
           </aside>
 

@@ -6,6 +6,8 @@ import {
   parseCookies,
   verifyAdminSession,
 } from "../../adminApiUtils";
+import { resolveOrgContext } from "../../orgContext";
+import { assertWorkspacePermission, resolveWorkspaceAccess } from "../../lib/workspacePermissions";
 
 export const config = { runtime: "edge" };
 
@@ -28,9 +30,23 @@ export default async function handler(req: Request) {
     const cookies = parseCookies(req.headers.get("cookie"));
     const token = cookies[ADMIN_SESSION_COOKIE];
     const sessionUser = token ? await verifyAdminSession(token) : null;
-    if (!sessionUser?.isAdmin) {
+    if (!sessionUser) {
       return j({ ok: false, error: "Unauthorized" }, 401);
     }
+
+    const ctx = await resolveOrgContext(req);
+    if ("code" in ctx) {
+      return j({ ok: false, error: ctx.message || "Workspace not resolved" }, ctx.status);
+    }
+
+    const access = await resolveWorkspaceAccess(ctx.supabase, {
+      adminUserId: sessionUser.id,
+      organizationId: ctx.organizationId,
+      isSuperAdmin: sessionUser.isSuperAdmin,
+      isAdmin: sessionUser.isAdmin,
+    });
+    const viewGate = assertWorkspacePermission(access, "audit.login_logs.view");
+    if (!viewGate.ok) return j({ ok: false, error: viewGate.error }, 403);
 
     const serviceKey = getSupabaseServiceRoleKey();
     if (!serviceKey) {

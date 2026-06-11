@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Edit, Trash, Lock } from 'lucide-react';
 import { usePinVerification } from '@/hooks/usePinVerification';
 import { useAuth } from '@/context/AuthContext';
+import { usePermission } from '@/context/PermissionsContext';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { Bill } from '@/types/pos.types';
 
@@ -15,7 +16,7 @@ interface BillActionsProps {
 
 const BillActions: React.FC<BillActionsProps> = ({ bill, onEdit, onDelete }) => {
   const { user } = useAuth();
-  const isAdmin = user?.isAdmin || false;
+  const canDeleteRecord = usePermission('reports.delete_record');
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
 
   const handleDelete = () => {
@@ -39,10 +40,10 @@ const BillActions: React.FC<BillActionsProps> = ({ bill, onEdit, onDelete }) => 
           size="sm" 
           className="text-red-500 relative" 
           onClick={handleDelete}
-          title={!isAdmin ? "PIN verification required for staff" : "Delete bill"}
+          title={!canDeleteRecord ? "PIN verification required for staff" : "Delete bill"}
         >
           <Trash className="h-4 w-4" />
-          {!isAdmin && (
+          {!canDeleteRecord && (
             <Lock className="h-3 w-3 absolute -top-1 -right-1 text-amber-500" />
           )}
         </Button>

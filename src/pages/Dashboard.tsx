@@ -24,18 +24,36 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { usePermissions } from '@/context/PermissionsContext';
 
 const Dashboard = () => {
   const { customers, bills, stations, sessions, products } = usePOS();
   const { expenses, businessSummary } = useExpenses();
   const { stats } = useLocationAnalytics();
   const { toast } = useToast();
+  const { can } = usePermissions();
   const isMobile = useIsMobile();
+
+  const canViewAnalytics = can('dashboard.analytics.view');
+  const canViewExpenses = can('dashboard.expenses.view');
+  const canViewVault = can('dashboard.vault.view');
 
   const [activeTab, setActiveTab] = useState<'hourly'|'daily'|'weekly'|'monthly'>('daily');
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [currentDashboardTab, setCurrentDashboardTab] = useState<'overview'|'analytics'|'expenses'|'cash'>('overview');
   const [selectedCategory, setSelectedCategory] = useState<string|null>(null);
+
+  useEffect(() => {
+    if (currentDashboardTab === 'analytics' && !canViewAnalytics) {
+      setCurrentDashboardTab('overview');
+    }
+    if (currentDashboardTab === 'expenses' && !canViewExpenses) {
+      setCurrentDashboardTab('overview');
+    }
+    if (currentDashboardTab === 'cash' && !canViewVault) {
+      setCurrentDashboardTab('overview');
+    }
+  }, [currentDashboardTab, canViewAnalytics, canViewExpenses, canViewVault]);
 
   const lowStockItems = useMemo(
     () => products.filter(p => p.stock < 5).sort((a, b) => a.stock - b.stock),
@@ -171,6 +189,7 @@ const Dashboard = () => {
           >
             Overview
           </button>
+          {canViewAnalytics && (
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('analytics')}
@@ -182,6 +201,8 @@ const Dashboard = () => {
           >
             Analytics
           </button>
+          )}
+          {canViewExpenses && (
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('expenses')}
@@ -193,6 +214,8 @@ const Dashboard = () => {
           >
             Expenses
           </button>
+          )}
+          {canViewVault && (
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('cash')}
@@ -204,6 +227,7 @@ const Dashboard = () => {
           >
             Vault
           </button>
+          )}
         </div>
 
         {currentDashboardTab === 'expenses' && (
