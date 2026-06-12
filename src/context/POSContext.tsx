@@ -35,6 +35,27 @@ import {
 } from '@/utils/prepaidBooking.utils';
 import { getBillableMs, resolveSessionForBilling } from '@/utils/sessionTimer.utils';
 
+const CATEGORY_APPEARANCE_STORAGE_KEY = 'cuephoria_category_appearance_columns';
+
+function readCategoryAppearanceColumnsSupported(): boolean {
+  try {
+    const stored = sessionStorage.getItem(CATEGORY_APPEARANCE_STORAGE_KEY);
+    if (stored === '0') return false;
+    if (stored === '1') return true;
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
+function persistCategoryAppearanceColumnsSupported(supported: boolean): void {
+  try {
+    sessionStorage.setItem(CATEGORY_APPEARANCE_STORAGE_KEY, supported ? '1' : '0');
+  } catch {
+    /* ignore */
+  }
+}
+
 const POSContext = createContext<POSContextType>({
   products: [],
   productsLoading: false,
@@ -126,7 +147,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   
   const [categories, setCategories] = useState<string[]>(['uncategorized']);
   const [categoryMeta, setCategoryMeta] = useState<Record<string, ProductCategoryMeta>>({});
-  const categoryAppearanceColumnsRef = useRef(true);
+  const categoryAppearanceColumnsRef = useRef(readCategoryAppearanceColumnsSupported());
 
   const getCategoryAccentColor = useCallback(
     (category: string) => {
@@ -261,6 +282,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isMissingColumnError(error)
       ) {
         categoryAppearanceColumnsRef.current = false;
+        persistCategoryAppearanceColumnsSupported(false);
         setCategoryMeta((prev) => ({
           ...prev,
           [key]: {
@@ -575,16 +597,21 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         if (error && useAppearanceColumns) {
           categoryAppearanceColumnsRef.current = false;
+          persistCategoryAppearanceColumnsSupported(false);
           useDefaultsOnly = true;
           ({ data, error } = await supabase
             .from('categories')
             .select('name')
             .eq('location_id', activeLocationId));
         }
-        
+
         if (error) {
           console.error('Error fetching categories:', error);
           return;
+        }
+
+        if (useAppearanceColumns && !useDefaultsOnly) {
+          persistCategoryAppearanceColumnsSupported(true);
         }
 
         if (data && data.length > 0) {
@@ -679,6 +706,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isMissingColumnError(error)
       ) {
         categoryAppearanceColumnsRef.current = false;
+        persistCategoryAppearanceColumnsSupported(false);
         ({ error } = await supabase.from('categories').insert({
           name: trimmedCategory,
           location_id: activeLocationId,

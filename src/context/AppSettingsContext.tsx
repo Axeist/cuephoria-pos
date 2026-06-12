@@ -9,6 +9,7 @@ import React, {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "@/context/LocationContext";
+import { usePermissionsOptional } from "@/context/PermissionsContext";
 import { normalizeSecuritySettings } from "@/utils/securitySettings";
 import { adminFetch } from "@/services/adminFetch";
 
@@ -64,10 +65,26 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
   const { activeLocationId } = useLocation();
+  const perms = usePermissionsOptional();
 
   const loadSettings = useCallback(async () => {
+    if (activeLocationId && perms?.isLoading) {
+      return;
+    }
+
     try {
       setLoading(true);
+
+      const canViewBranchSettings =
+        !activeLocationId ||
+        !perms ||
+        perms.bypass ||
+        perms.can("settings.general.view");
+
+      if (activeLocationId && !canViewBranchSettings) {
+        setSettings(defaultAppSettings);
+        return;
+      }
 
       if (activeLocationId) {
         const res = await fetch(
@@ -87,6 +104,13 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
           return;
         }
         if (!json?.ok) {
+          const permissionDenied =
+            res.status === 403 ||
+            json?.error === "You do not have permission for this action.";
+          if (permissionDenied) {
+            setSettings(defaultAppSettings);
+            return;
+          }
           throw new Error(json?.error || "Failed to load branch settings");
         }
       }
@@ -116,7 +140,7 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       setLoading(false);
     }
-  }, [activeLocationId, toast]);
+  }, [activeLocationId, toast, perms]);
 
   const persistSettings = useCallback(
     async (updates: Partial<AppSettings>) => {

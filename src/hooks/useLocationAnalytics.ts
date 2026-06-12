@@ -8,6 +8,7 @@ import {
 } from 'date-fns';
 import { callAnalyticsRpc } from '@/services/adminRecordsApi';
 import { useLocation } from '@/context/LocationContext';
+import { usePermissionsOptional } from '@/context/PermissionsContext';
 
 async function analyticsRpc<T>(
   name: string,
@@ -303,7 +304,14 @@ type Options = {
 
 export function useLocationAnalytics(options?: Options) {
   const { activeLocationId } = useLocation();
-  const enabled = options?.enabled !== false;
+  const perms = usePermissionsOptional();
+  const hasAnalyticsPermission =
+    !perms || perms.bypass || perms.can('dashboard.analytics.view');
+  const permissionsReady = !perms || !perms.isLoading;
+  const enabled =
+    options?.enabled !== false &&
+    permissionsReady &&
+    hasAnalyticsPermission;
   const startDate = options?.startDate;
   const endDate = options?.endDate;
   const includeBillMetrics = options?.includeBillMetrics ?? false;
