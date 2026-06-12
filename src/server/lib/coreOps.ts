@@ -325,7 +325,8 @@ export async function executeCoreOp(
 
       const prepared = rows.map((r) => injectLocationOnWrite(table, locationId, r));
       let q = supabase.from(table).insert(prepared);
-      if (payload.select) q = q.select(payload.select);
+      // Supabase insert().single() returns null without an explicit select().
+      if (payload.select || payload.single) q = q.select(selectStr);
       if (payload.single) {
         const { data, error } = await q.single();
         if (error) return { ok: false, error: error.message, status: 500 };
@@ -341,7 +342,7 @@ export async function executeCoreOp(
         return { ok: false, error: "Missing row for update", status: 400 };
       }
       let q = applyFilters(supabase.from(table).update(payload.row), filters);
-      if (payload.select) q = q.select(payload.select);
+      if (payload.select || payload.single) q = q.select(selectStr);
       if (payload.single) {
         const { data, error } = await q.single();
         if (error) return { ok: false, error: error.message, status: 500 };

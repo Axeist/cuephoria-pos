@@ -402,10 +402,15 @@ export const useBills = (
         throw new Error(`Failed to create bill: ${billError.message}`);
       }
 
-      console.log('Bill created successfully:', billData);
+      const billRow = billData as { id?: string } | null;
+      if (!billRow?.id) {
+        throw new Error('Failed to create bill: server returned no bill id');
+      }
+
+      console.log('Bill created successfully:', billRow);
 
       const billItemsToInsert = cart.map(item => ({
-        bill_id: billData.id,
+        bill_id: billRow.id,
         item_id: item.id,
         name: getCartItemDisplayName(item),
         price: item.price,
@@ -422,7 +427,7 @@ export const useBills = (
       if (itemsError) {
         console.error('Error creating bill items:', itemsError);
         await scopedTable('bills', activeLocationId).delete({
-          filters: [f.eq('id', billData.id)],
+          filters: [f.eq('id', billRow.id)],
         });
         throw new Error(`Failed to create bill items: ${itemsError.message}`);
       }
@@ -480,7 +485,7 @@ export const useBills = (
                 newStock,
                 'deduction',
                 performedByLabel,
-                `POS sale (bill ${billData.id.slice(0, 8)})`
+                `POS sale (bill ${billRow.id.slice(0, 8)})`
               );
               saveStockLog(stockLog);
               console.log(`Updated stock for ${product.name}: ${newStock}`);
@@ -491,7 +496,7 @@ export const useBills = (
 
       // ✅ UPDATED: Use billTimestamp instead of new Date()
       const completeBill: Bill = {
-        id: billData.id,
+        id: billRow.id,
         customerId: customer.id,
         items: cart,
         subtotal: subtotal,
