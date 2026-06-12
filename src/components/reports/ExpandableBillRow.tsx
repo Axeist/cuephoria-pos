@@ -19,6 +19,27 @@ import {
 import Receipt from '@/components/Receipt';
 import { usePOS } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
+import type { Customer } from '@/types/pos.types';
+
+function buildReceiptCustomer(
+  bill: Bill,
+  customer: Customer | undefined,
+  customerName: string,
+  customerPhone: string,
+): Customer | null {
+  if (customer) return customer;
+  if (!bill.customerId) return null;
+  return {
+    id: bill.customerId,
+    name: customerName === 'Unknown' ? 'Customer' : customerName,
+    phone: customerPhone,
+    isMember: false,
+    loyaltyPoints: bill.loyaltyPointsEarned ?? 0,
+    totalSpent: 0,
+    totalPlayTime: 0,
+    createdAt: new Date(bill.createdAt),
+  };
+}
 
 interface BillItem {
   id: string;
@@ -93,6 +114,7 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
   const customerName = getCustomerName(bill.customerId);
   const customerPhone = getCustomerPhone ? getCustomerPhone(bill.customerId) : '';
   const customer = customers.find(c => c.id === bill.customerId);
+  const receiptCustomer = buildReceiptCustomer(bill, customer, customerName, customerPhone);
   
   const paymentMethod = (bill.paymentMethod || '').toLowerCase().trim();
   const isComplimentary = paymentMethod === 'complimentary';
@@ -125,8 +147,8 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
   const handleViewReceipt = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    
-    if (!customer) {
+
+    if (!receiptCustomer) {
       toast({
         title: "Error",
         description: "Customer information not found",
@@ -134,7 +156,7 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
       });
       return;
     }
-    
+
     setShowReceipt(true);
   };
 
@@ -304,7 +326,7 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
                 <Pencil className="h-4 w-4" />
               </Button>
             )}
-            {customer && (
+            {receiptCustomer && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -432,10 +454,10 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
       </AlertDialog>
 
       {/* Receipt Dialog */}
-      {showReceipt && customer && (
+      {showReceipt && receiptCustomer && (
         <Receipt 
           bill={bill} 
-          customer={customer} 
+          customer={receiptCustomer} 
           onClose={() => setShowReceipt(false)}
           allowEdit={false}
         />
