@@ -295,6 +295,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
       couponCode,
       playerCount,
       branchCoupons,
+      pricingStation,
     );
 
     if (invalidCoupon === 'HH99') {

@@ -27,6 +27,37 @@ export type PriceValidationResult = {
   message?: string;
 };
 
+/** Split per-session combined prices across station × session booking rows. */
+export function splitBookingPriceAcrossRows(args: {
+  stationCount: number;
+  sessionCount: number;
+  originalPrice: number;
+  discount: number;
+  finalPrice: number;
+  addonTotal?: number;
+}): {
+  perRowOriginal: number;
+  perRowFinal: number;
+  discountPercentage: number | null;
+  addonPerRow: number;
+} {
+  const stationCount = Math.max(1, args.stationCount);
+  const sessionCount = Math.max(1, args.sessionCount);
+  const rowCount = stationCount * sessionCount;
+  const original = Number(args.originalPrice) || 0;
+  const discount = Number(args.discount) || 0;
+  const finalPrice = Number(args.finalPrice) || 0;
+  const addonTotal = Number(args.addonTotal) || 0;
+
+  const perRowOriginal = original / stationCount;
+  const perRowFinal = finalPrice / stationCount;
+  const discountPercentage =
+    discount > 0 && original > 0 ? (discount / original) * 100 : null;
+  const addonPerRow = addonTotal / rowCount;
+
+  return { perRowOriginal, perRowFinal, discountPercentage, addonPerRow };
+}
+
 /**
  * Server-side estimate from station hourly rates (conservative baseline).
  * Does not replicate every coupon rule — flags large underpayment.

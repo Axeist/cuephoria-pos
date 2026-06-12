@@ -1,6 +1,37 @@
 /** Shared coupon / happy-hour helpers for start-session flows */
 
 import type { BranchBookingCoupon } from '@/types/bookingCoupon.types';
+import {
+  hasOccupancyRates,
+  isLegacyControllerStation,
+  isPerPlayerPricing,
+  type StationPricingInput,
+} from '@/utils/stationPricing';
+
+const HH99_FLAT_RATE = 99;
+
+/** HH99 is ₹99/person when the station price scales with player count. */
+export function hh99AppliesPerPerson(
+  station: StationPricingInput,
+  playerCount: number,
+): boolean {
+  if (playerCount <= 1) return false;
+  return (
+    isPerPlayerPricing(station) ||
+    isLegacyControllerStation(station) ||
+    hasOccupancyRates(station)
+  );
+}
+
+export function getHh99FinalRate(
+  station: StationPricingInput,
+  playerCount: number,
+): number {
+  const count = Math.max(1, playerCount);
+  return hh99AppliesPerPerson(station, playerCount)
+    ? HH99_FLAT_RATE * count
+    : HH99_FLAT_RATE;
+}
 
 export const isHappyHour = (): boolean => {
   const now = new Date();
@@ -14,6 +45,7 @@ export function applyCouponToRate(
   couponCode: string | undefined,
   playerCount: number,
   branchCoupons: BranchBookingCoupon[] = [],
+  station?: StationPricingInput,
 ): { finalRate: number; perPersonRate: number; invalidCoupon?: string } {
   const perPerson = (rate: number) =>
     playerCount > 0 ? Math.round(rate / playerCount) : rate;
@@ -36,7 +68,13 @@ export function applyCouponToRate(
         invalidCoupon: 'HH99',
       };
     }
-    return { finalRate: 99, perPersonRate: perPerson(99) };
+    const finalRate = station
+      ? getHh99FinalRate(station, playerCount)
+      : HH99_FLAT_RATE;
+    const perPersonRate = station && hh99AppliesPerPerson(station, playerCount)
+      ? HH99_FLAT_RATE
+      : perPerson(finalRate);
+    return { finalRate, perPersonRate };
   }
 
   const coupon = branchCoupons.find((c) => c.code === code);

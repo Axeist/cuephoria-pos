@@ -15,6 +15,7 @@ import { StationSelector } from "@/components/booking/StationSelector";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import { BookingStationTypeChips } from "@/components/booking/BookingStationTypeChips";
 import { getRateForPlayerCount } from "@/utils/stationPricing";
+import { getHh99FinalRate } from "@/utils/sessionCoupon.utils";
 import { isStationPublicBookable } from "@/utils/stationTransform";
 import { usePublicBookingBrand } from "@/hooks/usePublicBookingBrand";
 import { usePublicBookingPopups } from "@/hooks/usePublicBookingPopups";
@@ -166,6 +167,12 @@ const isHappyHour = (date: Date, slot: TimeSlot | null) => {
   const day = getDay(date);
   const startHour = Number(slot.start_time.split(":")[0]);
   return day >= 1 && day <= 5 && startHour >= 11 && startHour < 16;
+};
+
+/** HH99 requires every selected slot to fall inside Mon–Fri 11 AM–4 PM. */
+const isHappyHourSelection = (date: Date, slots: TimeSlot[]) => {
+  if (slots.length === 0) return false;
+  return slots.every((slot) => isHappyHour(date, slot));
 };
 
 const couponRowEmoji = (code: string) => {
@@ -717,23 +724,32 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   }, [selectedSlot, selectedSlots.length]);
 
   useEffect(() => {
-    if (appliedCoupons["8ball"] === "HH99" && !isHappyHour(selectedDate, selectedSlot)) {
+    const slots =
+      selectedSlots.length > 0
+        ? selectedSlots
+        : selectedSlot
+          ? [selectedSlot]
+          : [];
+    const happyHourOk = isHappyHourSelection(selectedDate, slots);
+    if (!happyHourOk && (appliedCoupons["8ball"] === "HH99" || appliedCoupons["ps5"] === "HH99")) {
       setAppliedCoupons((prev) => {
         const copy = { ...prev };
-        delete copy["8ball"];
-        toast.error("❌ HH99 removed: valid only Mon–Fri 11 AM–4 PM");
+        let removed = false;
+        if (copy["8ball"] === "HH99") {
+          delete copy["8ball"];
+          removed = true;
+        }
+        if (copy["ps5"] === "HH99") {
+          delete copy["ps5"];
+          removed = true;
+        }
+        if (removed) {
+          toast.error("❌ HH99 removed: valid only Mon–Fri 11 AM–4 PM");
+        }
         return copy;
       });
     }
-    if (appliedCoupons["ps5"] === "HH99" && !isHappyHour(selectedDate, selectedSlot)) {
-      setAppliedCoupons((prev) => {
-        const copy = { ...prev };
-        delete copy["ps5"];
-        toast.error("❌ HH99 removed: valid only Mon–Fri 11 AM–4 PM");
-        return copy;
-      });
-    }
-  }, [selectedDate, selectedSlot, appliedCoupons]);
+  }, [selectedDate, selectedSlot, selectedSlots, appliedCoupons]);
 
   useEffect(() => {
     const ch = supabase
@@ -1142,7 +1158,13 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     const selectedHasVR = selectedStations.some(
       (id) => stations.find((s) => s.id === id && s.type === "vr")
     );
-    const happyHourActive = isHappyHour(selectedDate, selectedSlot);
+    const slotsForCoupon =
+      selectedSlots.length > 0
+        ? selectedSlots
+        : selectedSlot
+          ? [selectedSlot]
+          : [];
+    const happyHourActive = isHappyHourSelection(selectedDate, slotsForCoupon);
 
     // Check if customer is new (no customerInfo.id means new customer)
     const isNewCustomer = !customerInfo.id;
@@ -1381,26 +1403,57 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
     const selectedStationObjects = stations.filter((s) => selectedStations.includes(s.id));
 
-    const toPricingInput = (s: (typeof selectedStationObjects)[0]) => ({
-      hourlyRate: s.hourly_rate,
-      maxPlayers: s.max_players ?? s.max_capacity ?? 1,
-      occupancyRates: s.occupancy_rates ?? {},
-      type: s.type,
-      slotDuration: s.slot_duration,
-      category: s.category,
-      teamName: s.team_name,
-      singleRate: s.single_rate,
-      maxCapacity: s.max_capacity,
-      pricingMode: s.pricing_mode,
-    });
-
     return selectedStationObjects.reduce((sum, s) => {
-      const count = stationPlayerCounts[s.id] ?? 1;
-      if (s.type === 'vr') {
-        return sum + s.hourly_rate * count;
-      }
-      return sum + getRateForPlayerCount(toPricingInput(s), count).totalRate;
+      return sum + getStationSessionPrice(s);
     }, 0);
+  };
+
+  const toStationPricingInput = (s: Station) => ({
+    hourlyRate: s.hourly_rate,
+    maxPlayers: s.max_players ?? s.max_capacity ?? 1,
+    occupancyRates: s.occupancy_rates ?? {},
+    type: s.type,
+    slotDuration: s.slot_duration,
+    category: s.category,
+    teamName: s.team_name,
+    singleRate: s.single_rate,
+    maxCapacity: s.max_capacity,
+    pricingMode: s.pricing_mode,
+  });
+
+  const getStationSessionPrice = (s: Station) => {
+    const count = stationPlayerCounts[s.id] ?? 1;
+    if (s.type === "vr") {
+      return s.hourly_rate * count;
+    }
+    return getRateForPlayerCount(toStationPricingInput(s), count).totalRate;
+  };
+
+  const sumStationSessionPrices = (stationList: Station[]) =>
+    stationList.reduce((sum, s) => sum + getStationSessionPrice(s), 0);
+
+  const computeHh99Discount = (stationList: Station[]) =>
+    stationList.reduce((discount, s) => {
+      const undiscounted = getStationSessionPrice(s);
+      const count = stationPlayerCounts[s.id] ?? 1;
+      const finalRate = getHh99FinalRate(toStationPricingInput(s), count);
+      return discount + Math.max(0, undiscounted - finalRate);
+    }, 0);
+
+  const getLegacyPercentRate = (couponCode: string): number | null => {
+    const dbCoupon = bookingCouponsFromDB.find((c) => c.code === couponCode);
+    if (dbCoupon?.discount_type === "percentage") {
+      return Math.min(100, Math.max(0, dbCoupon.discount_value)) / 100;
+    }
+    if (couponCode === "NIT35") return 0.35;
+    if (couponCode === "AAVEG50") return 0.5;
+    return null;
+  };
+
+  const computePercentDiscount = (stationList: Station[], couponCode: string) => {
+    const rate = getLegacyPercentRate(couponCode);
+    if (rate == null) return 0;
+    return sumStationSessionPrices(stationList) * rate;
   };
 
   const calculateDiscount = () => {
@@ -1443,8 +1496,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       const eightBalls = stations.filter(
         (s) => selectedStations.includes(s.id) && s.type === "8ball"
       );
-      const sum = eightBalls.reduce((x, s) => x + s.hourly_rate, 0);
-      const d = sum - eightBalls.length * 99;
+      const d = computeHh99Discount(eightBalls);
       if (d > 0) {
         totalDiscount += d;
         breakdown["8-Ball (HH99)"] = d;
@@ -1452,8 +1504,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       const ps5s = stations.filter(
         (s) => selectedStations.includes(s.id) && s.type === "ps5"
       );
-      const sum2 = ps5s.reduce((x, s) => x + s.hourly_rate, 0);
-      const d2 = sum2 * 0.35; // NIT35 is 35% off
+      const d2 = computePercentDiscount(ps5s, "NIT35");
       totalDiscount += d2;
       breakdown["PS5 (HH99+NIT35)"] = d2;
     } else {
@@ -1461,8 +1512,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         const eightBalls = stations.filter(
           (s) => selectedStations.includes(s.id) && s.type === "8ball"
         );
-        const sum = eightBalls.reduce((x, s) => x + s.hourly_rate, 0);
-        const d = sum - eightBalls.length * 99;
+        const d = computeHh99Discount(eightBalls);
         if (d > 0) {
           totalDiscount += d;
           breakdown["8-Ball (HH99)"] = d;
@@ -1473,8 +1523,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         const ps5s = stations.filter(
           (s) => selectedStations.includes(s.id) && s.type === "ps5"
         );
-        const sum = ps5s.reduce((x, s) => x + s.hourly_rate, 0);
-        const d = sum - ps5s.length * 99;
+        const d = computeHh99Discount(ps5s);
         if (d > 0) {
           totalDiscount += d;
           breakdown["PS5 (HH99)"] = d;
@@ -1485,30 +1534,30 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         const balls = stations.filter(
           (s) => selectedStations.includes(s.id) && s.type === "8ball"
         );
-        const sum = balls.reduce((x, s) => x + s.hourly_rate, 0);
-        const d = appliedCoupons["8ball"] === "NIT35" ? sum * 0.35 : sum * 0.5;
+        const code = appliedCoupons["8ball"];
+        const d = computePercentDiscount(balls, code);
         totalDiscount += d;
-        breakdown[`8-Ball (${appliedCoupons["8ball"]})`] = d;
+        breakdown[`8-Ball (${code})`] = d;
       }
 
       if (appliedCoupons["ps5"] === "NIT35" || appliedCoupons["ps5"] === "AAVEG50") {
         const ps5s = stations.filter(
           (s) => selectedStations.includes(s.id) && s.type === "ps5"
         );
-        const sum = ps5s.reduce((x, s) => x + s.hourly_rate, 0);
-        const d = appliedCoupons["ps5"] === "NIT35" ? sum * 0.35 : sum * 0.5;
+        const code = appliedCoupons["ps5"];
+        const d = computePercentDiscount(ps5s, code);
         totalDiscount += d;
-        breakdown[`PS5 (${appliedCoupons["ps5"]})`] = d;
+        breakdown[`PS5 (${code})`] = d;
       }
 
       if (appliedCoupons["vr"] === "NIT35" || appliedCoupons["vr"] === "AAVEG50") {
         const vrStations = stations.filter(
           (s) => selectedStations.includes(s.id) && s.type === "vr"
         );
-        const sum = vrStations.reduce((x, s) => x + s.hourly_rate, 0);
-        const d = appliedCoupons["vr"] === "NIT35" ? sum * 0.35 : sum * 0.5;
+        const code = appliedCoupons["vr"];
+        const d = computePercentDiscount(vrStations, code);
         totalDiscount += d;
-        breakdown[`VR (${appliedCoupons["vr"]})`] = d;
+        breakdown[`VR (${code})`] = d;
       }
     }
 

@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { PAYMENT_ORDER_PENDING_TTL_MS } from "../lib/payment-order-ttl.js";
-import { validateBookingPrices } from "../lib/bookingPriceValidation.js";
+import { validateBookingPrices, splitBookingPriceAcrossRows } from "../lib/bookingPriceValidation.js";
 
 function getEnv(name: string): string | undefined {
   const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
@@ -332,6 +332,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return 60;
     };
 
+    const { perRowOriginal, perRowFinal, discountPercentage } = splitBookingPriceAcrossRows({
+      stationCount: selectedStations.length,
+      sessionCount: (slotsToBook as unknown[]).length,
+      originalPrice: Number(originalPrice) || 0,
+      discount: Number(discount) || 0,
+      finalPrice: Number(finalPrice) || 0,
+    });
+
     const rows = (slotsToBook as any[]).flatMap((slot) =>
       selectedStations.map((stationId: string) => ({
         station_id: stationId,
@@ -342,9 +350,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         end_time: slot.end_time,
         duration: playDurationForStation(stationId),
         status: "confirmed",
-        original_price: originalPrice || 0,
-        discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
-        final_price: finalPrice || 0,
+        original_price: perRowOriginal,
+        discount_percentage: discountPercentage,
+        final_price: perRowFinal,
         coupon_code: couponCodes || null,
         payment_mode: payment_mode || null,
         payment_txn_id: orderId || null,

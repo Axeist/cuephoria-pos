@@ -231,6 +231,7 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
         couponCode,
         playerCount,
         branchCoupons,
+        station,
       );
       const suffix = pricingRateSuffix({
         type: station.type ?? 'ps5',

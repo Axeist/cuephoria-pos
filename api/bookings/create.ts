@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { PAYMENT_ORDER_PENDING_TTL_MS } from "../../src/server/lib/payment-order-ttl.js";
 import { resolveBookingSlotConfigForLocation } from "../../src/server/lib/resolveBookingSlotConfigForLocation.js";
 import { validateAndMergeGridSlots } from "../../src/utils/bookingSlotConfig.js";
+import { splitBookingPriceAcrossRows } from "../../src/server/lib/bookingPriceValidation.js";
 
 function getEnv(name: string): string | undefined {
   const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
@@ -297,6 +298,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? bookingGroupIdRaw
         : crypto.randomUUID();
 
+    const { perRowOriginal, perRowFinal, discountPercentage, addonPerRow } =
+      splitBookingPriceAcrossRows({
+        stationCount: selectedStations.length,
+        sessionCount: bookingSessions.length,
+        originalPrice: Number(originalPrice) || 0,
+        discount: Number(discount) || 0,
+        finalPrice: Number(finalPrice) || 0,
+        addonTotal,
+      });
+
     const rowTemplates = bookingSessions.flatMap((session) =>
       selectedStations.map((stationId: string) => ({
         station_id: stationId,
@@ -307,9 +318,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         end_time: session.end_time,
         duration: playDurationForStation(stationId, session.duration),
         status: "confirmed",
-        original_price: originalPrice || 0,
-        discount_percentage: discount > 0 && originalPrice > 0 ? (discount / originalPrice) * 100 : null,
-        final_price: finalPrice || 0,
+        original_price: perRowOriginal,
+        discount_percentage: discountPercentage,
+        final_price: perRowFinal,
         coupon_code: couponCodes || null,
         payment_mode: payment_mode || null,
         payment_txn_id: orderId || null,
@@ -318,8 +329,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         booking_addons: addonSnapshot,
       })),
     );
-    const rowCount = rowTemplates.length || 1;
-    const addonPerRow = addonTotal / rowCount;
     const rows = rowTemplates.map((row) => ({
       ...row,
       final_price: (Number(row.final_price) || 0) + addonPerRow,
