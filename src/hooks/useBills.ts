@@ -379,28 +379,23 @@ export const useBills = (
       const billTimestamp = customTimestamp || new Date();
       console.log('Bill will be created with timestamp:', billTimestamp);
 
-      const { data: billData, error: billError } = await supabase
-        .from('bills')
-        .insert({
-          customer_id: customer.id,
-          location_id: activeLocationId,
-          subtotal: subtotal,
-          discount: discount,
-          discount_value: discountValue,
-          discount_type: discountType,
-          loyalty_points_used: loyaltyPointsUsed,
-          loyalty_points_earned: loyaltyPointsEarned,
-          total: total,
-          payment_method: paymentMethod,
-          status: status,
-          comp_note: compNote,
-          is_split_payment: isSplitPayment,
-          cash_amount: isSplitPayment ? cashAmount : (paymentMethod === 'cash' ? total : 0),
-          upi_amount: isSplitPayment ? upiAmount : (paymentMethod === 'upi' ? total : 0),
-          created_at: billTimestamp.toISOString()  // ✅ NEW: Use custom timestamp
-        })
-        .select()
-        .single();
+      const { data: billData, error: billError } = await scopedTable('bills', activeLocationId).insert({
+        customer_id: customer.id,
+        subtotal: subtotal,
+        discount: discount,
+        discount_value: discountValue,
+        discount_type: discountType,
+        loyalty_points_used: loyaltyPointsUsed,
+        loyalty_points_earned: loyaltyPointsEarned,
+        total: total,
+        payment_method: paymentMethod,
+        status: status,
+        comp_note: compNote,
+        is_split_payment: isSplitPayment,
+        cash_amount: isSplitPayment ? cashAmount : (paymentMethod === 'cash' ? total : 0),
+        upi_amount: isSplitPayment ? upiAmount : (paymentMethod === 'upi' ? total : 0),
+        created_at: billTimestamp.toISOString(),
+      }, { single: true });
 
       if (billError) {
         console.error('Error creating bill:', billError);
@@ -583,22 +578,21 @@ export const useBills = (
 
       console.log('Updating bill with payment method:', finalPaymentMethod);
 
-      const { error: billError } = await supabase
-        .from('bills')
-        .update({
-          subtotal: subtotal,
-          discount: discount,
-          discount_value: discountValue,
-          discount_type: discountType,
-          loyalty_points_used: loyaltyPointsUsed,
-          loyalty_points_earned: loyaltyPointsEarned,
-          total: total,
-          payment_method: finalPaymentMethod,
-          is_split_payment: isSplitPayment,
-          cash_amount: isSplitPayment ? cashAmount : (finalPaymentMethod === 'cash' ? total : 0),
-          upi_amount: isSplitPayment ? upiAmount : (finalPaymentMethod === 'upi' ? total : 0)
-        })
-        .eq('id', originalBill.id);
+      const { error: billError } = await scopedTable('bills', activeLocationId!).update({
+        subtotal: subtotal,
+        discount: discount,
+        discount_value: discountValue,
+        discount_type: discountType,
+        loyalty_points_used: loyaltyPointsUsed,
+        loyalty_points_earned: loyaltyPointsEarned,
+        total: total,
+        payment_method: finalPaymentMethod,
+        is_split_payment: isSplitPayment,
+        cash_amount: isSplitPayment ? cashAmount : (finalPaymentMethod === 'cash' ? total : 0),
+        upi_amount: isSplitPayment ? upiAmount : (finalPaymentMethod === 'upi' ? total : 0),
+      }, {
+        filters: [f.eq('id', originalBill.id)],
+      });
 
       if (billError) {
         console.error('Error updating bill:', billError);
@@ -607,10 +601,9 @@ export const useBills = (
 
       console.log('Bill updated successfully in database');
 
-      const { error: deleteError } = await supabase
-        .from('bill_items')
-        .delete()
-        .eq('bill_id', originalBill.id);
+      const { error: deleteError } = await scopedTable('bill_items', activeLocationId!).delete({
+        filters: [f.eq('bill_id', originalBill.id)],
+      });
 
       if (deleteError) {
         console.error('Error deleting bill items:', deleteError);
@@ -628,9 +621,7 @@ export const useBills = (
         item_type: item.type
       }));
 
-      const { error: itemsError } = await supabase
-        .from('bill_items')
-        .insert(billItemsToInsert);
+      const { error: itemsError } = await scopedTable('bill_items', activeLocationId!).insertMany(billItemsToInsert);
 
       if (itemsError) {
         console.error('Error creating new bill items:', itemsError);
@@ -738,16 +729,14 @@ export const useBills = (
         }
       }
 
-      const { error } = await supabase
-        .from('bills')
-        .update({
-          payment_method,
-          is_split_payment,
-          cash_amount,
-          upi_amount,
-        })
-        .eq('id', bill.id)
-        .eq('location_id', activeLocationId);
+      const { error } = await scopedTable('bills', activeLocationId).update({
+        payment_method,
+        is_split_payment,
+        cash_amount,
+        upi_amount,
+      }, {
+        filters: [f.eq('id', bill.id)],
+      });
 
       if (error) {
         console.error('Error realising credit bill:', error);
