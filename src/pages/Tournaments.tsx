@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -10,6 +10,9 @@ import {
   Monitor,
   Sparkles,
   Tv,
+  Link2,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { useLocation } from '@/context/LocationContext';
 import { usePermissions } from '@/context/PermissionsContext';
@@ -22,12 +25,13 @@ import { generateId } from '@/utils/pos.utils';
 import { buildPublicTournamentUrl, buildPublicTournamentTVUrl } from '@/utils/publicTournamentUrl';
 import { supabase } from '@/integrations/supabase/client';
 import TournamentList from '@/components/tournaments/TournamentList';
-import TournamentDialog from '@/components/tournaments/TournamentDialog';
+import TournamentWizardDialog from '@/components/tournaments/TournamentWizardDialog';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
 import TournamentLeaderboard from '@/components/tournaments/TournamentLeaderboard';
 import TournamentHistoryDialog from '@/components/tournaments/TournamentHistoryDialog';
 import TournamentImageUpload from '@/components/tournaments/TournamentImageUpload';
 import TournamentImageManagement from '@/components/tournaments/TournamentImageManagement';
+import TournamentHubStats from '@/components/tournaments/TournamentHubStats';
 import { TournamentMotionProvider } from '@/components/tournaments/animations/TournamentMotionProvider';
 import { AmbientTournamentBg } from '@/components/tournaments/animations/AmbientTournamentBg';
 import TournamentTVDisplay from '@/components/tournaments/TournamentTVDisplay';
@@ -48,11 +52,28 @@ import { cn } from '@/lib/utils';
 
 type TabId = 'manage' | 'leaderboard' | 'tv';
 
-const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: 'manage', label: 'Manage', icon: Trophy },
-  { id: 'leaderboard', label: 'Leaderboard', icon: Award },
-  { id: 'tv', label: 'TV Mode', icon: Tv },
+const TABS: { id: TabId; label: string; icon: React.ElementType; desc: string }[] = [
+  { id: 'manage', label: 'Events', icon: Trophy, desc: 'Create & run tournaments' },
+  { id: 'leaderboard', label: 'Leaderboard', icon: Award, desc: 'Branch rankings' },
+  { id: 'tv', label: 'TV Mode', icon: Tv, desc: 'Venue displays' },
 ];
+
+function newTournamentDraft(locationId?: string | null): Tournament {
+  return {
+    id: generateId(),
+    name: '',
+    gameType: 'PS5',
+    gameTitle: 'FIFA',
+    date: new Date().toISOString().split('T')[0],
+    players: [],
+    matches: [],
+    lapTimes: [],
+    status: 'upcoming',
+    tournamentFormat: 'time_trial',
+    maxPlayers: 16,
+    ...(locationId ? { location_id: locationId } : {}),
+  };
+}
 
 export default function TournamentsPage() {
   const { activeLocationId, activeLocation } = useLocation();
@@ -82,6 +103,7 @@ export default function TournamentsPage() {
   } | null>(null);
   const [resetting, setResetting] = useState(false);
   const [imageManagementKey, setImageManagementKey] = useState(0);
+  const [copiedUrl, setCopiedUrl] = useState(false);
 
   const setActiveTab = (tab: TabId) => {
     setSearchParams(
@@ -95,21 +117,27 @@ export default function TournamentsPage() {
     );
   };
 
-  const publicUrl =
-    activeLocation?.slug && activeLocationId
-      ? buildPublicTournamentUrl({
-          branchSlug: activeLocation.slug,
-          locationId: activeLocationId,
-        })
-      : null;
+  const publicUrl = useMemo(
+    () =>
+      activeLocation?.slug && activeLocationId
+        ? buildPublicTournamentUrl({
+            branchSlug: activeLocation.slug,
+            locationId: activeLocationId,
+          })
+        : null,
+    [activeLocation, activeLocationId],
+  );
 
-  const tvUrl =
-    activeLocation?.slug && activeLocationId
-      ? buildPublicTournamentTVUrl({
-          branchSlug: activeLocation.slug,
-          locationId: activeLocationId,
-        })
-      : null;
+  const tvUrl = useMemo(
+    () =>
+      activeLocation?.slug && activeLocationId
+        ? buildPublicTournamentTVUrl({
+            branchSlug: activeLocation.slug,
+            locationId: activeLocationId,
+          })
+        : null,
+    [activeLocation, activeLocationId],
+  );
 
   const loadTournaments = useCallback(async () => {
     setLoading(true);
@@ -130,6 +158,19 @@ export default function TournamentsPage() {
   useEffect(() => {
     void loadTournaments();
   }, [loadTournaments]);
+
+  const openCreateWizard = () => {
+    setEditingTournament(newTournamentDraft(activeLocationId));
+    setDialogOpen(true);
+  };
+
+  const copyPublicUrl = async () => {
+    if (!publicUrl) return;
+    await navigator.clipboard.writeText(publicUrl);
+    setCopiedUrl(true);
+    toast({ title: 'Link copied', description: 'Public tournament page URL copied.' });
+    setTimeout(() => setCopiedUrl(false), 2000);
+  };
 
   const handleSaveTournament = async (updated: Tournament) => {
     if (!canManage) return;
@@ -199,240 +240,266 @@ export default function TournamentsPage() {
 
   return (
     <TournamentMotionProvider intensity="full">
-      <AmbientTournamentBg />
-      <div className="relative mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
-        >
-          <div>
-            <div className="flex items-center gap-2 text-primary/80 text-xs uppercase tracking-widest font-semibold mb-2">
-              <Sparkles className="h-3.5 w-3.5" />
-              Tournament hub
-            </div>
-            <h1 className="text-3xl font-bold tracking-tight">Tournaments</h1>
-            <p className="text-muted-foreground mt-1 max-w-lg">
-              Brackets, FIFA lap times, leaderboards, and TV displays for your venue.
-            </p>
-          </div>
-          {activeLocation && (
-            <div
-              className={cn(
-                'inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium',
-                activeLocation.slug === 'lite'
-                  ? 'border-cyan-400/30 bg-cyan-500/10 text-cyan-200'
-                  : 'border-purple-400/30 bg-purple-500/10 text-purple-200',
-              )}
-            >
-              <MapPin className="h-4 w-4 shrink-0 opacity-80" />
-              {activeLocation.name}
-            </div>
-          )}
-        </motion.div>
+      <div className="relative min-h-[calc(100vh-4rem)] w-full overflow-hidden">
+        <AmbientTournamentBg />
 
-        {/* Tab bar */}
-        <div className="mb-6 flex flex-wrap gap-2">
-          {TABS.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setActiveTab(id)}
-              className={cn(
-                'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium border transition-all',
-                activeTab === id
-                  ? 'bg-primary/15 border-primary/40 text-foreground shadow-[0_0_20px_-4px_var(--brand-primary-hex)]'
-                  : 'border-transparent bg-muted/20 text-muted-foreground hover:text-foreground',
+        <div className="relative w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-6 lg:py-8 space-y-6 lg:space-y-8">
+          {/* Hero — full width */}
+          <motion.header
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6"
+          >
+            <div className="max-w-2xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] uppercase tracking-widest font-semibold text-primary mb-3">
+                <Sparkles className="h-3 w-3" />
+                Tournament hub
+              </div>
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/60">
+                Run events that fill the room
+              </h1>
+              <p className="text-muted-foreground mt-2 text-base lg:text-lg max-w-xl">
+                FIFA lap times, knockout brackets, live TV boards, and public registration — all for{' '}
+                <span className="text-foreground font-medium">{activeLocation?.name ?? 'your branch'}</span>.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {activeLocation && (
+                <div
+                  className={cn(
+                    'inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium',
+                    activeLocation.slug === 'lite'
+                      ? 'border-cyan-400/30 bg-cyan-500/10 text-cyan-200'
+                      : 'border-purple-400/30 bg-purple-500/10 text-purple-200',
+                  )}
+                >
+                  <MapPin className="h-4 w-4" />
+                  {activeLocation.name}
+                </div>
               )}
+              {publicUrl && (
+                <>
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => window.open(publicUrl, '_blank')}>
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Public page
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={copyPublicUrl}>
+                    {copiedUrl ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                    Copy link
+                  </Button>
+                </>
+              )}
+              {canManage && (
+                <Button size="sm" className="btn-gradient gap-1.5 h-10 px-5" onClick={openCreateWizard}>
+                  <Plus className="h-4 w-4" />
+                  New tournament
+                </Button>
+              )}
+            </div>
+          </motion.header>
+
+          {/* Stats insight row */}
+          <TournamentHubStats tournaments={tournaments} />
+
+          {/* Full-width tab strip */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 rounded-2xl border border-white/10 bg-black/20 backdrop-blur-sm">
+            {TABS.map(({ id, label, icon: Icon, desc }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveTab(id)}
+                className={cn(
+                  'relative rounded-xl px-4 py-3 text-left transition-all',
+                  activeTab === id
+                    ? 'bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/30 shadow-[0_0_24px_-8px_var(--brand-primary-hex)]'
+                    : 'border border-transparent hover:bg-white/5',
+                )}
+              >
+                <div className="flex items-center gap-2 font-semibold text-sm">
+                  <Icon className={cn('h-4 w-4', activeTab === id ? 'text-primary' : 'text-muted-foreground')} />
+                  {label}
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">{desc}</p>
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content — full width */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab + (managingTournament?.id ?? '')}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.25 }}
+              className="w-full"
             >
-              <Icon className="h-4 w-4" />
-              {label}
-            </button>
-          ))}
+              {activeTab === 'manage' && (
+                <div className="space-y-6 lg:space-y-8">
+                  {managingTournament ? (
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur px-5 py-4">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Managing event</p>
+                          <h3 className="text-xl font-bold">{managingTournament.name}</h3>
+                        </div>
+                        <Button variant="outline" onClick={() => setManagingTournament(null)}>
+                          ← All events
+                        </Button>
+                      </div>
+                      <TournamentManagement
+                        tournament={managingTournament}
+                        onSave={async (t) => {
+                          const saved = await tournamentOps.saveTournament(t);
+                          if (saved) {
+                            setManagingTournament(saved);
+                            setTournaments((prev) => prev.map((x) => (x.id === saved.id ? saved : x)));
+                          }
+                        }}
+                        isLoading={loading}
+                        canManage={canManage}
+                      />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 lg:gap-8">
+                      <div className="space-y-6 min-w-0">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <h2 className="text-lg font-semibold">Your events</h2>
+                          <TournamentImageUpload
+                            tournaments={tournaments}
+                            onImageUploaded={() => {
+                              void loadTournaments();
+                              setImageManagementKey((k) => k + 1);
+                            }}
+                            iconOnly
+                          />
+                        </div>
+                        <TournamentList
+                          tournaments={tournaments}
+                          onEdit={(t) => {
+                            setEditingTournament(t);
+                            setDialogOpen(true);
+                          }}
+                          onManage={setManagingTournament}
+                          onDelete={handleDeleteTournament}
+                          onViewHistory={(t) => {
+                            setSelectedTournamentForHistory({ id: t.id, name: t.name });
+                            setHistoryDialogOpen(true);
+                          }}
+                          isLoading={loading}
+                          canManage={canManage}
+                          onCreateClick={openCreateWizard}
+                        />
+                      </div>
+
+                      {/* Insight sidebar */}
+                      <aside className="space-y-4">
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
+                          <h3 className="text-sm font-semibold flex items-center gap-2">
+                            <Link2 className="h-4 w-4 text-primary" />
+                            Quick links
+                          </h3>
+                          {publicUrl && (
+                            <div className="rounded-xl bg-black/30 p-3 border border-white/5">
+                              <p className="text-[10px] uppercase text-muted-foreground mb-1">Public registration</p>
+                              <p className="text-xs font-mono truncate text-emerald-300/90">{publicUrl}</p>
+                            </div>
+                          )}
+                          {tvUrl && (
+                            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => window.open(tvUrl, '_blank')}>
+                              <Monitor className="h-4 w-4" />
+                              Open TV display
+                            </Button>
+                          )}
+                          <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate('/tournaments/tv')}>
+                            <Tv className="h-4 w-4" />
+                            Staff TV fullscreen
+                          </Button>
+                        </div>
+
+                        <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-950/30 to-transparent p-5">
+                          <h3 className="text-sm font-semibold text-emerald-200 mb-2">FIFA time trial tip</h3>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Choose <strong className="text-emerald-300">Time Trial</strong> format, add players, then record lap times on the Lap board tab. Fastest lap wins — perfect for TV.
+                          </p>
+                        </div>
+                      </aside>
+                    </div>
+                  )}
+
+                  {!managingTournament && (
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 lg:p-6">
+                      <TournamentImageManagement key={imageManagementKey} locationId={activeLocationId} />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'leaderboard' && (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] backdrop-blur p-6 lg:p-8 space-y-6">
+                  <div className="flex flex-wrap justify-between gap-3 items-center">
+                    <div>
+                      <h2 className="text-xl font-bold">Branch leaderboard</h2>
+                      <p className="text-sm text-muted-foreground">Historical winners and rankings</p>
+                    </div>
+                    {canResetLeaderboard && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="sm" className="gap-2" disabled={resetting}>
+                            <RotateCcw className="h-4 w-4" />
+                            Reset
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Reset leaderboard?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Permanently deletes all leaderboard entries for this branch.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={
+                                canResetLeaderboard
+                                  ? handleResetLeaderboard
+                                  : () => requestPinVerification(handleResetLeaderboard)
+                              }
+                            >
+                              Reset
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
+                  <TournamentLeaderboard />
+                </div>
+              )}
+
+              {activeTab === 'tv' && (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    {tvUrl && (
+                      <Button variant="outline" className="gap-2" onClick={() => window.open(tvUrl, '_blank')}>
+                        <Monitor className="h-4 w-4" />
+                        Public TV (new tab)
+                      </Button>
+                    )}
+                    <Button className="gap-2 btn-gradient" onClick={() => navigate('/tournaments/tv')}>
+                      <Tv className="h-4 w-4" />
+                      Staff TV fullscreen
+                    </Button>
+                  </div>
+                  <TournamentTVDisplay locationId={activeLocationId} branchSlug={activeLocation?.slug} />
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25 }}
-          >
-            {activeTab === 'manage' && (
-              <div className="space-y-6">
-                {managingTournament ? (
-                  <div className="space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/10 px-4 py-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Managing</p>
-                        <h3 className="text-base font-semibold">{managingTournament.name}</h3>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={() => setManagingTournament(null)}>
-                        Back to list
-                      </Button>
-                    </div>
-                    <TournamentManagement
-                      tournament={managingTournament}
-                      onSave={async (t) => {
-                        const saved = await tournamentOps.saveTournament(t);
-                        if (saved) {
-                          setManagingTournament(saved);
-                          setTournaments((prev) =>
-                            prev.map((x) => (x.id === saved.id ? saved : x)),
-                          );
-                        }
-                      }}
-                      isLoading={loading}
-                      canManage={canManage}
-                    />
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/10 px-4 py-3">
-                      <p className="text-sm text-muted-foreground">
-                        {tournaments.length} tournament{tournaments.length === 1 ? '' : 's'} ·{' '}
-                        {activeLocation?.name ?? 'this branch'}
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        <TournamentImageUpload
-                          tournaments={tournaments}
-                          onImageUploaded={() => {
-                            void loadTournaments();
-                            setImageManagementKey((k) => k + 1);
-                          }}
-                          iconOnly
-                        />
-                        {publicUrl && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1.5"
-                            onClick={() => window.open(publicUrl, '_blank')}
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                            Public page
-                          </Button>
-                        )}
-                        {canManage && (
-                          <Button
-                            size="sm"
-                            className="gap-1.5 btn-gradient"
-                            onClick={() => {
-                              setEditingTournament({
-                                id: generateId(),
-                                name: 'New Tournament',
-                                gameType: 'PS5',
-                                gameTitle: 'FIFA',
-                                date: new Date().toISOString().split('T')[0],
-                                players: [],
-                                matches: [],
-                                lapTimes: [],
-                                status: 'upcoming',
-                                tournamentFormat: 'knockout',
-                                ...(activeLocationId ? { location_id: activeLocationId } : {}),
-                              });
-                              setDialogOpen(true);
-                            }}
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                            New tournament
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    <TournamentList
-                      tournaments={tournaments}
-                      onEdit={(t) => {
-                        setEditingTournament(t);
-                        setDialogOpen(true);
-                      }}
-                      onManage={setManagingTournament}
-                      onDelete={handleDeleteTournament}
-                      onViewHistory={(t) => {
-                        setSelectedTournamentForHistory({ id: t.id, name: t.name });
-                        setHistoryDialogOpen(true);
-                      }}
-                      isLoading={loading}
-                      canManage={canManage}
-                    />
-                    <TournamentImageManagement key={imageManagementKey} locationId={activeLocationId} />
-                  </>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'leaderboard' && (
-              <div className="space-y-6 glass-card rounded-2xl border border-border/50 p-6">
-                <div className="flex flex-wrap justify-between gap-3">
-                  <p className="text-sm text-muted-foreground">
-                    Rankings from completed tournaments at this branch.
-                  </p>
-                  {canResetLeaderboard && (
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="sm" className="gap-2" disabled={resetting}>
-                          <RotateCcw className="h-4 w-4" />
-                          {!canResetLeaderboard && <Lock className="h-3 w-3" />}
-                          Reset
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Reset leaderboard?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Permanently deletes all leaderboard entries for this branch.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={
-                              canResetLeaderboard
-                                ? handleResetLeaderboard
-                                : () => requestPinVerification(handleResetLeaderboard)
-                            }
-                          >
-                            Reset
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  )}
-                </div>
-                <TournamentLeaderboard />
-              </div>
-            )}
-
-            {activeTab === 'tv' && (
-              <div className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  {tvUrl && (
-                    <Button
-                      variant="outline"
-                      className="gap-2"
-                      onClick={() => window.open(tvUrl, '_blank')}
-                    >
-                      <Monitor className="h-4 w-4" />
-                      Open public TV display
-                    </Button>
-                  )}
-                  <Button
-                    className="gap-2 btn-gradient"
-                    onClick={() => navigate('/tournaments/tv')}
-                  >
-                    <Tv className="h-4 w-4" />
-                    Open staff TV (fullscreen)
-                  </Button>
-                </div>
-                <TournamentTVDisplay locationId={activeLocationId} branchSlug={activeLocation?.slug} />
-              </div>
-            )}
-          </motion.div>
-        </AnimatePresence>
-
-        <TournamentDialog
+        <TournamentWizardDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
           onSave={handleSaveTournament}

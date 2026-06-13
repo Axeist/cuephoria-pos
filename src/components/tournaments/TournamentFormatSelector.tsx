@@ -5,12 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Trophy, Users, Calendar, Zap, Timer, Target, Sparkles, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 interface TournamentFormatSelectorProps {
   selectedFormat: TournamentFormat;
   onFormatChange: (format: TournamentFormat) => void;
   maxPlayers: number;
   gameTitle?: string;
+  /** Smaller cards for wizard step */
+  compact?: boolean;
 }
 
 const TournamentFormatSelector: React.FC<TournamentFormatSelectorProps> = ({
@@ -18,6 +21,7 @@ const TournamentFormatSelector: React.FC<TournamentFormatSelectorProps> = ({
   onFormatChange,
   maxPlayers,
   gameTitle,
+  compact = false,
 }) => {
   const formatOptions: {
     format: TournamentFormat;
@@ -100,7 +104,7 @@ const TournamentFormatSelector: React.FC<TournamentFormatSelectorProps> = ({
       <p className="text-sm text-muted-foreground">
         Choose format — FIFA time trial uses lap times instead of brackets
       </p>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className={cn('grid gap-3', compact ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 md:grid-cols-2')}>
         {formatOptions.map((option, i) => (
           <motion.div
             key={option.format}
