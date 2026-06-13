@@ -18,7 +18,7 @@ import {
   Palette,
   ShieldCheck,
 } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Navigate } from 'react-router-dom';
 import BranchManagementSettings from '@/components/settings/BranchManagementSettings';
 import WorkspaceBrandingPanel from '@/components/settings/WorkspaceBrandingPanel';
 import WorkspaceSubscriptionPanel from '@/components/settings/WorkspaceSubscriptionPanel';
@@ -64,8 +64,6 @@ const SETTINGS_TABS: SettingsTabId[] = [
   'booking',
   'payments',
   'team',
-  'tournaments',
-  'leaderboard',
 ];
 
 const LEGACY_TAB_ALIASES: Record<string, SettingsTabId> = {
@@ -137,25 +135,6 @@ const NAV_GROUPS: SettingsNavGroup[] = [
       },
     ],
   },
-  {
-    label: 'Community',
-    items: [
-      {
-        id: 'tournaments',
-        label: 'Tournaments',
-        description: 'Brackets and winners',
-        icon: Trophy,
-        permissionKey: 'settings.tournaments.view',
-      },
-      {
-        id: 'leaderboard',
-        label: 'Leaderboard',
-        description: 'Rankings and history',
-        icon: Award,
-        permissionKey: 'settings.tournaments.view',
-      },
-    ],
-  },
 ];
 
 const SECTION_META: Record<SettingsTabId, { title: string; description: string }> = {
@@ -186,14 +165,6 @@ const SECTION_META: Record<SettingsTabId, { title: string; description: string }
   team: {
     title: 'Team members',
     description: 'Invite staff, assign branches, and manage admin access.',
-  },
-  tournaments: {
-    title: 'Tournaments',
-    description: 'Create brackets, manage players, and publish winner galleries.',
-  },
-  leaderboard: {
-    title: 'Leaderboard',
-    description: 'Tournament standings and historical results for this branch.',
   },
 };
 
@@ -226,6 +197,13 @@ const Settings = () => {
     normalizedTab && (SETTINGS_TABS as readonly string[]).includes(normalizedTab)
       ? (normalizedTab as SettingsTabId)
       : 'general';
+
+  if (tabParam === 'tournaments') {
+    return <Navigate to="/tournaments" replace />;
+  }
+  if (tabParam === 'leaderboard') {
+    return <Navigate to="/tournaments?tab=leaderboard" replace />;
+  }
 
   const setActiveTab = (tab: SettingsTabId) => {
     setSearchParams(

@@ -2,7 +2,7 @@ import { supabase, handleSupabaseError } from "@/integrations/supabase/client";
 import { Tournament, convertFromSupabaseTournament, convertToSupabaseTournament, Player, Match, MatchStage } from "@/types/tournament.types";
 import { useToast } from '@/hooks/use-toast';
 import { PostgrestError } from "@supabase/supabase-js";
-import { useAuth } from "@/context/AuthContext";
+import { usePermissions } from '@/context/PermissionsContext';
 import { useLocation } from "@/context/LocationContext";
 import { generateId } from "@/utils/pos.utils";
 import { determineRunnerUp, saveTournamentHistory } from "@/services/tournamentHistoryService";
@@ -328,8 +328,9 @@ export const deleteTournament = async (id: string): Promise<{ success: boolean; 
 // Custom hook for tournament operations with toast notifications
 export const useTournamentOperations = () => {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { can } = usePermissions();
   const { activeLocationId } = useLocation();
+  const canManage = can('settings.tournaments.manage');
   
   return {
     fetchTournaments: async (locationId?: string | null) => {
@@ -341,10 +342,10 @@ export const useTournamentOperations = () => {
     },
     
     saveTournament: async (tournament: Tournament) => {
-      if (!user?.isAdmin) {
+      if (!canManage) {
         toast({
           title: "Permission denied",
-          description: "Only admin users can create or edit tournaments",
+          description: "You don't have permission to manage tournaments",
           variant: "destructive"
         });
         return null;
@@ -379,10 +380,10 @@ export const useTournamentOperations = () => {
     },
     
     deleteTournament: async (id: string, name: string) => {
-      if (!user?.isAdmin) {
+      if (!canManage) {
         toast({
           title: "Permission denied",
-          description: "Only admin users can delete tournaments",
+          description: "You don't have permission to delete tournaments",
           variant: "destructive"
         });
         return false;

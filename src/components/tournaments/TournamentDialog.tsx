@@ -20,6 +20,7 @@ interface TournamentDialogProps {
   /** Active branch — required on create; preserved on edit when saving from this dialog */
   locationId?: string | null;
   onSave: (tournament: Tournament) => void;
+  canManage?: boolean;
 }
 
 const TournamentDialog: React.FC<TournamentDialogProps> = ({
@@ -27,7 +28,8 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
   onOpenChange,
   tournament,
   locationId = null,
-  onSave
+  onSave,
+  canManage = true,
 }) => {
   const [name, setName] = useState('');
   const [date, setDate] = useState('');
@@ -53,6 +55,8 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
   const [newCouponType, setNewCouponType] = useState<'percentage' | 'fixed'>('percentage');
   const [newCouponDiscount, setNewCouponDiscount] = useState('');
   const [newCouponDescription, setNewCouponDescription] = useState('');
+  const [trackName, setTrackName] = useState('');
+  const [maxAttempts, setMaxAttempts] = useState('3');
 
   // Reset form when dialog opens/closes or tournament changes
   useEffect(() => {
@@ -73,6 +77,8 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
       setTournamentFormat(tournament.tournamentFormat || 'knockout');
       setEntryFee(tournament.entryFee?.toString() || '250');
       setDiscountCoupons(tournament.discountCoupons || []);
+      setTrackName(tournament.formatOptions?.trackName ?? '');
+      setMaxAttempts(String(tournament.formatOptions?.maxAttempts ?? 3));
     } else {
       // Reset form
       setName('');
@@ -91,6 +97,8 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
       setTournamentFormat('knockout');
       setEntryFee('250');
       setDiscountCoupons([]);
+      setTrackName('');
+      setMaxAttempts('3');
     }
     // Reset coupon form fields
     setNewCouponCode('');
@@ -98,6 +106,12 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
     setNewCouponDiscount('');
     setNewCouponDescription('');
   }, [tournament, open]);
+
+  useEffect(() => {
+    if (gameType === 'PS5' && /fifa|fc\s*\d|ea\s*sports/i.test(gameTitle) && !tournament) {
+      setTournamentFormat('time_trial');
+    }
+  }, [gameTitle, gameType, tournament]);
 
   const handleAddCoupon = () => {
     if (!newCouponCode.trim() || !newCouponDiscount.trim()) {
@@ -169,6 +183,18 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
       winner: tournament?.winner,
       runnerUp: tournament?.runnerUp,
       thirdPlace: tournament?.thirdPlace,
+      lapTimes: tournament?.lapTimes || [],
+      formatOptions: {
+        ...(tournament?.formatOptions || {}),
+        ...(tournamentFormat === 'time_trial'
+          ? {
+              trackName: trackName.trim() || 'Time Trial',
+              maxAttempts: parseInt(maxAttempts, 10) || 3,
+              bestLapCount: 1,
+            }
+          : {}),
+      },
+      displayConfig: tournament?.displayConfig || { animationIntensity: 'full' },
       location_id: resolvedLocationId,
     };
 
@@ -269,7 +295,32 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
               selectedFormat={tournamentFormat}
               onFormatChange={setTournamentFormat}
               maxPlayers={maxPlayers}
+              gameTitle={gameTitle}
             />
+            {tournamentFormat === 'time_trial' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5">
+                <div className="space-y-2">
+                  <Label className="text-emerald-200">Track / mode name</Label>
+                  <Input
+                    value={trackName}
+                    onChange={(e) => setTrackName(e.target.value)}
+                    placeholder="e.g. Monaco Sprint"
+                    className="theme-menu-trigger"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-emerald-200">Max attempts per player</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={maxAttempts}
+                    onChange={(e) => setMaxAttempts(e.target.value)}
+                    className="theme-menu-trigger"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <Separator className="bg-white/10" />

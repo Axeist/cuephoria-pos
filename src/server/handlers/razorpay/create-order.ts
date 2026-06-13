@@ -211,6 +211,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         : "booking";
     const bookingPayload = (payload as { booking_payload?: unknown }).booking_payload;
     const wantsBookingHold = kind === "booking" && bookingPayload && typeof bookingPayload === "object";
+    const isTournamentOrder = kind === "tournament";
 
     let supabase: SupabaseClient | null = null;
     let holdSessionId: string | null = null;
@@ -318,7 +319,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-      if (wantsBookingHold && typeof bookingPayload === "object") {
+      if ((wantsBookingHold || isTournamentOrder) && (typeof bookingPayload === "object" || isTournamentOrder)) {
         const env = getSupabaseEnv();
         if (env) {
           const { createClient } = await import("@supabase/supabase-js");
@@ -346,7 +347,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             customer_email: customerInfo?.email?.trim() || null,
             amount_paise: amountPaise,
             currency: order.currency || currency,
-            booking_payload: bookingPayload as Record<string, unknown>,
+            booking_payload: isTournamentOrder ? null : (bookingPayload as Record<string, unknown>),
             notes: (notes as Record<string, unknown>) ?? null,
             expires_at: expiresAt,
           });

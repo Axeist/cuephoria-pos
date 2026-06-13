@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchPublicLocation } from '@/utils/publicLocationResolve';
+import { returnContextFromSearchParams, resolvePublicTournamentReturnPath } from '@/utils/publicTournamentUrl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -71,20 +72,34 @@ interface ExistingCustomer {
 }
 
 const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlCtx = returnContextFromSearchParams(searchParams, { branchSlug });
   const [publicLocationId, setPublicLocationId] = useState<string | null>(null);
+  const [publicOrgSlug, setPublicOrgSlug] = useState<string | null>(null);
+  const [resolvedBranchSlug, setResolvedBranchSlug] = useState(branchSlug);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const row = await fetchPublicLocation({ branchSlug });
-        if (!cancelled) setPublicLocationId(row?.id ?? null);
+        const row = await fetchPublicLocation({
+          branchSlug: urlCtx.branchSlug ?? branchSlug,
+          locationId: urlCtx.locationId,
+          orgSlug: urlCtx.orgSlug ?? undefined,
+        });
+        if (!cancelled) {
+          setPublicLocationId(row?.id ?? null);
+          setPublicOrgSlug(row?.organizationSlug ?? urlCtx.orgSlug ?? null);
+          setResolvedBranchSlug(row?.slug ?? urlCtx.branchSlug ?? branchSlug);
+        }
       } catch {
-        if (!cancelled) setPublicLocationId(null);
+        if (!cancelled) {
+          setPublicLocationId(null);
+        }
       }
     })();
     return () => { cancelled = true; };
-  }, [branchSlug]);
+  }, [branchSlug, urlCtx.branchSlug, urlCtx.locationId, urlCtx.orgSlug]);
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,7 +135,6 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
   } | null>(null);
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const [searchParams, setSearchParams] = useSearchParams();
 
   // Check for registration success from payment page
   useEffect(() => {
@@ -616,7 +630,11 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
         transactionFee: transactionFee,
         totalWithFee: totalWithFee
       };
-      localStorage.setItem("pendingTournamentRegistration", JSON.stringify(pendingRegistration));
+      localStorage.setItem("pendingTournamentRegistration", JSON.stringify({
+        ...pendingRegistration,
+        branchSlug: resolvedBranchSlug,
+        orgSlug: publicOrgSlug,
+      }));
 
       // Create order on server with total including transaction fee
       const orderRes = await fetch("/api/razorpay/create-order", {
@@ -627,6 +645,13 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
           currency: "INR",
           amount: totalWithFee,
           receipt: txnId,
+          kind: "tournament",
+          location_id: publicLocationId,
+          customer: {
+            name: registrationForm.customer_name.trim(),
+            phone: registrationForm.customer_phone.trim(),
+            email: registrationForm.customer_email.trim() || "",
+          },
           notes: {
             customer_name: registrationForm.customer_name.trim(),
             customer_phone: registrationForm.customer_phone.trim(),

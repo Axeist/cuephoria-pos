@@ -29,7 +29,19 @@ interface TournamentListProps {
   onManage: (tournament: Tournament) => void;
   onDelete: (id: string) => void;
   onViewHistory: (tournament: Tournament) => void;
+  isLoading?: boolean;
+  canManage?: boolean;
 }
+
+const formatLabel: Record<string, string> = {
+  knockout: 'Knockout',
+  league: 'League',
+  double_elimination: 'Double elim',
+  round_robin: 'Round robin',
+  swiss: 'Swiss',
+  custom: 'Custom',
+  time_trial: 'FIFA Time Trial',
+};
 
 const statusLabel: Record<string, string> = {
   upcoming: 'Upcoming',
@@ -43,6 +55,7 @@ const TournamentList: React.FC<TournamentListProps> = ({
   onManage,
   onDelete,
   onViewHistory,
+  canManage = true,
 }) => {
   if (tournaments.length === 0) {
     return (
@@ -90,7 +103,7 @@ const TournamentList: React.FC<TournamentListProps> = ({
                 {statusLabel[tournament.status] ?? tournament.status}
               </Badge>
               <Badge variant="secondary" className="text-[10px] h-5 capitalize">
-                {tournament.tournamentFormat === 'knockout' ? 'Knockout' : 'League'}
+                {formatLabel[tournament.tournamentFormat] ?? tournament.tournamentFormat}
               </Badge>
               {tournament.winner && (
                 <span className="inline-flex items-center gap-1 text-[10px] text-amber-300/90">
@@ -123,13 +136,15 @@ const TournamentList: React.FC<TournamentListProps> = ({
                     View history
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onClick={() => onDelete(tournament.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
+                  {canManage && (
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => onDelete(tournament.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>

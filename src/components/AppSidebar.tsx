@@ -25,6 +25,7 @@ import {
   Activity,
   Smartphone,
   Monitor,
+  Trophy,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -151,6 +152,7 @@ const AppSidebar: React.FC = () => {
     { icon: Users, label: 'Customers', path: '/customers' },
     { icon: BarChart2, label: 'Reports', path: '/reports' },
     ...(canPlan('bookings_enabled') ? [{ icon: Calendar, label: 'Bookings', path: '/booking-management' }] : []),
+    ...(canPlan('tournaments_enabled') ? [{ icon: Trophy, label: 'Tournaments', path: '/tournaments' }] : []),
   ]);
 
   const hrItems = canPlan('staff_hr_enabled')

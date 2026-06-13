@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, Loader2, AlertCircle, Sparkles, Trophy, Zap } from "lucide-react";
 import { generateId } from '@/utils/pos.utils';
 import { CUETRONIX_ASSETS } from '@/branding/assets';
+import { resolvePublicTournamentReturnPath } from '@/utils/publicTournamentUrl';
 import CuephoriaTechAttribution from '@/components/branding/CuephoriaTechAttribution';
 
 type PendingTournamentRegistration = {
@@ -17,6 +18,8 @@ type PendingTournamentRegistration = {
     is_existing_customer: boolean;
   };
   locationId?: string | null;
+  branchSlug?: string;
+  orgSlug?: string | null;
   entryFee: number;
   transactionFee: number;
   totalWithFee: number;
@@ -328,8 +331,16 @@ export default function PublicTournamentPaymentSuccess() {
 
       // Redirect after a short delay
       setTimeout(() => {
-        navigate("/public/tournaments?registration_success=true&reg_id=" + encodeURIComponent(registrationId));
-      }, 3000); // Increased delay to show registration ID
+        navigate(
+          resolvePublicTournamentReturnPath({
+            branchSlug: pr.branchSlug ?? 'main',
+            locationId: locationId,
+            orgSlug: pr.orgSlug,
+            registrationSuccess: true,
+            regId: registrationId,
+          }),
+        );
+      }, 3000);
     };
 
     run();

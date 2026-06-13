@@ -88,6 +88,9 @@ const CustomerProfile = lazy(() => import("./pages/CustomerProfile"));
 const PublicPaymentSuccess = lazy(() => import("./pages/PublicPaymentSuccess"));
 const PublicPaymentFailed = lazy(() => import("./pages/PublicPaymentFailed"));
 const PublicTournamentPaymentSuccess = lazy(() => import("./pages/PublicTournamentPaymentSuccess"));
+const TournamentsPage = lazy(() => import("./pages/Tournaments"));
+const TournamentTV = lazy(() => import("./pages/TournamentTV"));
+const PublicTournamentTV = lazy(() => import("./pages/PublicTournamentTV"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Contact = lazy(() => import("./pages/Contact"));
@@ -596,6 +599,14 @@ const App = () => {
                   }
                 />
                 <Route
+                  path="/public/tournaments/tv"
+                  element={
+                    <LazyPage>
+                      <PublicTournamentTV />
+                    </LazyPage>
+                  }
+                />
+                <Route
                   path="/public/stations"
                   element={
                     <LazyPage>
@@ -632,6 +643,14 @@ const App = () => {
                   element={
                     <LazyPage>
                       <PublicTournaments branchSlug="lite" />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/lite/public/tournaments/tv"
+                  element={
+                    <LazyPage>
+                      <PublicTournamentTV branchSlug="lite" />
                     </LazyPage>
                   }
                 />
@@ -890,6 +909,16 @@ const App = () => {
                     }
                   />
                   <Route
+                    path="/tournaments"
+                    element={
+                      <LazyPage>
+                        <PlanFeatureGate feature="tournaments_enabled">
+                          <TournamentsPage />
+                        </PlanFeatureGate>
+                      </LazyPage>
+                    }
+                  />
+                  <Route
                     path="/how-to-use"
                     element={
                       <LazyPage>
@@ -956,6 +985,19 @@ const App = () => {
                       <LazyPage>
                         <PlanFeatureGate feature="staff_hr_enabled">
                           <StaffManagement />
+                        </PlanFeatureGate>
+                      </LazyPage>
+                    }
+                  />
+                </Route>
+
+                <Route element={<ProtectedRoute bare permission="settings.tournaments.view" />}>
+                  <Route
+                    path="/tournaments/tv"
+                    element={
+                      <LazyPage>
+                        <PlanFeatureGate feature="tournaments_enabled">
+                          <TournamentTV />
                         </PlanFeatureGate>
                       </LazyPage>
                     }

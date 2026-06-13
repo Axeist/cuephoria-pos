@@ -1,39 +1,49 @@
 import React, { useState, useEffect } from 'react';
-import { Tournament, Player, Match, MatchStatus } from '@/types/tournament.types';
+import { Tournament, Player, Match, MatchStatus, LapTimeEntry } from '@/types/tournament.types';
 import TournamentPlayerSection from './TournamentPlayerSection';
 import TournamentMatchSection from './TournamentMatchSection';
+import FifaLapTimeBoard from './FifaLapTimeBoard';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { generateMatches, determineWinner } from '@/services/tournamentService';
 import { determineRunnerUp } from '@/services/tournamentHistoryService';
+import { isTimeTrialFormat } from '@/utils/tournament/lapTimeRanking';
 import { toast } from 'sonner';
-import { Loader2, Info, Users, Trophy, Play, Sparkles, Target, Zap } from 'lucide-react';
+import { Loader2, Info, Users, Trophy, Play, Sparkles, Target, Zap, Timer } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface TournamentManagementProps {
   tournament: Tournament;
   onSave: (updatedTournament: Tournament) => Promise<void>;
   isLoading?: boolean;
+  canManage?: boolean;
 }
 
 const TournamentManagement: React.FC<TournamentManagementProps> = ({
   tournament,
   onSave,
-  isLoading = false
+  isLoading = false,
+  canManage = true,
 }) => {
   const [players, setPlayers] = useState<Player[]>(tournament.players || []);
   const [matches, setMatches] = useState<Match[]>(tournament.matches || []);
+  const [lapTimes, setLapTimes] = useState<LapTimeEntry[]>(tournament.lapTimes || []);
   const [activeTab, setActiveTab] = useState('players');
   const [saving, setSaving] = useState(false);
   const [winner, setWinner] = useState<Player | undefined>(tournament.winner);
   const [runnerUp, setRunnerUp] = useState<Player | undefined>(tournament.runnerUp);
+  const [thirdPlace, setThirdPlace] = useState<Player | undefined>(tournament.thirdPlace);
+
+  const isTimeTrial = isTimeTrialFormat(tournament.tournamentFormat);
 
   useEffect(() => {
     setPlayers(tournament.players || []);
     setMatches(tournament.matches || []);
+    setLapTimes(tournament.lapTimes || []);
     setWinner(tournament.winner);
     setRunnerUp(tournament.runnerUp);
+    setThirdPlace(tournament.thirdPlace);
   }, [tournament]);
 
   const handleGenerateMatches = () => {
@@ -169,23 +179,31 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
   };
 
   const handleSave = async (
-    currentPlayers: Player[], 
-    currentMatches: Match[], 
+    currentPlayers: Player[],
+    currentMatches: Match[],
     currentWinner?: Player,
-    currentRunnerUp?: Player
+    currentRunnerUp?: Player,
+    currentThird?: Player,
+    currentLaps: LapTimeEntry[] = lapTimes,
   ) => {
     setSaving(true);
-    
+
     try {
       const updatedTournament: Tournament = {
         ...tournament,
         players: currentPlayers,
         matches: currentMatches,
+        lapTimes: currentLaps,
         winner: currentWinner,
         runnerUp: currentRunnerUp,
-        status: currentWinner ? 'completed' : currentMatches.length > 0 ? 'in-progress' : 'upcoming'
+        thirdPlace: currentThird,
+        status: currentWinner
+          ? 'completed'
+          : currentMatches.length > 0 || currentLaps.length > 0
+            ? 'in-progress'
+            : 'upcoming',
       };
-      
+
       await onSave(updatedTournament);
       toast.success('Tournament saved successfully.');
     } catch (error) {
@@ -196,42 +214,129 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     }
   };
 
+  const handleLapTimesChange = (
+    laps: LapTimeEntry[],
+    w?: Player,
+    r?: Player,
+    t?: Player,
+  ) => {
+    setLapTimes(laps);
+    setWinner(w);
+    setRunnerUp(r);
+    setThirdPlace(t);
+    handleSave(players, matches, w, r, t, laps);
+  };
+
   // Check if tournament is completed
   const isCompleted = tournament.status === 'completed' || !!winner;
-  
-  // Check if we can generate matches
-  const canGenerateMatches = players.length >= 2 && 
-    (tournament.tournamentFormat !== 'knockout' || players.length % 2 === 0) &&
-    !isCompleted;
 
-  // Get tournament format display info
   const getFormatInfo = () => {
     switch (tournament.tournamentFormat) {
+      case 'time_trial':
+        return {
+          label: 'FIFA Time Trial',
+          description: 'Fastest lap wins — no bracket',
+          color: 'bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 text-emerald-300 border-emerald-500/40',
+          icon: Timer,
+        };
       case 'knockout':
         return {
           label: 'Knockout Tournament',
           description: 'Single elimination format',
           color: 'bg-gradient-to-r from-red-500/20 to-pink-500/20 text-red-300 border-red-500/40',
-          icon: Target
+          icon: Target,
         };
       case 'league':
         return {
-          label: 'League Tournament', 
+          label: 'League Tournament',
           description: 'Round-robin format',
           color: 'bg-gradient-to-r from-purple-500/20 to-violet-500/20 text-purple-300 border-purple-500/40',
-          icon: Trophy
+          icon: Trophy,
         };
+      case 'double_elimination':
+        return { label: 'Double Elimination', description: 'Winners + losers bracket', color: 'bg-gradient-to-r from-orange-500/20 to-red-500/20 text-orange-300 border-orange-500/40', icon: Target };
+      case 'round_robin':
+        return { label: 'Round Robin', description: 'All-play-all', color: 'bg-gradient-to-r from-blue-500/20 to-indigo-500/20 text-blue-300 border-blue-500/40', icon: Users };
+      case 'swiss':
+        return { label: 'Swiss System', description: 'Pairing by score each round', color: 'bg-gradient-to-r from-teal-500/20 to-green-500/20 text-teal-300 border-teal-500/40', icon: Sparkles };
+      case 'custom':
+        return { label: 'Custom Bracket', description: 'Manual bracket builder', color: 'bg-gradient-to-r from-violet-500/20 to-purple-500/20 text-violet-300 border-violet-500/40', icon: Sparkles };
       default:
         return {
-          label: 'Unknown Format',
+          label: 'Tournament',
           description: '',
           color: 'bg-gradient-to-r from-gray-500/20 to-slate-500/20 text-gray-300 border-gray-500/40',
-          icon: Trophy
+          icon: Trophy,
         };
     }
   };
 
+  const canGenerateMatches =
+    !isTimeTrial &&
+    players.length >= 2 &&
+    !isCompleted &&
+    canManage;
+
   const formatInfo = getFormatInfo();
+
+  if (isTimeTrial) {
+    return (
+      <Card className="glass-card border-white/10 text-white shadow-2xl overflow-hidden">
+        <CardContent className="p-6">
+          <div className="mb-6 flex items-center gap-4 p-4 theme-inset rounded-xl">
+            <div className="p-3 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 rounded-xl border border-emerald-500/30">
+              <Timer className="h-6 w-6 text-emerald-400" />
+            </div>
+            <div className="flex-1">
+              <Badge variant="outline" className={formatInfo.color}>
+                <Sparkles className="h-3 w-3 mr-1" />
+                {formatInfo.label}
+              </Badge>
+              <p className="text-gray-400 text-sm mt-1">{formatInfo.description}</p>
+            </div>
+          </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-8 h-12 theme-inset rounded-xl p-1">
+              <TabsTrigger value="players" className="gap-2">
+                <Users className="h-4 w-4" />
+                Players ({players.length})
+              </TabsTrigger>
+              <TabsTrigger value="laps" className="gap-2">
+                <Timer className="h-4 w-4" />
+                Lap board
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="players" className="space-y-6 animate-fade-in">
+              <TournamentPlayerSection
+                players={players}
+                setPlayers={(p) => {
+                  setPlayers(p);
+                  handleSave(p, matches, winner, runnerUp, thirdPlace, lapTimes);
+                }}
+                matchesExist={lapTimes.length > 0}
+                updatePlayerName={(id, name) => {
+                  const updated = players.map((pl) => (pl.id === id ? { ...pl, name } : pl));
+                  setPlayers(updated);
+                  handleSave(updated, matches, winner, runnerUp, thirdPlace, lapTimes);
+                }}
+                tournamentId={tournament.id}
+                maxPlayers={tournament.maxPlayers}
+              />
+            </TabsContent>
+            <TabsContent value="laps" className="animate-fade-in">
+              <FifaLapTimeBoard
+                tournament={tournament}
+                players={players}
+                lapTimes={lapTimes}
+                onLapTimesChange={canManage ? handleLapTimesChange : () => {}}
+                readOnly={!canManage}
+              />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="glass-card border-white/10 text-white shadow-2xl">

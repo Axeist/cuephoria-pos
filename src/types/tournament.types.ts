@@ -3,8 +3,57 @@ export type GameType = 'PS5' | 'Pool';
 export type PoolGameVariant = '8 Ball' | 'Snooker';
 export type PS5GameTitle = 'FIFA' | 'COD' | string;
 export type MatchStatus = 'scheduled' | 'completed' | 'cancelled';
-export type MatchStage = 'regular' | 'quarter_final' | 'semi_final' | 'final';
-export type TournamentFormat = 'knockout' | 'league';
+export type MatchStage = 'regular' | 'quarter_final' | 'semi_final' | 'final' | 'grand_final';
+export type BracketSide = 'winners' | 'losers' | 'grand_final' | 'main';
+export type TournamentFormat =
+  | 'knockout'
+  | 'league'
+  | 'double_elimination'
+  | 'round_robin'
+  | 'swiss'
+  | 'custom'
+  | 'time_trial';
+export type AnimationIntensity = 'full' | 'subtle' | 'off';
+
+export interface TournamentDisplayConfig {
+  showEntryFee?: boolean;
+  showPrizes?: boolean;
+  showRegistrationCount?: boolean;
+  accentColor?: string;
+  animationIntensity?: AnimationIntensity;
+  tvRotationSeconds?: number;
+  tvShowLastWinner?: boolean;
+  tvShowCurrentMatch?: boolean;
+  tvShowUpcoming?: boolean;
+  tvSoundOnWin?: boolean;
+  publicHeroText?: string;
+}
+
+export interface FormatOptions {
+  swissRounds?: number;
+  doubleElimReset?: boolean;
+  groupCount?: number;
+  seeds?: string[];
+  /** FIFA / racing: track name shown on TV board */
+  trackName?: string;
+  /** Count best N laps per player (default 1 = fastest single lap wins) */
+  bestLapCount?: number;
+  /** Max attempts per player */
+  maxAttempts?: number;
+}
+
+/** Lap time entry for FIFA / time trial tournaments (stored in lap_times jsonb). */
+export interface LapTimeEntry {
+  id: string;
+  playerId: string;
+  playerName: string;
+  /** Total milliseconds — lower is faster */
+  lapTimeMs: number;
+  lapNumber?: number;
+  trackName?: string;
+  recordedAt: string;
+  invalidated?: boolean;
+}
 
 export interface DiscountCoupon {
   code: string;
@@ -29,8 +78,17 @@ export interface Match {
   scheduledDate: string; // ISO date string
   scheduledTime: string; // 24-hour format "HH:MM"
   status: MatchStatus;
-  stage: MatchStage; // New field for match stage
-  nextMatchId?: string; // Reference to the next match if this is part of a tournament bracket
+  stage: MatchStage;
+  nextMatchId?: string;
+  loserNextMatchId?: string;
+  bracketSide?: BracketSide;
+  groupId?: string;
+  swissRound?: number;
+  seed?: number;
+  bye?: boolean;
+  score1?: number;
+  score2?: number;
+  inProgress?: boolean;
 }
 
 export interface Tournament {
@@ -56,11 +114,41 @@ export interface Tournament {
   maxPlayers?: number; // Add max_players field
   tournamentFormat: TournamentFormat; // New field for tournament format
   entryFee?: number; // Tournament entry fee
-  discountCoupons?: DiscountCoupon[]; // Available discount coupons
-  location_id?: string; // Branch this tournament belongs to
-  // Database sync fields
+  discountCoupons?: DiscountCoupon[];
+  location_id?: string;
+  displayConfig?: TournamentDisplayConfig;
+  formatOptions?: FormatOptions;
+  lapTimes?: LapTimeEntry[];
   created_at?: string;
   updated_at?: string;
+}
+
+/** Format lap milliseconds as m:ss.ms */
+export function formatLapTimeMs(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return '--:--.---';
+  const minutes = Math.floor(ms / 60000);
+  const seconds = Math.floor((ms % 60000) / 1000);
+  const millis = ms % 1000;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}`;
+}
+
+/** Parse m:ss.ms or ss.ms or raw seconds into milliseconds */
+export function parseLapTimeInput(input: string): number | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  if (/^\d+(\.\d+)?$/.test(trimmed)) {
+    return Math.round(parseFloat(trimmed) * 1000);
+  }
+  const parts = trimmed.split(':');
+  if (parts.length === 2) {
+    const mins = parseInt(parts[0], 10);
+    const secParts = parts[1].split('.');
+    const secs = parseInt(secParts[0], 10);
+    const ms = secParts[1] ? parseInt(secParts[1].padEnd(3, '0').slice(0, 3), 10) : 0;
+    if ([mins, secs, ms].some((n) => Number.isNaN(n))) return null;
+    return mins * 60000 + secs * 1000 + ms;
+  }
+  return null;
 }
 
 // New interfaces for tournament history
@@ -115,8 +203,11 @@ export const convertFromSupabaseTournament = (item: any): Tournament => {
     maxPlayers: item.max_players || 16, // Ensure we always have a value
     tournamentFormat: item.tournament_format || 'knockout', // Add tournament format conversion
     entryFee: item.entry_fee || 250, // Default to 250
-    discountCoupons: item.discount_coupons || [], // Array of discount coupons
+    discountCoupons: item.discount_coupons || [],
     location_id: item.location_id || undefined,
+    displayConfig: item.display_config || {},
+    formatOptions: item.format_options || {},
+    lapTimes: item.lap_times || [],
     created_at: item.created_at,
     updated_at: item.updated_at
   };
@@ -152,6 +243,15 @@ export const convertToSupabaseTournament = (tournament: Tournament): any => {
   if (tournament.runnerUp) cleanObject.runner_up = tournament.runnerUp;
   if (tournament.thirdPlace) cleanObject.third_place = tournament.thirdPlace;
   cleanObject.location_id = tournament.location_id || null;
-  
+  if (tournament.displayConfig && Object.keys(tournament.displayConfig).length > 0) {
+    cleanObject.display_config = tournament.displayConfig;
+  }
+  if (tournament.formatOptions && Object.keys(tournament.formatOptions).length > 0) {
+    cleanObject.format_options = tournament.formatOptions;
+  }
+  if (tournament.lapTimes && tournament.lapTimes.length > 0) {
+    cleanObject.lap_times = tournament.lapTimes;
+  }
+
   return cleanObject;
 };

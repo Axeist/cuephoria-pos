@@ -190,6 +190,7 @@ export const SIDEBAR_PERMISSIONS: Record<string, string> = {
   '/customers': 'customers.view',
   '/reports': 'reports.view',
   '/booking-management': 'bookings.view',
+  '/tournaments': 'settings.tournaments.view',
   '/staff': 'hr.view',
   '/chat-ai': 'ai.view',
   '/subscription': 'settings.subscription.view',
