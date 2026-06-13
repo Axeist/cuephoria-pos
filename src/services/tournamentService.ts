@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from "react";
 import { supabase, handleSupabaseError } from "@/integrations/supabase/client";
 import { Tournament, convertFromSupabaseTournament, convertToSupabaseTournament, Player, Match, MatchStage } from "@/types/tournament.types";
 import { useToast } from '@/hooks/use-toast';
@@ -92,6 +93,9 @@ export const fetchTournaments = async (locationId?: string | null): Promise<Tour
 const formatTournamentError = (error: PostgrestError): string => {
   if (error.code === '42501') {
     return 'Permission denied. You may not have the required access rights to perform this operation. Only admins can manage tournaments.';
+  }
+  if (error.code === '23514' || error.message?.includes('check_tournament_format')) {
+    return 'This tournament format is not supported by the database yet. Apply the latest Supabase migrations, or choose Knockout/League and try again.';
   }
   if (error.message?.includes('auth.uid()')) {
     return 'You need to be authenticated as an admin to perform this operation.';
@@ -331,79 +335,86 @@ export const useTournamentOperations = () => {
   const { can } = usePermissions();
   const { activeLocationId } = useLocation();
   const canManage = can('settings.tournaments.manage');
-  
-  return {
-    fetchTournaments: async (locationId?: string | null) => {
-      const tournaments = await fetchTournaments(locationId);
-      if (tournaments.length === 0) {
-        console.log("No tournaments found or error occurred");
-      }
-      return tournaments;
-    },
-    
-    saveTournament: async (tournament: Tournament) => {
-      if (!canManage) {
-        toast({
-          title: "Permission denied",
-          description: "You don't have permission to manage tournaments",
-          variant: "destructive"
-        });
-        return null;
-      }
 
-      const locationId = tournament.location_id ?? activeLocationId ?? undefined;
-      if (!locationId) {
-        toast({
-          title: "Branch required",
-          description: "Could not determine which branch this tournament belongs to. Select a branch in the header or reload the page.",
-          variant: "destructive"
-        });
-        return null;
-      }
-      const tournamentWithLocation: Tournament = { ...tournament, location_id: locationId };
-      
-      const { data, error } = await saveTournament(tournamentWithLocation);
-      if (data) {
-        toast({
-          title: "Success",
-          description: `Tournament "${tournamentWithLocation.name}" ${tournament.id === data.id ? "updated" : "created"} successfully`,
-        });
-        return data;
-      } else {
-        toast({
-          title: "Failed to save tournament",
-          description: error || `Could not save tournament "${tournamentWithLocation.name}"`,
-          variant: "destructive"
-        });
-        return null;
-      }
-    },
-    
-    deleteTournament: async (id: string, name: string) => {
-      if (!canManage) {
-        toast({
-          title: "Permission denied",
-          description: "You don't have permission to delete tournaments",
-          variant: "destructive"
-        });
-        return false;
-      }
-      
-      const { success, error } = await deleteTournament(id);
-      if (success) {
-        toast({
-          title: "Success",
-          description: `Tournament "${name}" deleted successfully`,
-        });
-        return true;
-      } else {
-        toast({
-          title: "Error",
-          description: error || `Failed to delete tournament "${name}"`,
-          variant: "destructive"
-        });
-        return false;
-      }
+  const fetchTournamentsOp = useCallback(async (locationId?: string | null) => {
+    const tournaments = await fetchTournaments(locationId);
+    if (tournaments.length === 0) {
+      console.log("No tournaments found or error occurred");
     }
-  };
+    return tournaments;
+  }, []);
+
+  const saveTournamentOp = useCallback(async (tournament: Tournament) => {
+    if (!canManage) {
+      toast({
+        title: "Permission denied",
+        description: "You don't have permission to manage tournaments",
+        variant: "destructive"
+      });
+      return null;
+    }
+
+    const locationId = tournament.location_id ?? activeLocationId ?? undefined;
+    if (!locationId) {
+      toast({
+        title: "Branch required",
+        description: "Could not determine which branch this tournament belongs to. Select a branch in the header or reload the page.",
+        variant: "destructive"
+      });
+      return null;
+    }
+    const tournamentWithLocation: Tournament = { ...tournament, location_id: locationId };
+
+    const { data, error } = await saveTournament(tournamentWithLocation);
+    if (data) {
+      toast({
+        title: "Success",
+        description: `Tournament "${tournamentWithLocation.name}" ${tournament.id === data.id ? "updated" : "created"} successfully`,
+      });
+      return data;
+    }
+
+    toast({
+      title: "Failed to save tournament",
+      description: error || `Could not save tournament "${tournamentWithLocation.name}"`,
+      variant: "destructive"
+    });
+    return null;
+  }, [activeLocationId, canManage, toast]);
+
+  const deleteTournamentOp = useCallback(async (id: string, name: string) => {
+    if (!canManage) {
+      toast({
+        title: "Permission denied",
+        description: "You don't have permission to delete tournaments",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    const { success, error } = await deleteTournament(id);
+    if (success) {
+      toast({
+        title: "Success",
+        description: `Tournament "${name}" deleted successfully`,
+      });
+      return true;
+    }
+
+    toast({
+      title: "Error",
+      description: error || `Failed to delete tournament "${name}"`,
+      variant: "destructive"
+    });
+    return false;
+  }, [canManage, toast]);
+
+  return useMemo(
+    () => ({
+      fetchTournaments: fetchTournamentsOp,
+      saveTournament: saveTournamentOp,
+      deleteTournament: deleteTournamentOp,
+    }),
+    [deleteTournamentOp, fetchTournamentsOp, saveTournamentOp],
+  );
 };

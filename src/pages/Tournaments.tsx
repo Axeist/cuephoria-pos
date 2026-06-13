@@ -153,7 +153,7 @@ export default function TournamentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeLocationId, tournamentOps, toast]);
+  }, [activeLocationId, tournamentOps.fetchTournaments, toast]);
 
   useEffect(() => {
     void loadTournaments();

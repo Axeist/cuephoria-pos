@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchPublicLocation } from '@/utils/publicLocationResolve';
 import { returnContextFromSearchParams, resolvePublicTournamentReturnPath } from '@/utils/publicTournamentUrl';
+import { BOOKING_ACCESS_KEYS, parseBookingSettingBool } from '@/utils/bookingAccessSettings';
+import { fetchRazorpayKeyId, primeRazorpayCheckout } from '@/utils/razorpayCheckout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -75,8 +77,10 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
   const [searchParams, setSearchParams] = useSearchParams();
   const urlCtx = returnContextFromSearchParams(searchParams, { branchSlug });
   const [publicLocationId, setPublicLocationId] = useState<string | null>(null);
+  const [publicLocationName, setPublicLocationName] = useState<string>('');
   const [publicOrgSlug, setPublicOrgSlug] = useState<string | null>(null);
   const [resolvedBranchSlug, setResolvedBranchSlug] = useState(branchSlug);
+  const isLiteBranch = resolvedBranchSlug === 'lite';
 
   useEffect(() => {
     let cancelled = false;
@@ -89,6 +93,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
         });
         if (!cancelled) {
           setPublicLocationId(row?.id ?? null);
+          setPublicLocationName(row?.name ?? '');
           setPublicOrgSlug(row?.organizationSlug ?? urlCtx.orgSlug ?? null);
           setResolvedBranchSlug(row?.slug ?? urlCtx.branchSlug ?? branchSlug);
         }
@@ -121,7 +126,10 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
   const [isCheckingCustomer, setIsCheckingCustomer] = useState(false);
   const [showVenuePaymentWarning, setShowVenuePaymentWarning] = useState(false);
   const [activeTab, setActiveTab] = useState('upcoming');
-  const [paymentMethod, setPaymentMethod] = useState<'venue' | 'razorpay'>('razorpay'); // Default to online payment
+  const [paymentMethod, setPaymentMethod] = useState<'venue' | 'razorpay'>('venue');
+  const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false);
+  const [razorpayConfigured, setRazorpayConfigured] = useState(false);
+  const canPayOnline = onlinePaymentEnabled && razorpayConfigured;
   const [razorpayKeyId, setRazorpayKeyId] = useState<string>('');
   const [isLoadingPayment, setIsLoadingPayment] = useState(false);
   const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
@@ -250,48 +258,62 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
     };
   }, [fetchTournaments]);
 
-  // Load Razorpay script and get key ID
+  // Branch booking setting: online payment must be enabled in Settings
   useEffect(() => {
-    if (paymentMethod === 'razorpay') {
-      // Load Razorpay script if not already loaded
-      if (!(window as any).Razorpay) {
-        const script = document.createElement('script');
-        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-        script.async = true;
-        script.onload = () => {
-          console.log('✅ Razorpay script loaded');
-        };
-        script.onerror = () => {
-          console.error('❌ Failed to load Razorpay script');
-          toast({
-            title: "Payment Gateway Error",
-            description: "Failed to load payment gateway. Please refresh the page.",
-            variant: "destructive"
-          });
-        };
-        document.body.appendChild(script);
-      }
-      
-      // Pre-fetch Razorpay key ID for faster payment initiation
-      if (!razorpayKeyId) {
-        fetch('/api/razorpay/get-key-id')
-          .then(res => res.json())
-          .then(data => {
-            if (data.ok && data.keyId) {
-              setRazorpayKeyId(data.keyId);
-              console.log('✅ Razorpay key ID pre-loaded');
-            } else if (data.keyId) {
-              // Fallback for different response format
-              setRazorpayKeyId(data.keyId);
-            }
-          })
-          .catch(err => {
-            console.error('Failed to pre-load Razorpay key ID:', err);
-            // Don't show error to user yet, will retry during payment
-          });
-      }
+    if (!publicLocationId) {
+      setOnlinePaymentEnabled(false);
+      return;
     }
-  }, [paymentMethod, razorpayKeyId, toast]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: rows, error } = await supabase
+          .from('booking_settings')
+          .select('setting_key, setting_value')
+          .eq('location_id', publicLocationId)
+          .eq('setting_key', BOOKING_ACCESS_KEYS.onlinePayment)
+          .maybeSingle();
+        if (cancelled) return;
+        if (error) throw error;
+        setOnlinePaymentEnabled(parseBookingSettingBool(rows?.setting_value, true));
+      } catch (e) {
+        console.error('tournament online payment setting:', e);
+        if (!cancelled) setOnlinePaymentEnabled(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [publicLocationId]);
+
+  // Razorpay keys are workspace-scoped via payment_gateway_configs + location
+  useEffect(() => {
+    if (!publicLocationId || !onlinePaymentEnabled) {
+      setRazorpayConfigured(false);
+      setRazorpayKeyId('');
+      return;
+    }
+    let cancelled = false;
+    primeRazorpayCheckout(isLiteBranch, publicLocationId);
+    fetchRazorpayKeyId(isLiteBranch, publicLocationId)
+      .then((keyId) => {
+        if (!cancelled) {
+          setRazorpayKeyId(keyId);
+          setRazorpayConfigured(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRazorpayKeyId('');
+          setRazorpayConfigured(false);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [onlinePaymentEnabled, isLiteBranch, publicLocationId]);
+
+  useEffect(() => {
+    if (!canPayOnline && paymentMethod === 'razorpay') {
+      setPaymentMethod('venue');
+    }
+  }, [canPayOnline, paymentMethod]);
 
   // Helper function to normalize phone number (remove all non-digits)
   const normalizePhoneNumber = (phone: string): string => {
@@ -669,10 +691,10 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
       });
 
       // Fetch key ID in parallel with order creation if not already cached
-      const keyPromise = razorpayKeyId 
+      const keyPromise = razorpayKeyId
         ? Promise.resolve({ keyId: razorpayKeyId })
-        : fetch("/api/razorpay/get-key-id")
-            .then((res) => res.json())
+        : fetchRazorpayKeyId(isLiteBranch, publicLocationId)
+            .then((keyId) => ({ keyId }))
             .catch(() => ({ keyId: "" }));
 
       const [orderData, keyData] = await Promise.all([
@@ -720,7 +742,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
         key: finalKeyId,
         amount: orderData.amount, // Amount in paise
         currency: orderData.currency || "INR",
-        name: "Cuephoria Gaming Lounge",
+        name: publicLocationName || "Tournament Registration",
         description: `Tournament Registration: ${selectedTournament.name}`,
         order_id: orderData.orderId,
         handler: function (response: any) {
@@ -911,6 +933,15 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
     // If payment method is Razorpay, initiate payment flow and STOP here
     // Do NOT proceed with regular registration - exactly like booking page
     if (paymentMethod === 'razorpay') {
+      if (!canPayOnline) {
+        toast({
+          title: "Online payment unavailable",
+          description: "Please pay at the venue or ask staff to enable Razorpay in Settings → Payments.",
+          variant: "destructive",
+        });
+        setPaymentMethod('venue');
+        return;
+      }
       await initiateRazorpayPayment();
       return; // CRITICAL: Return immediately - no registration happens
     }
@@ -1414,7 +1445,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
     if (tabValue === 'gallery') {
       return (
         <div className="max-w-full sm:max-w-6xl mx-auto px-4">
-          <TournamentImageGallery />
+          <TournamentImageGallery locationId={publicLocationId} />
         </div>
       );
     }
@@ -2030,13 +2061,20 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
             {/* Payment Method Selection */}
             <div className="space-y-2">
               <Label className="text-cuephoria-grey text-sm font-semibold">Payment Method *</Label>
-              <div className="grid grid-cols-2 gap-2.5">
+              {!canPayOnline && (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200/90">
+                  Online payment is not set up for this venue. Complete Razorpay under Settings → Payments, or pay at the venue.
+                </div>
+              )}
+              <div className={`grid gap-2.5 ${canPayOnline ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {/* Pay at Venue */}
                 <button
                   type="button"
                   onClick={() => {
-                    if (paymentMethod !== 'venue') {
+                    if (canPayOnline && paymentMethod !== 'venue') {
                       setShowVenuePaymentWarning(true);
+                    } else {
+                      setPaymentMethod('venue');
                     }
                   }}
                   className={`p-2.5 rounded-lg border-2 transition-all duration-300 ${
@@ -2054,7 +2092,8 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                   </div>
                 </button>
                 
-                {/* Pay Online - Enhanced with benefit */}
+                {/* Pay Online — only when Razorpay is configured for this workspace/branch */}
+                {canPayOnline && (
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('razorpay')}
@@ -2081,11 +2120,12 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                     )}
                   </div>
                 </button>
+                )}
               </div>
             </div>
 
             {/* Online Payment Benefit Banner */}
-            {paymentMethod === 'razorpay' && (
+            {canPayOnline && paymentMethod === 'razorpay' && (
               <div className="bg-gradient-to-r from-yellow-500/20 via-amber-500/20 to-orange-500/20 border-2 border-yellow-400/40 rounded-lg p-2.5 shadow-md shadow-yellow-500/20 animate-pulse-subtle">
                 <div className="flex items-start gap-2">
                   <div className="p-1.5 bg-yellow-400/30 rounded flex-shrink-0">

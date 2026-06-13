@@ -33,9 +33,13 @@ interface TournamentWinnerImage {
 
 interface TournamentImageManagementProps {
   onRefresh?: () => void;
+  locationId?: string | null;
 }
 
-const TournamentImageManagement: React.FC<TournamentImageManagementProps> = ({ onRefresh }) => {
+const TournamentImageManagement: React.FC<TournamentImageManagementProps> = ({
+  onRefresh,
+  locationId = null,
+}) => {
   const [images, setImages] = useState<TournamentWinnerImage[]>([]);
   const [selectedImage, setSelectedImage] = useState<TournamentWinnerImage | null>(null);
   const [editingImage, setEditingImage] = useState<TournamentWinnerImage | null>(null);
@@ -49,14 +53,20 @@ const TournamentImageManagement: React.FC<TournamentImageManagementProps> = ({ o
   const { toast } = useToast();
 
   useEffect(() => {
+    if (!locationId) {
+      setImages([]);
+      return;
+    }
     fetchImages();
-  }, []);
+  }, [locationId]);
 
   const fetchImages = async () => {
+    if (!locationId) return;
     try {
       const { data, error } = await supabase
         .from('tournament_winner_images')
         .select('*')
+        .eq('location_id', locationId)
         .order('uploaded_at', { ascending: false });
 
       if (error) {

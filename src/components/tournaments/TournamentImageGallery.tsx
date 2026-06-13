@@ -20,9 +20,13 @@ interface TournamentWinnerImage {
 
 interface TournamentImageGalleryProps {
   className?: string;
+  locationId?: string | null;
 }
 
-const TournamentImageGallery: React.FC<TournamentImageGalleryProps> = ({ className = "" }) => {
+const TournamentImageGallery: React.FC<TournamentImageGalleryProps> = ({
+  className = "",
+  locationId = null,
+}) => {
   const [images, setImages] = useState<TournamentWinnerImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<TournamentWinnerImage | null>(null);
@@ -30,14 +34,22 @@ const TournamentImageGallery: React.FC<TournamentImageGalleryProps> = ({ classNa
   const { toast } = useToast();
 
   useEffect(() => {
+    if (!locationId) {
+      setImages([]);
+      setLoading(false);
+      return;
+    }
     fetchImages();
-  }, []);
+  }, [locationId]);
 
   const fetchImages = async () => {
+    if (!locationId) return;
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('tournament_winner_images')
         .select('*')
+        .eq('location_id', locationId)
         .order('uploaded_at', { ascending: false });
 
       if (error) {
