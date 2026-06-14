@@ -4,7 +4,6 @@ import {
   Crown,
   Radio,
   Trophy,
-  Users,
   Zap,
   Award,
 } from 'lucide-react';
@@ -18,19 +17,84 @@ import TournamentStandingsPanel from './TournamentStandingsPanel';
 import { TvLiveFeedTicker } from './TvLiveFeedTicker';
 import { cn } from '@/lib/utils';
 
+type BracketSize = 'lg' | 'md' | 'sm' | 'xs';
+
+const BRACKET_LAYOUT: Record<
+  BracketSize,
+  {
+    minWidth: string;
+    nameClass: string;
+    rowPadding: string;
+    cardPadding: string;
+    headerSize: string;
+    columnGap: string;
+    matchGap: string;
+    scale: number;
+  }
+> = {
+  lg: {
+    minWidth: 'min-w-[300px]',
+    nameClass: 'text-base md:text-lg',
+    rowPadding: 'px-3 py-2.5',
+    cardPadding: 'p-3',
+    headerSize: 'text-[11px]',
+    columnGap: 'gap-6 md:gap-10',
+    matchGap: 'gap-5 md:gap-6',
+    scale: 1.18,
+  },
+  md: {
+    minWidth: 'min-w-[260px]',
+    nameClass: 'text-sm md:text-base',
+    rowPadding: 'px-2.5 py-2',
+    cardPadding: 'p-2.5',
+    headerSize: 'text-[10px]',
+    columnGap: 'gap-5 md:gap-8',
+    matchGap: 'gap-4 md:gap-5',
+    scale: 1.08,
+  },
+  sm: {
+    minWidth: 'min-w-[220px]',
+    nameClass: 'text-sm',
+    rowPadding: 'px-2 py-1.5',
+    cardPadding: 'p-2',
+    headerSize: 'text-[10px]',
+    columnGap: 'gap-4 md:gap-6',
+    matchGap: 'gap-3 md:gap-4',
+    scale: 1,
+  },
+  xs: {
+    minWidth: 'min-w-[175px]',
+    nameClass: 'text-xs',
+    rowPadding: 'px-2 py-1.5',
+    cardPadding: 'p-2',
+    headerSize: 'text-[9px]',
+    columnGap: 'gap-3 md:gap-4',
+    matchGap: 'gap-2 md:gap-3',
+    scale: 0.9,
+  },
+};
+
+function resolveBracketSize(maxMatchesInRound: number, roundCount: number): BracketSize {
+  if (maxMatchesInRound <= 2 && roundCount <= 3) return 'lg';
+  if (maxMatchesInRound <= 4) return 'md';
+  if (maxMatchesInRound <= 8) return 'sm';
+  return 'xs';
+}
+
 function TvMatchNode({
   match,
   getName,
   theme,
   accent,
-  compact,
+  size = 'sm',
 }: {
   match: Match;
   getName: (id: string) => string;
   theme: ReturnType<typeof resolveSportTheme>;
   accent: string;
-  compact?: boolean;
+  size?: BracketSize;
 }) {
+  const layout = BRACKET_LAYOUT[size];
   const p1 = getName(match.player1Id);
   const p2 = getName(match.player2Id);
   const live = match.inProgress;
@@ -40,7 +104,7 @@ function TvMatchNode({
     <div
       className={cn(
         'rounded-xl border backdrop-blur-md overflow-hidden',
-        compact ? 'min-w-[180px]' : 'min-w-[200px]',
+        layout.minWidth,
         live && 'ring-2',
       )}
       style={{
@@ -49,7 +113,12 @@ function TvMatchNode({
         boxShadow: live ? `0 0 20px ${theme.glow}` : undefined,
       }}
     >
-      <div className="px-2 py-1 border-b border-white/10 flex items-center justify-between text-[9px] uppercase tracking-widest">
+      <div
+        className={cn(
+          'px-2 py-1 border-b border-white/10 flex items-center justify-between uppercase tracking-widest',
+          layout.headerSize,
+        )}
+      >
         <span style={{ color: accent }}>{formatMatchStage(match.stage)}</span>
         {live && (
           <span className="text-red-300 font-bold flex items-center gap-1">
@@ -58,7 +127,7 @@ function TvMatchNode({
         )}
         {done && !live && <span className="text-emerald-400">FT</span>}
       </div>
-      <div className="p-2 space-y-1">
+      <div className={cn('space-y-1', layout.cardPadding)}>
         {[
           { id: match.player1Id, name: p1, score: match.score1, won: match.winnerId === match.player1Id },
           { id: match.player2Id, name: p2, score: match.score2, won: match.winnerId === match.player2Id },
@@ -66,13 +135,14 @@ function TvMatchNode({
           <div
             key={row.id || row.name}
             className={cn(
-              'flex items-center justify-between gap-2 rounded-lg px-2 py-1.5',
+              'flex items-center justify-between gap-2 rounded-lg',
+              layout.rowPadding,
               row.won && 'bg-emerald-500/15 border border-emerald-500/25',
               done && !row.won && row.id && 'opacity-40',
             )}
           >
-            <span className={cn('font-semibold truncate', compact ? 'text-xs' : 'text-sm')}>{row.name}</span>
-            <span className="font-mono font-black tabular-nums" style={{ color: row.won ? theme.accent : 'inherit' }}>
+            <span className={cn('font-semibold truncate', layout.nameClass)}>{row.name}</span>
+            <span className={cn('font-mono font-black tabular-nums', size === 'lg' ? 'text-lg' : size === 'md' ? 'text-base' : 'text-sm')} style={{ color: row.won ? theme.accent : 'inherit' }}>
               {done ? (row.score ?? 0) : '—'}
             </span>
           </div>
@@ -135,7 +205,15 @@ export default function TournamentTVBracket({
 
   const blendAccent = sport.accent;
   const showLiveHero = liveMatch?.inProgress;
-  const compactBracket = rounds.length > 2 || tournament.players.length > 6;
+
+  const maxMatchesInRound = useMemo(
+    () => Math.max(...rounds.map((r) => groups[r]?.length ?? 0), 1),
+    [rounds, groups],
+  );
+  const bracketSize = useMemo(
+    () => resolveBracketSize(maxMatchesInRound, rounds.length),
+    [maxMatchesInRound, rounds.length],
+  );
 
   const feedItems = recentResults.map((m) => ({
     id: m.id,
@@ -146,37 +224,39 @@ export default function TournamentTVBracket({
   const renderBracketColumns = (
     roundList: number[],
     roundGroups: Record<number, Match[]>,
-  ) => (
-    <div className="flex h-full min-h-0 items-center justify-center overflow-x-auto overflow-y-hidden">
-      <div
-        className={cn(
-          'flex min-w-max items-stretch px-1',
-          compactBracket ? 'gap-3 md:gap-4' : 'gap-5 md:gap-8',
-        )}
-      >
-        {roundList.map((round) => (
-          <div key={round} className="flex flex-col gap-2 md:gap-3 justify-around">
-            <p
-              className="text-center text-[10px] font-bold uppercase tracking-widest shrink-0"
-              style={{ color: blendAccent }}
-            >
-              R{round}
-            </p>
-            {roundGroups[round].map((match) => (
-              <TvMatchNode
-                key={match.id}
-                match={match}
-                getName={getName}
-                theme={sport}
-                accent={blendAccent}
-                compact={compactBracket}
-              />
-            ))}
-          </div>
-        ))}
+    size: BracketSize = bracketSize,
+  ) => {
+    const layout = BRACKET_LAYOUT[size];
+    return (
+      <div className="flex h-full min-h-0 w-full items-center justify-center overflow-hidden">
+        <div
+          className={cn('flex h-full min-w-max items-stretch px-1', layout.columnGap)}
+          style={{ transform: `scale(${layout.scale})`, transformOrigin: 'center center' }}
+        >
+          {roundList.map((round) => (
+            <div key={round} className={cn('flex flex-1 flex-col justify-evenly min-h-full', layout.matchGap)}>
+              <p
+                className="text-center text-[10px] md:text-xs font-bold uppercase tracking-widest shrink-0"
+                style={{ color: blendAccent }}
+              >
+                {roundGroups[round][0] ? formatMatchStage(roundGroups[round][0].stage) : `R${round}`}
+              </p>
+              {roundGroups[round].map((match) => (
+                <TvMatchNode
+                  key={match.id}
+                  match={match}
+                  getName={getName}
+                  theme={sport}
+                  accent={blendAccent}
+                  size={size}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="relative h-full w-full overflow-hidden text-white">
@@ -266,7 +346,7 @@ export default function TournamentTVBracket({
           </motion.div>
         )}
 
-        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_240px] gap-3 md:gap-4 overflow-hidden">
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-3 md:gap-4 overflow-hidden">
           <div className="min-h-0 flex flex-col overflow-hidden">
             <p className="shrink-0 text-[10px] uppercase tracking-[0.3em] text-white/40 mb-2 flex items-center gap-2">
               <Trophy className="h-3 w-3" style={{ color: blendAccent }} />
@@ -295,13 +375,13 @@ export default function TournamentTVBracket({
                           getName={getName}
                           theme={sport}
                           accent={blendAccent}
-                          compact
+                          size={bracketSize}
                         />
                       ))}
                   </div>
                 </div>
               ) : isDoubleElim ? (
-                <div className="h-full min-h-0 overflow-x-auto overflow-y-hidden space-y-3">
+                <div className="h-full min-h-0 overflow-hidden flex flex-col gap-2">
                   {(
                     [
                       { label: 'Winners', side: 'winners' },
@@ -315,12 +395,14 @@ export default function TournamentTVBracket({
                     if (sideMatches.length === 0) return null;
                     const sideGroups = groupMatchesByRound(sideMatches);
                     const sideRounds = sortRounds(sideGroups);
+                    const sideMax = Math.max(...sideRounds.map((r) => sideGroups[r]?.length ?? 0), 1);
+                    const sideSize = resolveBracketSize(sideMax, sideRounds.length);
                     return (
-                      <div key={side} className="min-h-0">
-                        <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1" style={{ color: blendAccent }}>
+                      <div key={side} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                        <p className="shrink-0 text-[10px] uppercase tracking-widest text-white/40 mb-1" style={{ color: blendAccent }}>
                           {label}
                         </p>
-                        {renderBracketColumns(sideRounds, sideGroups)}
+                        {renderBracketColumns(sideRounds, sideGroups, sideSize)}
                       </div>
                     );
                   })}
