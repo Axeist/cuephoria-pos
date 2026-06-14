@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   areGridSlotsContiguous,
+  expandGridSlotsToContiguousRange,
+  getGridSelectionSpanMinutes,
   isValidSlotCombo,
   resolveBookingSlotConfig,
   validateAndMergeGridSlots,
@@ -76,5 +78,45 @@ describe("bookingSlotConfig", () => {
         30,
       ),
     ).toBe(true);
+  });
+
+  it("expands two endpoint slots to fill the range", () => {
+    const grid = [
+      { start_time: "14:30:00", end_time: "15:00:00", is_available: true },
+      { start_time: "15:00:00", end_time: "15:30:00", is_available: true },
+      { start_time: "15:30:00", end_time: "16:00:00", is_available: true },
+      { start_time: "16:00:00", end_time: "16:30:00", is_available: true },
+    ];
+    const result = expandGridSlotsToContiguousRange(
+      [
+        { start_time: "14:30:00", end_time: "15:00:00" },
+        { start_time: "16:00:00", end_time: "16:30:00" },
+      ],
+      grid,
+      30,
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.slots).toHaveLength(4);
+      expect(getGridSelectionSpanMinutes(result.slots)).toBe(120);
+    }
+  });
+
+  it("rejects range expansion when a middle slot is booked", () => {
+    const grid = [
+      { start_time: "14:30:00", end_time: "15:00:00", is_available: true },
+      { start_time: "15:00:00", end_time: "15:30:00", is_available: false },
+      { start_time: "15:30:00", end_time: "16:00:00", is_available: true },
+      { start_time: "16:00:00", end_time: "16:30:00", is_available: true },
+    ];
+    const result = expandGridSlotsToContiguousRange(
+      [
+        { start_time: "14:30:00", end_time: "15:00:00" },
+        { start_time: "16:00:00", end_time: "16:30:00" },
+      ],
+      grid,
+      30,
+    );
+    expect(result.ok).toBe(false);
   });
 });

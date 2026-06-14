@@ -39,6 +39,8 @@ import { paymentCallbackQuery, type PublicBookingReturnContext } from "@/utils/p
 import { usePublicBookingSlotConfig } from "@/hooks/usePublicBookingSlotConfig";
 import {
   bookingSlotConfigLabel,
+  expandGridSlotsToContiguousRange,
+  getGridSelectionSpanMinutes,
   validateAndMergeGridSlots,
 } from "@/utils/bookingSlotConfig";
 import CouponPromotionalPopup from "@/components/CouponPromotionalPopup";
@@ -1110,11 +1112,30 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
     // Time changed — station availability is hour-specific; reset Step 3.
     clearStep3Selection();
-    
-    // Add to multiple selection
-    setSelectedSlots(prev => [...prev, slot]);
-    // Also set as single selection for backward compatibility
-    setSelectedSlot(slot);
+
+    const nextSlots = [...selectedSlots, slot];
+    let slotsToSet = nextSlots;
+
+    if (nextSlots.length >= 2) {
+      const expanded = expandGridSlotsToContiguousRange(
+        nextSlots.map((s) => ({ start_time: s.start_time, end_time: s.end_time })),
+        availableSlots,
+        slotConfig.slot_interval_minutes,
+      );
+      if (!expanded.ok) {
+        toast.error(expanded.error);
+        return;
+      }
+      slotsToSet = expanded.slots.map((gs) => {
+        const found = availableSlots.find(
+          (a) => a.start_time === gs.start_time && a.end_time === gs.end_time,
+        );
+        return found ?? { ...gs, is_available: true };
+      });
+    }
+
+    setSelectedSlots(slotsToSet);
+    setSelectedSlot(slotsToSet[slotsToSet.length - 1]);
   }
 
   // Use dynamic coupons from database, fallback to defaults if not loaded yet
@@ -1591,6 +1612,18 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
   /** Billable session blocks (0 until minimum contiguous slots are selected). */
   const bookingSessionCount = mergedSlotSelection?.ok ? mergedSlotSelection.sessionBlocks : 0;
+
+  const selectedDurationMinutes = useMemo(() => {
+    if (mergedSlotSelection?.ok) {
+      return mergedSlotSelection.sessions.reduce((sum, session) => sum + session.duration, 0);
+    }
+    if (selectedGridSlots.length > 0) {
+      return getGridSelectionSpanMinutes(
+        selectedGridSlots.map((s) => ({ start_time: s.start_time, end_time: s.end_time })),
+      );
+    }
+    return 0;
+  }, [mergedSlotSelection, selectedGridSlots]);
 
   const slotSelectionHint =
     selectedGridSlots.length > 0 && mergedSlotSelection && !mergedSlotSelection.ok
@@ -2863,13 +2896,31 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                       Session Duration & Time
                     </Label>
                     <p className="mt-1 text-sm text-gray-200">
-                      {selectedSlot
-                        ? `${getSlotDurationMinutesFromTime(selectedSlot.start_time, selectedSlot.end_time)} minutes`
-                        : selectedSlots[0]
-                          ? `${getSlotDurationMinutesFromTime(selectedSlots[0].start_time, selectedSlots[0].end_time)} minutes`
-                          : '—'}
+                      {selectedDurationMinutes >= 60 && selectedDurationMinutes % 60 === 0
+                        ? selectedDurationMinutes === 60
+                          ? "1 hour"
+                          : `${selectedDurationMinutes / 60} hours`
+                        : `${selectedDurationMinutes} minutes`}
                     </p>
-                    {selectedSlots.length > 0 ? (
+                    {mergedSlotSelection?.ok ? (
+                      <p className="text-sm text-gray-200 mt-2">
+                        {new Date(
+                          `2000-01-01T${mergedSlotSelection.gridSlots[0].start_time}`,
+                        ).toLocaleTimeString("en-US", {
+                          hour: "numeric",
+                          minute: "2-digit",
+                          hour12: true,
+                        })}{" "}
+                        —{" "}
+                        {new Date(
+                          `2000-01-01T${mergedSlotSelection.gridSlots[mergedSlotSelection.gridSlots.length - 1].end_time}`,
+                        ).toLocaleTimeString("en-US", {
+                          hour: "numeric",
+                          minute: "2-digit",
+                          hour12: true,
+                        })}
+                      </p>
+                    ) : selectedSlots.length > 0 ? (
                       <div className="mt-2 space-y-1">
                         {selectedSlots.map((slot, idx) => (
                           <p key={idx} className="text-sm text-gray-200">
@@ -2884,12 +2935,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                             )}
                           </p>
                         ))}
-                        <p className="text-xs text-cuephoria-lightpurple mt-1">
-                          {selectedSlots.length} slot{selectedSlots.length !== 1 ? 's' : ''} selected
-                        </p>
                       </div>
                     ) : selectedSlot ? (
-                      <p className="text-sm text-gray-200">
+                      <p className="text-sm text-gray-200 mt-2">
                         {new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString(
                           "en-US",
                           { hour: "numeric", minute: "2-digit", hour12: true }
@@ -2901,6 +2949,13 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                         )}
                       </p>
                     ) : null}
+                    {selectedGridSlots.length > 0 && (
+                      <p className="text-xs text-cuephoria-lightpurple mt-1">
+                        {mergedSlotSelection?.ok
+                          ? `${slotConfig.minimum_booking_minutes}-minute minimum · ${mergedSlotSelection.sessionBlocks} session${mergedSlotSelection.sessionBlocks !== 1 ? "s" : ""}`
+                          : `${selectedGridSlots.length} slot${selectedGridSlots.length !== 1 ? "s" : ""} selected`}
+                      </p>
+                    )}
                   </div>
                 )}
 

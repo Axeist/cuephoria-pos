@@ -150,6 +150,76 @@ export type SlotSelectionValidation =
   | { ok: true; gridSlots: GridTimeSlot[]; sessions: BookingTimeWindow[]; sessionBlocks: number }
   | { ok: false; error: string };
 
+export type GridSlotAvailability = GridTimeSlot & { is_available?: boolean };
+
+/**
+ * When two or more grid slots are selected, expand to every slot between the earliest
+ * start and latest end on the venue grid (range selection).
+ */
+export function expandGridSlotsToContiguousRange(
+  selected: GridTimeSlot[],
+  gridSlots: GridSlotAvailability[],
+  intervalMinutes: number,
+): { ok: true; slots: GridTimeSlot[] } | { ok: false; error: string } {
+  if (selected.length === 0) {
+    return { ok: true, slots: [] };
+  }
+  if (selected.length === 1) {
+    return { ok: true, slots: sortGridSlots(selected) };
+  }
+
+  const sorted = sortGridSlots(selected);
+  const minStart = Math.min(...sorted.map((s) => parseTimeToMinutes(s.start_time)));
+  const maxEnd = Math.max(
+    ...sorted.map((s) => {
+      let end = parseTimeToMinutes(s.end_time);
+      const start = parseTimeToMinutes(s.start_time);
+      if (s.end_time === "00:00:00" || (end === 0 && start > 0)) end = 24 * 60;
+      return end;
+    }),
+  );
+
+  if (maxEnd <= minStart) {
+    return { ok: false, error: "Invalid time range selected." };
+  }
+
+  const byStart = new Map<string, GridSlotAvailability>();
+  for (const slot of gridSlots) {
+    byStart.set(slot.start_time, slot);
+  }
+
+  const expanded: GridTimeSlot[] = [];
+  for (let t = minStart; t < maxEnd; t += intervalMinutes) {
+    const start_time = minutesToTimeString(t);
+    const end_time = minutesToTimeString(t + intervalMinutes);
+    const match = byStart.get(start_time);
+    if (!match || slotWindowDurationMinutes(match.start_time, match.end_time) !== intervalMinutes) {
+      return { ok: false, error: "Selected time range includes slots that are not on the booking grid." };
+    }
+    if (match.is_available === false) {
+      return {
+        ok: false,
+        error: "Some slots in that range are already booked. Please choose a different time.",
+      };
+    }
+    expanded.push({ start_time: match.start_time, end_time: match.end_time });
+  }
+
+  return { ok: true, slots: expanded };
+}
+
+/** Total minutes spanned from earliest start to latest end across selected grid slots. */
+export function getGridSelectionSpanMinutes(slots: GridTimeSlot[]): number {
+  if (slots.length === 0) return 0;
+  const sorted = sortGridSlots(slots);
+  const minStart = parseTimeToMinutes(sorted[0].start_time);
+  const last = sorted[sorted.length - 1];
+  let maxEnd = parseTimeToMinutes(last.end_time);
+  const lastStart = parseTimeToMinutes(last.start_time);
+  if (last.end_time === "00:00:00" || (maxEnd === 0 && lastStart > 0)) maxEnd = 24 * 60;
+  return Math.max(0, maxEnd - minStart);
+}
+
 /**
  * Validate customer grid selection and merge into minimum-sized booking sessions.
  * When interval === minimum, each grid slot is one session.
