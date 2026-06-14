@@ -34,7 +34,7 @@ const PublicTournamentTV = ({ branchSlug = 'main' }: { branchSlug?: string }) =>
     };
   }, [ctx.branchSlug, ctx.locationId, ctx.orgSlug, branchSlug]);
 
-  usePublicBookingBrand(locationId);
+  usePublicBookingBrand(locationId, ctx.branchSlug ?? branchSlug);
 
   if (resolving) {
     return (
@@ -46,7 +46,7 @@ const PublicTournamentTV = ({ branchSlug = 'main' }: { branchSlug?: string }) =>
 
   return (
     <div className="min-h-screen bg-[#030712]">
-      <TournamentTVDisplay locationId={locationId} publicMode />
+      <TournamentTVDisplay locationId={locationId} branchSlug={ctx.branchSlug ?? branchSlug} />
     </div>
   );
 };

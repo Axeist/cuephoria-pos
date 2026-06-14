@@ -16,6 +16,7 @@ import type { Tournament } from '@/types/tournament.types';
 import { formatLapTimeMs } from '@/types/tournament.types';
 import { rankPlayersByLapTime } from '@/utils/tournament/lapTimeRanking';
 import { useTournamentMotion } from './animations/TournamentMotionProvider';
+import { useTournamentTVBrand, hexToRgba } from './tournamentTVBrand';
 import { cn } from '@/lib/utils';
 
 function formatGapMs(gapMs: number): string {
@@ -29,12 +30,14 @@ function StatCard({
   sub,
   icon: Icon,
   accent,
+  style,
 }: {
   label: string;
   value: string | number;
   sub?: string;
   icon: React.ElementType;
   accent: string;
+  style?: React.CSSProperties;
 }) {
   return (
     <motion.div
@@ -44,6 +47,7 @@ function StatCard({
         'relative overflow-hidden rounded-2xl border p-4 md:p-5 backdrop-blur-md',
         accent,
       )}
+      style={style}
     >
       <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-white/5 blur-2xl" />
       <div className="flex items-start justify-between gap-2 relative">
@@ -64,6 +68,8 @@ function StatCard({
 
 export default function TournamentTVTimeTrial({ tournament }: { tournament: Tournament }) {
   const { reduced, duration } = useTournamentMotion();
+  const brand = useTournamentTVBrand();
+  const { primaryHex, accentHex, logoUrl, displayName, tagline } = brand;
   const trackName = tournament.formatOptions?.trackName ?? 'Time Trial';
   const bestLapCount = tournament.formatOptions?.bestLapCount ?? 1;
 
@@ -95,16 +101,27 @@ export default function TournamentTVTimeTrial({ tournament }: { tournament: Tour
     <div className="relative min-h-screen w-full overflow-hidden text-white">
       {/* Broadcast background */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(16,185,129,0.18),transparent_55%),radial-gradient(ellipse_at_bottom_right,_rgba(6,182,212,0.12),transparent_50%),linear-gradient(180deg,#030712_0%,#0a0f1a_40%,#020617_100%)]" />
+        <div
+          className="absolute inset-0"
+          style={{
+            background: `radial-gradient(ellipse at top, ${hexToRgba(primaryHex, 0.22)}, transparent 55%), radial-gradient(ellipse at bottom right, ${hexToRgba(accentHex, 0.14)}, transparent 50%), linear-gradient(180deg, #030712 0%, #0a0f1a 40%, #020617 100%)`,
+          }}
+        />
         {!reduced && (
           <>
             <motion.div
-              className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent opacity-60"
+              className="absolute top-0 left-0 right-0 h-1 opacity-60"
+              style={{
+                background: `linear-gradient(to right, transparent, ${primaryHex}, ${accentHex}, transparent)`,
+              }}
               animate={{ x: ['-100%', '100%'] }}
               transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
             />
             <motion.div
-              className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-emerald-500/0 via-emerald-400/40 to-cyan-500/0"
+              className="absolute bottom-0 left-0 right-0 h-px"
+              style={{
+                background: `linear-gradient(to right, transparent, ${hexToRgba(primaryHex, 0.5)}, ${hexToRgba(accentHex, 0.35)}, transparent)`,
+              }}
               animate={{ opacity: [0.3, 0.8, 0.3] }}
               transition={{ duration: 2, repeat: Infinity }}
             />
@@ -125,6 +142,16 @@ export default function TournamentTVTimeTrial({ tournament }: { tournament: Tour
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-5">
           <div className="space-y-2 max-w-4xl">
             <div className="flex flex-wrap items-center gap-3">
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt={displayName}
+                  className="h-10 w-10 md:h-12 md:w-12 rounded-xl object-contain bg-white/10 border border-white/10 p-1.5 shrink-0"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              ) : null}
               <motion.span
                 className="inline-flex items-center gap-2 rounded-full border border-red-500/50 bg-red-500/20 px-3 py-1 text-xs font-bold uppercase tracking-widest text-red-200"
                 animate={reduced ? {} : { boxShadow: ['0 0 0 0 rgba(239,68,68,0.4)', '0 0 0 8px rgba(239,68,68,0)', '0 0 0 0 rgba(239,68,68,0.4)'] }}
@@ -133,20 +160,27 @@ export default function TournamentTVTimeTrial({ tournament }: { tournament: Tour
                 <Radio className="h-3 w-3" />
                 Live
               </motion.span>
-              <span className="inline-flex items-center gap-1.5 text-xs uppercase tracking-[0.25em] text-emerald-300/80 font-semibold">
+              <span
+                className="inline-flex items-center gap-1.5 text-xs uppercase tracking-[0.25em] font-semibold"
+                style={{ color: hexToRgba(primaryHex, 0.85) }}
+              >
                 <Flag className="h-3.5 w-3.5" />
-                FIFA Time Trial
+                {displayName}
               </span>
             </div>
             <motion.h1
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="text-3xl md:text-5xl lg:text-6xl font-black tracking-tight leading-none bg-gradient-to-r from-white via-emerald-100 to-cyan-200 bg-clip-text text-transparent"
+              className="text-3xl md:text-5xl lg:text-6xl font-black tracking-tight leading-none bg-clip-text text-transparent"
+              style={{
+                backgroundImage: `linear-gradient(to right, #fff, ${hexToRgba(primaryHex, 0.9)}, ${hexToRgba(accentHex, 0.85)})`,
+              }}
             >
               {tournament.name}
             </motion.h1>
-            <p className="text-base md:text-xl text-emerald-200/70 font-medium">
+            <p className="text-base md:text-xl font-medium" style={{ color: hexToRgba(primaryHex, 0.75) }}>
               {trackName} · Fastest lap wins
+              {tagline ? ` · ${tagline}` : ''}
             </p>
           </div>
           <div className="text-right">
@@ -155,7 +189,8 @@ export default function TournamentTVTimeTrial({ tournament }: { tournament: Tour
               key={sessionBest}
               initial={{ scale: reduced ? 1 : 1.08, opacity: 0.5 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="font-mono text-3xl md:text-5xl font-black text-emerald-300 tabular-nums"
+              className="font-mono text-3xl md:text-5xl font-black tabular-nums"
+              style={{ color: primaryHex }}
             >
               {sessionBest}
             </motion.p>
@@ -169,28 +204,32 @@ export default function TournamentTVTimeTrial({ tournament }: { tournament: Tour
             value={tournament.players.length}
             sub="Registered"
             icon={Users}
-            accent="border-cyan-500/30 bg-cyan-950/40"
+            accent="border-white/15"
+            style={{ borderColor: hexToRgba(primaryHex, 0.35), backgroundColor: hexToRgba(primaryHex, 0.12) }}
           />
           <StatCard
             label="Laps"
             value={validLaps.length}
             sub="Recorded today"
             icon={Activity}
-            accent="border-emerald-500/30 bg-emerald-950/40"
+            accent="border-white/15"
+            style={{ borderColor: hexToRgba(accentHex, 0.35), backgroundColor: hexToRgba(accentHex, 0.1) }}
           />
           <StatCard
             label="On board"
             value={ranked.length}
             sub="With a valid time"
             icon={Gauge}
-            accent="border-violet-500/30 bg-violet-950/40"
+            accent="border-white/15"
+            style={{ borderColor: hexToRgba(primaryHex, 0.25), backgroundColor: hexToRgba(primaryHex, 0.08) }}
           />
           <StatCard
             label="Prize mode"
             value={bestLapCount === 1 ? 'Best lap' : `Best ${bestLapCount}`}
             sub={tournament.entryFee ? `₹${tournament.entryFee} entry` : 'Time attack'}
             icon={Zap}
-            accent="border-amber-500/30 bg-amber-950/40"
+            accent="border-white/15"
+            style={{ borderColor: hexToRgba(accentHex, 0.3), backgroundColor: hexToRgba(accentHex, 0.08) }}
           />
         </div>
 
@@ -224,7 +263,7 @@ export default function TournamentTVTimeTrial({ tournament }: { tournament: Tour
                     <p className="font-bold text-sm md:text-xl truncate max-w-full text-center px-1">
                       {row.player.name}
                     </p>
-                    <p className="font-mono text-lg md:text-3xl font-black text-emerald-300 tabular-nums mt-1">
+                    <p className="font-mono text-lg md:text-3xl font-black tabular-nums mt-1" style={{ color: primaryHex }}>
                       {formatLapTimeMs(row.bestLapMs)}
                     </p>
                     <p className="text-[10px] text-white/40 mt-1">P{row.rank}</p>
@@ -298,19 +337,19 @@ export default function TournamentTVTimeTrial({ tournament }: { tournament: Tour
                           </div>
                           <div className="h-2 rounded-full bg-white/5 overflow-hidden">
                             <motion.div
-                              className={cn(
-                                'h-full rounded-full',
+                              className="h-full rounded-full"
+                              style={
                                 row.rank === 1
-                                  ? 'bg-gradient-to-r from-amber-400 to-yellow-300'
-                                  : 'bg-gradient-to-r from-emerald-600 to-cyan-500',
-                              )}
+                                  ? { background: `linear-gradient(to right, ${accentHex}, ${primaryHex})` }
+                                  : { background: `linear-gradient(to right, ${hexToRgba(primaryHex, 0.85)}, ${hexToRgba(accentHex, 0.75)})` }
+                              }
                               initial={{ width: 0 }}
                               animate={{ width: `${barPct}%` }}
                               transition={{ duration: 0.8, ease: 'easeOut' }}
                             />
                           </div>
                         </div>
-                        <span className="font-mono text-lg md:text-2xl font-bold text-emerald-300 tabular-nums text-right">
+                        <span className="font-mono text-lg md:text-2xl font-bold tabular-nums text-right" style={{ color: primaryHex }}>
                           {formatLapTimeMs(row.bestLapMs)}
                         </span>
                         <span
@@ -345,7 +384,7 @@ export default function TournamentTVTimeTrial({ tournament }: { tournament: Tour
                     >
                       <span className="text-white/50 font-mono w-6">P{row.rank}</span>
                       <span className="flex-1 truncate font-medium">{row.player.name}</span>
-                      <span className="font-mono text-emerald-300/90 tabular-nums text-xs">
+                      <span className="font-mono tabular-nums text-xs" style={{ color: hexToRgba(primaryHex, 0.9) }}>
                         {formatLapTimeMs(row.bestLapMs)}
                       </span>
                     </div>
@@ -354,8 +393,17 @@ export default function TournamentTVTimeTrial({ tournament }: { tournament: Tour
               </div>
             )}
 
-            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/20 backdrop-blur-md overflow-hidden">
-              <p className="text-xs uppercase tracking-widest text-cyan-300/60 px-4 py-2 border-b border-cyan-500/10 flex items-center gap-2">
+            <div
+              className="rounded-2xl border backdrop-blur-md overflow-hidden"
+              style={{
+                borderColor: hexToRgba(accentHex, 0.25),
+                backgroundColor: hexToRgba(accentHex, 0.08),
+              }}
+            >
+              <p
+                className="text-xs uppercase tracking-widest px-4 py-2 border-b flex items-center gap-2"
+                style={{ color: hexToRgba(accentHex, 0.75), borderColor: hexToRgba(accentHex, 0.15) }}
+              >
                 <Activity className="h-3.5 w-3.5" />
                 Recent laps
               </p>
@@ -372,7 +420,7 @@ export default function TournamentTVTimeTrial({ tournament }: { tournament: Tour
                       className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-white/5 last:border-0"
                     >
                       <span className="truncate text-sm font-medium">{lap.playerName}</span>
-                      <span className="font-mono text-sm font-bold text-emerald-300 tabular-nums shrink-0">
+                      <span className="font-mono text-sm font-bold tabular-nums shrink-0" style={{ color: primaryHex }}>
                         {formatLapTimeMs(lap.lapTimeMs)}
                       </span>
                     </motion.div>
@@ -386,9 +434,14 @@ export default function TournamentTVTimeTrial({ tournament }: { tournament: Tour
         {/* Ticker footer */}
         {recentLaps.length > 0 && (
           <div className="rounded-xl border border-white/10 bg-black/40 overflow-hidden">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border-b border-emerald-500/20">
-              <Zap className="h-3 w-3 text-emerald-400" />
-              <span className="text-[10px] uppercase tracking-[0.2em] text-emerald-300/80 font-bold">Live feed</span>
+            <div
+              className="flex items-center gap-2 px-3 py-1.5 border-b"
+              style={{ backgroundColor: hexToRgba(primaryHex, 0.12), borderColor: hexToRgba(primaryHex, 0.2) }}
+            >
+              <Zap className="h-3 w-3" style={{ color: primaryHex }} />
+              <span className="text-[10px] uppercase tracking-[0.2em] font-bold" style={{ color: hexToRgba(primaryHex, 0.85) }}>
+                Live feed
+              </span>
             </div>
             {!reduced ? (
               <motion.div
@@ -399,7 +452,7 @@ export default function TournamentTVTimeTrial({ tournament }: { tournament: Tour
                 {[...recentLaps, ...recentLaps].map((lap, i) => (
                   <span key={`${lap.id}-${i}`} className="inline-flex items-center gap-2 px-8 text-white/70">
                     <span className="font-semibold text-white">{lap.playerName}</span>
-                    <span className="font-mono text-emerald-300">{formatLapTimeMs(lap.lapTimeMs)}</span>
+                    <span className="font-mono" style={{ color: primaryHex }}>{formatLapTimeMs(lap.lapTimeMs)}</span>
                     <span className="text-white/20">•</span>
                   </span>
                 ))}

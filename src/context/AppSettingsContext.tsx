@@ -52,6 +52,15 @@ function mergeLoadedSettings(raw: Partial<AppSettings>): AppSettings {
   const merged: AppSettings = {
     ...defaultAppSettings,
     ...raw,
+    businessInfo: { ...defaultAppSettings.businessInfo, ...raw.businessInfo },
+    loyaltyPoints: { ...defaultAppSettings.loyaltyPoints, ...raw.loyaltyPoints },
+    taxSettings: { ...defaultAppSettings.taxSettings, ...raw.taxSettings },
+    receiptSettings: { ...defaultAppSettings.receiptSettings, ...raw.receiptSettings },
+    sessionSettings: { ...defaultAppSettings.sessionSettings, ...raw.sessionSettings },
+    inventorySettings: { ...defaultAppSettings.inventorySettings, ...raw.inventorySettings },
+    paymentSettings: { ...defaultAppSettings.paymentSettings, ...raw.paymentSettings },
+    notificationSettings: { ...defaultAppSettings.notificationSettings, ...raw.notificationSettings },
+    generalSettings: { ...defaultAppSettings.generalSettings, ...raw.generalSettings },
     securitySettings: normalizeSecuritySettings(raw.securitySettings),
   };
   return merged;

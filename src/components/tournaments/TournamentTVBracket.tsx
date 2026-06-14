@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { Tournament } from '@/types/tournament.types';
 import { useTournamentMotion } from './animations/TournamentMotionProvider';
+import { useTournamentTVBrand, hexToRgba } from './tournamentTVBrand';
 import { format } from 'date-fns';
 
 function formatStage(stage: string) {
@@ -29,6 +30,8 @@ function formatStage(stage: string) {
 
 export default function TournamentTVBracket({ tournament }: { tournament: Tournament }) {
   const { reduced, duration } = useTournamentMotion();
+  const brand = useTournamentTVBrand();
+  const { primaryHex, accentHex, logoUrl, displayName } = brand;
   const matches = tournament.matches ?? [];
   const liveMatch = matches.find((m) => m.inProgress || (!m.completed && m.player1Id && m.player2Id));
   const completedCount = matches.filter((m) => m.completed).length;
@@ -38,15 +41,19 @@ export default function TournamentTVBracket({ tournament }: { tournament: Tourna
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden text-white">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(139,92,246,0.2),transparent_50%),linear-gradient(180deg,#0a0612_0%,#050508_100%)]" />
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: `radial-gradient(ellipse at top, ${hexToRgba(primaryHex, 0.22)}, transparent 50%), linear-gradient(180deg, #0a0612 0%, #050508 100%)`,
+        }}
+      />
       {!reduced && (
         <motion.div
           className="pointer-events-none absolute inset-0 opacity-20"
           animate={{ backgroundPosition: ['0% 0%', '100% 100%'] }}
           transition={{ duration: 20, repeat: Infinity, repeatType: 'reverse' }}
           style={{
-            backgroundImage:
-              'linear-gradient(135deg, transparent 40%, rgba(167,139,250,0.15) 50%, transparent 60%)',
+            backgroundImage: `linear-gradient(135deg, transparent 40%, ${hexToRgba(accentHex, 0.18)} 50%, transparent 60%)`,
             backgroundSize: '200% 200%',
           }}
         />
@@ -55,25 +62,53 @@ export default function TournamentTVBracket({ tournament }: { tournament: Tourna
       <div className="relative z-10 flex flex-col min-h-screen p-4 md:p-8 lg:p-10 gap-6">
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-5">
           <div>
-            <motion.span
-              className="inline-flex items-center gap-2 rounded-full border border-red-500/50 bg-red-500/20 px-3 py-1 text-xs font-bold uppercase tracking-widest text-red-200 mb-3"
-              animate={reduced ? {} : { opacity: [1, 0.6, 1] }}
-              transition={{ duration: 1.2, repeat: Infinity }}
+            <div className="flex flex-wrap items-center gap-3 mb-3">
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt={displayName}
+                  className="h-10 w-10 md:h-12 md:w-12 rounded-xl object-contain bg-white/10 border border-white/10 p-1.5 shrink-0"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              ) : null}
+              <motion.span
+                className="inline-flex items-center gap-2 rounded-full border border-red-500/50 bg-red-500/20 px-3 py-1 text-xs font-bold uppercase tracking-widest text-red-200"
+                animate={reduced ? {} : { opacity: [1, 0.6, 1] }}
+                transition={{ duration: 1.2, repeat: Infinity }}
+              >
+                <Radio className="h-3 w-3" />
+                Live bracket
+              </motion.span>
+              <span className="text-xs uppercase tracking-[0.25em] font-semibold" style={{ color: hexToRgba(primaryHex, 0.85) }}>
+                {displayName}
+              </span>
+            </div>
+            <h1
+              className="text-3xl md:text-5xl font-black tracking-tight bg-clip-text text-transparent"
+              style={{
+                backgroundImage: `linear-gradient(to right, #fff, ${hexToRgba(primaryHex, 0.9)}, ${hexToRgba(accentHex, 0.85)})`,
+              }}
             >
-              <Radio className="h-3 w-3" />
-              Live bracket
-            </motion.span>
-            <h1 className="text-3xl md:text-5xl font-black tracking-tight bg-gradient-to-r from-white via-violet-100 to-fuchsia-200 bg-clip-text text-transparent">
               {tournament.name}
             </h1>
-            <p className="text-violet-200/60 mt-2 capitalize">{tournament.tournamentFormat.replace(/_/g, ' ')}</p>
+            <p className="mt-2 capitalize" style={{ color: hexToRgba(primaryHex, 0.6) }}>
+              {tournament.tournamentFormat.replace(/_/g, ' ')}
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-3 text-center">
-            <div className="rounded-xl border border-violet-500/30 bg-violet-950/40 px-4 py-3">
+            <div
+              className="rounded-xl border px-4 py-3"
+              style={{ borderColor: hexToRgba(primaryHex, 0.35), backgroundColor: hexToRgba(primaryHex, 0.12) }}
+            >
               <p className="text-2xl font-black">{tournament.players.length}</p>
               <p className="text-[10px] uppercase tracking-widest text-white/40">Players</p>
             </div>
-            <div className="rounded-xl border border-fuchsia-500/30 bg-fuchsia-950/40 px-4 py-3">
+            <div
+              className="rounded-xl border px-4 py-3"
+              style={{ borderColor: hexToRgba(accentHex, 0.35), backgroundColor: hexToRgba(accentHex, 0.1) }}
+            >
               <p className="text-2xl font-black">{completedCount}/{matches.length}</p>
               <p className="text-[10px] uppercase tracking-widest text-white/40">Done</p>
             </div>
@@ -86,22 +121,27 @@ export default function TournamentTVBracket({ tournament }: { tournament: Tourna
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration }}
-              className="lg:col-span-2 rounded-3xl border-2 border-violet-400/40 bg-gradient-to-br from-violet-600/20 via-fuchsia-600/10 to-transparent p-6 md:p-10 text-center relative overflow-hidden"
+              className="lg:col-span-2 rounded-3xl border-2 p-6 md:p-10 text-center relative overflow-hidden"
+              style={{
+                borderColor: hexToRgba(primaryHex, 0.45),
+                background: `linear-gradient(to bottom right, ${hexToRgba(primaryHex, 0.22)}, ${hexToRgba(accentHex, 0.1)}, transparent)`,
+              }}
             >
               {!reduced && (
                 <motion.div
-                  className="absolute inset-0 border-2 border-violet-400/20 rounded-3xl"
+                  className="absolute inset-0 border-2 rounded-3xl"
+                  style={{ borderColor: hexToRgba(primaryHex, 0.25) }}
                   animate={{ opacity: [0.3, 0.8, 0.3] }}
                   transition={{ duration: 2, repeat: Infinity }}
                 />
               )}
-              <p className="text-xs uppercase tracking-[0.3em] text-violet-300/80 mb-6 flex items-center justify-center gap-2">
+              <p className="text-xs uppercase tracking-[0.3em] mb-6 flex items-center justify-center gap-2" style={{ color: hexToRgba(primaryHex, 0.85) }}>
                 <Swords className="h-4 w-4" />
                 Now playing
               </p>
               <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-12">
                 <span className="text-3xl md:text-6xl font-black">{getName(liveMatch.player1Id)}</span>
-                <span className="text-xl md:text-3xl font-bold text-violet-300/50 px-4 py-2 rounded-full border border-white/10">VS</span>
+                <span className="text-xl md:text-3xl font-bold px-4 py-2 rounded-full border border-white/10" style={{ color: hexToRgba(accentHex, 0.6) }}>VS</span>
                 <span className="text-3xl md:text-6xl font-black">{getName(liveMatch.player2Id)}</span>
               </div>
               <p className="text-sm text-white/40 mt-6">{formatStage(liveMatch.stage)}</p>
@@ -147,7 +187,7 @@ export default function TournamentTVBracket({ tournament }: { tournament: Tourna
                 {upcoming.map((m) => (
                   <div key={m.id} className="px-4 py-4 flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] uppercase text-violet-300/60 mb-1">{formatStage(m.stage)}</p>
+                      <p className="text-[10px] uppercase mb-1" style={{ color: hexToRgba(primaryHex, 0.65) }}>{formatStage(m.stage)}</p>
                       <p className="font-semibold truncate">
                         {getName(m.player1Id)} <span className="text-white/30 mx-1">vs</span> {getName(m.player2Id)}
                       </p>

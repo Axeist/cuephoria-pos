@@ -40,6 +40,8 @@ import { useAuth } from '@/context/AuthContext';
 import { usePermission } from '@/context/PermissionsContext';
 import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
+import { useAppSettings } from '@/hooks/useAppSettings';
+import { computeBillTaxFromCart } from '@/utils/tax.utils';
 
 const POS = () => {
   const location = useLocation();
@@ -406,6 +408,22 @@ const POS = () => {
     discountValue = discount;
   }
   const total = calculateTotal();
+  const { settings } = useAppSettings();
+  const taxPreview = useMemo(
+    () =>
+      computeBillTaxFromCart(
+        subtotal,
+        discount,
+        discountType,
+        loyaltyPointsUsed,
+        settings.taxSettings,
+      ),
+    [subtotal, discount, discountType, loyaltyPointsUsed, settings.taxSettings],
+  );
+  const showGstPreview =
+    settings.taxSettings.gstEnabled &&
+    settings.receiptSettings.showGST &&
+    taxPreview.taxAmount > 0;
 
   useEffect(() => {
     if (!fromSessionEnd) return;
@@ -600,6 +618,18 @@ const POS = () => {
                   <span className="text-xs sm:text-sm">Loyalty Points Used</span>
                   <CurrencyDisplay amount={loyaltyPointsUsed} className="text-cuephoria-orange text-xs sm:text-base" />
                 </div>
+              )}
+              {showGstPreview && (
+                <>
+                  <div className="flex justify-between py-1 text-muted-foreground">
+                    <span className="text-xs sm:text-sm">Taxable Value</span>
+                    <CurrencyDisplay amount={taxPreview.taxableAmount} className="text-xs sm:text-base" />
+                  </div>
+                  <div className="flex justify-between py-1 text-muted-foreground">
+                    <span className="text-xs sm:text-sm">GST ({taxPreview.taxRate}%)</span>
+                    <CurrencyDisplay amount={taxPreview.taxAmount} className="text-xs sm:text-base" />
+                  </div>
+                </>
               )}
               <div className="flex justify-between py-1 text-base sm:text-lg font-bold border-t mt-2 pt-2">
                 <span>Total</span>
@@ -1106,6 +1136,18 @@ const POS = () => {
                   <span>Loyalty Points Used</span>
                   <CurrencyDisplay amount={loyaltyPointsUsed} className="text-cuephoria-orange" />
                 </div>
+              )}
+              {showGstPreview && (
+                <>
+                  <div className="flex justify-between py-1 text-muted-foreground">
+                    <span>Taxable Value</span>
+                    <CurrencyDisplay amount={taxPreview.taxableAmount} />
+                  </div>
+                  <div className="flex justify-between py-1 text-muted-foreground">
+                    <span>GST ({taxPreview.taxRate}%)</span>
+                    <CurrencyDisplay amount={taxPreview.taxAmount} />
+                  </div>
+                </>
               )}
               <div className="flex justify-between py-1 text-lg font-bold border-t mt-2 pt-2">
                 <span>Total</span>

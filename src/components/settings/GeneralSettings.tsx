@@ -38,10 +38,13 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 const formSchema = z.object({
   businessInfo: z.object({
     name: z.string().min(1, 'Business name is required'),
+    tagline: z.string().optional(),
     address: z.string().optional(),
     phone: z.string().optional(),
     email: z.string().email('Invalid email').optional().or(z.literal('')),
     gstin: z.string().optional(),
+    businessHours: z.string().optional(),
+    website: z.string().optional(),
   }),
   loyaltyPoints: z.object({
     memberRate: z.number().min(0, 'Rate must be 0 or greater'),
@@ -51,6 +54,7 @@ const formSchema = z.object({
   taxSettings: z.object({
     gstEnabled: z.boolean(),
     gstRate: z.number().min(0).max(100),
+    gstPricingMode: z.enum(['inclusive', 'exclusive']),
     serviceTaxEnabled: z.boolean(),
     serviceTaxRate: z.number().min(0).max(100),
   }),
@@ -200,9 +204,23 @@ const GeneralSettings = () => {
                         <FormControl>
                           <Input
                             {...field}
-                            placeholder={isLiteBranch ? 'Cuephoria Lite' : 'Cuephoria Gaming Lounge'}
+                            placeholder={isLiteBranch ? 'Cuephoria Lite' : 'Your business name'}
                           />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="businessInfo.tagline"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tagline</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Gaming Lounge & 8 Ball Club" />
+                        </FormControl>
+                        <FormDescription>Shown under your business name on receipts</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -257,6 +275,32 @@ const GeneralSettings = () => {
                         <FormLabel>Address</FormLabel>
                         <FormControl>
                           <Input {...field} placeholder="Street, City, State, PIN" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="businessInfo.businessHours"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Business Hours</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="11:00 AM - 11:00 PM, Every day" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="businessInfo.website"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Website</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="www.example.com" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -370,6 +414,7 @@ const GeneralSettings = () => {
                     )}
                   />
                   {form.watch('taxSettings.gstEnabled') && (
+                    <>
                     <FormField
                       control={form.control}
                       name="taxSettings.gstRate"
@@ -390,6 +435,31 @@ const GeneralSettings = () => {
                         </FormItem>
                       )}
                     />
+                    <FormField
+                      control={form.control}
+                      name="taxSettings.gstPricingMode"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>GST pricing</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select pricing mode" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="inclusive">Inclusive — prices include GST; total unchanged</SelectItem>
+                              <SelectItem value="exclusive">Exclusive — GST added on top at checkout</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            Set GSTIN in Business profile above. Enable &quot;Show GST&quot; under Receipt settings.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    </>
                   )}
                   <FormField
                     control={form.control}

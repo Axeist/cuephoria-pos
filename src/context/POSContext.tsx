@@ -24,6 +24,7 @@ import { useBills } from '@/hooks/useBills';
 import { useToast } from '@/hooks/use-toast';
 import { supabase, handleSupabaseError } from '@/integrations/supabase/client';
 import { useLocation } from '@/context/LocationContext';
+import { useAppSettings } from '@/hooks/useAppSettings';
 import { clampCartItemsToStock, getProductStockLimit } from '@/utils/cartStock.utils';
 import { mergeSessionCartItems } from '@/utils/sessionCartMerge';
 import { isSessionOnlyCart } from '@/utils/savedCart.utils';
@@ -210,6 +211,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     reorderStations,
     applyAccentToStationType,
   } = useStations([], updateCustomer);
+
+  const { settings: appSettings } = useAppSettings();
   
   const { 
     cart, 
@@ -234,8 +237,9 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDiscount, 
     setLoyaltyPointsUsed, 
     calculateTotal,
+    getTaxBreakdown,
     resetPaymentInfo
-  } = useCart();
+  } = useCart(appSettings.taxSettings);
 
   const { toast } = useToast();
   const { activeLocationId } = useLocation();

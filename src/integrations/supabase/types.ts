@@ -99,6 +99,10 @@ export type Database = {
           subtotal: number
           total: number
           upi_amount: number | null
+          taxable_amount: number | null
+          tax_amount: number | null
+          tax_rate: number | null
+          gstin_snapshot: string | null
         }
         Insert: {
           cash_amount?: number | null
@@ -116,6 +120,10 @@ export type Database = {
           subtotal: number
           total: number
           upi_amount?: number | null
+          taxable_amount?: number | null
+          tax_amount?: number | null
+          tax_rate?: number | null
+          gstin_snapshot?: string | null
         }
         Update: {
           cash_amount?: number | null
@@ -133,6 +141,10 @@ export type Database = {
           subtotal?: number
           total?: number
           upi_amount?: number | null
+          taxable_amount?: number | null
+          tax_amount?: number | null
+          tax_rate?: number | null
+          gstin_snapshot?: string | null
         }
         Relationships: [
           {

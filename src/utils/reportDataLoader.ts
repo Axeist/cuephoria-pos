@@ -23,6 +23,10 @@ const BILL_SELECT = `
   is_split_payment,
   cash_amount,
   upi_amount,
+  taxable_amount,
+  tax_amount,
+  tax_rate,
+  gstin_snapshot,
   created_at,
   bill_items (
     id,
@@ -63,6 +67,10 @@ export type RawBillRow = {
   is_split_payment?: boolean | null;
   cash_amount?: number | string | null;
   upi_amount?: number | string | null;
+  taxable_amount?: number | string | null;
+  tax_amount?: number | string | null;
+  tax_rate?: number | string | null;
+  gstin_snapshot?: string | null;
   created_at: string;
   bill_items?: RawBillItemRow[] | null;
 };
@@ -92,6 +100,10 @@ export function transformReportBills(rawBills: RawBillRow[]): Bill[] {
     isSplitPayment: bill.is_split_payment || false,
     cashAmount: bill.cash_amount ? Number(bill.cash_amount) : 0,
     upiAmount: bill.upi_amount ? Number(bill.upi_amount) : 0,
+    taxableAmount: bill.taxable_amount != null ? Number(bill.taxable_amount) : undefined,
+    taxAmount: bill.tax_amount != null ? Number(bill.tax_amount) : undefined,
+    taxRate: bill.tax_rate != null ? Number(bill.tax_rate) : undefined,
+    gstinSnapshot: bill.gstin_snapshot || undefined,
     createdAt: new Date(bill.created_at),
   }));
 }

@@ -128,6 +128,10 @@ export interface Bill {
   loyaltyPointsUsed: number;
   loyaltyPointsEarned: number;
   total: number;
+  taxableAmount?: number;
+  taxAmount?: number;
+  taxRate?: number;
+  gstinSnapshot?: string;
   paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'razorpay';
   status?: 'completed' | 'complimentary';
   compNote?: string;

@@ -4,8 +4,10 @@ import { CartItem } from '@/types/pos.types';
 import { useToast } from '@/hooks/use-toast';
 import { clampQuantityToStock } from '@/utils/cartStock.utils';
 import { cartItemsMatch, findCartItem, totalProductQuantityInCart } from '@/utils/cartItem.utils';
+import type { TaxSettings } from '@/hooks/useAppSettings.types';
+import { computeBillTaxFromCart } from '@/utils/tax.utils';
 
-export const useCart = () => {
+export const useCart = (taxSettings?: TaxSettings) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [discount, setDiscountAmount] = useState<number>(0);
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
@@ -224,6 +226,16 @@ export const useCart = () => {
   
   const calculateTotal = () => {
     const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
+
+    if (taxSettings) {
+      return computeBillTaxFromCart(
+        subtotal,
+        discount,
+        discountType,
+        loyaltyPointsUsed,
+        taxSettings,
+      ).total;
+    }
     
     let discountValue = 0;
     if (discountType === 'percentage') {
@@ -235,6 +247,32 @@ export const useCart = () => {
     const loyaltyDiscount = loyaltyPointsUsed;
     
     return Math.max(0, subtotal - discountValue - loyaltyDiscount);
+  };
+
+  const getTaxBreakdown = () => {
+    const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
+    if (!taxSettings) {
+      let discountValue = 0;
+      if (discountType === 'percentage') {
+        discountValue = subtotal * (discount / 100);
+      } else {
+        discountValue = discount;
+      }
+      const total = Math.max(0, subtotal - discountValue - loyaltyPointsUsed);
+      return {
+        taxableAmount: total,
+        taxAmount: 0,
+        taxRate: 0,
+        total,
+      };
+    }
+    return computeBillTaxFromCart(
+      subtotal,
+      discount,
+      discountType,
+      loyaltyPointsUsed,
+      taxSettings,
+    );
   };
   
   const resetPaymentInfo = () => {
@@ -266,6 +304,7 @@ export const useCart = () => {
     setDiscount,
     setLoyaltyPointsUsed,
     calculateTotal,
+    getTaxBreakdown,
     resetPaymentInfo
   };
 };

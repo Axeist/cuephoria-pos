@@ -89,7 +89,6 @@ const PublicPaymentSuccess = lazy(() => import("./pages/PublicPaymentSuccess"));
 const PublicPaymentFailed = lazy(() => import("./pages/PublicPaymentFailed"));
 const PublicTournamentPaymentSuccess = lazy(() => import("./pages/PublicTournamentPaymentSuccess"));
 const TournamentsPage = lazy(() => import("./pages/Tournaments"));
-const TournamentTV = lazy(() => import("./pages/TournamentTV"));
 const PublicTournamentTV = lazy(() => import("./pages/PublicTournamentTV"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const Terms = lazy(() => import("./pages/Terms"));
@@ -985,19 +984,6 @@ const App = () => {
                       <LazyPage>
                         <PlanFeatureGate feature="staff_hr_enabled">
                           <StaffManagement />
-                        </PlanFeatureGate>
-                      </LazyPage>
-                    }
-                  />
-                </Route>
-
-                <Route element={<ProtectedRoute bare permission="settings.tournaments.view" />}>
-                  <Route
-                    path="/tournaments/tv"
-                    element={
-                      <LazyPage>
-                        <PlanFeatureGate feature="tournaments_enabled">
-                          <TournamentTV />
                         </PlanFeatureGate>
                       </LazyPage>
                     }

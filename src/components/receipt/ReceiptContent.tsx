@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Edit2, Save, RotateCcw } from 'lucide-react';
 import { usePOS } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
+import { useAppSettings } from '@/hooks/useAppSettings';
+import { computeBillTaxFromCart } from '@/utils/tax.utils';
 import { supabase } from '@/integrations/supabase/client';
 
 interface BillEditInfo {
@@ -39,6 +41,7 @@ const ReceiptContent: React.FC<ReceiptContentProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const { updateCustomer, selectCustomer, customers } = usePOS();
   const { toast } = useToast();
+  const { settings } = useAppSettings();
   
   // Update local bill and customer state if props change
   useEffect(() => {
@@ -84,15 +87,25 @@ const ReceiptContent: React.FC<ReceiptContentProps> = ({
       discountValue = bill.discount;
     }
     
-    // Calculate new total
-    const total = Math.max(0, subtotal - discountValue - bill.loyaltyPointsUsed);
+    // Calculate new total with tax
+    const taxResult = computeBillTaxFromCart(
+      subtotal,
+      bill.discount,
+      bill.discountType,
+      bill.loyaltyPointsUsed,
+      settings.taxSettings,
+      { isComplimentary: bill.paymentMethod === 'complimentary' },
+    );
     
     setBill({
       ...bill,
       items: updatedItems,
       subtotal,
       discountValue,
-      total
+      total: taxResult.total,
+      taxableAmount: taxResult.taxableAmount,
+      taxAmount: taxResult.taxAmount,
+      taxRate: taxResult.taxRate,
     });
   };
 
@@ -179,7 +192,11 @@ const ReceiptContent: React.FC<ReceiptContentProps> = ({
           loyalty_points_used: bill.loyaltyPointsUsed,
           loyalty_points_earned: bill.loyaltyPointsEarned,
           total: bill.total,
-          payment_method: bill.paymentMethod
+          payment_method: bill.paymentMethod,
+          taxable_amount: bill.taxableAmount ?? null,
+          tax_amount: bill.taxAmount ?? null,
+          tax_rate: bill.taxRate ?? null,
+          gstin_snapshot: bill.gstinSnapshot ?? settings.businessInfo.gstin ?? null,
         })
         .eq('id', bill.id);
         

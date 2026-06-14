@@ -4,6 +4,8 @@ import { Bill, Customer } from '@/types/pos.types';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { Button } from '@/components/ui/button';
 import { Pencil, Save, X } from 'lucide-react';
+import { useAppSettings } from '@/hooks/useAppSettings';
+import { computeBillTaxFromCart } from '@/utils/tax.utils';
 
 interface ReceiptSummaryProps {
   bill: Bill;
@@ -18,6 +20,8 @@ const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
   onUpdateBill,
   editable = false 
 }) => {
+  const { settings } = useAppSettings();
+  const { taxSettings, receiptSettings, loyaltyPoints } = settings;
   const [isEditing, setIsEditing] = useState(false);
   const [editValues, setEditValues] = useState({
     subtotal: bill.subtotal,
@@ -30,12 +34,30 @@ const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
     upiAmount: bill.upiAmount || 0
   });
 
-  // Calculate loyalty points based on correct formula
+  // Calculate loyalty points based on settings
   const calculateLoyaltyPoints = (total: number, isMember: boolean): number => {
-    // Members: 5 points per ₹100 spent
-    // Non-members: 2 points per ₹100 spent
-    const pointsRate = isMember ? 5 : 2;
-    return Math.floor((total / 100) * pointsRate);
+    const pointsRate = isMember ? loyaltyPoints.memberRate : loyaltyPoints.nonMemberRate;
+    const perRupee = loyaltyPoints.pointsPerRupee || 100;
+    return Math.floor((total / perRupee) * pointsRate);
+  };
+
+  const resolveTaxDisplay = (sourceBill: Bill) => {
+    if (sourceBill.taxAmount != null && sourceBill.taxableAmount != null) {
+      return {
+        taxableAmount: sourceBill.taxableAmount,
+        taxAmount: sourceBill.taxAmount,
+        taxRate: sourceBill.taxRate ?? 0,
+        total: sourceBill.total,
+      };
+    }
+    return computeBillTaxFromCart(
+      sourceBill.subtotal,
+      sourceBill.discount,
+      sourceBill.discountType,
+      sourceBill.loyaltyPointsUsed,
+      taxSettings,
+      { isComplimentary: sourceBill.paymentMethod === 'complimentary' },
+    );
   };
 
   const handleEditToggle = () => {
@@ -63,8 +85,15 @@ const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
       discountValue = editValues.discount;
     }
 
-    // Calculate new total
-    const total = Math.max(0, editValues.subtotal - discountValue - editValues.loyaltyPointsUsed);
+    // Calculate new total with tax
+    const taxResult = computeBillTaxFromCart(
+      editValues.subtotal,
+      editValues.discount,
+      editValues.discountType,
+      editValues.loyaltyPointsUsed,
+      taxSettings,
+    );
+    const total = taxResult.total;
 
     // Determine final payment method and amounts based on split payment setting
     let finalPaymentMethod: 'cash' | 'upi' | 'split';
@@ -104,6 +133,9 @@ const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
         loyaltyPointsUsed: editValues.loyaltyPointsUsed,
         loyaltyPointsEarned,
         total,
+        taxableAmount: taxResult.taxableAmount,
+        taxAmount: taxResult.taxAmount,
+        taxRate: taxResult.taxRate,
         paymentMethod: finalPaymentMethod,
         isSplitPayment: finalIsSplitPayment,
         cashAmount: finalCashAmount,
@@ -183,19 +215,25 @@ const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
 
   // Calculate total during edit for validation
   const calculateEditTotal = () => {
-    let discountValue = 0;
-    if (editValues.discountType === 'percentage') {
-      discountValue = editValues.subtotal * (editValues.discount / 100);
-    } else {
-      discountValue = editValues.discount;
-    }
-    return Math.max(0, editValues.subtotal - discountValue - editValues.loyaltyPointsUsed);
+    return computeBillTaxFromCart(
+      editValues.subtotal,
+      editValues.discount,
+      editValues.discountType,
+      editValues.loyaltyPointsUsed,
+      taxSettings,
+    ).total;
   };
 
   // Read-only view
   if (!editable || !isEditing) {
+    const taxDisplay = resolveTaxDisplay(bill);
+    const showGst =
+      receiptSettings.showGST &&
+      taxSettings.gstEnabled &&
+      (taxDisplay.taxAmount > 0 || bill.taxAmount != null);
+
     return (
-      <div className="space-y-1 text-sm">
+      <div className="space-y-1 text-sm payment-summary">
         <div className="flex justify-between items-center">
           <div className="text-sm font-medium">Payment Summary</div>
           {editable && !isEditing && (
@@ -225,6 +263,19 @@ const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
             <CurrencyDisplay amount={bill.loyaltyPointsUsed} className="text-cuephoria-orange" />
           </div>
         )}
+
+        {showGst && (
+          <>
+            <div className="receipt-item">
+              <span>Taxable Value:</span>
+              <CurrencyDisplay amount={taxDisplay.taxableAmount} />
+            </div>
+            <div className="receipt-item">
+              <span>GST ({taxDisplay.taxRate}%):</span>
+              <CurrencyDisplay amount={taxDisplay.taxAmount} />
+            </div>
+          </>
+        )}
         
         <div className="receipt-total flex justify-between font-bold">
           <span>Total:</span>
@@ -244,15 +295,15 @@ const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
             <div>Payment Method: {bill.paymentMethod.toUpperCase()}</div>
           )}
           
-          {bill.loyaltyPointsEarned > 0 && (
+          {receiptSettings.showLoyaltyPoints && bill.loyaltyPointsEarned > 0 && (
             <div className="mt-1">Points Earned: {bill.loyaltyPointsEarned} 
               <span className="text-xs text-gray-500 ml-1">
-                ({customer?.isMember ? '5 points' : '2 points'} per ₹100)
+                ({customer?.isMember ? `${loyaltyPoints.memberRate} points` : `${loyaltyPoints.nonMemberRate} points`} per ₹{loyaltyPoints.pointsPerRupee || 100})
               </span>
             </div>
           )}
           
-          {customer && (
+          {receiptSettings.showLoyaltyPoints && customer && (
             <div className="mt-1">
               <span className="text-xs">Available Points: {customer.loyaltyPoints}</span>
             </div>

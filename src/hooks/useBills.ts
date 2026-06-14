@@ -10,6 +10,8 @@ import { usePOSHydration } from '@/context/POSHydrationContext';
 import { getCartItemDisplayName } from '@/utils/cartItem.utils';
 import { createStockLog, saveStockLog } from '@/utils/stockLogger';
 import { useAuth } from '@/context/AuthContext';
+import { useAppSettings } from '@/hooks/useAppSettings';
+import { computeBillTaxFromCart } from '@/utils/tax.utils';
 
 export const useBills = (
   updateCustomer: (customer: Customer) => void,
@@ -18,6 +20,7 @@ export const useBills = (
   const [bills, setBills] = useState<Bill[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
+  const { settings } = useAppSettings();
   const { activeLocationId, loading: locationsLoading } = useLocation();
   const performedByLabel = user?.displayName || user?.username || 'POS Sale';
   const { loadBills: hydrateBills, billsDeepSync } = usePOSHydration();
@@ -54,6 +57,10 @@ export const useBills = (
     is_split_payment?: boolean | null;
     cash_amount?: number | string | null;
     upi_amount?: number | string | null;
+    taxable_amount?: number | string | null;
+    tax_amount?: number | string | null;
+    tax_rate?: number | string | null;
+    gstin_snapshot?: string | null;
     created_at: string;
     bill_items?: RawBillItemRow[] | null;
   };
@@ -103,6 +110,10 @@ export const useBills = (
       isSplitPayment: bill.is_split_payment || false,
       cashAmount: bill.cash_amount ? Number(bill.cash_amount) : 0,
       upiAmount: bill.upi_amount ? Number(bill.upi_amount) : 0,
+      taxableAmount: bill.taxable_amount != null ? Number(bill.taxable_amount) : undefined,
+      taxAmount: bill.tax_amount != null ? Number(bill.tax_amount) : undefined,
+      taxRate: bill.tax_rate != null ? Number(bill.tax_rate) : undefined,
+      gstinSnapshot: bill.gstin_snapshot || undefined,
       createdAt: new Date(bill.created_at)
     }));
   };
@@ -137,6 +148,10 @@ export const useBills = (
         is_split_payment,
         cash_amount,
         upi_amount,
+        taxable_amount,
+        tax_amount,
+        tax_rate,
+        gstin_snapshot,
         created_at,
         bill_items (
           id,
@@ -173,8 +188,11 @@ export const useBills = (
   };
 
   const calculateLoyaltyPoints = (total: number, isMember: boolean): number => {
-    const pointsRate = isMember ? 5 : 2;
-    return Math.floor((total / 100) * pointsRate);
+    const pointsRate = isMember
+      ? settings.loyaltyPoints.memberRate
+      : settings.loyaltyPoints.nonMemberRate;
+    const perRupee = settings.loyaltyPoints.pointsPerRupee || 100;
+    return Math.floor((total / perRupee) * pointsRate);
   };
 
   useEffect(() => {
@@ -368,12 +386,20 @@ export const useBills = (
       } else {
         discountValue = discount;
       }
-      
-      const total = calculateTotal();
+
+      const taxResult = computeBillTaxFromCart(
+        subtotal,
+        discount,
+        discountType,
+        loyaltyPointsUsed,
+        settings.taxSettings,
+        { isComplimentary: status === 'complimentary' },
+      );
+      const total = taxResult.total;
       
       const loyaltyPointsEarned = status === 'complimentary' ? 0 : calculateLoyaltyPoints(total, customer.isMember);
 
-      console.log('Calculated values:', { subtotal, discountValue, total, loyaltyPointsEarned, status });
+      console.log('Calculated values:', { subtotal, discountValue, total, taxResult, loyaltyPointsEarned, status });
 
       // ✅ UPDATED: Use customTimestamp or current date
       const billTimestamp = customTimestamp || new Date();
@@ -394,6 +420,10 @@ export const useBills = (
         is_split_payment: isSplitPayment,
         cash_amount: isSplitPayment ? cashAmount : (paymentMethod === 'cash' ? total : 0),
         upi_amount: isSplitPayment ? upiAmount : (paymentMethod === 'upi' ? total : 0),
+        taxable_amount: taxResult.taxableAmount,
+        tax_amount: taxResult.taxAmount,
+        tax_rate: taxResult.taxRate,
+        gstin_snapshot: settings.businessInfo.gstin || null,
         created_at: billTimestamp.toISOString(),
       }, { single: true });
 
@@ -512,6 +542,10 @@ export const useBills = (
         isSplitPayment: isSplitPayment,
         cashAmount: isSplitPayment ? cashAmount : (paymentMethod === 'cash' ? total : 0),
         upiAmount: isSplitPayment ? upiAmount : (paymentMethod === 'upi' ? total : 0),
+        taxableAmount: taxResult.taxableAmount,
+        taxAmount: taxResult.taxAmount,
+        taxRate: taxResult.taxRate,
+        gstinSnapshot: settings.businessInfo.gstin || undefined,
         createdAt: billTimestamp  // ✅ UPDATED: Use billTimestamp
       };
 
@@ -575,9 +609,18 @@ export const useBills = (
       } else {
         discountValue = discount;
       }
-      
-      const total = subtotal - discountValue - loyaltyPointsUsed;
-      const loyaltyPointsEarned = calculateLoyaltyPoints(total, customer.isMember);
+
+      const isComplimentary = (paymentMethod || originalBill.paymentMethod) === 'complimentary';
+      const taxResult = computeBillTaxFromCart(
+        subtotal,
+        discount,
+        discountType,
+        loyaltyPointsUsed,
+        settings.taxSettings,
+        { isComplimentary },
+      );
+      const total = taxResult.total;
+      const loyaltyPointsEarned = isComplimentary ? 0 : calculateLoyaltyPoints(total, customer.isMember);
 
       const finalPaymentMethod = isSplitPayment ? 'split' : (paymentMethod || originalBill.paymentMethod);
 
@@ -595,6 +638,10 @@ export const useBills = (
         is_split_payment: isSplitPayment,
         cash_amount: isSplitPayment ? cashAmount : (finalPaymentMethod === 'cash' ? total : 0),
         upi_amount: isSplitPayment ? upiAmount : (finalPaymentMethod === 'upi' ? total : 0),
+        taxable_amount: taxResult.taxableAmount,
+        tax_amount: taxResult.taxAmount,
+        tax_rate: taxResult.taxRate,
+        gstin_snapshot: settings.businessInfo.gstin || null,
       }, {
         filters: [f.eq('id', originalBill.id)],
       });
@@ -646,7 +693,11 @@ export const useBills = (
         paymentMethod: finalPaymentMethod,
         isSplitPayment: isSplitPayment,
         cashAmount: isSplitPayment ? cashAmount : (finalPaymentMethod === 'cash' ? total : 0),
-        upiAmount: isSplitPayment ? upiAmount : (finalPaymentMethod === 'upi' ? total : 0)
+        upiAmount: isSplitPayment ? upiAmount : (finalPaymentMethod === 'upi' ? total : 0),
+        taxableAmount: taxResult.taxableAmount,
+        taxAmount: taxResult.taxAmount,
+        taxRate: taxResult.taxRate,
+        gstinSnapshot: settings.businessInfo.gstin || undefined,
       };
 
       setBills(prevBills => {
@@ -837,7 +888,8 @@ export const useBills = (
     const csvData = [
       [
         'Bill ID', 'Customer Name', 'Subtotal', 'Discount', 'Discount Value',
-        'Loyalty Points Used', 'Total', 'Payment Method', 'Status', 'Comp Note', 'Created At', 'Items'
+        'Loyalty Points Used', 'Taxable Value', 'GST Rate', 'GST Amount', 'GSTIN',
+        'Total', 'Payment Method', 'Status', 'Comp Note', 'Created At', 'Items'
       ],
       ...billsWithCustomerNames.map(bill => [
         bill.id,
@@ -846,6 +898,10 @@ export const useBills = (
         bill.discount,
         bill.discountValue,
         bill.loyaltyPointsUsed,
+        bill.taxableAmount ?? '',
+        bill.taxRate ?? '',
+        bill.taxAmount ?? '',
+        bill.gstinSnapshot ?? '',
         bill.total,
         bill.paymentMethod,
         bill.status || 'completed',

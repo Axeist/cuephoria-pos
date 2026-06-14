@@ -7,7 +7,7 @@ import ReceiptActions from './receipt/ReceiptActions';
 import SuccessMessage from './receipt/SuccessMessage';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS } from '@/context/POSContext';
-import { useLocation } from '@/context/LocationContext';
+import { useAppSettings } from '@/hooks/useAppSettings';
 
 interface ReceiptProps {
   bill: Bill;
@@ -25,7 +25,7 @@ const Receipt: React.FC<ReceiptProps> = ({ bill: initialBill, customer: initialC
   const [customer, setCustomer] = useState<Customer>(initialCustomer);
   const { toast } = useToast();
   const { customers } = usePOS();
-  const { activeLocation } = useLocation();
+  const { settings } = useAppSettings();
   
   // Keep the customer data updated if it changes in the context
   useEffect(() => {
@@ -54,7 +54,7 @@ const Receipt: React.FC<ReceiptProps> = ({ bill: initialBill, customer: initialC
     try {
       // Pass customer name to generatePDF for filename
       await generatePDF(receiptRef.current, bill.id, customer.name, {
-        filePrefix: activeLocation?.slug === 'lite' ? 'CuephoriaLite' : 'Cuephoria',
+        filePrefix: settings.businessInfo.name || 'Receipt',
       });
       toast({
         title: "Success",
@@ -88,7 +88,7 @@ const Receipt: React.FC<ReceiptProps> = ({ bill: initialBill, customer: initialC
       // Use a small delay to ensure UI updates before printing
       setTimeout(() => {
         if (receiptRef.current) {
-          handlePrint(receiptRef.current.innerHTML);
+          handlePrint(receiptRef.current.innerHTML, settings.businessInfo.name || 'Receipt');
           toast({
             title: "Print",
             description: "Print dialog opened",

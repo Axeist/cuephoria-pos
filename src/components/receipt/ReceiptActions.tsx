@@ -18,13 +18,13 @@ const ReceiptActions: React.FC<ReceiptActionsProps> = ({
   isDownloading 
 }) => {
   return (
-    <div className="bg-gray-100 p-4 flex flex-col gap-3 no-print">
+    <div className="bg-muted/40 p-4 flex flex-col gap-3 no-print border-t">
       <div className="flex gap-3 justify-center">
         <Button 
-          variant="outline" 
+          variant="outline"
           onClick={onPrint}
           disabled={isPrinting}
-          className="flex items-center gap-1 w-full hover:bg-gray-200 transition-colors"
+          className="flex items-center gap-1 w-full border-primary text-primary hover:bg-primary/10"
         >
           <Printer className="h-4 w-4" />
           {isPrinting ? 'Printing...' : 'Print Receipt'}
@@ -32,16 +32,16 @@ const ReceiptActions: React.FC<ReceiptActionsProps> = ({
         <Button 
           onClick={onDownload}
           disabled={isDownloading}
-          className="flex items-center gap-1 w-full bg-cuephoria-purple hover:bg-cuephoria-purple/80 transition-colors"
+          className="flex items-center gap-1 w-full bg-primary hover:bg-primary/90 text-primary-foreground"
         >
           <Download className="h-4 w-4" />
           {isDownloading ? 'Downloading...' : 'Download PDF'}
         </Button>
       </div>
       <Button 
-        variant="ghost" 
+        variant="outline"
         onClick={onClose}
-        className="flex items-center gap-1 justify-center hover:bg-gray-200 transition-colors"
+        className="flex items-center gap-1 justify-center border-primary text-primary hover:bg-primary/10"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to POS

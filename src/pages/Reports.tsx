@@ -793,6 +793,10 @@ const ReportsPage: React.FC = () => {
           Subtotal: bill.subtotal,
           DiscountValue: bill.discountValue || 0,
           PointsUsed: bill.loyaltyPointsUsed || 0,
+          TaxableValue: bill.taxableAmount ?? '',
+          GSTRate: bill.taxRate ?? '',
+          GSTAmount: bill.taxAmount ?? '',
+          GSTIN: bill.gstinSnapshot ?? '',
           Total: bill.total,
           PaymentMethod: bill.paymentMethod || 'N/A',
           ComplimentaryNote: bill.paymentMethod === 'complimentary' ? (bill.compNote || 'No note') : ''
@@ -833,6 +837,10 @@ const ReportsPage: React.FC = () => {
         if (!summaryMetrics) break;
         const summaryData = [{
           TotalRevenue: summaryMetrics.financial.totalRevenue,
+          TotalGSTCollected: sortedBills.reduce(
+            (sum, bill) => sum + (bill.taxAmount ?? 0),
+            0,
+          ),
           ComplimentarySales: summaryMetrics.financial.complimentarySales,
           ComplimentaryCount: summaryMetrics.financial.complimentaryCount,
           ComplimentaryPercentage: `${summaryMetrics.financial.complimentaryPercentage.toFixed(1)}%`,

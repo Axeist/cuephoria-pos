@@ -412,10 +412,6 @@ export default function TournamentsPage() {
                               Open TV display
                             </Button>
                           )}
-                          <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate('/tournaments/tv')}>
-                            <Tv className="h-4 w-4" />
-                            Staff TV fullscreen
-                          </Button>
                         </div>
 
                         <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-950/30 to-transparent p-5">
@@ -480,18 +476,14 @@ export default function TournamentsPage() {
 
               {activeTab === 'tv' && (
                 <div className="space-y-4">
-                  <div className="flex flex-wrap gap-2">
-                    {tvUrl && (
-                      <Button variant="outline" className="gap-2" onClick={() => window.open(tvUrl, '_blank')}>
+                  {tvUrl && (
+                    <div className="flex flex-wrap gap-2">
+                      <Button className="gap-2 btn-gradient" onClick={() => window.open(tvUrl, '_blank')}>
                         <Monitor className="h-4 w-4" />
-                        Public TV (new tab)
+                        Open TV fullscreen
                       </Button>
-                    )}
-                    <Button className="gap-2 btn-gradient" onClick={() => navigate('/tournaments/tv')}>
-                      <Tv className="h-4 w-4" />
-                      Staff TV fullscreen
-                    </Button>
-                  </div>
+                    </div>
+                  )}
                   <TournamentTVDisplay locationId={activeLocationId} branchSlug={activeLocation?.slug} />
                 </div>
               )}

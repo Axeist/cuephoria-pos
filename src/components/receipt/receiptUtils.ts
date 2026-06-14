@@ -167,7 +167,7 @@ export const generatePDF = async (
   }
 };
 
-export const handlePrint = (printContent: string): void => {
+export const handlePrint = (printContent: string, title = 'Receipt'): void => {
   try {
     const printWindow = window.open('', '_blank', 'width=800,height=600');
     
@@ -180,7 +180,7 @@ export const handlePrint = (printContent: string): void => {
       <html>
         <head>
           <meta charset="utf-8">
-          <title>Cuephoria Receipt</title>
+          <title>${title.replace(/[<>&"]/g, '')} Receipt</title>
           <style>
             * {
               margin: 0;

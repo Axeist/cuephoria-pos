@@ -1,9 +1,12 @@
 export interface BusinessInfo {
   name: string;
+  tagline: string;
   address: string;
   phone: string;
   email: string;
   gstin: string;
+  businessHours: string;
+  website: string;
 }
 
 export interface LoyaltyPointsConfig {
@@ -12,9 +15,12 @@ export interface LoyaltyPointsConfig {
   pointsPerRupee: number;
 }
 
+export type GstPricingMode = 'inclusive' | 'exclusive';
+
 export interface TaxSettings {
   gstEnabled: boolean;
   gstRate: number;
+  gstPricingMode: GstPricingMode;
   serviceTaxEnabled: boolean;
   serviceTaxRate: number;
 }
@@ -80,10 +86,13 @@ export interface AppSettings {
 export const defaultAppSettings: AppSettings = {
   businessInfo: {
     name: "Cuephoria Gaming Lounge",
+    tagline: "",
     address: "",
     phone: "",
     email: "",
     gstin: "",
+    businessHours: "",
+    website: "",
   },
   loyaltyPoints: {
     memberRate: 5,
@@ -93,6 +102,7 @@ export const defaultAppSettings: AppSettings = {
   taxSettings: {
     gstEnabled: false,
     gstRate: 0,
+    gstPricingMode: "inclusive",
     serviceTaxEnabled: false,
     serviceTaxRate: 0,
   },
