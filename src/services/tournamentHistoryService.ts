@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { TournamentHistoryMatch, TournamentWinner, Tournament, Player, Match, MatchStage, TournamentFormat } from "@/types/tournament.types";
+import { standingsRunnerUp } from "@/utils/tournament/standings";
 
 // Save tournament history when a tournament is completed
 export const saveTournamentHistory = async (tournament: Tournament): Promise<void> => {
@@ -32,7 +33,11 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
     // Determine runner-up if not already set
     let runnerUp = tournament.runnerUp;
     if (!runnerUp) {
-      runnerUp = determineRunnerUp(tournament.matches, tournament.players);
+      runnerUp = determineRunnerUp(
+        tournament.matches,
+        tournament.players,
+        tournament.tournamentFormat,
+      );
     }
 
     // Save individual match results to tournament_history
@@ -362,18 +367,25 @@ export const fetchTournamentLeaderboard = async (locationId?: string | null): Pr
 };
 
 // Determine runner-up from tournament matches
-export const determineRunnerUp = (matches: Match[], players: Player[]): Player | undefined => {
-  // Find the final match
-  const finalMatch = matches.find(m => m.stage === 'final' && m.completed);
-  
-  if (!finalMatch || !finalMatch.winnerId) {
-    return undefined;
+export const determineRunnerUp = (
+  matches: Match[],
+  players: Player[],
+  format?: TournamentFormat,
+): Player | undefined => {
+  const grandFinal = matches.find((m) => m.stage === 'grand_final' && m.completed && m.winnerId);
+  if (grandFinal) {
+    const runnerUpId =
+      grandFinal.player1Id === grandFinal.winnerId ? grandFinal.player2Id : grandFinal.player1Id;
+    return players.find((p) => p.id === runnerUpId);
   }
-  
-  // The runner-up is the player who lost in the final
-  const runnerUpId = finalMatch.player1Id === finalMatch.winnerId 
-    ? finalMatch.player2Id 
-    : finalMatch.player1Id;
-    
-  return players.find(p => p.id === runnerUpId);
+
+  const fromStandings = standingsRunnerUp(matches, players, format);
+  if (fromStandings) return fromStandings;
+
+  const finalMatch = matches.find((m) => m.stage === 'final' && m.completed && m.winnerId);
+  if (!finalMatch) return undefined;
+
+  const runnerUpId =
+    finalMatch.player1Id === finalMatch.winnerId ? finalMatch.player2Id : finalMatch.player1Id;
+  return players.find((p) => p.id === runnerUpId);
 };

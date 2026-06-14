@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { supabase, handleSupabaseError } from "@/integrations/supabase/client";
-import { Tournament, convertFromSupabaseTournament, convertToSupabaseTournament, Player, Match, MatchStage } from "@/types/tournament.types";
+import { Tournament, convertFromSupabaseTournament, convertToSupabaseTournament, Player, Match, MatchStage, TournamentFormat, FormatOptions } from "@/types/tournament.types";
 import { useToast } from '@/hooks/use-toast';
 import { PostgrestError } from "@supabase/supabase-js";
 import { usePermissions } from '@/context/PermissionsContext';
@@ -8,6 +8,7 @@ import { useLocation } from "@/context/LocationContext";
 import { generateId } from "@/utils/pos.utils";
 import { determineRunnerUp, saveTournamentHistory } from "@/services/tournamentHistoryService";
 import { generateTournamentMatches } from "@/utils/tournamentMatchGeneration";
+import { standingsChampion } from "@/utils/tournament/standings";
 
 // Define a more specific type for Supabase operations with tournaments
 // This helps us work around the type limitations without modifying the types.ts file
@@ -39,26 +40,33 @@ const tournamentsTable = {
 };
 
 // Function to generate tournament matches from a list of players (updated to use new utility)
-export const generateMatches = (players: Player[], format: 'knockout' | 'league' = 'knockout'): Match[] => {
-  return generateTournamentMatches(players, format);
+export const generateMatches = (
+  players: Player[],
+  format: TournamentFormat = 'knockout',
+  options?: FormatOptions,
+): Match[] => {
+  return generateTournamentMatches(players, format, options);
 };
 
 // Function to determine tournament winner based on matches
-export const determineWinner = (matches: Match[], players: Player[]): Player | undefined => {
-  // Find the final match (highest round number or one marked as 'final')
-  const finalMatches = matches.filter(m => m.stage === 'final');
-  
-  if (finalMatches.length === 0) {
-    return undefined;
+export const determineWinner = (
+  matches: Match[],
+  players: Player[],
+  format?: TournamentFormat,
+): Player | undefined => {
+  const grandFinal = matches.find((m) => m.stage === 'grand_final' && m.completed && m.winnerId);
+  if (grandFinal?.winnerId) {
+    return players.find((p) => p.id === grandFinal.winnerId);
   }
-  
-  const finalMatch = finalMatches[0];
-  
-  // If the final match is completed and has a winner, return that player
-  if (finalMatch.completed && finalMatch.winnerId) {
-    return players.find(p => p.id === finalMatch.winnerId);
+
+  const standingsWinner = standingsChampion(matches, players, format);
+  if (standingsWinner) return standingsWinner;
+
+  const finalMatch = matches.find((m) => m.stage === 'final');
+  if (finalMatch?.completed && finalMatch.winnerId) {
+    return players.find((p) => p.id === finalMatch.winnerId);
   }
-  
+
   return undefined;
 };
 
@@ -112,7 +120,11 @@ export const saveTournament = async (tournament: Tournament): Promise<{ data: To
     // Save history when manually completed (bracket or time trial)
     if (tournament.status === 'completed' && tournament.winner) {
       if (!tournament.runnerUp && tournament.matches.length > 0) {
-        tournament.runnerUp = determineRunnerUp(tournament.matches, tournament.players);
+        tournament.runnerUp = determineRunnerUp(
+          tournament.matches,
+          tournament.players,
+          tournament.tournamentFormat,
+        );
       }
 
       saveTournamentHistory(tournament).catch(error => {

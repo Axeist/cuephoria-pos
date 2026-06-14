@@ -1,4 +1,5 @@
 import type { Match, MatchStage, Player } from '@/types/tournament.types';
+import { propagateByeWinners } from '../bracketAdvancement';
 
 const today = () => new Date().toISOString().split('T')[0];
 
@@ -23,24 +24,28 @@ export function generateSingleEliminationMatches(players: Player[], seeded = fal
   const ordered = seeded ? [...players] : [...players].sort(() => Math.random() - 0.5);
   const bracketSize = nextPowerOfTwo(ordered.length);
   const byes = bracketSize - ordered.length;
-  const slots: (Player | null)[] = [
-    ...ordered,
-    ...Array.from({ length: byes }, () => null),
-  ];
+  const slots: (Player | null)[] = [...ordered, ...Array.from({ length: byes }, () => null)];
 
   const totalRounds = Math.log2(bracketSize);
+  const roundIds: string[][] = [];
+
+  let idCounter = 1;
+  for (let round = 1; round <= totalRounds; round++) {
+    const count = bracketSize / Math.pow(2, round);
+    roundIds[round - 1] = [];
+    for (let i = 0; i < count; i++) {
+      roundIds[round - 1].push(`match-${idCounter++}`);
+    }
+  }
+
   const matches: Match[] = [];
-  let matchCounter = 1;
-  const roundMatchIds: string[][] = [];
+  idCounter = 1;
 
   for (let round = 1; round <= totalRounds; round++) {
     const count = bracketSize / Math.pow(2, round);
-    roundMatchIds[round - 1] = [];
     for (let i = 0; i < count; i++) {
-      const id = `match-${matchCounter++}`;
-      roundMatchIds[round - 1].push(id);
-      const nextRoundIds = roundMatchIds[round];
-      const nextMatchId = nextRoundIds ? nextRoundIds[Math.floor(i / 2)] : undefined;
+      const id = `match-${idCounter++}`;
+      const nextMatchId = round < totalRounds ? roundIds[round][Math.floor(i / 2)] : undefined;
 
       let player1Id = '';
       let player2Id = '';
@@ -54,13 +59,15 @@ export function generateSingleEliminationMatches(players: Player[], seeded = fal
         bye = !p1 || !p2;
       }
 
+      const winnerId = bye ? player1Id || player2Id || undefined : undefined;
+
       matches.push({
         id,
         round,
         player1Id,
         player2Id,
-        completed: bye && !!(player1Id || player2Id),
-        winnerId: bye ? player1Id || player2Id : undefined,
+        completed: bye && !!winnerId,
+        winnerId,
         scheduledDate: today(),
         scheduledTime: `${16 + i}:00`.slice(0, 5),
         status: bye ? 'completed' : 'scheduled',
@@ -68,9 +75,11 @@ export function generateSingleEliminationMatches(players: Player[], seeded = fal
         nextMatchId,
         bracketSide: 'winners',
         bye,
+        score1: bye && winnerId === player1Id ? 1 : bye ? 0 : undefined,
+        score2: bye && winnerId === player2Id ? 1 : bye ? 0 : undefined,
       });
     }
   }
 
-  return matches;
+  return propagateByeWinners(matches);
 }

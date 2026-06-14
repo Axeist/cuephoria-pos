@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Tournament, Player, Match, MatchStatus, LapTimeEntry } from '@/types/tournament.types';
+import { Tournament, Player, Match, MatchStatus, LapTimeEntry, TournamentFormat } from '@/types/tournament.types';
 import TournamentPlayerSection from './TournamentPlayerSection';
 import TournamentMatchSection from './TournamentMatchSection';
 import FifaLapTimeBoard from './FifaLapTimeBoard';
@@ -8,6 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { generateMatches, determineWinner } from '@/services/tournamentService';
 import { determineRunnerUp } from '@/services/tournamentHistoryService';
+import { advanceWinnerInBracket } from '@/utils/tournament/bracketAdvancement';
+import { maybeAppendNextSwissRound } from '@/utils/tournament/formats/swiss';
+import { resolveSportTheme } from '@/utils/tournament/sportTheme';
 import { isTimeTrialFormat } from '@/utils/tournament/lapTimeRanking';
 import { toast } from 'sonner';
 import { Loader2, Info, Users, Trophy, Play, Sparkles, Target, Zap, Timer, CheckCircle2, RotateCcw } from 'lucide-react';
@@ -69,6 +72,20 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     setWinner(tournament.winner);
     setRunnerUp(tournament.runnerUp);
     setThirdPlace(tournament.thirdPlace);
+
+    if (!tournament.winner && (tournament.matches?.length ?? 0) > 0) {
+      const inferredWinner = determineWinner(
+        tournament.matches,
+        tournament.players || [],
+        tournament.tournamentFormat,
+      );
+      if (inferredWinner) {
+        setWinner(inferredWinner);
+        setRunnerUp(
+          determineRunnerUp(tournament.matches, tournament.players || [], tournament.tournamentFormat),
+        );
+      }
+    }
   }, [tournament]);
 
   const handleGenerateMatches = () => {
@@ -78,13 +95,8 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
       return;
     }
     
-    // For knockout tournaments, we need an even number of players
-    if (tournament.tournamentFormat === 'knockout' && players.length % 2 !== 0) {
-      toast.error('Knockout tournaments require an even number of players.');
-      return;
-    }
-
-    const generatedMatches = generateMatches(players, tournament.tournamentFormat);
+    // Knockout supports odd counts via automatic byes
+    const generatedMatches = generateMatches(players, tournament.tournamentFormat, tournament.formatOptions);
     setMatches(generatedMatches);
     setActiveTab('matches');
     
@@ -92,51 +104,34 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     toast.success(`${generatedMatches.length} matches generated successfully!`);
   };
 
-  const handleUpdateMatchResult = (matchId: string, winnerId: string) => {
-    const updatedMatches = [...matches];
-    const matchIndex = updatedMatches.findIndex(m => m.id === matchId);
-    
-    if (matchIndex === -1) return;
-    
-    // Update the current match
-    updatedMatches[matchIndex] = {
-      ...updatedMatches[matchIndex],
-      winnerId,
-      completed: true,
-      status: 'completed' as MatchStatus
-    };
-    
-    // Find and update the next match if it exists
-    const currentMatch = updatedMatches[matchIndex];
-    if (currentMatch.nextMatchId) {
-      const nextMatchIndex = updatedMatches.findIndex(m => m.id === currentMatch.nextMatchId);
-      
-      if (nextMatchIndex !== -1) {
-        const nextMatch = updatedMatches[nextMatchIndex];
-        
-        // Determine which player slot to update in the next match
-        if (nextMatch.player1Id === '') {
-          updatedMatches[nextMatchIndex] = {
-            ...nextMatch,
-            player1Id: winnerId
-          };
-        } else if (nextMatch.player2Id === '') {
-          updatedMatches[nextMatchIndex] = {
-            ...nextMatch,
-            player2Id: winnerId
-          };
-        }
-      }
+  const handleUpdateMatchResult = (
+    matchId: string,
+    winnerId: string,
+    scores?: { score1?: number; score2?: number },
+  ) => {
+    let updatedMatches = advanceWinnerInBracket(matches, matchId, winnerId, scores);
+
+    if (tournament.tournamentFormat === 'swiss') {
+      const totalRounds = tournament.formatOptions?.swissRounds ?? 3;
+      updatedMatches = maybeAppendNextSwissRound(players, updatedMatches, totalRounds);
     }
-    
-    // Determine if we have a tournament winner and runner-up
-    const updatedWinner = determineWinner(updatedMatches, players);
-    const updatedRunnerUp = updatedWinner ? determineRunnerUp(updatedMatches, players) : undefined;
-    
+
+    const updatedWinner = determineWinner(updatedMatches, players, tournament.tournamentFormat);
+    const updatedRunnerUp = updatedWinner
+      ? determineRunnerUp(updatedMatches, players, tournament.tournamentFormat)
+      : undefined;
+
     setWinner(updatedWinner);
     setRunnerUp(updatedRunnerUp);
     setMatches(updatedMatches);
     handleSave(players, updatedMatches, updatedWinner, updatedRunnerUp);
+
+    const bracketFormats: TournamentFormat[] = ['knockout', 'custom', 'double_elimination'];
+    toast.success(
+      bracketFormats.includes(tournament.tournamentFormat)
+        ? 'Result recorded — winner advanced in bracket'
+        : 'Result recorded',
+    );
   };
 
   const handleUpdateMatchSchedule = (matchId: string, date: string, time: string) => {
@@ -171,13 +166,9 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
   };
 
   const handleUpdateMatch = (matchId: string, updates: Partial<Match>) => {
-    const updatedMatches = matches.map(match => {
-      if (match.id === matchId) {
-        return {
-          ...match,
-          ...updates
-        };
-      }
+    const updatedMatches = matches.map((match) => {
+      if (match.id === matchId) return { ...match, ...updates };
+      if (updates.inProgress && match.inProgress) return { ...match, inProgress: false };
       return match;
     });
     
@@ -282,7 +273,30 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     void handleSave(players, matches, winner, runnerUp, thirdPlace, lapTimes, 'in-progress');
   };
 
+  const sportTheme = resolveSportTheme({
+    gameType: tournament.gameType,
+    gameVariant: tournament.gameVariant,
+    gameTitle: tournament.gameTitle,
+    tournamentFormat: tournament.tournamentFormat,
+  });
+
   const getFormatInfo = () => {
+    if (sportTheme.kind === 'fifa') {
+      return {
+        label: 'FIFA Knockout',
+        description: 'Football bracket — record scores and winners advance automatically',
+        color: 'bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-300 border-green-500/40',
+        icon: Trophy,
+      };
+    }
+    if (sportTheme.kind === 'pool') {
+      return {
+        label: '8-Ball Knockout',
+        description: 'Pool bracket — winners advance to the next round',
+        color: 'bg-gradient-to-r from-green-800/20 to-amber-500/20 text-amber-200 border-amber-500/40',
+        icon: Target,
+      };
+    }
     switch (tournament.tournamentFormat) {
       case 'time_trial':
         return {
@@ -504,10 +518,12 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
             )}
             
             {tournament.tournamentFormat === 'knockout' && players.length > 0 && players.length % 2 !== 0 && (
-              <div className="text-center p-4 bg-gradient-to-r from-amber-900/20 to-orange-900/20 border border-amber-600/30 rounded-xl">
-                <div className="flex items-center justify-center gap-3 text-amber-300">
+              <div className="text-center p-4 bg-gradient-to-r from-emerald-900/20 to-green-900/20 border border-emerald-600/30 rounded-xl">
+                <div className="flex items-center justify-center gap-3 text-emerald-300">
                   <Info className="h-5 w-5" />
-                  <span className="font-medium">Knockout tournaments require an even number of players. Current: {players.length}</span>
+                  <span className="font-medium">
+                    {players.length} players — bracket will add {Math.pow(2, Math.ceil(Math.log2(players.length))) - players.length} automatic bye{Math.pow(2, Math.ceil(Math.log2(players.length))) - players.length === 1 ? '' : 's'}.
+                  </span>
                 </div>
               </div>
             )}
@@ -536,6 +552,9 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
               onGenerateMatches={handleGenerateMatches}
               canGenerateMatches={canGenerateMatches}
               tournamentFormat={tournament.tournamentFormat}
+              gameType={tournament.gameType}
+              gameVariant={tournament.gameVariant}
+              gameTitle={tournament.gameTitle}
             />
           </TabsContent>
         </Tabs>

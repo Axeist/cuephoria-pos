@@ -1,6 +1,15 @@
 
-import { Player, Match, MatchStage, TournamentFormat } from '@/types/tournament.types';
+import { Player, Match, MatchStage, TournamentFormat, FormatOptions } from '@/types/tournament.types';
 import { generateFixtures } from '@/utils/tournament/formats';
+
+// Main function to generate matches based on tournament format
+export const generateTournamentMatches = (
+  players: Player[],
+  format: TournamentFormat,
+  options: FormatOptions = {},
+): Match[] => {
+  return generateFixtures(format, players, options);
+};
 
 // Generate matches for knockout tournament format
 export const generateKnockoutMatches = (players: Player[]): Match[] => {
@@ -534,7 +543,3 @@ export const generateLeagueMatches = (players: Player[]): Match[] => {
   return matches;
 };
 
-// Main function to generate matches based on tournament format
-export const generateTournamentMatches = (players: Player[], format: TournamentFormat): Match[] => {
-  return generateFixtures(format, players);
-};
