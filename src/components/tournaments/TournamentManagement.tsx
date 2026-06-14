@@ -26,25 +26,17 @@ interface TournamentManagementProps {
 function resolveTournamentStatus(
   tournament: Tournament,
   opts: {
-    isTimeTrial: boolean;
-    hasWinner: boolean;
     hasMatches: boolean;
     hasLaps: boolean;
     forcedStatus?: Tournament['status'];
   },
 ): Tournament['status'] {
   if (opts.forcedStatus) return opts.forcedStatus;
+  if (tournament.status === 'completed') return 'completed';
 
-  if (opts.isTimeTrial) {
-    if (tournament.status === 'completed') return 'completed';
-    if (opts.hasLaps || opts.hasMatches || tournament.status === 'in-progress') {
-      return 'in-progress';
-    }
-    return 'upcoming';
+  if (opts.hasLaps || opts.hasMatches || tournament.status === 'in-progress') {
+    return 'in-progress';
   }
-
-  if (opts.hasWinner) return 'completed';
-  if (opts.hasMatches) return 'in-progress';
   return 'upcoming';
 }
 
@@ -215,8 +207,6 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
         runnerUp: currentRunnerUp,
         thirdPlace: currentThird,
         status: resolveTournamentStatus(tournament, {
-          isTimeTrial,
-          hasWinner: !!currentWinner,
           hasMatches: currentMatches.length > 0,
           hasLaps: currentLaps.length > 0,
           forcedStatus,
@@ -225,9 +215,9 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
 
       await onSave(updatedTournament);
       if (forcedStatus === 'completed') {
-        toast.success('Event marked as completed.');
+        toast.success('Tournament marked as completed.');
       } else if (forcedStatus === 'in-progress') {
-        toast.success('Event reopened — you can record laps again.');
+        toast.success('Tournament reopened — you can edit results again.');
       } else {
         toast.success('Tournament saved successfully.');
       }
@@ -252,24 +242,24 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     handleSave(players, matches, w, r, t, laps);
   };
 
-  // Time trial: only manual completion. Brackets: complete when a winner exists.
-  const isCompleted = isTimeTrial
-    ? tournament.status === 'completed'
-    : tournament.status === 'completed' || !!winner;
+  const isCompleted = tournament.status === 'completed';
 
-  const handleMarkTimeTrialComplete = () => {
+  const handleMarkComplete = () => {
     if (!canManage) return;
-    if (!winner) {
+    if (isTimeTrial && !winner) {
       toast.error('Record at least one lap so a leader is set before completing.');
       return;
     }
-    if (!window.confirm(`Mark "${tournament.name}" as completed? This locks the lap board.`)) return;
+    const confirmMsg = winner
+      ? `Mark "${tournament.name}" as completed? Fixtures and results will be locked.`
+      : `Mark "${tournament.name}" as completed? Results will be locked.`;
+    if (!window.confirm(confirmMsg)) return;
     void handleSave(players, matches, winner, runnerUp, thirdPlace, lapTimes, 'completed');
   };
 
-  const handleReopenTimeTrial = () => {
+  const handleReopen = () => {
     if (!canManage) return;
-    if (!window.confirm(`Reopen "${tournament.name}"? Lap recording will be enabled again.`)) return;
+    if (!window.confirm(`Reopen "${tournament.name}"? You can edit results again.`)) return;
     void handleSave(players, matches, winner, runnerUp, thirdPlace, lapTimes, 'in-progress');
   };
 
@@ -366,7 +356,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleReopenTimeTrial}
+                    onClick={handleReopen}
                     disabled={saving || isLoading}
                     className="gap-1.5 border-amber-500/40 text-amber-200 hover:bg-amber-500/10"
                   >
@@ -376,8 +366,8 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
                 ) : (
                   <Button
                     size="sm"
-                    onClick={handleMarkTimeTrialComplete}
-                    disabled={saving || isLoading || !winner}
+                    onClick={handleMarkComplete}
+                    disabled={saving || isLoading || (isTimeTrial && !winner)}
                     className="gap-1.5 bg-emerald-600 hover:bg-emerald-500"
                   >
                     <CheckCircle2 className="h-3.5 w-3.5" />
@@ -460,7 +450,43 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
               <span className="text-blue-300 text-sm font-medium">Every player plays against every other player</span>
             </div>
           )}
+          {canManage && (
+            <div className="flex flex-wrap gap-2">
+              {isCompleted ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReopen}
+                  disabled={saving || isLoading}
+                  className="gap-1.5 border-amber-500/40 text-amber-200 hover:bg-amber-500/10"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Reopen event
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={handleMarkComplete}
+                  disabled={saving || isLoading}
+                  className="gap-1.5 bg-emerald-600 hover:bg-emerald-500"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Mark complete
+                </Button>
+              )}
+            </div>
+          )}
         </div>
+
+        {isCompleted ? (
+          <div className="mb-4 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-200">
+            Tournament completed — fixtures and results are locked.
+          </div>
+        ) : (
+          <div className="mb-4 rounded-xl border border-purple-500/20 bg-purple-500/5 px-4 py-3 text-sm text-purple-200/90">
+            Tournament stays <span className="font-semibold text-purple-300">live</span> on TV until you mark it complete.
+          </div>
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-8 h-12 theme-inset rounded-xl p-1">
@@ -488,7 +514,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
                 setPlayers(next);
                 handleSave(next, matches, winner, runnerUp, thirdPlace);
               }}
-              matchesExist={matches.length > 0}
+              matchesExist={isCompleted}
               updatePlayerName={updatePlayerName}
               tournamentId={tournament.id}
               maxPlayers={tournament.maxPlayers}
@@ -555,6 +581,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
               gameType={tournament.gameType}
               gameVariant={tournament.gameVariant}
               gameTitle={tournament.gameTitle}
+              readOnly={isCompleted || !canManage}
             />
           </TabsContent>
         </Tabs>

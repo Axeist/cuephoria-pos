@@ -29,6 +29,7 @@ interface TournamentMatchSectionProps {
   gameType?: GameType;
   gameVariant?: PoolGameVariant;
   gameTitle?: PS5GameTitle;
+  readOnly?: boolean;
 }
 
 function BracketMatchCard({
@@ -40,6 +41,7 @@ function BracketMatchCard({
   onWin,
   onGoLive,
   onEdit,
+  readOnly,
 }: {
   match: Match;
   players: Player[];
@@ -49,6 +51,7 @@ function BracketMatchCard({
   onWin: (winnerId: string) => void;
   onGoLive: () => void;
   onEdit: () => void;
+  readOnly?: boolean;
 }) {
   const getName = (id: string) => {
     if (!id) return 'TBD';
@@ -84,7 +87,7 @@ function BracketMatchCard({
             <Radio className="h-3 w-3 animate-pulse" /> Live
           </span>
         )}
-        <Button size="icon" variant="ghost" className="h-6 w-6 ml-auto" onClick={onEdit}>
+        <Button size="icon" variant="ghost" className="h-6 w-6 ml-auto" onClick={onEdit} disabled={readOnly}>
           <Edit className="h-3 w-3" />
         </Button>
       </div>
@@ -112,7 +115,7 @@ function BracketMatchCard({
         </div>
       </div>
 
-      {!match.completed && ready && (
+      {!match.completed && ready && !readOnly && (
         <div className="p-2 pt-0 space-y-2 border-t border-white/5">
           <div className="grid grid-cols-2 gap-1.5">
             <Input
@@ -165,6 +168,7 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
   gameType = 'PS5',
   gameVariant,
   gameTitle,
+  readOnly = false,
 }) => {
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
   const [scoreDrafts, setScoreDrafts] = useState<Record<string, { s1: string; s2: string }>>({});
@@ -234,7 +238,7 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
             Generate the {theme.label.toLowerCase()} bracket once you have at least 2 players.
           </p>
         </div>
-        {canGenerateMatches && onGenerateMatches && (
+        {canGenerateMatches && onGenerateMatches && !readOnly && (
           <Button onClick={onGenerateMatches} className="gap-2 border-0" style={{ background: theme.primary }}>
             <Plus className="h-4 w-4" />
             Generate fixtures
@@ -353,6 +357,7 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
                               onWin={(winnerId) => handleWin(match, winnerId)}
                               onGoLive={() => handleGoLive(match.id)}
                               onEdit={() => setEditingMatchId(match.id)}
+                              readOnly={readOnly}
                             />
                           ),
                         )}
@@ -395,6 +400,7 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
                       onWin={(winnerId) => handleWin(match, winnerId)}
                       onGoLive={() => handleGoLive(match.id)}
                       onEdit={() => setEditingMatchId(match.id)}
+                      readOnly={readOnly}
                     />
                   ),
                 )}
@@ -430,6 +436,7 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
                     onWin={(winnerId) => handleWin(match, winnerId)}
                     onGoLive={() => handleGoLive(match.id)}
                     onEdit={() => setEditingMatchId(match.id)}
+                    readOnly={readOnly}
                   />
                 ),
               )}
