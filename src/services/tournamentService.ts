@@ -4,6 +4,7 @@ import { Tournament, convertFromSupabaseTournament, convertToSupabaseTournament,
 import { useToast } from '@/hooks/use-toast';
 import { PostgrestError } from "@supabase/supabase-js";
 import { usePermissions } from '@/context/PermissionsContext';
+import { canOperateTournaments } from '@/constants/permissionResolve';
 import { useLocation } from "@/context/LocationContext";
 import { generateId } from "@/utils/pos.utils";
 import { determineRunnerUp, saveTournamentHistory } from "@/services/tournamentHistoryService";
@@ -345,7 +346,7 @@ export const useTournamentOperations = () => {
   const { toast } = useToast();
   const { can } = usePermissions();
   const { activeLocationId } = useLocation();
-  const canManage = can('settings.tournaments.manage');
+  const canManage = canOperateTournaments(can);
 
   const fetchTournamentsOp = useCallback(async (locationId?: string | null) => {
     const tournaments = await fetchTournaments(locationId);

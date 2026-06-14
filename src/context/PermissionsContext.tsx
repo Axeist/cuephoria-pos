@@ -14,6 +14,7 @@ import {
   DEFAULT_ROLE_PERMISSIONS,
   legacyRoleSlug,
 } from '@/constants/permissionCatalog';
+import { hasWorkspacePermission } from '@/constants/permissionResolve';
 import {
   canShowMyPortalSidebar,
   canShowStaffManagementSidebar,
@@ -144,7 +145,7 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const permissionSet = useMemo(() => new Set(permissions), [permissions]);
 
   const can = useCallback(
-    (key: string) => bypass || permissionSet.has(key),
+    (key: string) => bypass || hasWorkspacePermission(permissionSet, key),
     [bypass, permissionSet],
   );
 

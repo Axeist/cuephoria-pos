@@ -5,6 +5,7 @@ import {
   legacyRoleSlug,
   type SystemRoleSlug,
 } from "../constants/permissionCatalog";
+import { hasWorkspacePermission } from "../constants/permissionResolve";
 
 export type ResolvedWorkspaceAccess = {
   permissions: string[];
@@ -115,7 +116,7 @@ export function assertWorkspacePermission(
   access: ResolvedWorkspaceAccess,
   key: string,
 ): { ok: true } | { ok: false; error: string } {
-  if (access.bypass || access.permissions.includes(key)) return { ok: true };
+  if (access.bypass || hasWorkspacePermission(access.permissions, key)) return { ok: true };
   return { ok: false, error: "You do not have permission for this action." };
 }
 

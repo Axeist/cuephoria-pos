@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useLocation } from '@/context/LocationContext';
 import { usePermissions } from '@/context/PermissionsContext';
+import { canOperateTournaments } from '@/constants/permissionResolve';
 import { useTournamentOperations } from '@/services/tournamentService';
 import { useToast } from '@/components/ui/use-toast';
 import { usePinVerification } from '@/hooks/usePinVerification';
@@ -78,8 +79,9 @@ function newTournamentDraft(locationId?: string | null): Tournament {
 export default function TournamentsPage() {
   const { activeLocationId, activeLocation } = useLocation();
   const { can } = usePermissions();
-  const canManage = can('settings.tournaments.manage');
-  const canResetLeaderboard = can('settings.leaderboard.reset');
+  const canManage = canOperateTournaments(can);
+  const canCreate = can('tournaments.create');
+  const canResetLeaderboard = can('tournaments.leaderboard.reset');
   const tournamentOps = useTournamentOperations();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -192,7 +194,7 @@ export default function TournamentsPage() {
   };
 
   const handleDeleteTournament = async (id: string) => {
-    if (!canManage || !confirm('Delete this tournament?')) return;
+    if (!can('tournaments.delete') || !confirm('Delete this tournament?')) return;
     const t = tournaments.find((x) => x.id === id);
     if (!t) return;
     setLoading(true);
@@ -234,7 +236,7 @@ export default function TournamentsPage() {
     }
   };
 
-  if (!can('settings.tournaments.view')) {
+  if (!can('tournaments.view')) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -290,7 +292,7 @@ export default function TournamentsPage() {
                   </Button>
                 </>
               )}
-              {canManage && (
+              {canCreate && (
                 <Button size="sm" className="btn-gradient gap-1.5 h-10 px-5" onClick={openCreateWizard}>
                   <Plus className="h-4 w-4" />
                   New tournament

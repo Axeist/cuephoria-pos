@@ -465,7 +465,7 @@ const Settings = () => {
         return can('settings.team.view') ? <TeamManagement /> : null;
 
       case 'tournaments':
-        return can('settings.tournaments.view') ? (
+        return can('tournaments.view') ? (
           <div className="space-y-6 -mt-2">
             {managingTournament ? (
               <div className="space-y-4">
@@ -570,7 +570,7 @@ const Settings = () => {
         ) : null;
 
       case 'leaderboard':
-        return can('settings.tournaments.view') ? (
+        return can('tournaments.view') ? (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <p className="text-sm text-muted-foreground">
@@ -619,7 +619,7 @@ const Settings = () => {
     }
   };
 
-  const canResetLeaderboard = can('settings.leaderboard.reset');
+  const canResetLeaderboard = can('tournaments.leaderboard.reset');
 
   const mobileNavItems = NAV_GROUPS.flatMap((g) => g.items).filter((item) =>
     canAccessSettingsItem(item),
