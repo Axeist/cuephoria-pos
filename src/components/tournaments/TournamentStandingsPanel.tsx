@@ -24,13 +24,15 @@ export default function TournamentStandingsPanel({
   const standings = computeStandings(matches, players);
   if (standings.length === 0) return null;
 
+  const visibleStandings = compact ? standings.slice(0, 8) : standings;
+
   return (
-    <div className="rounded-xl border border-white/10 bg-black/20 overflow-hidden">
+    <div className={cn('rounded-xl border border-white/10 bg-black/20 overflow-hidden', compact && 'h-full')}>
       <p className="text-xs uppercase tracking-widest text-white/45 px-4 py-2 border-b border-white/10">
         Standings
       </p>
-      <div className="divide-y divide-white/5">
-        {standings.map((row, index) => (
+      <div className="divide-y divide-white/5 overflow-hidden">
+        {visibleStandings.map((row, index) => (
           <div
             key={row.player.id}
             className={cn(

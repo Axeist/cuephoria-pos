@@ -477,16 +477,18 @@ export default function TournamentsPage() {
               )}
 
               {activeTab === 'tv' && (
-                <div className="space-y-4">
+                <div className="rounded-2xl border border-white/10 overflow-hidden h-[min(80vh,900px)]">
                   {tvUrl && (
-                    <div className="flex flex-wrap gap-2">
-                      <Button className="gap-2 btn-gradient" onClick={() => window.open(tvUrl, '_blank')}>
+                    <div className="flex flex-wrap gap-2 p-3 border-b border-white/10 bg-black/20">
+                      <Button className="gap-2 btn-gradient" size="sm" onClick={() => window.open(tvUrl, '_blank')}>
                         <Monitor className="h-4 w-4" />
                         Open TV fullscreen
                       </Button>
                     </div>
                   )}
-                  <TournamentTVDisplay locationId={activeLocationId} branchSlug={activeLocation?.slug} />
+                  <div className="h-[calc(100%-52px)] overflow-hidden">
+                    <TournamentTVDisplay locationId={activeLocationId} branchSlug={activeLocation?.slug} />
+                  </div>
                 </div>
               )}
             </motion.div>

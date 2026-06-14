@@ -18,6 +18,7 @@ import { rankPlayersByLapTime } from '@/utils/tournament/lapTimeRanking';
 import { useTournamentMotion } from './animations/TournamentMotionProvider';
 import { useTournamentTVBrand, hexToRgba } from './tournamentTVBrand';
 import { cn } from '@/lib/utils';
+import { TvLiveFeedTicker } from './TvLiveFeedTicker';
 
 function formatGapMs(gapMs: number): string {
   if (gapMs <= 0) return 'LEADER';
@@ -104,7 +105,7 @@ export default function TournamentTVTimeTrial({
   const sessionBest = leader ? formatLapTimeMs(leader.bestLapMs) : '—:—.——';
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden text-white">
+    <div className="relative h-full w-full overflow-hidden text-white">
       {/* Broadcast background */}
       <div className="pointer-events-none absolute inset-0">
         <div
@@ -143,9 +144,9 @@ export default function TournamentTVTimeTrial({
         />
       </div>
 
-      <div className="relative z-10 flex flex-col min-h-screen p-4 md:p-8 lg:p-10 gap-5 md:gap-6">
+      <div className="relative z-10 flex h-full flex-col overflow-hidden p-3 md:p-5 lg:p-6 gap-2 md:gap-3">
         {/* Header */}
-        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-5">
+        <header className="shrink-0 flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-3">
           <div className="space-y-2 max-w-4xl">
             <div className="flex flex-wrap items-center gap-3">
               {logoUrl ? (
@@ -177,7 +178,7 @@ export default function TournamentTVTimeTrial({
             <motion.h1
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="text-3xl md:text-5xl lg:text-6xl font-black tracking-tight leading-none bg-clip-text text-transparent"
+              className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tight leading-none bg-clip-text text-transparent truncate"
               style={{
                 backgroundImage: `linear-gradient(to right, #fff, ${hexToRgba(primaryHex, 0.9)}, ${hexToRgba(accentHex, 0.85)})`,
               }}
@@ -207,7 +208,7 @@ export default function TournamentTVTimeTrial({
         </header>
 
         {/* Stats infographics */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        <div className="shrink-0 grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
           <StatCard
             label="Drivers"
             value={tournament.players.length}
@@ -243,7 +244,7 @@ export default function TournamentTVTimeTrial({
         </div>
 
         {/* Podium */}
-        <div className="grid grid-cols-3 gap-3 md:gap-5 items-end min-h-[180px] md:min-h-[240px]">
+        <div className="shrink-0 grid grid-cols-3 gap-2 md:gap-4 items-end min-h-[120px] md:min-h-[160px]">
           {[1, 0, 2].map((idx) => {
             const row = podium[idx];
             const heights = ['h-[85%]', 'h-full', 'h-[75%]'];
@@ -286,15 +287,15 @@ export default function TournamentTVTimeTrial({
         </div>
 
         {/* Leaderboard + gap chart */}
-        <div className="flex-1 grid lg:grid-cols-[1fr_340px] gap-4 md:gap-5 min-h-0">
-          <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur-md overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 grid lg:grid-cols-[1fr_280px] gap-3 md:gap-4 overflow-hidden">
+          <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur-md overflow-hidden flex flex-col min-h-0">
             <div className="flex items-center gap-2 px-4 md:px-5 py-3 border-b border-white/10 bg-white/[0.03]">
               <Trophy className="h-5 w-5 text-amber-400" />
               <span className="font-bold text-sm md:text-base uppercase tracking-wider">Live standings</span>
             </div>
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 min-h-0 overflow-hidden">
               {ranked.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 md:py-24 px-6 text-center">
+                <div className="flex flex-col items-center justify-center h-full py-8 px-6 text-center">
                   <motion.div
                     animate={reduced ? {} : { rotate: [0, 5, -5, 0] }}
                     transition={{ duration: 3, repeat: Infinity }}
@@ -308,7 +309,7 @@ export default function TournamentTVTimeTrial({
                 </div>
               ) : (
                 <AnimatePresence mode="popLayout">
-                  {ranked.map((row) => {
+                  {ranked.slice(0, 10).map((row) => {
                     const gap = leader ? row.bestLapMs - leader.bestLapMs : 0;
                     const barPct = leader ? Math.max(8, (leader.bestLapMs / row.bestLapMs) * 100) : 100;
                     return (
@@ -378,22 +379,22 @@ export default function TournamentTVTimeTrial({
           </div>
 
           {/* Side panel: rest + recent */}
-          <div className="flex flex-col gap-4 min-h-0">
+          <div className="hidden lg:flex flex-col gap-3 min-h-0 overflow-hidden">
             {rest.length > 0 && (
-              <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur-md p-4 flex-1 overflow-auto">
-                <p className="text-xs uppercase tracking-widest text-white/40 mb-3 flex items-center gap-2">
-                  <Medal className="h-3.5 w-3.5" />
+              <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur-md p-3 flex-1 min-h-0 overflow-hidden">
+                <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2 flex items-center gap-2">
+                  <Medal className="h-3 w-3" />
                   Field
                 </p>
-                <div className="space-y-2">
-                  {rest.map((row) => (
+                <div className="space-y-1.5 overflow-hidden">
+                  {rest.slice(0, 6).map((row) => (
                     <div
                       key={row.player.id}
-                      className="flex items-center justify-between gap-2 text-sm border-b border-white/5 pb-2 last:border-0"
+                      className="flex items-center justify-between gap-2 text-xs border-b border-white/5 pb-1.5 last:border-0"
                     >
                       <span className="text-white/50 font-mono w-6">P{row.rank}</span>
                       <span className="flex-1 truncate font-medium">{row.player.name}</span>
-                      <span className="font-mono tabular-nums text-xs" style={{ color: hexToRgba(primaryHex, 0.9) }}>
+                      <span className="font-mono tabular-nums text-[10px]" style={{ color: hexToRgba(primaryHex, 0.9) }}>
                         {formatLapTimeMs(row.bestLapMs)}
                       </span>
                     </div>
@@ -403,33 +404,33 @@ export default function TournamentTVTimeTrial({
             )}
 
             <div
-              className="rounded-2xl border backdrop-blur-md overflow-hidden"
+              className="shrink-0 rounded-2xl border backdrop-blur-md overflow-hidden"
               style={{
                 borderColor: hexToRgba(accentHex, 0.25),
                 backgroundColor: hexToRgba(accentHex, 0.08),
               }}
             >
               <p
-                className="text-xs uppercase tracking-widest px-4 py-2 border-b flex items-center gap-2"
+                className="text-[10px] uppercase tracking-widest px-3 py-2 border-b flex items-center gap-2"
                 style={{ color: hexToRgba(accentHex, 0.75), borderColor: hexToRgba(accentHex, 0.15) }}
               >
-                <Activity className="h-3.5 w-3.5" />
+                <Activity className="h-3 w-3" />
                 Recent laps
               </p>
               {recentLaps.length === 0 ? (
-                <p className="text-sm text-white/30 px-4 py-6 text-center">No laps yet</p>
+                <p className="text-xs text-white/30 px-3 py-4 text-center">No laps yet</p>
               ) : (
-                <div className="max-h-[200px] overflow-auto">
-                  {recentLaps.map((lap, i) => (
+                <div>
+                  {recentLaps.slice(0, 4).map((lap, i) => (
                     <motion.div
                       key={lap.id}
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.05 }}
-                      className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-white/5 last:border-0"
+                      className="flex items-center justify-between gap-2 px-3 py-2 border-b border-white/5 last:border-0"
                     >
-                      <span className="truncate text-sm font-medium">{lap.playerName}</span>
-                      <span className="font-mono text-sm font-bold tabular-nums shrink-0" style={{ color: primaryHex }}>
+                      <span className="truncate text-xs font-medium">{lap.playerName}</span>
+                      <span className="font-mono text-xs font-bold tabular-nums shrink-0" style={{ color: primaryHex }}>
                         {formatLapTimeMs(lap.lapTimeMs)}
                       </span>
                     </motion.div>
@@ -440,39 +441,15 @@ export default function TournamentTVTimeTrial({
           </div>
         </div>
 
-        {/* Ticker footer */}
-        {recentLaps.length > 0 && (
-          <div className="rounded-xl border border-white/10 bg-black/40 overflow-hidden">
-            <div
-              className="flex items-center gap-2 px-3 py-1.5 border-b"
-              style={{ backgroundColor: hexToRgba(primaryHex, 0.12), borderColor: hexToRgba(primaryHex, 0.2) }}
-            >
-              <Zap className="h-3 w-3" style={{ color: primaryHex }} />
-              <span className="text-[10px] uppercase tracking-[0.2em] font-bold" style={{ color: hexToRgba(primaryHex, 0.85) }}>
-                Live feed
-              </span>
-            </div>
-            {!reduced ? (
-              <motion.div
-                className="flex whitespace-nowrap py-2 text-sm"
-                animate={{ x: ['0%', '-50%'] }}
-                transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
-              >
-                {[...recentLaps, ...recentLaps].map((lap, i) => (
-                  <span key={`${lap.id}-${i}`} className="inline-flex items-center gap-2 px-8 text-white/70">
-                    <span className="font-semibold text-white">{lap.playerName}</span>
-                    <span className="font-mono" style={{ color: primaryHex }}>{formatLapTimeMs(lap.lapTimeMs)}</span>
-                    <span className="text-white/20">•</span>
-                  </span>
-                ))}
-              </motion.div>
-            ) : (
-              <div className="py-2 px-4 text-sm text-white/60 truncate">
-                {recentLaps[0].playerName} · {formatLapTimeMs(recentLaps[0].lapTimeMs)}
-              </div>
-            )}
-          </div>
-        )}
+        <TvLiveFeedTicker
+          items={recentLaps.map((lap) => ({
+            id: lap.id,
+            label: lap.playerName,
+            value: formatLapTimeMs(lap.lapTimeMs),
+          }))}
+          reduced={reduced}
+          accent={primaryHex}
+        />
       </div>
     </div>
   );

@@ -38,14 +38,14 @@ const PublicTournamentTV = ({ branchSlug = 'main' }: { branchSlug?: string }) =>
 
   if (resolving) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
+      <div className="h-screen overflow-hidden bg-[#030712]">
         <LoadingSpinner />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#030712]">
+    <div className="h-screen overflow-hidden bg-[#030712]">
       <TournamentTVDisplay locationId={locationId} branchSlug={ctx.branchSlug ?? branchSlug} />
     </div>
   );

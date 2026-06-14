@@ -21,7 +21,7 @@ interface TournamentTVDisplayProps {
 
 function TVLoadingScreen() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[#030712]">
+    <div className="flex h-full flex-col items-center justify-center gap-6 bg-[#030712]">
       <motion.div
         animate={{ rotate: 360 }}
         transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
@@ -36,7 +36,7 @@ function TVLoadingScreen() {
 
 function TVEmptyScreen() {
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-center gap-6 overflow-hidden bg-[#030712] px-6 text-center">
+    <div className="relative h-full flex flex-col items-center justify-center gap-6 overflow-hidden bg-[#030712] px-6 text-center">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(139,92,246,0.12),transparent_60%)]" />
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
@@ -159,7 +159,7 @@ export default function TournamentTVDisplay({
   return (
     <TournamentTVBrandProvider value={brand}>
       <TournamentMotionProvider intensity="full">
-        <div className="relative min-h-screen w-full bg-[#030712]">
+        <div className="relative h-full w-full overflow-hidden bg-[#030712]">
           <AnimatePresence mode="wait">
             <motion.div
               key={current.id + safeIndex}
@@ -167,7 +167,7 @@ export default function TournamentTVDisplay({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.6 }}
-              className="min-h-screen"
+              className="h-full overflow-hidden"
             >
               {isFifa ? (
                 <TournamentTVTimeTrial tournament={current} eventSwitcher={eventSwitcher} />
