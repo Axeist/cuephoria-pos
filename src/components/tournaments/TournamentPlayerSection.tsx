@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash, Edit2, Check, X, Search, Zap, UserCheck, User } from 'lucide-react';
+import { Plus, Trash, Edit2, Check, X, Search } from 'lucide-react';
 import { Player } from '@/types/tournament.types';
 import { generateId } from '@/utils/pos.utils';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Select,
   SelectContent,
@@ -15,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface TournamentPlayerSectionProps {
   players: Player[];
@@ -393,203 +393,182 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
   const isMaxPlayersReached = players.length >= maxPlayers;
 
   return (
-    <div className="space-y-4">
-      {/* Display player count and limit */}
-      <div className="text-sm text-gray-400">
-        Players: {players.length} / {maxPlayers}
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Roster</p>
+          <p className="text-lg font-semibold text-white">
+            {players.length} <span className="text-muted-foreground font-normal">/ {maxPlayers} players</span>
+          </p>
+        </div>
         {isMaxPlayersReached && (
-          <span className="ml-2 text-amber-400">
-            (Maximum reached)
-          </span>
+          <Badge variant="outline" className="border-amber-500/40 text-amber-300 bg-amber-500/10">
+            Roster full
+          </Badge>
         )}
       </div>
 
-      <div className="space-y-4">
-        <div className="flex flex-col space-y-2">
-          <label className="text-sm font-medium">Add Existing Customer</label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name or phone number..."
-              value={customerSearchQuery}
-              onChange={(e) => setCustomerSearchQuery(e.target.value)}
-              className="pl-10 mb-2"
-              disabled={matchesExist || isMaxPlayersReached}
-            />
+      {!matchesExist && !isMaxPlayersReached && (
+        <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Add player</p>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground">From customers</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search name or phone…"
+                  value={customerSearchQuery}
+                  onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select
+                value={selectedCustomerId}
+                onValueChange={(value) => {
+                  setSelectedCustomerId(value);
+                  setCustomerSearchQuery('');
+                }}
+              >
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder={filteredCustomers.length > 0 ? 'Select customer' : 'No matches'} />
+                </SelectTrigger>
+                <SelectContent className="max-h-[220px]">
+                  {filteredCustomers.map((customer) => (
+                    <SelectItem key={customer.id} value={customer.id}>
+                      {customer.name} · {customer.phone}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                className="w-full"
+                onClick={addPlayer}
+                disabled={!selectedCustomerId}
+              >
+                <Plus className="h-4 w-4 mr-1" /> Add customer
+              </Button>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground">Guest name</label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Player name"
+                  value={playerName}
+                  onChange={(e) => {
+                    setPlayerName(e.target.value);
+                    const value = e.target.value.trim();
+                    if (value.match(/^\d{10,}$/)) {
+                      setRegistrationForm((prev) => ({ ...prev, customer_phone: value }));
+                    } else {
+                      setRegistrationForm((prev) => ({ ...prev, customer_phone: '' }));
+                    }
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && addPlayer()}
+                />
+                <Button onClick={addPlayer} disabled={!playerName.trim() && !selectedCustomerId}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">Or pick a customer on the left.</p>
+            </div>
           </div>
-          <Select
-            value={selectedCustomerId}
-            onValueChange={(value) => {
-              setSelectedCustomerId(value);
-              setCustomerSearchQuery(''); // Clear search when customer is selected
-            }}
-            disabled={matchesExist || isMaxPlayersReached}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={isMaxPlayersReached ? "Maximum players reached" : filteredCustomers.length > 0 ? "Select a customer" : "No customers found"} />
-            </SelectTrigger>
-            <SelectContent className="max-h-[200px]">
-              {filteredCustomers.length > 0 ? (
-                filteredCustomers.map(customer => (
-                  <SelectItem key={customer.id} value={customer.id}>
-                    <div className="flex items-center justify-between w-full">
-                      <span>{customer.name}</span>
-                      <span className="text-xs text-muted-foreground ml-2">({customer.phone})</span>
-                    </div>
-                  </SelectItem>
-                ))
-              ) : (
-                <div className="p-2 text-sm text-muted-foreground text-center">
-                  {customerSearchQuery ? "No customers found" : "Start typing to search"}
-                </div>
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <div className="flex-1">
-            <label className="text-sm font-medium">Or Add New Player</label>
-            <Input
-              placeholder={isMaxPlayersReached ? "Maximum players reached" : "Enter player name or phone number"}
-              value={playerName}
-              onChange={(e) => {
-                setPlayerName(e.target.value);
-                // Check if input looks like a phone number and update registration form
-                const value = e.target.value.trim();
-                if (value.match(/^\d{10,}$/)) {
-                  setRegistrationForm(prev => ({ ...prev, customer_phone: value }));
-                } else {
-                  setRegistrationForm(prev => ({ ...prev, customer_phone: '' }));
-                }
-              }}
-              onKeyPress={(e) => e.key === 'Enter' && addPlayer()}
-              className="mt-1"
-              disabled={matchesExist || isMaxPlayersReached}
-            />
-          </div>
-          <div className="pt-6">
-            <Button onClick={addPlayer} disabled={matchesExist || isMaxPlayersReached}>
-              <Plus className="mr-2 h-4 w-4" /> Add Player
-            </Button>
-          </div>
-        </div>
-      </div>
-      
-      {players.length > 0 ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="w-[100px]">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {players.map((player) => (
-              <TableRow key={player.id}>
-                <TableCell>
-                  {editingPlayer && editingPlayer.id === player.id ? (
-                    <Input 
-                      value={editingPlayer.name} 
-                      onChange={(e) => setEditingPlayer({...editingPlayer, name: e.target.value})}
-                      autoFocus
-                    />
-                  ) : (
-                    player.name
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {(() => {
-                      // Check if player paid online
-                      const customer = player.customerId ? customers.find(c => c.id === player.customerId) : null;
-                      const customerPhone = customer?.phone ? normalizePhoneNumber(customer.phone) : null;
-                      const registration = customerPhone 
-                        ? tournamentRegistrations.find(r => normalizePhoneNumber(r.customer_phone) === customerPhone)
-                        : null;
-                      const paidOnline = registration?.payment_status === 'paid';
-                      
-                      return (
-                        <>
-                          {paidOnline && (
-                            <Badge variant="outline" className="bg-yellow-500/20 border-yellow-400/40 text-yellow-300 text-xs px-2 py-0.5">
-                              <Zap className="h-3 w-3 mr-1" />
-                              Online Paid
-                            </Badge>
-                          )}
-                          {player.customerId ? (
-                            <Badge variant="outline" className="bg-green-500/20 border-green-400/40 text-green-300 text-xs px-2 py-0.5">
-                              <UserCheck className="h-3 w-3 mr-1" />
-                              Customer
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="bg-blue-500/20 border-blue-400/40 text-blue-300 text-xs px-2 py-0.5">
-                              <User className="h-3 w-3 mr-1" />
-                              Guest
-                            </Badge>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {editingPlayer && editingPlayer.id === player.id ? (
-                    <div className="flex items-center space-x-1">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => handleSaveEdit(player.id)}
-                        className="text-green-500"
-                      >
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={handleCancelEdit}
-                        className="text-red-500"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center space-x-1">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => handleEditClick(player)}
-                        className="text-blue-500"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => removePlayer(player.id)}
-                        disabled={matchesExist}
-                        className="text-red-500"
-                      >
-                        <Trash className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      ) : (
-        <div className="text-center py-4 text-muted-foreground">
-          No players added yet. Add players to create the tournament.
         </div>
       )}
-      
-      {matchesExist && (
-        <div className="text-sm text-amber-600">
-          Note: Players cannot be added or removed after matches have been generated, but you can edit their names.
+
+      {players.length > 0 ? (
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {players.map((player, index) => {
+            const customer = player.customerId ? customers.find((c) => c.id === player.customerId) : null;
+            const customerPhone = customer?.phone ? normalizePhoneNumber(customer.phone) : null;
+            const registration = customerPhone
+              ? tournamentRegistrations.find((r) => normalizePhoneNumber(r.customer_phone) === customerPhone)
+              : null;
+            const paidOnline = registration?.payment_status === 'paid';
+            const isEditing = editingPlayer?.id === player.id;
+
+            return (
+              <div
+                key={player.id}
+                className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 hover:border-white/20 transition-colors"
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-xs font-bold text-primary">
+                  {index + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  {isEditing ? (
+                    <Input
+                      value={editingPlayer.name}
+                      onChange={(e) => setEditingPlayer({ ...editingPlayer, name: e.target.value })}
+                      autoFocus
+                      className="h-8 text-sm"
+                    />
+                  ) : (
+                    <>
+                      <p className="font-medium text-sm truncate">{player.name}</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {paidOnline && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-yellow-400/40 text-yellow-300 bg-yellow-500/10">
+                            Paid online
+                          </Badge>
+                        )}
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'text-[10px] px-1.5 py-0',
+                            player.customerId
+                              ? 'border-emerald-500/30 text-emerald-300 bg-emerald-500/10'
+                              : 'border-blue-500/30 text-blue-300 bg-blue-500/10',
+                          )}
+                        >
+                          {player.customerId ? 'Customer' : 'Guest'}
+                        </Badge>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="flex shrink-0 gap-0.5">
+                  {isEditing ? (
+                    <>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-400" onClick={() => handleSaveEdit(player.id)}>
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={handleCancelEdit}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-white" onClick={() => handleEditClick(player)}>
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-red-400"
+                        onClick={() => removePlayer(player.id)}
+                        disabled={matchesExist}
+                      >
+                        <Trash className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
+      ) : (
+        <div className="rounded-xl border border-dashed border-white/15 py-10 text-center text-muted-foreground text-sm">
+          No players yet. Add customers or guest names above.
+        </div>
+      )}
+
+      {matchesExist && (
+        <p className="text-xs text-amber-400/90 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+          Roster locked — you can edit names but not add or remove players.
+        </p>
       )}
     </div>
   );

@@ -380,9 +380,13 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
           </TabsList>
           
           <TabsContent value="players" className="space-y-6 animate-fade-in">
-            <TournamentPlayerSection 
-              players={players} 
-              setPlayers={setPlayers} 
+            <TournamentPlayerSection
+              players={players}
+              setPlayers={(p) => {
+                const next = typeof p === 'function' ? p(players) : p;
+                setPlayers(next);
+                handleSave(next, matches, winner, runnerUp, thirdPlace);
+              }}
               matchesExist={matches.length > 0}
               updatePlayerName={updatePlayerName}
               tournamentId={tournament.id}

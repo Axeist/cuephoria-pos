@@ -132,23 +132,64 @@ export function formatLapTimeMs(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}`;
 }
 
-/** Parse m:ss.ms or ss.ms or raw seconds into milliseconds */
+/** Min/max lap bounds for FIFA-style time trials (15s – 15min). */
+export const LAP_TIME_MIN_MS = 15_000;
+export const LAP_TIME_MAX_MS = 15 * 60_000;
+
+export function validateLapTimeMs(ms: number): { ok: true } | { ok: false; message: string } {
+  if (!Number.isFinite(ms) || ms <= 0) {
+    return { ok: false, message: 'Enter a valid lap time.' };
+  }
+  if (ms < LAP_TIME_MIN_MS) {
+    return { ok: false, message: `Lap too short (min ${formatLapTimeMs(LAP_TIME_MIN_MS)}).` };
+  }
+  if (ms > LAP_TIME_MAX_MS) {
+    return { ok: false, message: `Lap too long (max ${formatLapTimeMs(LAP_TIME_MAX_MS)}).` };
+  }
+  return { ok: true };
+}
+
+/** Parse m:ss.ms, ss.ms, or seconds-only (e.g. 83.5) into milliseconds. */
 export function parseLapTimeInput(input: string): number | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
-  if (/^\d+(\.\d+)?$/.test(trimmed)) {
-    return Math.round(parseFloat(trimmed) * 1000);
-  }
-  const parts = trimmed.split(':');
-  if (parts.length === 2) {
+
+  // m:ss or m:ss.ms
+  if (trimmed.includes(':')) {
+    const parts = trimmed.split(':');
+    if (parts.length !== 2) return null;
     const mins = parseInt(parts[0], 10);
     const secParts = parts[1].split('.');
+    if (secParts[0].length === 0) return null;
     const secs = parseInt(secParts[0], 10);
-    const ms = secParts[1] ? parseInt(secParts[1].padEnd(3, '0').slice(0, 3), 10) : 0;
+    const frac = secParts[1] ?? '';
+    const ms = frac ? parseInt(frac.padEnd(3, '0').slice(0, 3), 10) : 0;
     if ([mins, secs, ms].some((n) => Number.isNaN(n))) return null;
+    if (secs >= 60) return null;
     return mins * 60000 + secs * 1000 + ms;
   }
+
+  // ss.ms or seconds only — reject huge bare integers (likely typos)
+  if (/^\d+(\.\d+)?$/.test(trimmed)) {
+    const seconds = parseFloat(trimmed);
+    if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 900) return null;
+    return Math.round(seconds * 1000);
+  }
+
   return null;
+}
+
+/** Parse and validate; returns error message when invalid. */
+export function parseAndValidateLapTimeInput(
+  input: string,
+): { ms: number } | { error: string } {
+  const ms = parseLapTimeInput(input);
+  if (ms === null) {
+    return { error: 'Use m:ss.ms (e.g. 1:23.456) or seconds (e.g. 83.5).' };
+  }
+  const check = validateLapTimeMs(ms);
+  if (!check.ok) return { error: check.message };
+  return { ms };
 }
 
 // New interfaces for tournament history
