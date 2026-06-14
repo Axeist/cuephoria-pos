@@ -45,7 +45,7 @@ const PublicTournamentTV = ({ branchSlug = 'main' }: { branchSlug?: string }) =>
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0b0b12] via-black to-[#0a1628]">
+    <div className="min-h-screen bg-[#030712]">
       <TournamentTVDisplay locationId={locationId} publicMode />
     </div>
   );

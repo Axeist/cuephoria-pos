@@ -10,7 +10,7 @@ import { generateMatches, determineWinner } from '@/services/tournamentService';
 import { determineRunnerUp } from '@/services/tournamentHistoryService';
 import { isTimeTrialFormat } from '@/utils/tournament/lapTimeRanking';
 import { toast } from 'sonner';
-import { Loader2, Info, Users, Trophy, Play, Sparkles, Target, Zap, Timer } from 'lucide-react';
+import { Loader2, Info, Users, Trophy, Play, Sparkles, Target, Zap, Timer, CheckCircle2, RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface TournamentManagementProps {
@@ -18,6 +18,31 @@ interface TournamentManagementProps {
   onSave: (updatedTournament: Tournament) => Promise<void>;
   isLoading?: boolean;
   canManage?: boolean;
+}
+
+function resolveTournamentStatus(
+  tournament: Tournament,
+  opts: {
+    isTimeTrial: boolean;
+    hasWinner: boolean;
+    hasMatches: boolean;
+    hasLaps: boolean;
+    forcedStatus?: Tournament['status'];
+  },
+): Tournament['status'] {
+  if (opts.forcedStatus) return opts.forcedStatus;
+
+  if (opts.isTimeTrial) {
+    if (tournament.status === 'completed') return 'completed';
+    if (opts.hasLaps || opts.hasMatches || tournament.status === 'in-progress') {
+      return 'in-progress';
+    }
+    return 'upcoming';
+  }
+
+  if (opts.hasWinner) return 'completed';
+  if (opts.hasMatches) return 'in-progress';
+  return 'upcoming';
 }
 
 const TournamentManagement: React.FC<TournamentManagementProps> = ({
@@ -185,6 +210,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     currentRunnerUp?: Player,
     currentThird?: Player,
     currentLaps: LapTimeEntry[] = lapTimes,
+    forcedStatus?: Tournament['status'],
   ) => {
     setSaving(true);
 
@@ -197,15 +223,23 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
         winner: currentWinner,
         runnerUp: currentRunnerUp,
         thirdPlace: currentThird,
-        status: currentWinner
-          ? 'completed'
-          : currentMatches.length > 0 || currentLaps.length > 0
-            ? 'in-progress'
-            : 'upcoming',
+        status: resolveTournamentStatus(tournament, {
+          isTimeTrial,
+          hasWinner: !!currentWinner,
+          hasMatches: currentMatches.length > 0,
+          hasLaps: currentLaps.length > 0,
+          forcedStatus,
+        }),
       };
 
       await onSave(updatedTournament);
-      toast.success('Tournament saved successfully.');
+      if (forcedStatus === 'completed') {
+        toast.success('Event marked as completed.');
+      } else if (forcedStatus === 'in-progress') {
+        toast.success('Event reopened — you can record laps again.');
+      } else {
+        toast.success('Tournament saved successfully.');
+      }
     } catch (error) {
       console.error('Error saving tournament:', error);
       toast.error('Failed to save tournament changes.');
@@ -227,8 +261,26 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     handleSave(players, matches, w, r, t, laps);
   };
 
-  // Check if tournament is completed
-  const isCompleted = tournament.status === 'completed' || !!winner;
+  // Time trial: only manual completion. Brackets: complete when a winner exists.
+  const isCompleted = isTimeTrial
+    ? tournament.status === 'completed'
+    : tournament.status === 'completed' || !!winner;
+
+  const handleMarkTimeTrialComplete = () => {
+    if (!canManage) return;
+    if (!winner) {
+      toast.error('Record at least one lap so a leader is set before completing.');
+      return;
+    }
+    if (!window.confirm(`Mark "${tournament.name}" as completed? This locks the lap board.`)) return;
+    void handleSave(players, matches, winner, runnerUp, thirdPlace, lapTimes, 'completed');
+  };
+
+  const handleReopenTimeTrial = () => {
+    if (!canManage) return;
+    if (!window.confirm(`Reopen "${tournament.name}"? Lap recording will be enabled again.`)) return;
+    void handleSave(players, matches, winner, runnerUp, thirdPlace, lapTimes, 'in-progress');
+  };
 
   const getFormatInfo = () => {
     switch (tournament.tournamentFormat) {
@@ -294,7 +346,42 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
               </Badge>
               <p className="text-gray-400 text-sm mt-1">{formatInfo.description}</p>
             </div>
+            {canManage && (
+              <div className="flex flex-wrap gap-2">
+                {isCompleted ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleReopenTimeTrial}
+                    disabled={saving || isLoading}
+                    className="gap-1.5 border-amber-500/40 text-amber-200 hover:bg-amber-500/10"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Reopen event
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={handleMarkTimeTrialComplete}
+                    disabled={saving || isLoading || !winner}
+                    className="gap-1.5 bg-emerald-600 hover:bg-emerald-500"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Mark complete
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
+          {isCompleted ? (
+            <div className="mb-4 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-200">
+              Event completed — lap board and roster are locked.
+            </div>
+          ) : (
+            <div className="mb-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-200/90">
+              Event stays <span className="font-semibold text-emerald-300">live</span> while you record laps. Mark complete when finished.
+            </div>
+          )}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-8 h-12 theme-inset rounded-xl p-1">
               <TabsTrigger value="players" className="gap-2">
@@ -313,7 +400,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
                   setPlayers(p);
                   handleSave(p, matches, winner, runnerUp, thirdPlace, lapTimes);
                 }}
-                matchesExist={lapTimes.length > 0}
+                matchesExist={isCompleted}
                 updatePlayerName={(id, name) => {
                   const updated = players.map((pl) => (pl.id === id ? { ...pl, name } : pl));
                   setPlayers(updated);
@@ -328,8 +415,8 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
                 tournament={tournament}
                 players={players}
                 lapTimes={lapTimes}
-                onLapTimesChange={canManage ? handleLapTimesChange : () => {}}
-                readOnly={!canManage}
+                onLapTimesChange={canManage && !isCompleted ? handleLapTimesChange : () => {}}
+                readOnly={!canManage || isCompleted}
               />
             </TabsContent>
           </Tabs>

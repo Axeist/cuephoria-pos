@@ -109,13 +109,12 @@ export const saveTournament = async (tournament: Tournament): Promise<{ data: To
     // Log the tournament being saved for debugging
     console.log('Saving tournament to Supabase:', tournament);
     
-    // If tournament is completed and has matches, determine runner-up and save history
-    if (tournament.status === 'completed' && tournament.matches.length > 0) {
-      if (!tournament.runnerUp) {
+    // Save history when manually completed (bracket or time trial)
+    if (tournament.status === 'completed' && tournament.winner) {
+      if (!tournament.runnerUp && tournament.matches.length > 0) {
         tournament.runnerUp = determineRunnerUp(tournament.matches, tournament.players);
       }
-      
-      // Save tournament history asynchronously (don't block the save operation)
+
       saveTournamentHistory(tournament).catch(error => {
         console.error('Error saving tournament history:', error);
       });

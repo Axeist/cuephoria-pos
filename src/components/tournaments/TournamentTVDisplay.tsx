@@ -4,14 +4,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { fetchTournaments } from '@/services/tournamentService';
 import type { Tournament } from '@/types/tournament.types';
 import { isTimeTrialFormat } from '@/utils/tournament/lapTimeRanking';
-import FifaLapTimeBoard from './FifaLapTimeBoard';
+import TournamentTVTimeTrial from './TournamentTVTimeTrial';
+import TournamentTVBracket from './TournamentTVBracket';
 import { TournamentMotionProvider } from './animations/TournamentMotionProvider';
-import { AmbientTournamentBg } from './animations/AmbientTournamentBg';
-import { WinnerBurst } from './animations/WinnerBurst';
-import { formatLapTimeMs } from '@/types/tournament.types';
-import { rankPlayersByLapTime } from '@/utils/tournament/lapTimeRanking';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Zap, Users } from 'lucide-react';
+import { Trophy, Radio, Sparkles } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface TournamentTVDisplayProps {
@@ -19,6 +16,44 @@ interface TournamentTVDisplayProps {
   branchSlug?: string;
   /** Public TV — no staff chrome */
   publicMode?: boolean;
+}
+
+function TVLoadingScreen() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[#030712]">
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+        className="rounded-full border-2 border-emerald-500/30 border-t-emerald-400 p-1"
+      >
+        <LoadingSpinner />
+      </motion.div>
+      <p className="text-sm uppercase tracking-[0.3em] text-emerald-300/60 font-semibold">Loading live board</p>
+    </div>
+  );
+}
+
+function TVEmptyScreen() {
+  return (
+    <div className="relative min-h-screen flex flex-col items-center justify-center gap-6 overflow-hidden bg-[#030712] px-6 text-center">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(139,92,246,0.12),transparent_60%)]" />
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="relative rounded-3xl border border-white/10 bg-white/5 p-10 backdrop-blur-md"
+      >
+        <Trophy className="h-20 w-20 text-amber-400/40 mx-auto mb-6" />
+        <h2 className="text-3xl md:text-4xl font-black text-white mb-3">No live events</h2>
+        <p className="text-lg text-white/45 max-w-md">
+          Tournaments appear here when they are upcoming or in progress. Check back soon for live standings.
+        </p>
+        <div className="flex items-center justify-center gap-2 mt-8 text-xs uppercase tracking-widest text-white/30">
+          <Radio className="h-3 w-3" />
+          Standby
+        </div>
+      </motion.div>
+    </div>
+  );
 }
 
 export default function TournamentTVDisplay({
@@ -33,7 +68,7 @@ export default function TournamentTVDisplay({
     (t) => t.status === 'in-progress' || t.status === 'upcoming',
   );
   const current = activeTournaments[slideIndex % Math.max(1, activeTournaments.length)];
-  const rotationSec = current?.displayConfig?.tvRotationSeconds ?? 12;
+  const rotationSec = current?.displayConfig?.tvRotationSeconds ?? 15;
 
   useEffect(() => {
     if (!locationId) {
@@ -86,104 +121,50 @@ export default function TournamentTVDisplay({
     return () => window.clearInterval(id);
   }, [activeTournaments.length, rotationSec]);
 
-  if (loading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <LoadingSpinner />
-      </div>
-    );
-  }
-
-  if (!current) {
-    return (
-      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 text-center">
-        <Trophy className="h-16 w-16 text-muted-foreground/40" />
-        <p className="text-xl text-muted-foreground">No live tournaments — check back soon</p>
-      </div>
-    );
-  }
+  if (loading) return <TVLoadingScreen />;
+  if (!current) return <TVEmptyScreen />;
 
   const isFifa = isTimeTrialFormat(current.tournamentFormat);
-  const ranked = isFifa
-    ? rankPlayersByLapTime(current.players, current.lapTimes ?? [], current.formatOptions?.bestLapCount ?? 1)
-    : [];
-  const leader = ranked[0];
-  const currentMatch = current.matches?.find((m) => m.inProgress || (!m.completed && m.player1Id && m.player2Id));
 
   return (
     <TournamentMotionProvider intensity="full">
-      <AmbientTournamentBg />
-      <div className="relative min-h-[70vh] rounded-2xl border border-white/10 bg-black/40 p-4 md:p-8 overflow-hidden">
+      <div className="relative min-h-screen w-full bg-[#030712]">
         <AnimatePresence mode="wait">
           <motion.div
             key={current.id + slideIndex}
-            initial={{ opacity: 0, x: 40 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -40 }}
-            transition={{ duration: 0.5 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6 }}
+            className="min-h-screen"
           >
             {isFifa ? (
-              <FifaLapTimeBoard
-                tournament={current}
-                players={current.players}
-                lapTimes={current.lapTimes ?? []}
-                onLapTimesChange={() => {}}
-                tvMode
-                readOnly
-              />
+              <TournamentTVTimeTrial tournament={current} />
             ) : (
-              <div className="grid gap-6 lg:grid-cols-2">
-                {/* Current match */}
-                {currentMatch && (
-                  <motion.div
-                    className="rounded-2xl border border-primary/40 bg-primary/10 p-8 text-center"
-                    animate={{ boxShadow: ['0 0 20px rgba(139,92,246,0.2)', '0 0 40px rgba(139,92,246,0.4)', '0 0 20px rgba(139,92,246,0.2)'] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  >
-                    <p className="text-xs uppercase tracking-widest text-primary/70 mb-4">Now playing</p>
-                    <div className="flex items-center justify-center gap-6">
-                      <span className="text-3xl md:text-5xl font-bold">
-                        {current.players.find((p) => p.id === currentMatch.player1Id)?.name ?? 'TBD'}
-                      </span>
-                      <span className="text-2xl text-muted-foreground">VS</span>
-                      <span className="text-3xl md:text-5xl font-bold">
-                        {current.players.find((p) => p.id === currentMatch.player2Id)?.name ?? 'TBD'}
-                      </span>
-                    </div>
-                  </motion.div>
-                )}
-
-                {/* Leader / winner spotlight */}
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                  <p className="text-xs uppercase tracking-widest text-muted-foreground mb-4 flex items-center gap-2">
-                    <Trophy className="h-4 w-4" />
-                    {current.name}
-                  </p>
-                  {current.winner ? (
-                    <WinnerBurst show winnerName={current.winner.name} subtitle="Tournament leader" />
-                  ) : leader ? (
-                    <div className="text-center py-6">
-                      <p className="text-sm text-emerald-300/80 mb-2">Fastest lap</p>
-                      <p className="text-4xl font-bold">{leader.player.name}</p>
-                      <p className="font-mono text-2xl text-emerald-300 mt-2">
-                        {formatLapTimeMs(leader.bestLapMs)}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center gap-3 py-8 text-muted-foreground">
-                      <Users className="h-8 w-8 opacity-40" />
-                      <span>{current.players.length} players registered</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <TournamentTVBracket tournament={current} />
             )}
           </motion.div>
         </AnimatePresence>
 
-        {publicMode && (
-          <div className="absolute bottom-4 right-4 flex items-center gap-2 text-xs text-muted-foreground">
-            <Zap className="h-3 w-3" />
+        {activeTournaments.length > 1 && (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full border border-white/10 bg-black/60 backdrop-blur-md px-4 py-2 z-50">
+            <Sparkles className="h-3 w-3 text-violet-400" />
+            {activeTournaments.map((t, i) => (
+              <span
+                key={t.id}
+                className={`h-2 w-2 rounded-full transition-all ${
+                  i === slideIndex % activeTournaments.length
+                    ? 'bg-emerald-400 w-6'
+                    : 'bg-white/20'
+                }`}
+              />
+            ))}
+          </div>
+        )}
+
+        {publicMode && activeTournaments.length > 0 && (
+          <div className="fixed top-4 right-4 z-50 flex items-center gap-2 rounded-full border border-white/10 bg-black/50 backdrop-blur px-3 py-1.5 text-[10px] uppercase tracking-widest text-white/50">
+            <Radio className="h-3 w-3 text-red-400 animate-pulse" />
             Live · {activeTournaments.length} event{activeTournaments.length === 1 ? '' : 's'}
           </div>
         )}
