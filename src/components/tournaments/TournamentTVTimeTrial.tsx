@@ -66,7 +66,13 @@ function StatCard({
   );
 }
 
-export default function TournamentTVTimeTrial({ tournament }: { tournament: Tournament }) {
+export default function TournamentTVTimeTrial({
+  tournament,
+  eventSwitcher,
+}: {
+  tournament: Tournament;
+  eventSwitcher?: React.ReactNode;
+}) {
   const { reduced, duration } = useTournamentMotion();
   const brand = useTournamentTVBrand();
   const { primaryHex, accentHex, logoUrl, displayName, tagline } = brand;
@@ -183,7 +189,9 @@ export default function TournamentTVTimeTrial({ tournament }: { tournament: Tour
               {tagline ? ` · ${tagline}` : ''}
             </p>
           </div>
-          <div className="text-right">
+          <div className="flex flex-col items-end gap-3 shrink-0">
+            {eventSwitcher}
+            <div className="text-right">
             <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Session best</p>
             <motion.p
               key={sessionBest}
@@ -194,6 +202,7 @@ export default function TournamentTVTimeTrial({ tournament }: { tournament: Tour
             >
               {sessionBest}
             </motion.p>
+            </div>
           </div>
         </header>
 

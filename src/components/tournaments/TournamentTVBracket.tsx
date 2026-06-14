@@ -83,7 +83,13 @@ function TvMatchNode({
   );
 }
 
-export default function TournamentTVBracket({ tournament }: { tournament: Tournament }) {
+export default function TournamentTVBracket({
+  tournament,
+  eventSwitcher,
+}: {
+  tournament: Tournament;
+  eventSwitcher?: React.ReactNode;
+}) {
   const { reduced, duration } = useTournamentMotion();
   const brand = useTournamentTVBrand();
   const { logoUrl, displayName } = brand;
@@ -181,7 +187,9 @@ export default function TournamentTVBracket({ tournament }: { tournament: Tourna
             </h1>
             <p className="text-sm md:text-base text-white/55">{sport.subtitle} · {displayName}</p>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col items-end gap-3 shrink-0">
+            {eventSwitcher}
+            <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl border px-4 py-3 text-center" style={{ borderColor: `${sport.primary}44`, background: `${sport.primary}18` }}>
               <p className="text-2xl font-black">{tournament.players.length}</p>
               <p className="text-[10px] uppercase tracking-widest text-white/40">Players</p>
@@ -189,6 +197,7 @@ export default function TournamentTVBracket({ tournament }: { tournament: Tourna
             <div className="rounded-xl border px-4 py-3 text-center" style={{ borderColor: `${sport.accent}44`, background: `${sport.accent}14` }}>
               <p className="text-2xl font-black">{completedCount}/{matches.length}</p>
               <p className="text-[10px] uppercase tracking-widest text-white/40">Played</p>
+            </div>
             </div>
           </div>
         </header>
