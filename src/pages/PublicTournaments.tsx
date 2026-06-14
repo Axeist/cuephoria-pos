@@ -1,10 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchPublicLocation } from '@/utils/publicLocationResolve';
 import { returnContextFromSearchParams, resolvePublicTournamentReturnPath } from '@/utils/publicTournamentUrl';
+import { buildPublicBookingUrl, buildPublicStationsUrl } from '@/utils/publicBookingUrl';
 import { BOOKING_ACCESS_KEYS, parseBookingSettingBool } from '@/utils/bookingAccessSettings';
 import { fetchRazorpayKeyId, primeRazorpayCheckout } from '@/utils/razorpayCheckout';
+import { usePublicBookingBrand } from '@/hooks/usePublicBookingBrand';
+import { PublicPageBrandStyles } from '@/components/public/PublicPageBrandStyles';
+import CuephoriaTechAttribution from '@/components/branding/CuephoriaTechAttribution';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,8 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck, ChevronDown, TrendingUp, History, CalendarDays, Globe, Activity, Zap, ImageIcon, CheckCircle2, Ticket, X } from 'lucide-react';
-import { CUETRONIX_ASSETS } from '@/branding/assets';
+import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck, ChevronDown, TrendingUp, History, CalendarDays, Globe, Activity, Zap, ImageIcon, CheckCircle2, Ticket, X, Sparkles, Building2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import PublicTournamentHistory from '@/components/tournaments/PublicTournamentHistory';
@@ -105,6 +108,48 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
     })();
     return () => { cancelled = true; };
   }, [branchSlug, urlCtx.branchSlug, urlCtx.locationId, urlCtx.orgSlug]);
+
+  const {
+    displayName: tenantDisplayName,
+    tagline: tenantTagline,
+    logoUrl: tenantLogoUrl,
+    locationName: tenantLocationName,
+    primaryHex: tenantPrimaryHex,
+    accentHex: tenantAccentHex,
+    hidePoweredBy,
+    workspaceSlug,
+    loading: brandLoading,
+  } = usePublicBookingBrand(publicLocationId, resolvedBranchSlug);
+
+  const isCuephoriaWorkspace = workspaceSlug === 'cuephoria';
+  const pageTitle = 'Tournaments';
+  const pageSubtitle =
+    tenantTagline ||
+    `Register, compete, and track live standings at ${tenantLocationName || tenantDisplayName}.`;
+
+  const bookingUrl = useMemo(
+    () =>
+      publicLocationId
+        ? buildPublicBookingUrl({
+            branchSlug: resolvedBranchSlug,
+            locationId: publicLocationId,
+            orgSlug: publicOrgSlug ?? undefined,
+          })
+        : null,
+    [publicLocationId, resolvedBranchSlug, publicOrgSlug],
+  );
+
+  const stationsUrl = useMemo(
+    () =>
+      publicLocationId
+        ? buildPublicStationsUrl({
+            branchSlug: resolvedBranchSlug,
+            locationId: publicLocationId,
+            orgSlug: publicOrgSlug ?? undefined,
+          })
+        : null,
+    [publicLocationId, resolvedBranchSlug, publicOrgSlug],
+  );
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
@@ -763,7 +808,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
           type: "tournament_registration"
         },
         theme: {
-          color: "#8B5CF6", // Cuephoria purple
+          color: tenantPrimaryHex,
         },
         modal: {
           ondismiss: function() {
@@ -1175,16 +1220,15 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
     const [showHistory, setShowHistory] = useState(false);
 
     return (
-      <Card className="w-full bg-gradient-to-br from-cuephoria-dark via-cuephoria-dark to-cuephoria-darkpurple/20 border-cuephoria-lightpurple/30 hover:border-cuephoria-lightpurple/60 transition-all duration-500 hover:shadow-2xl hover:shadow-cuephoria-lightpurple/20 hover:-translate-y-2 hover:scale-[1.02] group overflow-hidden relative">
-        {/* Animated glow effect */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cuephoria-lightpurple/10 to-transparent animate-shimmer opacity-0 group-hover:opacity-100 transition-opacity"></div>
+      <Card className="w-full bg-gradient-to-br pt-card pt-border hover:pt-border-strong transition-all duration-500 hover:shadow-2xl pt-shadow hover:-translate-y-2 hover:scale-[1.02] group overflow-hidden relative">
+        <div className="absolute inset-0 pt-shimmer animate-shimmer opacity-0 group-hover:opacity-100 transition-opacity" />
         
         {/* Floating particles effect */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           {[...Array(5)].map((_, i) => (
             <div
               key={i}
-              className="absolute w-1 h-1 bg-cuephoria-lightpurple/30 rounded-full animate-float opacity-0 group-hover:opacity-100"
+              className="absolute w-1 h-1 rounded-full animate-float opacity-0 group-hover:opacity-100 pt-particle"
               style={{
                 left: `${Math.random() * 100}%`,
                 top: `${Math.random() * 100}%`,
@@ -1197,8 +1241,8 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
 
         <CardHeader className="pb-3 relative z-10">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-bold text-cuephoria-lightpurple flex items-center gap-2 group-hover:text-white transition-colors">
-              <div className="p-2 rounded-lg bg-cuephoria-lightpurple/20 group-hover:bg-cuephoria-lightpurple/40 transition-all group-hover:scale-110">
+            <CardTitle className="text-lg font-bold pt-text flex items-center gap-2 group-hover:text-white transition-colors">
+              <div className="p-2 rounded-lg pt-muted-bg pt-group-hover-muted transition-all group-hover:scale-110">
                 {getGameIcon(tournament.game_type)}
               </div>
               {tournament.name}
@@ -1207,14 +1251,14 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
               {tournament.status.replace('-', ' ')}
             </Badge>
           </div>
-          <div className="text-sm text-cuephoria-grey flex items-center gap-2 mt-2">
+          <div className="text-sm text-white/50 flex items-center gap-2 mt-2">
             {tournament.game_type === 'Pool' && tournament.game_variant && (
-              <span className="bg-cuephoria-purple/20 px-2 py-1 rounded-full text-xs">{tournament.game_variant}</span>
+              <span className="pt-muted-bg px-2 py-1 rounded-full text-xs">{tournament.game_variant}</span>
             )}
             {tournament.game_type === 'PS5' && tournament.game_title && (
-              <span className="bg-cuephoria-blue/20 px-2 py-1 rounded-full text-xs">{tournament.game_title}</span>
+              <span className="pt-muted-bg-soft px-2 py-1 rounded-full text-xs">{tournament.game_title}</span>
             )}
-            <div className="flex items-center gap-1 text-cuephoria-lightpurple">
+            <div className="flex items-center gap-1 pt-text">
               <Calendar className="h-4 w-4" />
               {formatDate(tournament.date)}
             </div>
@@ -1225,19 +1269,19 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
           {/* Registration Progress */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-cuephoria-grey">
+              <div className="flex items-center gap-2 text-white/50">
                 <Users className="h-4 w-4" />
                 <span className="text-sm font-medium">
                   {tournament.total_registrations}/{tournament.max_players} registered
                 </span>
               </div>
-              <div className="text-xs text-cuephoria-lightpurple font-semibold">
+              <div className="text-xs pt-text font-semibold">
                 {Math.round((tournament.total_registrations / tournament.max_players) * 100)}%
               </div>
             </div>
-            <div className="w-full bg-cuephoria-grey/20 rounded-full h-3 overflow-hidden">
-              <div 
-                className="bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue h-3 rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
+            <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
+              <div
+                className="pt-progress h-3 rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
                 style={{ 
                   width: `${Math.min((tournament.total_registrations / tournament.max_players) * 100, 100)}%` 
                 }}
@@ -1324,7 +1368,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                 <CollapsibleTrigger asChild>
                   <Button 
                     variant="outline" 
-                    className="w-full border-cuephoria-lightpurple/30 text-cuephoria-lightpurple hover:bg-cuephoria-lightpurple/10"
+                    className="w-full pt-border pt-text pt-hover-muted-soft"
                   >
                     <History className="mr-2 h-4 w-4" />
                     {showHistory ? 'Hide' : 'View'} Tournament History
@@ -1348,7 +1392,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                 <CollapsibleTrigger asChild>
                   <Button 
                     variant="outline" 
-                    className="w-full border-cuephoria-lightpurple/30 text-cuephoria-lightpurple hover:bg-cuephoria-lightpurple/10"
+                    className="w-full pt-border pt-text pt-hover-muted-soft"
                   >
                     <History className="mr-2 h-4 w-4" />
                     {showHistory ? 'Hide' : 'View'} Match Results
@@ -1382,7 +1426,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
           {/* Registration Button */}
           {canRegister(tournament) && (
             <Button 
-              className="w-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90 text-white font-semibold py-3 transition-all duration-300 hover:shadow-xl hover:shadow-cuephoria-lightpurple/30 hover:scale-[1.02] group"
+              className="w-full pt-btn-primary font-semibold py-3 transition-all duration-300 hover:shadow-xl pt-shadow hover:scale-[1.02] group"
               onClick={() => handleTournamentSelect(tournament)}
             >
               <Trophy className="mr-2 h-4 w-4 group-hover:animate-bounce" />
@@ -1489,9 +1533,9 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
       const IconComponent = content?.icon || Trophy;
 
       return (
-        <div className="col-span-full text-center text-cuephoria-grey py-16">
+        <div className="col-span-full text-center text-white/50 py-16">
           <div className="relative inline-block mb-6">
-            <div className="absolute inset-0 rounded-full bg-cuephoria-lightpurple/20 animate-ping"></div>
+            <div className="absolute inset-0 rounded-full pt-muted-bg animate-ping"></div>
             <IconComponent className="h-20 w-20 mx-auto opacity-50 relative z-10" />
           </div>
           <p className="text-2xl font-semibold mb-2">{content?.title}</p>
@@ -1501,103 +1545,121 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
     }
   };
 
-  if (loading) {
+  if (loading || brandLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-cuephoria-dark via-black to-cuephoria-darkpurple flex items-center justify-center overflow-hidden">
-        <div className="w-full max-w-md flex flex-col items-center justify-center animate-fade-in">
+      <div className="pt-page pt-page-bg min-h-screen flex items-center justify-center overflow-hidden">
+        <PublicPageBrandStyles primary={tenantPrimaryHex} accent={tenantAccentHex} />
+        <div className="w-full max-w-md flex flex-col items-center justify-center animate-fade-in px-6">
           <div className="w-32 h-32 mb-8 flex items-center justify-center relative">
-            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue opacity-20 animate-ping"></div>
-            <img 
-              src={CUETRONIX_ASSETS.iconUrl} 
-              alt="Cuetronix" 
-              className="animate-float z-10 relative"
-            />
+            <div className="absolute inset-0 rounded-full pt-grad opacity-20 animate-ping" />
+            {tenantLogoUrl ? (
+              <img src={tenantLogoUrl} alt={tenantDisplayName} className="h-24 max-w-[200px] object-contain z-10 relative animate-float" />
+            ) : (
+              <div className="h-24 w-24 rounded-2xl pt-grad grid place-items-center z-10 relative">
+                <Building2 className="h-10 w-10 text-white" />
+              </div>
+            )}
           </div>
-          
+
           <div className="text-center space-y-4 animate-fade-in flex flex-col items-center">
             <div className="relative flex justify-center items-center">
-              <div className="w-20 h-20 border-t-4 border-cuephoria-lightpurple border-solid rounded-full animate-spin"></div>
-              <div className="w-16 h-16 border-t-4 border-r-4 border-transparent border-solid rounded-full border-r-cuephoria-purple absolute animate-spin-slow"></div>
+              <div className="w-20 h-20 border-t-4 border-solid rounded-full animate-spin pt-spinner" />
+              <div className="w-16 h-16 border-t-4 border-r-4 border-transparent border-solid rounded-full absolute animate-spin-slow pt-spinner-accent" />
             </div>
-            
-            <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue animate-text-gradient mt-4">
-              Loading Tournaments...
+
+            <h2 className="text-2xl font-bold pt-grad-text mt-4">
+              Loading tournaments…
             </h2>
-            <p className="text-cuephoria-grey">Getting the latest tournament information</p>
+            <p className="text-white/50">{tenantDisplayName}</p>
           </div>
         </div>
       </div>
     );
   }
 
+  const tabActiveClass = 'pt-tab-active';
+  const tabIdleClass = 'text-white/50 hover:text-white pt-hover-muted-soft';
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-cuephoria-dark via-black to-cuephoria-darkpurple text-white overflow-hidden">
+    <div className="pt-page pt-page-bg min-h-screen text-white overflow-hidden">
+      <PublicPageBrandStyles primary={tenantPrimaryHex} accent={tenantAccentHex} />
       {/* Promotional Popup */}
       <PromotionalPopup blockWhenOpen={isDialogOpen || showVenuePaymentWarning || !!registrationSuccessData} />
 
-      {/* Animated Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        {[...Array(20)].map((_, i) => (
+        <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full blur-3xl pt-glow" />
+        <div className="absolute top-1/3 -right-24 h-64 w-64 rounded-full blur-3xl pt-glow-accent" />
+        <div className="absolute bottom-10 left-1/3 h-56 w-56 rounded-full blur-3xl pt-glow" />
+        {[...Array(12)].map((_, i) => (
           <div
             key={i}
-            className="absolute w-2 h-2 bg-cuephoria-lightpurple/20 rounded-full animate-float"
+            className="absolute w-2 h-2 rounded-full animate-float pt-particle"
             style={{
               left: `${Math.random() * 100}%`,
               top: `${Math.random() * 100}%`,
               animationDelay: `${i * 0.5}s`,
-              animationDuration: `${4 + Math.random() * 4}s`
+              animationDuration: `${4 + Math.random() * 4}s`,
             }}
           />
         ))}
       </div>
 
-      {/* Header with enhanced design */}
       <header className="relative py-12 px-4 sm:px-6 md:px-8 animate-fade-in">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col items-center mb-12">
-            <div className="mb-8 animate-float relative">
-              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue opacity-30 blur-xl animate-pulse"></div>
-              <img 
-                src={CUETRONIX_ASSETS.iconUrl} 
-                alt="Cuetronix" 
-                className="h-32 relative z-10 shadow-2xl shadow-cuephoria-lightpurple/40"
-              />
-            </div>
-            
-            <h1 className="text-5xl md:text-7xl font-bold text-center font-heading bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-lightpurple via-cuephoria-blue to-cuephoria-purple animate-text-gradient mb-4">
-              Epic Tournaments
+            {tenantLogoUrl ? (
+              <div className="mb-8 animate-float relative">
+                <div className="absolute inset-0 rounded-full pt-grad opacity-30 blur-xl animate-pulse" />
+                <img
+                  src={tenantLogoUrl}
+                  alt={`${tenantDisplayName} logo`}
+                  className="h-28 md:h-32 max-w-[280px] object-contain relative z-10 drop-shadow-2xl"
+                />
+              </div>
+            ) : (
+              <div className="mb-8 h-24 w-24 rounded-2xl pt-grad grid place-items-center shadow-2xl animate-float">
+                <Building2 className="h-10 w-10 text-white" />
+              </div>
+            )}
+
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs tracking-widest uppercase text-white/70 backdrop-blur-md mb-4">
+              <Sparkles className="h-3.5 w-3.5 pt-text" />
+              {tenantLocationName || tenantDisplayName}
+            </span>
+
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-center font-heading pt-hero-title mb-4">
+              {pageTitle}
             </h1>
-            <p className="text-xl md:text-2xl text-cuephoria-grey max-w-3xl text-center leading-relaxed">
-              Join the ultimate gaming experience with high-stakes competitions and amazing prizes
+            <p className="text-lg md:text-xl text-white/60 max-w-3xl text-center leading-relaxed">
+              {pageSubtitle}
             </p>
           </div>
-          
-          {/* Enhanced stats summary */}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 px-4 max-w-5xl mx-auto mb-12">
-            <div className="bg-gradient-to-br from-cuephoria-purple/40 to-cuephoria-purple/10 backdrop-blur-md p-6 rounded-2xl border border-cuephoria-purple/30 animate-scale-in hover:scale-105 transition-all duration-300" style={{animationDelay: '100ms'}}>
+            <div className="backdrop-blur-md p-6 rounded-2xl border animate-scale-in hover:scale-105 transition-all duration-300 pt-stat-card" style={{ animationDelay: '100ms' }}>
               <div className="flex items-center justify-between mb-3">
-                <div className="text-sm text-cuephoria-grey">Total Tournaments</div>
-                <Trophy className="h-6 w-6 text-cuephoria-lightpurple" />
+                <div className="text-sm text-white/50">Total Tournaments</div>
+                <Trophy className="h-6 w-6 pt-text" />
               </div>
               <div className="text-3xl font-bold text-white">{tournaments.length}</div>
-              <div className="text-xs text-green-400 mt-1">Active competitions</div>
+              <div className="text-xs pt-text mt-1">Active competitions</div>
             </div>
-            
-            <div className="bg-gradient-to-br from-green-900/40 to-green-900/10 backdrop-blur-md p-6 rounded-2xl border border-green-800/30 animate-scale-in hover:scale-105 transition-all duration-300" style={{animationDelay: '200ms'}}>
+
+            <div className="bg-gradient-to-br from-emerald-900/40 to-emerald-900/10 backdrop-blur-md p-6 rounded-2xl border border-emerald-800/30 animate-scale-in hover:scale-105 transition-all duration-300" style={{ animationDelay: '200ms' }}>
               <div className="flex items-center justify-between mb-3">
-                <div className="text-sm text-cuephoria-grey">Open for Registration</div>
-                <Users className="h-6 w-6 text-green-400" />
+                <div className="text-sm text-white/50">Open for Registration</div>
+                <Users className="h-6 w-6 text-emerald-400" />
               </div>
               <div className="text-3xl font-bold text-white">
                 {filterTournaments('upcoming').length}
               </div>
-              <div className="text-xs text-green-400 mt-1">Join now!</div>
+              <div className="text-xs text-emerald-400 mt-1">Join now</div>
             </div>
-            
-            <div className="bg-gradient-to-br from-blue-900/40 to-blue-900/10 backdrop-blur-md p-6 rounded-2xl border border-blue-800/30 animate-scale-in hover:scale-105 transition-all duration-300" style={{animationDelay: '300ms'}}>
+
+            <div className="bg-gradient-to-br from-amber-900/30 to-amber-900/10 backdrop-blur-md p-6 rounded-2xl border border-amber-700/30 animate-scale-in hover:scale-105 transition-all duration-300" style={{ animationDelay: '300ms' }}>
               <div className="flex items-center justify-between mb-3">
-                <div className="text-sm text-cuephoria-grey">Total Prize Pool</div>
-                <Crown className="h-6 w-6 text-yellow-400" />
+                <div className="text-sm text-white/50">Total Prize Pool</div>
+                <Crown className="h-6 w-6 text-amber-400" />
               </div>
               <div className="text-3xl font-bold text-white">
                 ₹{tournaments.reduce((total, t) => {
@@ -1607,7 +1669,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                   return total + winnerPrize + runnerUpPrize + thirdPrize;
                 }, 0).toLocaleString()}
               </div>
-              <div className="text-xs text-yellow-400 mt-1">Win big rewards!</div>
+              <div className="text-xs text-amber-400 mt-1">Prizes on offer</div>
             </div>
           </div>
         </div>
@@ -1618,14 +1680,12 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
         {/* Desktop Toggle Buttons */}
         {!isMobile && (
           <div className="w-full">
-            <div className="grid w-full grid-cols-5 bg-cuephoria-dark/80 backdrop-blur-md border border-cuephoria-lightpurple/30 rounded-xl p-1 mb-8 gap-1">
+            <div className="grid w-full grid-cols-5 bg-black/60 backdrop-blur-md border rounded-xl p-1 mb-8 gap-1 pt-border">
               <button
                 type="button"
                 onClick={() => setActiveTab('upcoming')}
                 className={`rounded-lg transition-all duration-300 py-3 px-4 font-medium whitespace-nowrap flex items-center justify-center gap-2 ${
-                  activeTab === 'upcoming'
-                    ? 'bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue text-white shadow-lg shadow-cuephoria-lightpurple/30'
-                    : 'text-muted-foreground hover:text-white hover:bg-cuephoria-lightpurple/20'
+                  activeTab === 'upcoming' ? tabActiveClass : tabIdleClass
                 }`}
               >
                 {getTabIcon('upcoming')}
@@ -1635,9 +1695,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                 type="button"
                 onClick={() => setActiveTab('in-progress')}
                 className={`rounded-lg transition-all duration-300 py-3 px-4 font-medium whitespace-nowrap flex items-center justify-center gap-2 ${
-                  activeTab === 'in-progress'
-                    ? 'bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue text-white shadow-lg shadow-cuephoria-lightpurple/30'
-                    : 'text-muted-foreground hover:text-white hover:bg-cuephoria-lightpurple/20'
+                  activeTab === 'in-progress' ? tabActiveClass : tabIdleClass
                 }`}
               >
                 {getTabIcon('in-progress')}
@@ -1647,9 +1705,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                 type="button"
                 onClick={() => setActiveTab('completed')}
                 className={`rounded-lg transition-all duration-300 py-3 px-4 font-medium whitespace-nowrap flex items-center justify-center gap-2 ${
-                  activeTab === 'completed'
-                    ? 'bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue text-white shadow-lg shadow-cuephoria-lightpurple/30'
-                    : 'text-muted-foreground hover:text-white hover:bg-cuephoria-lightpurple/20'
+                  activeTab === 'completed' ? tabActiveClass : tabIdleClass
                 }`}
               >
                 {getTabIcon('completed')}
@@ -1659,9 +1715,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                 type="button"
                 onClick={() => setActiveTab('gallery')}
                 className={`rounded-lg transition-all duration-300 py-3 px-4 font-medium whitespace-nowrap flex items-center justify-center gap-2 ${
-                  activeTab === 'gallery'
-                    ? 'bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue text-white shadow-lg shadow-cuephoria-lightpurple/30'
-                    : 'text-muted-foreground hover:text-white hover:bg-cuephoria-lightpurple/20'
+                  activeTab === 'gallery' ? tabActiveClass : tabIdleClass
                 }`}
               >
                 {getTabIcon('gallery')}
@@ -1671,9 +1725,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                 type="button"
                 onClick={() => setActiveTab('leaderboard')}
                 className={`rounded-lg transition-all duration-300 py-3 px-4 font-medium whitespace-nowrap flex items-center justify-center gap-2 ${
-                  activeTab === 'leaderboard'
-                    ? 'bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue text-white shadow-lg shadow-cuephoria-lightpurple/30'
-                    : 'text-muted-foreground hover:text-white hover:bg-cuephoria-lightpurple/20'
+                  activeTab === 'leaderboard' ? tabActiveClass : tabIdleClass
                 }`}
               >
                 {getTabIcon('leaderboard')}
@@ -1692,9 +1744,9 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
           <div className="w-full mb-8">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-between bg-cuephoria-dark/80 backdrop-blur-md border-cuephoria-lightpurple/30 text-white hover:bg-cuephoria-lightpurple/10 hover:border-cuephoria-lightpurple/60"
+                <Button
+                  variant="outline"
+                  className="w-full justify-between bg-black/60 backdrop-blur-md pt-border text-white pt-hover-muted-soft"
                 >
                   <div className="flex items-center">
                     {getTabIcon(activeTab)}
@@ -1703,41 +1755,41 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent 
-                className="w-full bg-cuephoria-dark border-cuephoria-lightpurple/30 backdrop-blur-md"
+              <DropdownMenuContent
+                className="w-full bg-[#0a0a12] pt-border backdrop-blur-md"
                 align="start"
               >
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => setActiveTab('upcoming')}
-                  className={`text-white hover:bg-cuephoria-lightpurple/20 ${activeTab === 'upcoming' ? 'bg-cuephoria-lightpurple/10' : ''}`}
+                  className={`text-white pt-hover-muted-soft ${activeTab === 'upcoming' ? 'pt-muted-bg-soft' : ''}`}
                 >
                   {getTabIcon('upcoming')}
                   {getTabLabel('upcoming')}
                 </DropdownMenuItem>
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => setActiveTab('in-progress')}
-                  className={`text-white hover:bg-cuephoria-lightpurple/20 ${activeTab === 'in-progress' ? 'bg-cuephoria-lightpurple/10' : ''}`}
+                  className={`text-white pt-hover-muted-soft ${activeTab === 'in-progress' ? 'pt-muted-bg-soft' : ''}`}
                 >
                   {getTabIcon('in-progress')}
                   {getTabLabel('in-progress')}
                 </DropdownMenuItem>
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => setActiveTab('completed')}
-                  className={`text-white hover:bg-cuephoria-lightpurple/20 ${activeTab === 'completed' ? 'bg-cuephoria-lightpurple/10' : ''}`}
+                  className={`text-white pt-hover-muted-soft ${activeTab === 'completed' ? 'pt-muted-bg-soft' : ''}`}
                 >
                   {getTabIcon('completed')}
                   {getTabLabel('completed')}
                 </DropdownMenuItem>
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => setActiveTab('gallery')}
-                  className={`text-white hover:bg-cuephoria-lightpurple/20 ${activeTab === 'gallery' ? 'bg-cuephoria-lightpurple/10' : ''}`}
+                  className={`text-white pt-hover-muted-soft ${activeTab === 'gallery' ? 'pt-muted-bg-soft' : ''}`}
                 >
                   {getTabIcon('gallery')}
                   {getTabLabel('gallery')}
                 </DropdownMenuItem>
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => setActiveTab('leaderboard')}
-                  className={`text-white hover:bg-cuephoria-lightpurple/20 ${activeTab === 'leaderboard' ? 'bg-cuephoria-lightpurple/10' : ''}`}
+                  className={`text-white pt-hover-muted-soft ${activeTab === 'leaderboard' ? 'pt-muted-bg-soft' : ''}`}
                 >
                   {getTabIcon('leaderboard')}
                   {getTabLabel('leaderboard')}
@@ -1753,162 +1805,138 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
         )}
       </main>
       
-      {/* Enhanced Footer with contact details, legal links, and action buttons */}
-      <footer className="py-12 px-4 sm:px-6 md:px-8 border-t border-cuephoria-lightpurple/20 mt-12 backdrop-blur-md bg-cuephoria-dark/50 relative z-10">
+      <footer className="py-12 px-4 sm:px-6 md:px-8 border-t pt-border-faint mt-12 backdrop-blur-md bg-black/50 relative z-10">
         <div className="max-w-7xl mx-auto">
-          {/* Action Buttons Section */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Button
-              onClick={() => window.open('https://cuephoria.in/book', '_blank')}
-              className="bg-cuephoria-dark/80 hover:bg-cuephoria-dark border border-cuephoria-purple/20 hover:border-cuephoria-purple/40 text-white font-medium py-6 px-6 rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-cuephoria-purple/10 group min-h-[80px]"
-            >
-              <div className="flex items-center w-full">
-                <CalendarDays className="mr-4 h-5 w-5 text-cuephoria-lightpurple group-hover:text-white transition-colors flex-shrink-0" />
-                <div className="text-left flex-1">
-                  <div className="font-semibold text-white">Book A Slot</div>
-                  <div className="text-sm text-cuephoria-grey mt-1">Reserve your gaming time</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            {bookingUrl && (
+              <Button
+                onClick={() => window.open(bookingUrl, '_blank')}
+                className="bg-black/60 hover:bg-black/80 border pt-border-soft hover:pt-border text-white font-medium py-6 px-6 rounded-lg transition-all duration-300 pt-shadow group min-h-[80px]"
+              >
+                <div className="flex items-center w-full">
+                  <CalendarDays className="mr-4 h-5 w-5 pt-text group-hover:text-white transition-colors flex-shrink-0" />
+                  <div className="text-left flex-1">
+                    <div className="font-semibold text-white">Book a session</div>
+                    <div className="text-sm text-white/50 mt-1">Reserve your gaming time</div>
+                  </div>
                 </div>
-              </div>
-            </Button>
+              </Button>
+            )}
 
-            <Button
-              onClick={() => window.open('https://cuephoria.in', '_blank')}
-              className="bg-cuephoria-dark/80 hover:bg-cuephoria-dark border border-cuephoria-blue/20 hover:border-cuephoria-blue/40 text-white font-medium py-6 px-6 rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-cuephoria-blue/10 group min-h-[80px]"
-            >
-              <div className="flex items-center w-full">
-                <Globe className="mr-4 h-5 w-5 text-cuephoria-blue group-hover:text-white transition-colors flex-shrink-0" />
-                <div className="text-left flex-1">
-                  <div className="font-semibold text-white">Official Website</div>
-                  <div className="text-sm text-cuephoria-grey mt-1">Visit our main site</div>
+            {stationsUrl && (
+              <Button
+                onClick={() => window.open(stationsUrl, '_blank')}
+                className="bg-black/60 hover:bg-black/80 border pt-border-soft hover:pt-border text-white font-medium py-6 px-6 rounded-lg transition-all duration-300 pt-shadow group min-h-[80px]"
+              >
+                <div className="flex items-center w-full">
+                  <Zap className="mr-4 h-5 w-5 pt-text group-hover:text-white transition-colors flex-shrink-0" />
+                  <div className="text-left flex-1">
+                    <div className="font-semibold text-white">Live session status</div>
+                    <div className="text-sm text-white/50 mt-1">Check station availability</div>
+                  </div>
                 </div>
-              </div>
-            </Button>
-
-            <Button
-              onClick={() => window.open('https://admin.cuephoria.in/public/stations', '_blank')}
-              className="bg-cuephoria-dark/80 hover:bg-cuephoria-dark border border-cuephoria-lightpurple/20 hover:border-cuephoria-lightpurple/40 text-white font-medium py-6 px-6 rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-cuephoria-lightpurple/10 group min-h-[80px]"
-            >
-              <div className="flex items-center w-full">
-                <Zap className="mr-4 h-5 w-5 text-cuephoria-lightpurple group-hover:text-white transition-colors flex-shrink-0" />
-                <div className="text-left flex-1">
-                  <div className="font-semibold text-white">Live Session Status</div>
-                  <div className="text-sm text-cuephoria-grey mt-1">Check station availability</div>
-                </div>
-              </div>
-            </Button>
+              </Button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-            {/* Logo and description */}
             <div className="text-center md:text-left">
-              <img 
-                src={CUETRONIX_ASSETS.logoUrl}
-                alt="Cuetronix" 
-                className="h-8 w-auto max-w-[200px] mb-4 mx-auto md:mx-0 object-contain" 
-              />
-              <p className="text-cuephoria-grey text-sm leading-relaxed mb-4">
-                The ultimate gaming destination offering premium PlayStation 5 gaming and professional pool tables with tournament-level competition.
+              {tenantLogoUrl ? (
+                <img
+                  src={tenantLogoUrl}
+                  alt={tenantDisplayName}
+                  className="h-10 w-auto max-w-[200px] mb-4 mx-auto md:mx-0 object-contain"
+                />
+              ) : (
+                <h3 className="text-lg font-bold text-white mb-4">{tenantDisplayName}</h3>
+              )}
+              <p className="text-white/50 text-sm leading-relaxed mb-4">
+                {tenantTagline || `Tournament registration and live standings for ${tenantDisplayName}.`}
               </p>
               <div className="flex justify-center md:justify-start space-x-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setTermsDialogOpen(true)}
-                  className="border-cuephoria-lightpurple/30 text-cuephoria-lightpurple hover:bg-cuephoria-lightpurple/10"
-                >
+                <Button variant="outline" size="sm" onClick={() => setTermsDialogOpen(true)} className="pt-border pt-text pt-hover-muted-soft">
                   <FileText className="h-4 w-4 mr-2" />
                   Terms & Conditions
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPrivacyDialogOpen(true)}
-                  className="border-cuephoria-lightpurple/30 text-cuephoria-lightpurple hover:bg-cuephoria-lightpurple/10"
-                >
+                <Button variant="outline" size="sm" onClick={() => setPrivacyDialogOpen(true)} className="pt-border pt-text pt-hover-muted-soft">
                   <Shield className="h-4 w-4 mr-2" />
                   Privacy Policy
                 </Button>
               </div>
             </div>
-            
-            {/* Contact Information */}
+
             <div className="text-center">
-              <h3 className="text-lg font-semibold text-cuephoria-lightpurple mb-4">Contact Us</h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-center gap-2 text-cuephoria-grey hover:text-white transition-colors">
-                  <Phone className="h-4 w-4 text-cuephoria-lightpurple" />
-                  <span className="text-sm">+91 86376 25155</span>
+              <h3 className="text-lg font-semibold pt-text mb-4">Venue</h3>
+              <div className="space-y-3 text-white/50 text-sm">
+                <div className="flex items-center justify-center gap-2">
+                  <MapPin className="h-4 w-4 pt-text" />
+                  <span>{tenantLocationName || tenantDisplayName}</span>
                 </div>
-                <div className="flex items-center justify-center gap-2 text-cuephoria-grey hover:text-white transition-colors">
-                  <Mail className="h-4 w-4 text-cuephoria-lightpurple" />
-                  <span className="text-sm">contact@cuephoria.in</span>
-                </div>
-                <div className="flex items-center justify-center gap-2 text-cuephoria-grey hover:text-white transition-colors">
-                  <Clock className="h-4 w-4 text-cuephoria-lightpurple" />
-                  <span className="text-sm">11:00 AM - 11:00 PM</span>
-                </div>
-                <a
-                  href="https://maps.app.goo.gl/oBUVebkaFMWa7EPk8"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 text-cuephoria-grey hover:text-cuephoria-lightpurple transition-colors group"
-                >
-                  <MapPin className="h-4 w-4 text-cuephoria-lightpurple" />
-                  <span className="text-sm group-hover:underline">Find Us on Maps</span>
-                  <ExternalLink className="h-3 w-3" />
-                </a>
+                {isCuephoriaWorkspace ? (
+                  <>
+                    <div className="flex items-center justify-center gap-2">
+                      <Phone className="h-4 w-4 pt-text" />
+                      <a href="tel:918637625155" className="hover:text-white transition-colors">+91 86376 25155</a>
+                    </div>
+                    <div className="flex items-center justify-center gap-2">
+                      <Mail className="h-4 w-4 pt-text" />
+                      <a href="mailto:contact@cuephoria.in" className="hover:text-white transition-colors">contact@cuephoria.in</a>
+                    </div>
+                  </>
+                ) : null}
               </div>
             </div>
-            
-            {/* Features */}
+
             <div className="text-center md:text-right">
-              <h3 className="text-lg font-semibold text-cuephoria-lightpurple mb-4">Features</h3>
-              <div className="space-y-2 text-sm text-cuephoria-grey">
+              <h3 className="text-lg font-semibold pt-text mb-4">Features</h3>
+              <div className="space-y-2 text-sm text-white/50">
                 <div className="flex items-center justify-center md:justify-end gap-2">
-                  <GamepadIcon className="h-4 w-4 text-green-400" />
-                  <span>PlayStation 5 Gaming</span>
+                  <Trophy className="h-4 w-4 pt-text" />
+                  <span>Tournament registration</span>
                 </div>
                 <div className="flex items-center justify-center md:justify-end gap-2">
-                  <Trophy className="h-4 w-4 text-yellow-400" />
-                  <span>Professional Pool Tables</span>
+                  <TrendingUp className="h-4 w-4 pt-text" />
+                  <span>Live leaderboard</span>
                 </div>
                 <div className="flex items-center justify-center md:justify-end gap-2">
-                  <Crown className="h-4 w-4 text-blue-400" />
-                  <span>Tournament Competition</span>
+                  <Activity className="h-4 w-4 pt-text" />
+                  <span>Real-time updates</span>
                 </div>
               </div>
             </div>
           </div>
-          
-          {/* Bottom footer */}
-          <div className="flex flex-col md:flex-row justify-between items-center pt-8 border-t border-cuephoria-lightpurple/10">
-            <p className="text-cuephoria-grey text-sm mb-4 md:mb-0">
-              © {new Date().getFullYear()} Cuephoria. All rights reserved.
+
+          <div className="flex flex-col md:flex-row justify-between items-center pt-8 border-t pt-border-faint gap-4">
+            <p className="text-white/50 text-sm">
+              © {new Date().getFullYear()} {tenantDisplayName}. All rights reserved.
             </p>
-            <div className="flex items-center space-x-4 text-sm">
-              <div className="flex items-center text-cuephoria-grey">
-                <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
-                <span>Live Updates</span>
-              </div>
+            <div className="flex items-center text-white/50 text-sm">
+              <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2 animate-pulse" />
+              <span>Live updates</span>
             </div>
           </div>
+
+          {!hidePoweredBy ? (
+            <div className="pt-6 mt-6 border-t pt-border-faint">
+              <CuephoriaTechAttribution variant="powered-by" />
+            </div>
+          ) : null}
         </div>
       </footer>
 
       {/* Registration Dialog - Fixed to prevent page refresh; mobile-friendly width and overflow */}
       <Dialog open={isDialogOpen && selectedTournament !== null} onOpenChange={handleDialogOpenChange}>
-        <DialogContent className="bg-gradient-to-br from-cuephoria-dark via-cuephoria-dark to-cuephoria-purple/20 border-cuephoria-lightpurple/30 text-white w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full sm:max-w-lg max-h-[85dvh] sm:max-h-[90vh] overflow-hidden flex flex-col p-4 pt-4 pr-12 pb-4 sm:p-6 sm:pr-6 overflow-x-hidden box-border [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(3rem,env(safe-area-inset-right))] [padding-bottom:max(1rem,env(safe-area-inset-bottom))]">
-          {/* Header with gradient background */}
-          <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-cuephoria-lightpurple/20 via-cuephoria-blue/20 to-cuephoria-purple/20 blur-3xl -z-10"></div>
+        <DialogContent className="bg-gradient-to-br pt-dialog text-white w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full sm:max-w-lg max-h-[85dvh] sm:max-h-[90vh] overflow-hidden flex flex-col p-4 pt-4 pr-12 pb-4 sm:p-6 sm:pr-6 overflow-x-hidden box-border [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(3rem,env(safe-area-inset-right))] [padding-bottom:max(1rem,env(safe-area-inset-bottom))]">
+          <div className="absolute top-0 left-0 right-0 h-24 pt-dialog-glow blur-3xl -z-10" />
           
-          <DialogHeader className="relative z-10 pb-3 border-b border-cuephoria-lightpurple/20 flex-shrink-0 min-w-0">
-            <DialogTitle className="text-cuephoria-lightpurple flex items-center gap-2 text-lg min-w-0">
-              <div className="p-1.5 bg-gradient-to-br from-cuephoria-lightpurple/20 to-cuephoria-blue/20 rounded-lg flex-shrink-0">
+          <DialogHeader className="relative z-10 pb-3 border-b pt-border-soft flex-shrink-0 min-w-0">
+            <DialogTitle className="pt-text flex items-center gap-2 text-lg min-w-0">
+              <div className="p-1.5 pt-muted-bg rounded-lg flex-shrink-0">
                 <Trophy className="h-5 w-5 text-yellow-400" />
               </div>
               <div className="min-w-0 flex-1 break-words">
                 <div className="font-bold text-base">Register for Tournament</div>
-                <div className="text-xs text-cuephoria-grey font-normal mt-0.5">{selectedTournament?.name}</div>
+                <div className="text-xs text-white/50 font-normal mt-0.5">{selectedTournament?.name}</div>
               </div>
             </DialogTitle>
           </DialogHeader>
@@ -1916,7 +1944,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
           <div className="space-y-3 pt-3 relative z-10 overflow-y-auto overflow-x-hidden flex-1 pr-2 min-w-0">
             {/* Phone Number Field (First) */}
             <div className="space-y-1.5">
-              <Label htmlFor="phone" className="text-cuephoria-grey flex items-center gap-1.5 text-sm">
+              <Label htmlFor="phone" className="text-white/50 flex items-center gap-1.5 text-sm">
                 <Phone className="h-3.5 w-3.5" />
                 Phone Number *
               </Label>
@@ -1925,17 +1953,17 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                 type="tel"
                 value={registrationForm.customer_phone}
                 onChange={handlePhoneChange}
-                className="bg-cuephoria-dark/80 border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple focus:ring-2 focus:ring-cuephoria-lightpurple/20 h-9 text-sm"
+                className="bg-black/60 border-white/20 text-white focus:pt-border focus:ring-2 focus:ring-[color:var(--pt-primary)]/20 h-9 text-sm"
                 placeholder="Enter 10-digit phone number"
                 autoComplete="tel"
                 maxLength={10}
               />
-              <p className="text-xs text-cuephoria-grey/80 italic flex items-center gap-1">
+              <p className="text-xs text-white/50/80 italic flex items-center gap-1">
                 <UserCheck className="h-3 w-3" />
                 Already visited? Use your number used during billing
               </p>
               {isCheckingCustomer && (
-                <p className="text-xs text-cuephoria-grey flex items-center gap-2">
+                <p className="text-xs text-white/50 flex items-center gap-2">
                   <Activity className="h-3 w-3 animate-pulse" />
                   Checking for existing customer...
                 </p>
@@ -1959,7 +1987,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
 
             {/* Name Field */}
             <div className="space-y-1.5">
-              <Label htmlFor="name" className="text-cuephoria-grey flex items-center gap-1.5 text-sm">
+              <Label htmlFor="name" className="text-white/50 flex items-center gap-1.5 text-sm">
                 <UserCheck className="h-3.5 w-3.5" />
                 Name *
               </Label>
@@ -1968,7 +1996,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                 type="text"
                 value={registrationForm.customer_name}
                 onChange={handleNameChange}
-                className="bg-cuephoria-dark/80 border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple focus:ring-2 focus:ring-cuephoria-lightpurple/20 h-9 text-sm"
+                className="bg-black/60 border-white/20 text-white focus:pt-border focus:ring-2 focus:ring-[color:var(--pt-primary)]/20 h-9 text-sm"
                 placeholder="Enter your full name"
                 autoComplete="name"
                 disabled={!!existingCustomer}
@@ -1977,7 +2005,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
             
             {/* Email Field */}
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-cuephoria-grey flex items-center gap-1.5 text-sm">
+              <Label htmlFor="email" className="text-white/50 flex items-center gap-1.5 text-sm">
                 <Mail className="h-3.5 w-3.5" />
                 Email (Optional)
               </Label>
@@ -1986,7 +2014,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                 type="email"
                 value={registrationForm.customer_email}
                 onChange={handleEmailChange}
-                className="bg-cuephoria-dark/80 border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple focus:ring-2 focus:ring-cuephoria-lightpurple/20 h-9 text-sm"
+                className="bg-black/60 border-white/20 text-white focus:pt-border focus:ring-2 focus:ring-[color:var(--pt-primary)]/20 h-9 text-sm"
                 placeholder="Enter your email address"
                 autoComplete="email"
                 disabled={!!existingCustomer}
@@ -1996,7 +2024,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
             {/* Coupon Code Field */}
             {selectedTournament?.discount_coupons && selectedTournament.discount_coupons.length > 0 && (
               <div className="space-y-1.5">
-                <Label htmlFor="couponCode" className="text-cuephoria-grey flex items-center gap-1.5 text-sm">
+                <Label htmlFor="couponCode" className="text-white/50 flex items-center gap-1.5 text-sm">
                   <Ticket className="h-3.5 w-3.5" />
                   Discount Coupon (Optional)
                 </Label>
@@ -2010,7 +2038,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                         setCouponCode(e.target.value.toUpperCase());
                         setCouponError('');
                       }}
-                      className="bg-cuephoria-dark/80 border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple focus:ring-2 focus:ring-cuephoria-lightpurple/20 h-9 text-sm flex-1"
+                      className="bg-black/60 border-white/20 text-white focus:pt-border focus:ring-2 focus:ring-[color:var(--pt-primary)]/20 h-9 text-sm flex-1"
                       placeholder="Enter coupon code"
                     />
                     <Button
@@ -2051,7 +2079,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                   <p className="text-xs text-red-400">{couponError}</p>
                 )}
                 {!appliedCoupon && (
-                  <p className="text-xs text-cuephoria-grey/80 italic">
+                  <p className="text-xs text-white/50/80 italic">
                     Available coupons: {selectedTournament.discount_coupons.map(c => c.code).join(', ')}
                   </p>
                 )}
@@ -2060,7 +2088,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
 
             {/* Payment Method Selection */}
             <div className="space-y-2">
-              <Label className="text-cuephoria-grey text-sm font-semibold">Payment Method *</Label>
+              <Label className="text-white/50 text-sm font-semibold">Payment Method *</Label>
               {!canPayOnline && (
                 <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200/90">
                   Online payment is not set up for this venue. Complete Razorpay under Settings → Payments, or pay at the venue.
@@ -2079,12 +2107,12 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                   }}
                   className={`p-2.5 rounded-lg border-2 transition-all duration-300 ${
                     paymentMethod === 'venue'
-                      ? 'border-cuephoria-lightpurple bg-gradient-to-br from-cuephoria-lightpurple/30 to-cuephoria-blue/20 text-white shadow-md shadow-cuephoria-lightpurple/20'
-                      : 'border-cuephoria-grey/30 bg-cuephoria-dark/50 text-cuephoria-grey hover:border-cuephoria-lightpurple/50 hover:bg-cuephoria-dark/70'
+                      ? 'pt-border pt-muted-bg-strong text-white shadow-md pt-shadow'
+                      : 'border-white/20 bg-black/50 text-white/50 hover:pt-border hover:bg-black/70'
                   }`}
                 >
                   <div className="flex flex-col items-center gap-1">
-                    <MapPin className={`h-4 w-4 ${paymentMethod === 'venue' ? 'text-cuephoria-lightpurple' : ''}`} />
+                    <MapPin className={`h-4 w-4 ${paymentMethod === 'venue' ? 'pt-text' : ''}`} />
                     <div className="text-xs font-semibold">Pay at Venue</div>
                     <div className="text-[10px] font-bold text-yellow-400">
                       ₹{calculateFinalFee(selectedTournament?.entry_fee || 250, appliedCoupon).finalFee}
@@ -2100,7 +2128,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                   className={`p-2.5 rounded-lg border-2 transition-all duration-300 relative overflow-hidden ${
                     paymentMethod === 'razorpay'
                       ? 'border-yellow-400/60 bg-gradient-to-br from-yellow-500/30 via-amber-500/20 to-orange-500/20 text-white shadow-md shadow-yellow-500/30'
-                      : 'border-cuephoria-grey/30 bg-cuephoria-dark/50 text-cuephoria-grey hover:border-yellow-400/50 hover:bg-cuephoria-dark/70'
+                      : 'border-white/20 bg-black/50 text-white/50 hover:border-yellow-400/50 hover:bg-black/70'
                   }`}
                 >
                   {/* Shine effect for online payment */}
@@ -2192,7 +2220,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
           </div>
           
           {/* Fixed button at bottom */}
-          <div className="pt-3 border-t border-cuephoria-lightpurple/20 flex-shrink-0">
+          <div className="pt-3 border-t pt-border-soft flex-shrink-0">
             <Button 
               type="button"
               onClick={handleRegistration}
@@ -2200,7 +2228,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
               className={`w-full h-10 text-sm font-bold transition-all duration-300 ${
                 paymentMethod === 'razorpay'
                   ? 'bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 hover:from-yellow-600 hover:via-amber-600 hover:to-orange-600 text-white shadow-md shadow-yellow-500/30 hover:shadow-lg hover:shadow-yellow-500/40'
-                  : 'bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90'
+                  : 'pt-btn-primary'
               }`}
             >
               {isLoadingPayment ? (
@@ -2231,13 +2259,13 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
 
       {/* Venue Payment Warning Dialog */}
       <AlertDialog open={showVenuePaymentWarning} onOpenChange={setShowVenuePaymentWarning}>
-        <AlertDialogContent className="bg-gradient-to-br from-cuephoria-dark via-cuephoria-darkpurple to-cuephoria-dark border-cuephoria-lightpurple/30 text-white">
+        <AlertDialogContent className="bg-gradient-to-br from-[#0a0a12] via-black to-[#0a0a12] pt-border text-white">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-cuephoria-lightpurple flex items-center gap-2 text-lg">
+            <AlertDialogTitle className="pt-text flex items-center gap-2 text-lg">
               <Trophy className="h-5 w-5" />
               Miss the Training Session?
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-cuephoria-grey pt-2">
+            <AlertDialogDescription className="text-white/50 pt-2">
               Do you want to miss the <span className="font-bold text-yellow-400">15 minutes training session</span> which increases your chance of winning?
               <br /><br />
               <span className="text-sm text-yellow-300/80">
@@ -2260,7 +2288,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
                 setPaymentMethod('venue');
                 setShowVenuePaymentWarning(false);
               }}
-              className="bg-cuephoria-dark/50 border-cuephoria-grey/30 text-cuephoria-grey hover:bg-cuephoria-dark/70 hover:text-white"
+              className="bg-black/50 border-white/20 text-white/50 hover:bg-black/70 hover:text-white"
             >
               Miss the Offer
             </AlertDialogCancel>
@@ -2297,27 +2325,27 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
               </div>
 
               {/* Registration Details */}
-              <div className="space-y-2 bg-cuephoria-dark/50 rounded-lg p-3 border border-cuephoria-grey/20">
+              <div className="space-y-2 bg-black/50 rounded-lg p-3 border border-white/20">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-cuephoria-grey">Tournament:</span>
+                  <span className="text-xs text-white/50">Tournament:</span>
                   <span className="text-sm font-semibold text-white">{registrationSuccessData.tournamentName}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-cuephoria-grey">Name:</span>
+                  <span className="text-xs text-white/50">Name:</span>
                   <span className="text-sm font-semibold text-white">{registrationSuccessData.customerName}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-cuephoria-grey">Phone:</span>
+                  <span className="text-xs text-white/50">Phone:</span>
                   <span className="text-sm font-semibold text-white">{registrationSuccessData.customerPhone}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-cuephoria-grey">Payment Method:</span>
+                  <span className="text-xs text-white/50">Payment Method:</span>
                   <span className="text-sm font-semibold text-white capitalize">
                     {registrationSuccessData.paymentMethod === 'razorpay' ? 'Online (Paid)' : 'Pay at Venue'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-cuephoria-grey">Entry Fee:</span>
+                  <span className="text-xs text-white/50">Entry Fee:</span>
                   <span className="text-sm font-semibold text-yellow-400">₹{registrationSuccessData.entryFee}</span>
                 </div>
               </div>
@@ -2398,7 +2426,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
         >
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-white text-center">
-              <Activity className="h-8 w-8 animate-spin mx-auto mb-2 text-cuephoria-lightpurple" />
+              <Activity className="h-8 w-8 animate-spin mx-auto mb-2 pt-text" />
               <p className="text-sm">Payment gateway is open. Please complete or cancel the payment.</p>
             </div>
           </div>
@@ -2407,14 +2435,14 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
 
       {/* Terms & Conditions Dialog */}
       <Dialog open={termsDialogOpen} onOpenChange={setTermsDialogOpen}>
-        <DialogContent className="bg-cuephoria-dark border-cuephoria-lightpurple/30 text-white max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="bg-[#0a0a12] pt-border text-white max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-cuephoria-lightpurple flex items-center gap-2">
+            <DialogTitle className="pt-text flex items-center gap-2">
               <FileText className="h-5 w-5" />
               Terms & Conditions
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 text-sm text-cuephoria-grey leading-relaxed">
+          <div className="space-y-4 text-sm text-white/50 leading-relaxed">
             <div>
               <h4 className="text-white font-semibold mb-2">1. Tournament Registration</h4>
               <p>By registering for any tournament, you agree to abide by all tournament rules and regulations. Entry fees are non-refundable once paid.</p>
@@ -2445,14 +2473,14 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
 
       {/* Privacy Policy Dialog */}
       <Dialog open={privacyDialogOpen} onOpenChange={setPrivacyDialogOpen}>
-        <DialogContent className="bg-cuephoria-dark border-cuephoria-lightpurple/30 text-white max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="bg-[#0a0a12] pt-border text-white max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-cuephoria-lightpurple flex items-center gap-2">
+            <DialogTitle className="pt-text flex items-center gap-2">
               <Shield className="h-5 w-5" />
               Privacy Policy
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 text-sm text-cuephoria-grey leading-relaxed">
+          <div className="space-y-4 text-sm text-white/50 leading-relaxed">
             <div>
               <h4 className="text-white font-semibold mb-2">Information We Collect</h4>
               <p>We collect personal information such as name, phone number, and email address when you register for tournaments.</p>
@@ -2475,11 +2503,14 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
             </div>
             <div>
               <h4 className="text-white font-semibold mb-2">Your Rights</h4>
-              <p>You have the right to access, update, or delete your personal information. Contact us at contact@cuephoria.in for any requests.</p>
+              <p>You have the right to access, update, or delete your personal information. Contact {tenantDisplayName} for any requests.</p>
             </div>
             <div>
               <h4 className="text-white font-semibold mb-2">Contact Us</h4>
-              <p>If you have any questions about this Privacy Policy, please contact us at contact@cuephoria.in or +91 86376 25155.</p>
+              <p>
+                If you have any questions about this Privacy Policy, please contact {tenantDisplayName}
+                {isCuephoriaWorkspace ? ' at contact@cuephoria.in or +91 86376 25155' : '.'}
+              </p>
             </div>
           </div>
         </DialogContent>
