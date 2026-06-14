@@ -68,6 +68,8 @@ interface Booking {
   payment_txn_id?: string | null;
   player_count?: number;
   booking_addons?: unknown;
+  station_id: string;
+  location_id?: string | null;
   station: {
     name: string;
     type: string;
@@ -591,6 +593,7 @@ export default function BookingManagement() {
             payment_mode,
             payment_txn_id,
             station_id,
+            location_id,
             customer_id,
             player_count,
             booking_addons,
@@ -805,6 +808,8 @@ export default function BookingManagement() {
           player_count: Number(b.player_count) > 0 ? Number(b.player_count) : 1,
           booking_addons: b.booking_addons ?? null,
           created_at: b.created_at,
+          station_id: b.station_id,
+          location_id: b.location_id ?? null,
           booking_views: [], // ✅ Lazy load booking_views only when needed
           station: stationObj,
           customer: customerObj
@@ -3868,6 +3873,7 @@ export default function BookingManagement() {
             open={editDialogOpen}
             onOpenChange={setEditDialogOpen}
             booking={selectedBooking}
+            locationId={selectedBooking?.location_id ?? activeLocationId}
             onBookingUpdated={() => {
               // ✅ Invalidate cache and refetch
               const analyticsFromDate = filters.datePreset === 'alltime' 
