@@ -302,6 +302,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       splitBookingPriceAcrossRows({
         stationCount: selectedStations.length,
         sessionCount: bookingSessions.length,
+        billingUnits: merged.sessionBlocks,
         originalPrice: Number(originalPrice) || 0,
         discount: Number(discount) || 0,
         finalPrice: Number(finalPrice) || 0,

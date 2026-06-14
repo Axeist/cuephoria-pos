@@ -2952,8 +2952,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                     {selectedGridSlots.length > 0 && (
                       <p className="text-xs text-cuephoria-lightpurple mt-1">
                         {mergedSlotSelection?.ok
-                          ? `${slotConfig.minimum_booking_minutes}-minute minimum · ${mergedSlotSelection.sessionBlocks} session${mergedSlotSelection.sessionBlocks !== 1 ? "s" : ""}`
-                          : `${selectedGridSlots.length} slot${selectedGridSlots.length !== 1 ? "s" : ""} selected`}
+                          ? `${selectedDurationMinutes}-minute booking ready`
+                          : `${selectedGridSlots.length} of ${slotConfig.slots_per_minimum} minimum slots selected`}
                       </p>
                     )}
                   </div>
@@ -3207,9 +3207,11 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                                 {INR(originalPrice)}
                               </span>
                             </div>
-                            {sessionsCount > 1 && (
+                            {sessionsCount !== 1 && (
                               <div className="flex justify-between items-center text-xs text-gray-400">
-                                <Label>× {sessionsCount} session{sessionsCount !== 1 ? 's' : ''}</Label>
+                                <Label>
+                                  × {Number.isInteger(sessionsCount) ? sessionsCount : sessionsCount.toFixed(1)} hr block{sessionsCount === 1 ? "" : "s"}
+                                </Label>
                                 <span>{INR(totalOriginal)}</span>
                               </div>
                             )}
@@ -3246,9 +3248,11 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                                     ))}
                                   </ul>
                                 </div>
-                                {sessionsCount > 1 && (
+                                {sessionsCount !== 1 && (
                                   <div className="flex justify-between items-center text-xs text-gray-400">
-                                    <Label>× {sessionsCount} session{sessionsCount !== 1 ? 's' : ''}</Label>
+                                    <Label>
+                                      × {Number.isInteger(sessionsCount) ? sessionsCount : sessionsCount.toFixed(1)} hr block{sessionsCount === 1 ? "" : "s"}
+                                    </Label>
                                     <span>-{INR(totalDiscount)}</span>
                                   </div>
                                 )}

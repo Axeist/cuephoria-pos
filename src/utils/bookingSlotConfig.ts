@@ -248,32 +248,31 @@ export function validateAndMergeGridSlots(
     return { ok: false, error: "Please select consecutive time slots with no gaps." };
   }
 
-  if (sorted.length % required !== 0) {
+  if (sorted.length < required) {
     const label = minimum === 60 ? "1 hour" : "30 minutes";
     const hint =
       required > 1
-        ? `Select ${required} consecutive ${interval}-minute slots (${label} minimum per session).`
-        : `Select time slots in ${interval}-minute increments.`;
+        ? `Select at least ${required} consecutive ${interval}-minute slots (${label} minimum).`
+        : `Select at least one ${interval}-minute time slot.`;
     return { ok: false, error: hint };
   }
 
-  const sessions: BookingTimeWindow[] = [];
-  for (let i = 0; i < sorted.length; i += required) {
-    const chunk = sorted.slice(i, i + required);
-    const start_time = chunk[0].start_time;
-    const end_time = chunk[chunk.length - 1].end_time;
-    sessions.push({
-      start_time,
-      end_time,
-      duration: minimum * (chunk.length / required),
-    });
-  }
+  const billingUnits = sorted.length / required;
+  const totalMinutes = sorted.length * interval;
+  const sessions: BookingTimeWindow[] = [
+    {
+      start_time: sorted[0].start_time,
+      end_time: sorted[sorted.length - 1].end_time,
+      duration: totalMinutes,
+    },
+  ];
 
   return {
     ok: true,
     gridSlots: sorted,
     sessions,
-    sessionBlocks: sessions.length,
+    /** Billable minimum-session units (e.g. 1.5 for 90 min on a 30/60 grid). */
+    sessionBlocks: billingUnits,
   };
 }
 

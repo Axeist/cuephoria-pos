@@ -31,6 +31,8 @@ export type PriceValidationResult = {
 export function splitBookingPriceAcrossRows(args: {
   stationCount: number;
   sessionCount: number;
+  /** Minimum-session billing units (may be fractional, e.g. 1.5 for 90 min). */
+  billingUnits?: number;
   originalPrice: number;
   discount: number;
   finalPrice: number;
@@ -43,14 +45,15 @@ export function splitBookingPriceAcrossRows(args: {
 } {
   const stationCount = Math.max(1, args.stationCount);
   const sessionCount = Math.max(1, args.sessionCount);
+  const billingUnits = args.billingUnits ?? sessionCount;
   const rowCount = stationCount * sessionCount;
   const original = Number(args.originalPrice) || 0;
   const discount = Number(args.discount) || 0;
   const finalPrice = Number(args.finalPrice) || 0;
   const addonTotal = Number(args.addonTotal) || 0;
 
-  const perRowOriginal = original / stationCount;
-  const perRowFinal = finalPrice / stationCount;
+  const perRowOriginal = (original * billingUnits) / stationCount;
+  const perRowFinal = (finalPrice * billingUnits) / stationCount;
   const discountPercentage =
     discount > 0 && original > 0 ? (discount / original) * 100 : null;
   const addonPerRow = addonTotal / rowCount;

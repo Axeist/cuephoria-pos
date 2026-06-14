@@ -43,6 +43,27 @@ describe("bookingSlotConfig", () => {
       expect(result.sessions[0].start_time).toBe("11:00:00");
       expect(result.sessions[0].end_time).toBe("12:00:00");
       expect(result.sessions[0].duration).toBe(60);
+      expect(result.sessionBlocks).toBe(1);
+    }
+  });
+
+  it("bills 1.5 minimum blocks for three contiguous 30-min slots", () => {
+    const config = resolveBookingSlotConfig(
+      { slot_interval_minutes: 30, minimum_booking_minutes: 60 },
+      null,
+    );
+    const result = validateAndMergeGridSlots(
+      [
+        { start_time: "15:30:00", end_time: "16:00:00" },
+        { start_time: "16:00:00", end_time: "16:30:00" },
+        { start_time: "16:30:00", end_time: "17:00:00" },
+      ],
+      config,
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.sessions[0].duration).toBe(90);
+      expect(result.sessionBlocks).toBe(1.5);
     }
   });
 
