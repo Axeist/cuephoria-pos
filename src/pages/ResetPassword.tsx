@@ -8,7 +8,6 @@ import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Lock, Loader2, Sparkles, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { appToast } from "@/lib/appToast";
 
 const RULES = [
@@ -57,15 +56,16 @@ const ResetPassword: React.FC = () => {
 
   if (!token) {
     return (
-      <div className="min-h-screen bg-[#050508] text-zinc-100 flex items-center justify-center px-4">
-        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-gradient-to-b from-[#0f1020] to-[#0b0c16] p-8">
-          <h1 className="text-xl font-bold">Missing token</h1>
+      <div className="lp-root relative min-h-screen overflow-hidden bg-[#05060b] text-zinc-100 flex items-center justify-center px-4">
+        <div className="lp-aurora" />
+        <div className="lp-glass lp-grain relative z-10 w-full max-w-md p-8">
+          <h1 className="lp-display text-xl font-bold">Missing token</h1>
           <p className="mt-2 text-sm text-zinc-400">
             This link is incomplete. Request a new password reset from the login page.
           </p>
           <Link
             to="/forgot-password"
-            className="mt-6 inline-flex items-center justify-center h-11 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-fuchsia-600 to-indigo-600"
+            className="lp-btn mt-6 h-11 px-6 text-sm"
           >
             Request a new link
           </Link>
@@ -75,24 +75,26 @@ const ResetPassword: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#050508] text-zinc-100 flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-gradient-to-b from-[#0f1020] to-[#0b0c16] p-8 shadow-2xl">
+    <div className="lp-root relative min-h-screen overflow-hidden bg-[#05060b] text-zinc-100 flex items-center justify-center px-4 py-10">
+      <div className="lp-aurora" />
+      <div className="lp-grid" />
+      <div className="lp-glass lp-grain relative z-10 w-full max-w-md p-8">
         <div className="flex items-center gap-2 mb-6">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-500 flex items-center justify-center">
             <Sparkles className="h-4 w-4 text-white" />
           </div>
-          <span className="text-sm font-bold tracking-tight">Cuetronix</span>
+          <span className="lp-display text-sm font-bold tracking-tight">Cuetronix</span>
         </div>
 
         {success ? (
           <div className="flex flex-col items-center text-center gap-4 py-4">
             <CheckCircle2 className="h-12 w-12 text-emerald-400" />
-            <h1 className="text-2xl font-bold">Password updated</h1>
+            <h1 className="lp-display text-2xl font-bold">Password updated</h1>
             <p className="text-sm text-zinc-400">Redirecting you to login…</p>
           </div>
         ) : (
           <>
-            <h1 className="text-2xl font-bold tracking-tight">Pick a new password</h1>
+            <h1 className="lp-display text-2xl font-bold tracking-tight">Pick a new password</h1>
             <p className="mt-2 text-sm text-zinc-400">
               Make it long and memorable. You'll be signed out everywhere else.
             </p>
@@ -154,20 +156,20 @@ const ResetPassword: React.FC = () => {
                 )}
               </div>
 
-              <Button
+              <button
                 type="submit"
                 disabled={!valid || submitting}
-                className="w-full h-11 bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-95 text-white font-semibold rounded-xl disabled:opacity-50"
+                className="lp-btn w-full h-11 disabled:opacity-50"
               >
                 {submitting ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                     Updating…
                   </>
                 ) : (
                   "Set new password"
                 )}
-              </Button>
+              </button>
             </form>
           </>
         )}

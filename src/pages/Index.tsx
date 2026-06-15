@@ -4,6 +4,8 @@ import { useAuth } from "@/context/AuthContext";
 
 import Header from "@/components/landing/Header";
 import HeroSection from "@/components/landing/HeroSection";
+import LogoMarquee from "@/components/landing/LogoMarquee";
+import PlatformShowcase from "@/components/landing/PlatformShowcase";
 import ProblemSolutionSection from "@/components/landing/ProblemSolutionSection";
 import WalkthroughSection from "@/components/landing/WalkthroughSection";
 import FeatureDepthSection from "@/components/landing/FeatureDepthSection";
@@ -13,11 +15,15 @@ import SolutionsSection from "@/components/landing/SolutionsSection";
 import FinalCtaSection from "@/components/landing/FinalCtaSection";
 import Footer from "@/components/landing/Footer";
 import SiteAmbientBackground from "@/components/landing/SiteAmbientBackground";
+import ScrollProgress from "@/components/landing/lp/ScrollProgress";
+import { useSmoothScroll } from "@/hooks/useSmoothScroll";
 
 const Index: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+
+  useSmoothScroll();
 
   useEffect(() => {
     if (user) navigate("/dashboard");
@@ -34,7 +40,8 @@ const Index: React.FC = () => {
   }, [location.pathname, location.hash]);
 
   return (
-    <div className="relative min-h-screen bg-[#07030f] text-white antialiased selection:bg-violet-500/40 selection:text-white">
+    <div className="lp-root relative min-h-screen bg-[#05060b] text-white antialiased selection:bg-violet-500/40 selection:text-white">
+      <ScrollProgress />
       <SiteAmbientBackground parallax />
 
       <div className="relative z-10">
@@ -42,6 +49,12 @@ const Index: React.FC = () => {
 
         <main>
           <HeroSection />
+
+          <LogoMarquee />
+
+          <div className="relative">
+            <PlatformShowcase />
+          </div>
 
           {/*
            * Narrative order:

@@ -101,7 +101,7 @@ const BrandedLogin: React.FC = () => {
   const initial = (displayName || "?").trim().charAt(0).toUpperCase();
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-[#05060c] text-zinc-100 relative overflow-hidden">
+    <div className="lp-root min-h-screen flex flex-col lg:flex-row bg-[#05060c] text-zinc-100 relative overflow-hidden">
       {/* Aurora background */}
       <div
         aria-hidden
@@ -164,7 +164,7 @@ const BrandedLogin: React.FC = () => {
                   Workspace · {workspace?.country || "—"}
                 </div>
 
-                <h1 className="text-4xl xl:text-5xl font-extrabold leading-[1.05] tracking-[-0.02em]">
+                <h1 className="lp-display text-4xl xl:text-5xl font-extrabold leading-[1.05] tracking-[-0.02em]">
                   <span className="text-white">Welcome to</span>
                   <br />
                   <span
@@ -220,12 +220,13 @@ const BrandedLogin: React.FC = () => {
             </div>
           </div>
 
+          <div className="lp-glass lp-grain relative z-10 p-7 sm:p-8">
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35 }}
           >
-            <h2 className="text-[26px] font-extrabold tracking-tight">Sign in</h2>
+            <h2 className="lp-display text-[26px] font-extrabold tracking-tight">Sign in</h2>
             <p className="mt-1 text-sm text-zinc-500">
               Continue with Google — use the account that matches your profile for{" "}
               <span className="text-zinc-300 font-medium">{displayName}</span>
@@ -251,6 +252,7 @@ const BrandedLogin: React.FC = () => {
             >
               Not this workspace? Use the standard sign-in →
             </button>
+          </div>
           </div>
 
           {/* Powered-by footer on mobile */}

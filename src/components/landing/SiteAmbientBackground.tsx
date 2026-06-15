@@ -39,15 +39,16 @@ const SiteAmbientBackground: React.FC<SiteAmbientBackgroundProps> = ({
 
   return (
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      {/* Deep gradient base */}
+      {/* Deep gradient base — Neon Command Deck obsidian + violet/cyan/fuchsia aurora */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(1200px 800px at 10% 0%, rgba(124,58,237,0.22), transparent 60%)," +
-            "radial-gradient(900px 700px at 90% 15%, rgba(236,72,153,0.14), transparent 60%)," +
+            "radial-gradient(1200px 800px at 10% 0%, rgba(124,58,237,0.24), transparent 60%)," +
+            "radial-gradient(900px 700px at 90% 12%, rgba(34,211,238,0.16), transparent 60%)," +
+            "radial-gradient(1100px 800px at 80% 60%, rgba(236,72,153,0.12), transparent 60%)," +
             "radial-gradient(1200px 900px at 50% 100%, rgba(59,130,246,0.12), transparent 60%)," +
-            "linear-gradient(180deg, #07030f 0%, #0a0414 55%, #07030f 100%)",
+            "linear-gradient(180deg, #05060b 0%, #080611 55%, #05060b 100%)",
         }}
       />
 

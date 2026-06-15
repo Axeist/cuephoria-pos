@@ -1,9 +1,10 @@
 import { Suspense, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { Button } from "@/components/ui/button";
 import { ArrowRight, Play, Sparkles, Gamepad2, Circle, ShieldCheck } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useMagnetic } from "@/hooks/useMagnetic";
+import { useSpotlight } from "@/hooks/useSpotlight";
 
 import { lazyWithRetry as lazy } from "@/utils/lazyWithRetry";
 
@@ -112,6 +113,8 @@ const HeroSection: React.FC = () => {
   const navigate     = useNavigate();
   const reduceMotion = useReducedMotion();
   const isMobile     = useIsMobile();
+  const magneticCta  = useMagnetic<HTMLButtonElement>(0.3);
+  const spotlightCard = useSpotlight<HTMLDivElement>();
 
   const scrollTo = useCallback((id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -205,21 +208,11 @@ const HeroSection: React.FC = () => {
               initial={reduceMotion ? false : { opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.12 }}
-              className="text-5xl sm:text-6xl md:text-7xl lg:text-[76px] font-extrabold leading-[1.02] tracking-[-0.03em] mb-6 text-white"
+              className="lp-display text-5xl sm:text-6xl md:text-7xl lg:text-[76px] font-bold leading-[1.02] tracking-[-0.03em] mb-6 text-white"
             >
               Snooker. 8-Ball. Turf. Esports.
               <br />
-              <span
-                className="bg-clip-text text-transparent"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(90deg, #a78bfa 0%, #f0abfc 40%, #93c5fd 80%, #a78bfa 100%)",
-                  backgroundSize: "200% 100%",
-                  animation: reduceMotion ? undefined : "hueShift 6s ease-in-out infinite",
-                }}
-              >
-                One billing OS to run them all.
-              </span>
+              <span className="lp-holo">One billing OS to run them all.</span>
             </motion.h1>
 
             <motion.p
@@ -279,23 +272,23 @@ const HeroSection: React.FC = () => {
               transition={{ duration: 0.6, delay: 0.28 }}
               className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start items-stretch sm:items-center"
             >
-              <Button
-                size="lg"
+              <button
+                ref={magneticCta}
+                type="button"
                 onClick={() => navigate("/signup")}
-                className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 hover:opacity-95 text-white text-base px-8 h-14 font-bold shadow-2xl shadow-fuchsia-600/40 rounded-xl transition-all hover:scale-[1.02]"
+                className="lp-btn text-base px-8 h-14"
               >
                 Start 14-day free trial
-                <ArrowRight size={18} className="ml-2" />
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
+                <ArrowRight size={18} />
+              </button>
+              <button
+                type="button"
                 onClick={() => scrollTo("modules")}
-                className="border-white/15 bg-white/[0.05] text-white hover:bg-white/[0.1] text-base px-8 h-14 rounded-xl backdrop-blur-md"
+                className="lp-btn-ghost text-base px-8 h-14"
               >
-                <Play size={16} className="mr-2" />
+                <Play size={16} />
                 See it in action
-              </Button>
+              </button>
             </motion.div>
           </div>
 
@@ -313,7 +306,7 @@ const HeroSection: React.FC = () => {
                 <div className="absolute inset-[-20%] bg-gradient-to-tr from-violet-600/25 to-fuchsia-600/25 rounded-[50%] blur-[70px]" />
 
                 {/* Main dashboard card */}
-                <div className="absolute inset-0 rounded-3xl border border-white/[0.12] bg-[#0a0514]/80 backdrop-blur-2xl shadow-[0_30px_80px_rgba(0,0,0,0.7)] overflow-hidden flex flex-col"
+                <div ref={spotlightCard} className="lp-spotlight absolute inset-0 rounded-3xl border border-white/[0.12] bg-[#0a0514]/80 backdrop-blur-2xl shadow-[0_30px_80px_rgba(0,0,0,0.7)] overflow-hidden flex flex-col"
                   style={{ transform: "translateZ(0px)", transformStyle: "preserve-3d" }}
                 >
                   {/* Browser chrome */}
@@ -461,7 +454,7 @@ const HeroSection: React.FC = () => {
         >
           {HERO_METRICS.map((m) => (
             <div key={m.label} className="text-center">
-              <div className="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-violet-300 via-fuchsia-300 to-pink-300 bg-clip-text text-transparent tracking-tight">
+              <div className="lp-mono text-3xl sm:text-4xl font-bold bg-gradient-to-r from-violet-300 via-fuchsia-300 to-cyan-300 bg-clip-text text-transparent tracking-tight">
                 {m.value}
               </div>
               <div className="text-gray-500 text-xs sm:text-sm uppercase tracking-wider mt-2 font-medium">
@@ -471,13 +464,6 @@ const HeroSection: React.FC = () => {
           ))}
         </motion.div>
       </div>
-
-      <style>{`
-        @keyframes hueShift {
-          0%, 100% { background-position: 0% 50%; }
-          50%       { background-position: 100% 50%; }
-        }
-      `}</style>
     </section>
   );
 };

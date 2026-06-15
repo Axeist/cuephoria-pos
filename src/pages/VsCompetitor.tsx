@@ -340,7 +340,7 @@ const VsCompetitor: React.FC = () => {
 
   if (!comp) {
     return (
-      <div className="relative min-h-screen bg-[#07030f] text-white flex flex-col items-center justify-center px-6">
+      <div className="lp-root relative min-h-screen bg-[#05060b] text-white flex flex-col items-center justify-center px-6">
         <h1 className="text-3xl font-extrabold mb-4">Comparison not found</h1>
         <p className="text-gray-400 mb-8 max-w-md text-center">
           We couldn't find a comparison page for "{slug}". Browse all Cuetronix comparisons on the compare hub.
@@ -366,7 +366,7 @@ const VsCompetitor: React.FC = () => {
   }[comp.migration.difficulty];
 
   return (
-    <div className="relative min-h-screen bg-[#07030f] text-white antialiased selection:bg-violet-500/40 selection:text-white">
+    <div className="lp-root relative min-h-screen bg-[#05060b] text-white antialiased selection:bg-violet-500/40 selection:text-white">
       <SiteAmbientBackground parallax />
 
       {/* noscript fallback for crawlers that don't render JS */}

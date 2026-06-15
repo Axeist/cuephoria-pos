@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowRight, CalendarDays, CheckCircle2, LifeBuoy, Mail, Phone, ShieldCheck, Sparkles, Clock, Headphones, Rocket } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 declare global {
   interface Window {
@@ -102,18 +101,14 @@ const FinalCtaSection: React.FC = () => {
         {/* Section header */}
         <div className="text-center mb-14">
           <motion.p initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-            className="text-xs uppercase tracking-[0.22em] text-fuchsia-400 font-semibold mb-3">
+            className="lp-mono text-xs uppercase tracking-[0.22em] text-fuchsia-400 font-semibold mb-3">
             Let's talk
           </motion.p>
           <motion.h2 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
             transition={{ delay: 0.1 }}
-            className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-4">
+            className="lp-display text-4xl sm:text-5xl font-bold tracking-tight mb-4">
             Ready to run your lounge<br className="hidden sm:block" />
-            <span className="bg-clip-text text-transparent"
-              style={{ backgroundImage: "linear-gradient(90deg, #a78bfa, #f0abfc, #a78bfa)", backgroundSize: "200%",
-                animation: "hueShift 6s ease-in-out infinite" }}>
-              {" "}like a tech company?
-            </span>
+            <span className="lp-holo">{" "}like a tech company?</span>
           </motion.h2>
           <motion.p initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
             transition={{ delay: 0.2 }}
@@ -140,7 +135,7 @@ const FinalCtaSection: React.FC = () => {
                 <Sparkles size={13} /> White-glove setup for serious venues
               </div>
 
-              <h3 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-[1.08] mb-5">
+              <h3 className="lp-display text-3xl sm:text-4xl font-bold tracking-tight leading-[1.08] mb-5">
                 Want a premium walkthrough before you launch?
               </h3>
               <p className="text-gray-200 text-base leading-relaxed mb-8 max-w-xl">
@@ -161,17 +156,17 @@ const FinalCtaSection: React.FC = () => {
                 {CALL_FACTS.map((f) => (
                   <div key={f.label} className="rounded-2xl border border-white/10 bg-white/[0.06] p-4 backdrop-blur-md text-center">
                     <f.icon size={18} className="text-fuchsia-300 mx-auto mb-2" />
-                    <div className="text-xl font-extrabold text-white">{f.value}</div>
+                    <div className="lp-mono text-xl font-bold text-white">{f.value}</div>
                     <div className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-white/40">{f.label}</div>
                   </div>
                 ))}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3">
-                <Button size="lg" onClick={() => navigate("/signup")}
-                  className="h-13 rounded-xl bg-white px-7 text-base font-bold text-[#1a0a2e] shadow-2xl shadow-fuchsia-600/30 hover:bg-gray-50">
-                  Start free trial <ArrowRight size={18} className="ml-2" />
-                </Button>
+                <button type="button" onClick={() => navigate("/signup")}
+                  className="inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-white px-7 text-base font-bold text-[#1a0a2e] shadow-2xl shadow-fuchsia-600/30 transition-colors hover:bg-gray-50">
+                  Start free trial <ArrowRight size={18} />
+                </button>
                 <a href={`mailto:${CONTACT.sales}?subject=Cuetronix%20demo%20request`}
                   className="inline-flex h-13 items-center justify-center gap-2 rounded-xl border border-white/20 px-7 text-base font-semibold text-white transition-colors hover:bg-white/10">
                   <LifeBuoy size={18} /> Email instead
@@ -197,8 +192,8 @@ const FinalCtaSection: React.FC = () => {
             transition={{ duration: 0.65, delay: 0.12 }}
             className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[#0f091a]/80 shadow-[0_24px_70px_-30px_rgba(168,85,247,0.55)] backdrop-blur-2xl">
             <div className="border-b border-white/10 px-6 py-4 sm:px-7">
-              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-fuchsia-300 mb-1">Book a call</div>
-              <h3 className="text-xl font-bold tracking-tight text-white">
+              <div className="lp-mono text-xs font-semibold uppercase tracking-[0.22em] text-fuchsia-300 mb-1">Book a call</div>
+              <h3 className="lp-display text-xl font-bold tracking-tight text-white">
                 Choose a slot — meet us directly.
               </h3>
               <p className="mt-1.5 text-sm leading-relaxed text-gray-400">

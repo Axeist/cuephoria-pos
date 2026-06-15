@@ -29,7 +29,7 @@ export default function Signup() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#07030f] text-white">
+    <div className="lp-root relative min-h-screen overflow-hidden bg-[#05060b] text-white">
       <AuthSceneBackground />
 
       <div className="relative z-20 flex items-center justify-between px-5 py-5 sm:px-8">

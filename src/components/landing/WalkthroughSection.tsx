@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
 import { Calendar, Monitor, ShoppingCart, LayoutDashboard } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 // ─── Static data ──────────────────────────────────────────────────────────────
 
@@ -129,7 +128,7 @@ const WalkthroughSection: React.FC = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.55, ease: "easeOut" }}
-            className="text-xs font-bold tracking-[0.18em] uppercase text-fuchsia-400 mb-4 block"
+            className="lp-mono text-xs font-bold tracking-[0.18em] uppercase text-fuchsia-400 mb-4 block"
           >
             The Workflow
           </motion.span>
@@ -138,18 +137,10 @@ const WalkthroughSection: React.FC = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.65, ease: "easeOut", delay: 0.08 }}
-            className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white leading-[1.08] tracking-tight mb-5"
+            className="lp-display text-4xl sm:text-5xl md:text-6xl font-bold text-white leading-[1.08] tracking-tight mb-5"
           >
             From booking to checkout —{" "}
-            <span
-              className="bg-clip-text text-transparent"
-              style={{
-                backgroundImage:
-                  "linear-gradient(90deg, #a78bfa 0%, #f0abfc 50%, #93c5fd 100%)",
-              }}
-            >
-              seamlessly.
-            </span>
+            <span className="lp-holo">seamlessly.</span>
           </motion.h2>
           <motion.p
             initial={{ opacity: 0, y: 16 }}
@@ -210,7 +201,7 @@ const WalkthroughSection: React.FC = () => {
               >
                 {/* Background step number watermark */}
                 <div
-                  className={`absolute top-4 right-5 text-8xl font-black opacity-[0.07] leading-none select-none pointer-events-none ${c.numColor}`}
+                  className={`lp-mono absolute top-4 right-5 text-8xl font-black opacity-[0.07] leading-none select-none pointer-events-none ${c.numColor}`}
                   aria-hidden
                 >
                   {step.number}
@@ -244,7 +235,7 @@ const WalkthroughSection: React.FC = () => {
                   </div>
 
                   {/* Title */}
-                  <h3 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-tight">
+                  <h3 className="lp-display text-2xl md:text-3xl font-bold text-white tracking-tight leading-tight">
                     {step.title}
                   </h3>
 
@@ -298,13 +289,13 @@ const WalkthroughSection: React.FC = () => {
           transition={{ duration: 0.6, ease: "easeOut", delay: 0.3 }}
           className="mt-14 text-center"
         >
-          <Button
-            size="lg"
+          <button
+            type="button"
             onClick={scrollToBookCall}
-            className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 hover:opacity-90 text-white font-bold px-10 h-13 text-base rounded-xl shadow-2xl shadow-fuchsia-600/30 transition-all hover:scale-[1.02]"
+            className="lp-btn px-10 h-14 text-base"
           >
             See it in action — book a 30-min demo
-          </Button>
+          </button>
         </motion.div>
 
       </div>

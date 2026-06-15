@@ -26,7 +26,6 @@ import {
   Terminal,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PRODUCT_BRAND, PARENT_BRAND } from "@/branding/brand";
 import CuephoriaTechAttribution from "@/components/branding/CuephoriaTechAttribution";
@@ -69,7 +68,7 @@ const PlatformLogin: React.FC = () => {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#07030f] text-white">
+    <div className="lp-root relative min-h-screen overflow-hidden bg-[#05060b] text-white">
       <AuthSceneBackground />
 
       {/* Top bar */}
@@ -112,18 +111,10 @@ const PlatformLogin: React.FC = () => {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.55 }}
-            className="text-5xl font-extrabold leading-[1.05] tracking-tight xl:text-6xl"
+            className="lp-display text-5xl font-extrabold leading-[1.05] tracking-tight xl:text-6xl"
           >
             The{" "}
-            <span
-              className="bg-gradient-to-r from-indigo-300 via-violet-300 to-cyan-300 bg-clip-text text-transparent"
-              style={{
-                backgroundSize: "200%",
-                animation: "hueShift 8s ease-in-out infinite",
-              }}
-            >
-              control plane
-            </span>
+            <span className="lp-holo">control plane</span>
             <br />
             for every venue.
           </motion.h1>
@@ -184,27 +175,8 @@ const PlatformLogin: React.FC = () => {
           transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
           className="flex items-center justify-center"
         >
-          <div className="relative w-full max-w-md">
-            {/* Gradient glow behind card — indigo/cyan mix */}
-            <div
-              className="absolute -inset-px rounded-[26px] opacity-60 blur-2xl"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(99,102,241,0.45), rgba(168,85,247,0.32), rgba(56,189,248,0.28))",
-              }}
-            />
-
-            <div
-              className="relative overflow-hidden rounded-[24px] border border-white/10 p-7 sm:p-9"
-              style={{
-                background:
-                  "linear-gradient(180deg, rgba(15,9,26,0.85) 0%, rgba(10,6,22,0.9) 100%)",
-                backdropFilter: "blur(32px) saturate(150%)",
-                WebkitBackdropFilter: "blur(32px) saturate(150%)",
-                boxShadow:
-                  "0 30px 80px -30px rgba(99,102,241,0.45), inset 0 1px 0 rgba(255,255,255,0.06)",
-              }}
-            >
+          <div className="lp-border-glow relative w-full max-w-md rounded-[24px]">
+            <div className="lp-glass lp-grain relative overflow-hidden rounded-[24px] p-7 sm:p-9">
               {/* Top accent shine */}
               <div
                 className="pointer-events-none absolute inset-x-0 top-0 h-px"
@@ -231,7 +203,7 @@ const PlatformLogin: React.FC = () => {
                   </div>
                 </div>
 
-                <h2 className="text-2xl font-extrabold tracking-tight sm:text-[28px]">
+                <h2 className="lp-display text-2xl font-extrabold tracking-tight sm:text-[28px]">
                   Staff sign in
                 </h2>
                 <p className="mt-1.5 text-sm text-gray-400">
@@ -310,10 +282,10 @@ const PlatformLogin: React.FC = () => {
                   </motion.div>
                 )}
 
-                <Button
+                <button
                   type="submit"
                   disabled={submitting || isLoading}
-                  className="group mt-2 h-11 w-full rounded-xl bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-500 text-sm font-semibold text-white shadow-lg shadow-indigo-600/30 transition-all hover:scale-[1.01] hover:opacity-95 disabled:opacity-60"
+                  className="lp-btn group mt-2 h-11 w-full text-sm disabled:opacity-60"
                 >
                   {submitting ? (
                     <span className="inline-flex items-center gap-2.5">
@@ -330,7 +302,7 @@ const PlatformLogin: React.FC = () => {
                       />
                     </span>
                   )}
-                </Button>
+                </button>
               </form>
 
               {/* Footer strip */}
@@ -360,13 +332,6 @@ const PlatformLogin: React.FC = () => {
           </div>
         </motion.div>
       </div>
-
-      <style>{`
-        @keyframes hueShift {
-          0%, 100% { background-position: 0% 50%; }
-          50%      { background-position: 100% 50%; }
-        }
-      `}</style>
     </div>
   );
 };

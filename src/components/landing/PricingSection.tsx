@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowRight, ChevronDown, Crown } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 const PLANS = [
   {
@@ -122,11 +121,11 @@ const PricingSection: React.FC = () => {
           variants={stagger}
           className="text-center mb-12"
         >
-          <motion.p variants={fadeUp} className="text-xs uppercase tracking-[0.22em] text-fuchsia-400 font-semibold mb-3">
+          <motion.p variants={fadeUp} className="lp-mono text-xs uppercase tracking-[0.22em] text-fuchsia-400 font-semibold mb-3">
             Simple, honest pricing
           </motion.p>
-          <motion.h2 variants={fadeUp} className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-4">
-            Pick a plan that scales with your lounge.
+          <motion.h2 variants={fadeUp} className="lp-display text-4xl sm:text-5xl font-bold tracking-tight mb-4">
+            Pick a plan that <span className="lp-holo">scales</span> with your lounge.
           </motion.h2>
           <motion.p variants={fadeUp} className="text-gray-400 max-w-xl mx-auto text-lg">
             14-day free trial on every plan. No credit card. Cancel with one click.
@@ -167,7 +166,7 @@ const PricingSection: React.FC = () => {
               <article
                 key={p.code}
                 className={`relative rounded-3xl p-8 flex flex-col ${
-                  p.featured ? "md:-translate-y-3" : ""
+                  p.featured ? "md:-translate-y-3 lp-border-glow" : ""
                 }`}
                 style={{
                   background: p.featured
@@ -185,31 +184,28 @@ const PricingSection: React.FC = () => {
                   </div>
                 )}
                 <div className="mb-6">
-                  <h3 className="text-2xl font-bold tracking-tight mb-2">{p.name}</h3>
+                  <h3 className="lp-display text-2xl font-bold tracking-tight mb-2">{p.name}</h3>
                   <p className="text-gray-400 text-sm leading-relaxed">{p.tagline}</p>
                 </div>
                 <div className="mb-8">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-5xl font-extrabold tracking-tight">₹{price.toLocaleString("en-IN")}</span>
+                    <span className="lp-mono text-5xl font-bold tracking-tight">₹{price.toLocaleString("en-IN")}</span>
                     <span className="text-gray-500 text-base font-medium">/ month</span>
                   </div>
                   {billingCycle === "year" && (
-                    <p className="text-sm text-emerald-400 mt-2 font-medium">
+                    <p className="lp-mono text-sm text-emerald-400 mt-2 font-medium">
                       Billed ₹{p.priceYear.toLocaleString("en-IN")} yearly
                     </p>
                   )}
                 </div>
-                <Button
+                <button
+                  type="button"
                   onClick={() => navigate("/signup")}
-                  className={`w-full h-12 rounded-xl font-semibold mb-8 text-base ${
-                    p.featured
-                      ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:opacity-95 shadow-lg shadow-violet-600/25"
-                      : "bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white"
-                  }`}
+                  className={`w-full h-12 mb-8 text-base ${p.featured ? "lp-btn" : "lp-btn-ghost"}`}
                 >
                   {p.cta}
-                  <ArrowRight size={16} className="ml-2" />
-                </Button>
+                  <ArrowRight size={16} />
+                </button>
                 <ul className="space-y-3.5 flex-1">
                   {p.features.map((f) => (
                     <li key={f} className="flex items-start gap-3 text-sm text-gray-300">
@@ -240,7 +236,7 @@ const PricingSection: React.FC = () => {
               <Crown size={20} className="text-amber-300" />
             </div>
             <div>
-              <h3 className="text-xl font-bold mb-2">Enterprise</h3>
+              <h3 className="lp-display text-xl font-bold mb-2">Enterprise</h3>
               <p className="text-gray-400 text-base max-w-2xl leading-relaxed">
                 Multi-city chains, custom SLAs, SSO, dedicated infrastructure, and
                 white-glove migration. Let's design a plan around your ops.
@@ -264,10 +260,10 @@ const PricingSection: React.FC = () => {
             variants={stagger}
             className="text-center mb-12"
           >
-            <motion.p variants={fadeUp} className="text-xs uppercase tracking-[0.22em] text-fuchsia-400 font-semibold mb-3">
+            <motion.p variants={fadeUp} className="lp-mono text-xs uppercase tracking-[0.22em] text-fuchsia-400 font-semibold mb-3">
               Questions · Answered
             </motion.p>
-            <motion.h2 variants={fadeUp} className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+            <motion.h2 variants={fadeUp} className="lp-display text-3xl sm:text-4xl font-bold tracking-tight">
               Frequently asked.
             </motion.h2>
           </motion.div>

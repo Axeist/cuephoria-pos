@@ -10,7 +10,6 @@ import { Link } from "react-router-dom";
 import { ArrowLeft, Loader2, Mail, Send, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 
 const ForgotPassword: React.FC = () => {
   const [email, setEmail] = useState("");
@@ -35,16 +34,18 @@ const ForgotPassword: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#050508] text-zinc-100 flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-gradient-to-b from-[#0f1020] to-[#0b0c16] p-8 shadow-2xl">
+    <div className="lp-root relative min-h-screen overflow-hidden bg-[#05060b] text-zinc-100 flex items-center justify-center px-4 py-10">
+      <div className="lp-aurora" />
+      <div className="lp-grid" />
+      <div className="lp-glass lp-grain relative z-10 w-full max-w-md p-8">
         <div className="flex items-center gap-2 mb-6">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-500 flex items-center justify-center">
             <Sparkles className="h-4 w-4 text-white" />
           </div>
-          <span className="text-sm font-bold tracking-tight">Cuetronix</span>
+          <span className="lp-display text-sm font-bold tracking-tight">Cuetronix</span>
         </div>
 
-        <h1 className="text-2xl font-bold tracking-tight">Reset your password</h1>
+        <h1 className="lp-display text-2xl font-bold tracking-tight">Reset your password</h1>
         <p className="mt-2 text-sm text-zinc-400">
           Enter the email on your account. If it matches an active workspace, we'll send you a reset link.
         </p>
@@ -73,23 +74,23 @@ const ForgotPassword: React.FC = () => {
                 className="bg-[#05060c] border-white/10 text-zinc-100 h-11"
               />
             </div>
-            <Button
+            <button
               type="submit"
               disabled={submitting || !email.includes("@")}
-              className="w-full h-11 bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-95 text-white font-semibold rounded-xl"
+              className="lp-btn w-full h-11 disabled:opacity-50"
             >
               {submitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Sending…
                 </>
               ) : (
                 <>
-                  <Send className="h-4 w-4 mr-2" />
+                  <Send className="h-4 w-4" />
                   Send reset link
                 </>
               )}
-            </Button>
+            </button>
           </form>
         )}
 

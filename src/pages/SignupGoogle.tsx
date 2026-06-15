@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { appToast } from "@/lib/appToast";
 import SplashScreen from "@/components/SplashScreen";
@@ -142,7 +141,7 @@ const SignupGoogle: React.FC = () => {
 
   if (state.kind === "loading") {
     return (
-      <div className="min-h-screen bg-[#050508] flex items-center justify-center">
+      <div className="lp-root min-h-screen bg-[#05060b] flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-fuchsia-400" />
       </div>
     );
@@ -150,15 +149,16 @@ const SignupGoogle: React.FC = () => {
 
   if (state.kind === "expired") {
     return (
-      <div className="min-h-screen bg-[#050508] text-zinc-100 flex items-center justify-center px-4">
-        <div className="max-w-md rounded-2xl border border-white/10 bg-gradient-to-b from-[#0f1020] to-[#0b0c16] p-8 text-center">
-          <h1 className="text-xl font-bold">Sign-in expired</h1>
+      <div className="lp-root relative min-h-screen overflow-hidden bg-[#05060b] text-zinc-100 flex items-center justify-center px-4">
+        <div className="lp-aurora" />
+        <div className="lp-glass lp-grain relative z-10 max-w-md p-8 text-center">
+          <h1 className="lp-display text-xl font-bold">Sign-in expired</h1>
           <p className="mt-2 text-sm text-zinc-400">
             The temporary Google session expired. Please start again.
           </p>
           <Link
             to="/signup"
-            className="mt-6 inline-flex items-center justify-center h-11 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-fuchsia-600 to-indigo-600"
+            className="lp-btn mt-6 h-11 px-6 text-sm"
           >
             Back to signup
           </Link>
@@ -168,7 +168,7 @@ const SignupGoogle: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#050508] text-zinc-100">
+    <div className="lp-root relative min-h-screen bg-[#05060b] text-zinc-100">
       {showSuccessSplash && (
         <SplashScreen
           variant="login_success"
@@ -192,7 +192,7 @@ const SignupGoogle: React.FC = () => {
           Cuetronix
         </Link>
 
-        <div className="mt-6 rounded-2xl border border-white/10 bg-gradient-to-b from-[#0f1020] to-[#0b0c16] p-8 shadow-2xl">
+        <div className="lp-glass lp-grain mt-6 p-8">
           {state.picture && (
             <img
               src={state.picture}
@@ -200,7 +200,7 @@ const SignupGoogle: React.FC = () => {
               className="h-12 w-12 rounded-full border border-white/10 mb-4"
             />
           )}
-          <h1 className="text-2xl font-bold tracking-tight">
+          <h1 className="lp-display text-2xl font-bold tracking-tight">
             One more step{state.name ? `, ${state.name.split(" ")[0]}` : ""}
           </h1>
           <p className="mt-2 text-sm text-zinc-400">
@@ -300,23 +300,23 @@ const SignupGoogle: React.FC = () => {
               </span>
             </label>
 
-            <Button
+            <button
               type="submit"
               disabled={!canSubmit}
-              className="w-full h-11 bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-95 text-white font-semibold rounded-xl disabled:opacity-50"
+              className="lp-btn w-full h-11 disabled:opacity-50"
             >
               {submitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Creating workspace…
                 </>
               ) : (
                 <>
                   Create workspace
-                  <ArrowRight className="h-4 w-4 ml-2" />
+                  <ArrowRight className="h-4 w-4" />
                 </>
               )}
-            </Button>
+            </button>
 
             <p className="text-[11px] text-zinc-500 text-center flex items-center justify-center gap-1.5">
               <ShieldCheck className="h-3 w-3" />

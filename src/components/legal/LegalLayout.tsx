@@ -100,7 +100,7 @@ const LegalLayout: React.FC<LegalLayoutProps> = ({
   }, []);
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#07030f] text-zinc-100 antialiased">
+    <div className="lp-root relative min-h-screen overflow-x-hidden bg-[#05060b] text-zinc-100 antialiased">
       <SiteAmbientBackground />
 
       {/* ── Top bar ────────────────────────────────────────────────── */}

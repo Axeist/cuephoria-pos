@@ -209,11 +209,9 @@ const SolutionsSection: React.FC = () => {
             <Globe2 size={12} />
             One platform · Every lounge
           </div>
-          <h2 className="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl md:text-6xl">
+          <h2 className="lp-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl md:text-6xl">
             Whatever your venue looks like,{" "}
-            <span className="bg-gradient-to-r from-violet-300 via-fuchsia-300 to-pink-300 bg-clip-text text-transparent">
-              Cuetronix fits.
-            </span>
+            <span className="lp-holo">Cuetronix fits.</span>
           </h2>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-gray-400 sm:text-lg">
             PS5 bays, VR pods, esports rigs, pool tables, snooker frames, a busy cafe
@@ -257,7 +255,7 @@ const SolutionsSection: React.FC = () => {
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-fuchsia-300">
                 Solutions
               </p>
-              <h3 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
+              <h3 className="lp-display mt-2 text-2xl font-bold text-white sm:text-3xl">
                 Built for every kind of gaming and billiards venue.
               </h3>
             </div>
@@ -300,7 +298,7 @@ const SolutionsSection: React.FC = () => {
               </div>
               Operators love it
             </div>
-            <h3 className="text-2xl font-bold text-white">
+            <h3 className="lp-display text-2xl font-bold text-white">
               Numbers that prove it works on a busy Saturday.
             </h3>
             <div className="mt-6 grid grid-cols-2 gap-4">
@@ -309,7 +307,7 @@ const SolutionsSection: React.FC = () => {
                   key={t.label}
                   className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
                 >
-                  <div className="bg-gradient-to-r from-violet-300 to-fuchsia-300 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent">
+                  <div className="lp-mono bg-gradient-to-r from-violet-300 to-fuchsia-300 bg-clip-text text-3xl font-bold tracking-tight text-transparent">
                     {t.value}
                   </div>
                   <div className="mt-1 text-xs uppercase tracking-[0.14em] text-gray-500">
@@ -327,7 +325,7 @@ const SolutionsSection: React.FC = () => {
                 <MapPin size={18} />
               </div>
               <div>
-                <h3 className="text-2xl font-bold text-white">
+                <h3 className="lp-display text-2xl font-bold text-white">
                   Trusted across India
                 </h3>
                 <p className="mt-1 text-sm text-gray-400">
@@ -376,7 +374,7 @@ const SolutionsSection: React.FC = () => {
                 <Sparkles size={12} />
                 The Operator Playbook
               </div>
-              <h3 className="text-2xl font-bold leading-tight text-white sm:text-3xl">
+              <h3 className="lp-display text-2xl font-bold leading-tight text-white sm:text-3xl">
                 Monthly tips to fill stations, speed up checkout and grow repeat visits.
               </h3>
               <p className="mt-2 max-w-xl text-sm text-gray-400 sm:text-base">
@@ -403,7 +401,7 @@ const SolutionsSection: React.FC = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-fuchsia-600/30 transition-all hover:scale-[1.02] hover:opacity-95 disabled:opacity-60"
+                  className="lp-btn px-5 py-3 text-sm disabled:opacity-60"
                 >
                   {loading ? "Sending..." : "Get the playbook"}
                   <Send size={14} />

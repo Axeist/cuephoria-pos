@@ -160,7 +160,7 @@ const CompareHub: React.FC = () => {
   }, [filtered]);
 
   return (
-    <div className="relative min-h-screen bg-[#07030f] text-white antialiased selection:bg-violet-500/40 selection:text-white">
+    <div className="lp-root relative min-h-screen bg-[#05060b] text-white antialiased selection:bg-violet-500/40 selection:text-white">
       <SiteAmbientBackground parallax />
 
       <noscript>

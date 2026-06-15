@@ -1,7 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { XCircle, CheckCircle2, ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 // ─── Static data ──────────────────────────────────────────────────────────────
 
@@ -100,10 +99,10 @@ const ProblemSolutionSection: React.FC = () => {
           transition={{ duration: 0.65, ease: "easeOut" }}
           className="text-center mb-20"
         >
-          <span className="text-xs font-bold tracking-[0.18em] uppercase text-red-400 mb-4 block">
+          <span className="lp-mono text-xs font-bold tracking-[0.18em] uppercase text-red-400 mb-4 block">
             The Old Way Is Breaking Your Business
           </span>
-          <h2 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white leading-[1.08] tracking-tight">
+          <h2 className="lp-display text-4xl sm:text-5xl md:text-6xl font-bold text-white leading-[1.08] tracking-tight">
             Sound familiar?
           </h2>
         </motion.div>
@@ -317,10 +316,10 @@ const ProblemSolutionSection: React.FC = () => {
             />
 
             <div className="relative flex-1 min-w-0">
-              <span className="text-xs font-bold tracking-[0.18em] uppercase text-fuchsia-400 mb-4 block">
+              <span className="lp-mono text-xs font-bold tracking-[0.18em] uppercase text-fuchsia-400 mb-4 block">
                 The Cuetronix Difference
               </span>
-              <blockquote className="text-2xl md:text-3xl font-extrabold text-white leading-[1.25] tracking-tight mb-4">
+              <blockquote className="lp-display text-2xl md:text-3xl font-bold text-white leading-[1.25] tracking-tight mb-4">
                 "Built by people who close the cash drawer at 2&nbsp;AM."
               </blockquote>
               <p className="text-gray-400 text-base leading-relaxed max-w-xl">
@@ -330,22 +329,21 @@ const ProblemSolutionSection: React.FC = () => {
             </div>
 
             <div className="relative flex-shrink-0 flex flex-col sm:flex-row md:flex-col gap-3 w-full md:w-auto">
-              <Button
-                size="lg"
+              <button
+                type="button"
                 onClick={() => navigate("/signup")}
-                className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 hover:opacity-90 text-white font-bold px-8 h-12 rounded-xl shadow-2xl shadow-fuchsia-600/30 transition-all hover:scale-[1.02] whitespace-nowrap"
+                className="lp-btn px-8 h-12 whitespace-nowrap"
               >
                 Start free trial
-                <ArrowRight size={17} className="ml-1" />
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
+                <ArrowRight size={17} />
+              </button>
+              <button
+                type="button"
                 onClick={scrollToBookCall}
-                className="border-white/15 bg-white/[0.04] text-white hover:bg-white/[0.09] font-semibold px-8 h-12 rounded-xl backdrop-blur-md whitespace-nowrap"
+                className="lp-btn-ghost px-8 h-12 whitespace-nowrap"
               >
                 Book a call
-              </Button>
+              </button>
             </div>
           </div>
         </motion.div>

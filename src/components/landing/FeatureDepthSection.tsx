@@ -1,7 +1,6 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Crown, Shield, Users, ArrowRight, Check, BarChart3, Zap, Globe } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 const fadeUp = { hidden: { opacity: 0, y: 28 }, visible: { opacity: 1, y: 0, transition: { duration: 0.65, ease: [0.21, 0.47, 0.32, 0.98] } } };
 
@@ -220,11 +219,11 @@ const FeatureDepthSection: React.FC = () => {
         {/* Header */}
         <div className="text-center mb-20">
           <motion.p initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
-            className="text-xs uppercase tracking-[0.22em] text-fuchsia-400 font-semibold mb-3">
+            className="lp-mono text-xs uppercase tracking-[0.22em] text-fuchsia-400 font-semibold mb-3">
             Role-Based Value
           </motion.p>
           <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
-            className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-4">
+            className="lp-display text-4xl sm:text-5xl font-bold tracking-tight mb-4">
             Built for every person in your lounge.
           </motion.h2>
           <motion.p initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
@@ -259,7 +258,7 @@ const FeatureDepthSection: React.FC = () => {
                     <span className={`text-sm font-bold uppercase tracking-wider ${f.accent}`}>{f.role}</span>
                   </div>
 
-                  <h3 className="text-3xl sm:text-[2.2rem] font-extrabold tracking-tight mb-4 leading-tight text-white">
+                  <h3 className="lp-display text-3xl sm:text-[2.2rem] font-bold tracking-tight mb-4 leading-tight text-white">
                     {f.title}
                   </h3>
                   <p className="text-gray-400 text-lg leading-relaxed mb-7">{f.desc}</p>
@@ -278,11 +277,11 @@ const FeatureDepthSection: React.FC = () => {
                     ))}
                   </ul>
 
-                  <Button onClick={() => navigate("/signup")} size="sm"
-                    className={`rounded-xl bg-gradient-to-r ${f.gradient} text-white font-semibold px-5 h-10 hover:opacity-90 transition-opacity`}
+                  <button type="button" onClick={() => navigate("/signup")}
+                    className={`inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r ${f.gradient} text-white font-semibold px-5 h-10 hover:opacity-90 transition-opacity`}
                     style={{ boxShadow: `0 4px 20px ${f.glow}` }}>
-                    Try free for 14 days <ArrowRight size={14} className="ml-1.5" />
-                  </Button>
+                    Try free for 14 days <ArrowRight size={14} />
+                  </button>
                 </motion.div>
 
                 {/* Mockup */}
@@ -336,10 +335,10 @@ const FeatureDepthSection: React.FC = () => {
             </p>
           </div>
           <div className="flex gap-3">
-            <Button onClick={() => navigate("/signup")}
-              className="h-10 rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 text-white font-bold px-5 hover:opacity-95 shadow-lg shadow-fuchsia-600/30">
-              Start free trial <ArrowRight size={14} className="ml-1.5" />
-            </Button>
+            <button type="button" onClick={() => navigate("/signup")}
+              className="lp-btn h-10 px-5 text-sm">
+              Start free trial <ArrowRight size={14} />
+            </button>
           </div>
         </motion.div>
       </div>

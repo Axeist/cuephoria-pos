@@ -56,13 +56,15 @@ const VerifyEmail: React.FC = () => {
   }, [token]);
 
   return (
-    <div className="min-h-screen bg-[#050508] text-zinc-100 flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-gradient-to-b from-[#0f1020] to-[#0b0c16] p-8 shadow-2xl">
+    <div className="lp-root relative min-h-screen overflow-hidden bg-[#05060b] text-zinc-100 flex items-center justify-center px-4 py-10">
+      <div className="lp-aurora" />
+      <div className="lp-grid" />
+      <div className="lp-glass lp-grain relative z-10 w-full max-w-md p-8">
         <div className="flex items-center gap-2 mb-6">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-fuchsia-500 to-indigo-500 flex items-center justify-center">
             <Sparkles className="h-4 w-4 text-white" />
           </div>
-          <span className="text-sm font-bold tracking-tight">Cuetronix</span>
+          <span className="lp-display text-sm font-bold tracking-tight">Cuetronix</span>
         </div>
 
         {state.kind === "loading" && (
@@ -77,14 +79,14 @@ const VerifyEmail: React.FC = () => {
             <div className="h-14 w-14 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/30">
               <ShieldAlert className="h-7 w-7 text-red-400" />
             </div>
-            <h1 className="text-2xl font-bold">Link didn't work</h1>
+            <h1 className="lp-display text-2xl font-bold">Link didn't work</h1>
             <p className="text-sm text-zinc-400">{state.message}</p>
             <p className="text-xs text-zinc-500">
               Sign in and request a new verification email from Account &rarr; Security.
             </p>
             <Link
               to="/login"
-              className="mt-2 inline-flex items-center justify-center h-11 px-6 rounded-xl text-sm font-semibold text-white bg-white/10 hover:bg-white/15"
+              className="lp-btn-ghost mt-2 h-11 px-6 text-sm"
             >
               Back to login
             </Link>
