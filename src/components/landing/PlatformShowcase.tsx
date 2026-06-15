@@ -447,20 +447,25 @@ const PlatformShowcase: React.FC = () => {
               <Receipt size={18} className="mt-1 shrink-0 text-white/30" />
             </div>
 
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={active}
-                initial={reduce ? false : { opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={reduce ? undefined : { opacity: 0, y: -12 }}
-                transition={{ duration: 0.35, ease: "easeOut" }}
-              >
-                <ActiveMock active />
-                <p className="mt-4 text-sm leading-relaxed text-white/55">
-                  {activePillar.blurb}
-                </p>
-              </motion.div>
-            </AnimatePresence>
+            {/* Fixed height so switching pillars never shifts the layout.
+                Mobile stacks the mock columns (taller); sm+ lays them side by side. */}
+            <div className="relative min-h-[500px] sm:min-h-[340px]">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={active}
+                  initial={reduce ? false : { opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={reduce ? undefined : { opacity: 0, y: -12 }}
+                  transition={{ duration: 0.35, ease: "easeOut" }}
+                  className="absolute inset-0"
+                >
+                  <ActiveMock active />
+                  <p className="mt-4 text-sm leading-relaxed text-white/55">
+                    {activePillar.blurb}
+                  </p>
+                </motion.div>
+              </AnimatePresence>
+            </div>
           </div>
         </Reveal>
       </div>

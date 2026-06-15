@@ -117,7 +117,7 @@ const FinalCtaSection: React.FC = () => {
           </motion.p>
         </div>
 
-        <div className="grid gap-6 items-start lg:grid-cols-[0.95fr_1.05fr] lg:gap-8">
+        <div className="grid gap-6 items-stretch lg:grid-cols-[0.95fr_1.05fr] lg:gap-8">
 
           {/* ── Left: value prop ── */}
           <motion.div initial={{ opacity: 0, y: 28 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.65 }}
@@ -190,7 +190,7 @@ const FinalCtaSection: React.FC = () => {
           {/* ── Right: Calendly ── */}
           <motion.div initial={{ opacity: 0, y: 28 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
             transition={{ duration: 0.65, delay: 0.12 }}
-            className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[#0f091a]/80 shadow-[0_24px_70px_-30px_rgba(168,85,247,0.55)] backdrop-blur-2xl">
+            className="relative flex flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[#0f091a]/80 shadow-[0_24px_70px_-30px_rgba(168,85,247,0.55)] backdrop-blur-2xl">
             <div className="border-b border-white/10 px-6 py-4 sm:px-7">
               <div className="lp-mono text-xs font-semibold uppercase tracking-[0.22em] text-fuchsia-300 mb-1">Book a call</div>
               <h3 className="lp-display text-xl font-bold tracking-tight text-white">
@@ -229,10 +229,10 @@ const FinalCtaSection: React.FC = () => {
                 </a>
               </div>
             </div>
-            <div className="px-5 pt-4 pb-2 sm:px-6 sm:pt-5 sm:pb-3">
+            <div className="flex-1 min-h-0 px-5 pt-4 pb-4 sm:px-6 sm:pt-5 sm:pb-5">
               <div
                 ref={calendlyRef}
-                className="overflow-y-auto overscroll-contain rounded-2xl bg-[#0f091a] calendly-book-a-call-slot"
+                className="h-full w-full overflow-hidden rounded-2xl bg-[#0f091a] calendly-book-a-call-slot"
               />
             </div>
           </motion.div>
@@ -241,23 +241,19 @@ const FinalCtaSection: React.FC = () => {
 
       <style>{`
         /**
-         * Calendly iframe often leaves dead space inside a massive parent —
-         * cap height (~62–66rem) so the booking card hugs content; scroll lives
-         * inside this box on small screens.
+         * The booking card stretches to match the left value-prop card (grid
+         * items-stretch + flex column). The Calendly slot fills the remaining
+         * height and is tall enough to show the full month view without its own
+         * scrollbar. min-height guarantees room on shorter viewports.
          */
         .calendly-book-a-call-slot {
-          min-height: 480px;
-          height: min(592px, calc(100dvh - 13.5rem));
-          max-height: min(624px, 76dvh);
+          height: 100%;
+          min-height: 660px;
           min-width: 280px;
         }
         .calendly-book-a-call-slot iframe {
-          max-height: 100% !important;
-        }
-
-        @keyframes hueShift {
-          0%, 100% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
+          height: 100% !important;
+          min-height: 660px !important;
         }
       `}</style>
     </section>
