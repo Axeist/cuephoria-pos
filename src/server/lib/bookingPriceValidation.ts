@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isStrictPricingEnabled } from "./securityFlags";
+import { isStrictPricingEnabled } from "./securityFlags.js";
 
 const VR_PASS_DURATION_MINUTES = 60;
 const PRICE_TOLERANCE_INR = 2;
