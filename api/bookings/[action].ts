@@ -5,7 +5,7 @@
  * Vercel resolves concrete files before dynamic segments. This dispatcher
  * handles:
  *
- *   POST /api/bookings/create         → handlers/bookings/create (Node runtime)
+ *   POST /api/bookings/create         → api/bookings/create.ts (Node runtime)
  *   POST /api/bookings/cleanup-blocks → handlers/bookings/cleanup-blocks (Edge style)
  *   POST /api/bookings/materialize    → handlers/bookings/materialize (Node runtime)
  *
@@ -26,7 +26,6 @@ import {
 } from "../../src/server/lib/node-dispatcher.js";
 
 import cleanupBlocksHandler from "../../src/server/handlers/bookings/cleanup-blocks.js";
-import createHandler from "../../src/server/handlers/bookings/create.js";
 import materializeHandler from "../../src/server/handlers/bookings/materialize.js";
 
 export const config = {
@@ -38,7 +37,6 @@ type DispatchEntry =
   | { kind: "edge"; handler: EdgeHandler };
 
 const ROUTES: Record<string, DispatchEntry> = {
-  create:           { kind: "node", handler: createHandler as unknown as NodeHandler },
   "cleanup-blocks": { kind: "edge", handler: cleanupBlocksHandler as unknown as EdgeHandler },
   materialize:      { kind: "node", handler: materializeHandler as unknown as NodeHandler },
 };

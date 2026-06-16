@@ -2,11 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { PAYMENT_ORDER_PENDING_TTL_MS } from "../../lib/payment-order-ttl.js";
 import { resolveBookingSlotConfigForLocation } from "../../lib/resolveBookingSlotConfigForLocation.js";
 import { splitBookingPriceAcrossRows } from "../../lib/bookingPriceValidation.js";
-import {
-  featureEnabled,
-  resolveEntitlementsForLocation,
-} from "../../lib/entitlements.js";
-import { validateAndMergeGridSlots } from "../../../utils/bookingSlotConfig.js";
+import { validateAndMergeGridSlots } from "../../lib/bookingSlotConfig.js";
 
 function getEnv(name: string): string | undefined {
   const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
@@ -96,6 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const location_id = typeof locationIdRaw === "string" && locationIdRaw.length > 0 ? locationIdRaw : null;
     if (!location_id) return j(res, { ok: false, error: "Missing location_id (branch)" }, 400);
 
+    const { resolveEntitlementsForLocation, featureEnabled } = await import("../../lib/entitlements.js");
     const { entitlements } = await resolveEntitlementsForLocation(supabase, location_id);
     if (!featureEnabled(entitlements, "bookings_enabled") || !featureEnabled(entitlements, "public_booking")) {
       return j(res, { ok: false, error: "Online booking is not available for this venue.", code: "plan_feature_required" }, 403);

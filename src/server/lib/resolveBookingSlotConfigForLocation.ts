@@ -9,7 +9,7 @@ import {
   parseBranchBookingSlotConfig,
   parseWorkspaceSlotDefaults,
   resolveBookingSlotConfig,
-} from "../../utils/bookingSlotConfig.js";
+} from "./bookingSlotConfig.js";
 
 /** Load effective public booking slot config for a branch (defaults 60/60 if columns missing). */
 export async function resolveBookingSlotConfigForLocation(
