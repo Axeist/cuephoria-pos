@@ -4,7 +4,7 @@ import type {
   BranchBookingSlotConfig,
   ResolvedBookingSlotConfig,
   WorkspaceBookingSlotDefaults,
-} from "@/types/bookingSlotConfig";
+} from "../types/bookingSlotConfig.js";
 
 export const DEFAULT_SLOT_INTERVAL_MINUTES: BookingSlotMinutes = 60;
 export const DEFAULT_MINIMUM_BOOKING_MINUTES: BookingSlotMinutes = 60;

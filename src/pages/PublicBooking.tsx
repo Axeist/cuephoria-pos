@@ -1709,7 +1709,18 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         }),
       });
 
-      const json = await res.json();
+      const responseText = await res.text();
+      let json: { ok?: boolean; error?: string; details?: string; conflict?: boolean; bookingId?: string } | null = null;
+      try {
+        json = responseText ? JSON.parse(responseText) : null;
+      } catch {
+        console.error("Booking API non-JSON response:", res.status, responseText.slice(0, 200));
+        throw new Error(
+          res.ok
+            ? "Invalid response from booking server"
+            : "Booking server error. Please try again or contact the venue.",
+        );
+      }
       if (!json?.ok) {
         if (json?.conflict) {
           toast.error(json?.error || "Selected slot is no longer available. Please select another time slot.");

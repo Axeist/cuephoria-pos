@@ -1,8 +1,16 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { PAYMENT_ORDER_PENDING_TTL_MS } from "../../src/server/lib/payment-order-ttl.js";
 import { resolveBookingSlotConfigForLocation } from "../../src/server/lib/resolveBookingSlotConfigForLocation.js";
 import { validateAndMergeGridSlots } from "../../src/utils/bookingSlotConfig.js";
 import { splitBookingPriceAcrossRows } from "../../src/server/lib/bookingPriceValidation.js";
+import {
+  featureEnabled,
+  resolveEntitlementsForLocation,
+} from "../../src/server/lib/entitlements.js";
+
+export const config = {
+  maxDuration: 30,
+};
 
 function getEnv(name: string): string | undefined {
   const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
@@ -11,24 +19,21 @@ function getEnv(name: string): string | undefined {
   return fromDeno ?? fromProcess ?? fromGlobalProcess;
 }
 
-function needEnv(name: string): string {
-  const v = getEnv(name);
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
+function getSupabaseClient(): SupabaseClient {
+  const url = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
+  const key =
+    getEnv("SUPABASE_SERVICE_ROLE_KEY") ||
+    getEnv("SUPABASE_SERVICE_KEY") ||
+    getEnv("SUPABASE_ANON_KEY") ||
+    getEnv("VITE_SUPABASE_PUBLISHABLE_KEY");
+  if (!url || !key) {
+    throw new Error("Missing Supabase configuration");
+  }
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { "x-application-name": "cuephoria-api" } },
+  });
 }
-
-const SUPABASE_URL = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL") || needEnv("SUPABASE_URL");
-const SUPABASE_KEY =
-  getEnv("SUPABASE_SERVICE_ROLE_KEY") ||
-  getEnv("SUPABASE_SERVICE_KEY") ||
-  getEnv("SUPABASE_ANON_KEY") ||
-  getEnv("VITE_SUPABASE_PUBLISHABLE_KEY") ||
-  needEnv("SUPABASE_SERVICE_ROLE_KEY");
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false },
-  global: { headers: { "x-application-name": "cuephoria-api" } },
-});
 
 type VercelRequest = {
   method?: string;
@@ -51,6 +56,7 @@ function setCorsHeaders(res: VercelResponse) {
 
 function j(res: VercelResponse, data: unknown, status = 200) {
   setCorsHeaders(res);
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.status(status).json(data);
 }
 
@@ -63,7 +69,7 @@ const generateCustomerID = (phone: string): string => {
   return `CUE${phoneHash}${timestamp}`;
 };
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handleCreateBooking(req: VercelRequest, res: VercelResponse) {
   if (req.method === "OPTIONS") {
     setCorsHeaders(res);
     return res.status(200).end();
@@ -71,6 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return j(res, { ok: false, error: "Method not allowed" }, 405);
 
   try {
+    const supabase = getSupabaseClient();
     const payload = (req.body as any) || {};
     const {
       customerInfo,
@@ -93,9 +100,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const location_id = typeof locationIdRaw === "string" && locationIdRaw.length > 0 ? locationIdRaw : null;
     if (!location_id) return j(res, { ok: false, error: "Missing location_id (branch)" }, 400);
 
-    const { resolveEntitlementsForLocation, featureEnabled } = await import(
-      "../../src/server/lib/entitlements.js"
-    );
     const { entitlements } = await resolveEntitlementsForLocation(supabase, location_id);
     if (!featureEnabled(entitlements, "bookings_enabled") || !featureEnabled(entitlements, "public_booking")) {
       return j(res, { ok: false, error: "Online booking is not available for this venue.", code: "plan_feature_required" }, 403);
@@ -327,7 +331,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         payment_txn_id: orderId || null,
         player_count: Number(stationPlayerCounts?.[stationId]) || 1,
         booking_group_id,
-        booking_addons: addonSnapshot,
+        ...(addonSnapshot ? { booking_addons: addonSnapshot } : {}),
       })),
     );
     const rows = rowTemplates.map((row) => ({
@@ -367,5 +371,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
   } catch (error: any) {
     return j(res, { ok: false, error: "Unexpected error occurred", details: error.message }, 500);
+  }
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    return await handleCreateBooking(req, res);
+  } catch (error: unknown) {
+    console.error("[bookings/create] unhandled error:", error);
+    try {
+      j(res, {
+        ok: false,
+        error: "Booking service error",
+        details: error instanceof Error ? error.message : String(error),
+      }, 500);
+    } catch {
+      // response already committed
+    }
   }
 }
