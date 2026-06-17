@@ -178,11 +178,17 @@ const Dashboard = () => {
 
       {/* Mobile-optimized toggle buttons with better spacing */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-3 sm:mb-6 overflow-x-hidden">
-        <div className={`${isMobile ? 'w-full grid grid-cols-4 gap-0.5 h-10' : 'w-full sm:w-auto gap-1.5 flex'} p-1 rounded-xl glass-card`}>
+        <div
+          className={`${
+            isMobile
+              ? 'tabs-list w-full flex gap-1 h-10 p-1 rounded-xl glass-card'
+              : 'w-full sm:w-auto gap-1.5 flex p-1 rounded-xl glass-card'
+          }`}
+        >
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('overview')}
-            className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-1.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
+            className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-2.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'overview'
                 ? 'btn-gradient text-white'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -194,7 +200,7 @@ const Dashboard = () => {
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('analytics')}
-            className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-1.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
+            className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-2.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'analytics'
                 ? 'btn-gradient text-white'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -207,7 +213,7 @@ const Dashboard = () => {
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('expenses')}
-            className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-1.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
+            className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-2.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'expenses'
                 ? 'btn-gradient text-white'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -220,7 +226,7 @@ const Dashboard = () => {
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('cash')}
-            className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-1.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
+            className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-2.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'cash'
                 ? 'btn-gradient text-white'
                 : 'text-white/60 hover:text-white hover:bg-white/5'

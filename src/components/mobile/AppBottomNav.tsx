@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
 import {
   Home,
@@ -98,7 +99,7 @@ export function AppBottomNav() {
     return tab.matchPaths.some((p) => location.pathname === p);
   };
 
-  return (
+  return createPortal(
     <nav
       className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[linear-gradient(180deg,rgba(10,6,22,0.98)_0%,rgba(7,3,15,0.98)_100%)] backdrop-blur-xl shadow-[0_-8px_24px_-8px_rgba(0,0,0,0.5)] md:hidden"
       style={{
@@ -181,6 +182,7 @@ export function AppBottomNav() {
           );
         })}
       </div>
-    </nav>
+    </nav>,
+    document.body,
   );
 }

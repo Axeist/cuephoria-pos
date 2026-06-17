@@ -16,7 +16,7 @@ export function MobilePageShell({
   return (
     <div
       className={cn(
-        "flex-1 w-full min-w-0 max-w-full",
+        "mobile-page-shell flex-1 w-full min-w-0 max-w-full box-border",
         isMobile && "overflow-x-hidden",
         "space-y-4 p-4 sm:p-6 md:p-8",
         className,

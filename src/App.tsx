@@ -233,6 +233,9 @@ const ProtectedAppShell: React.FC<{ permission?: string; bare?: boolean }> = ({
                       ) : (
                         <SidebarProvider
                           defaultOpen={false}
+                          className={cn(
+                            isMobile && "!block min-w-0 w-full max-w-full",
+                          )}
                           style={
                             {
                               "--sidebar-width-icon": "3.75rem",
@@ -240,27 +243,39 @@ const ProtectedAppShell: React.FC<{ permission?: string; bare?: boolean }> = ({
                           }
                         >
                           <MobileNavProvider>
-                            <div className="app-ambient flex min-h-screen w-full overflow-x-clip relative">
-                              <AppSidebar />
-                              <SidebarTourOverlay />
-                              <div className="flex-1 flex flex-col overflow-x-clip min-w-0">
-                                <AppScreenHeader />
-                                <AppHeader />
-                                <main
-                                  id="app-main"
-                                  tabIndex={-1}
-                                  className={cn(
-                                    "flex-1 outline-none min-w-0 w-full",
-                                    isMobile && "app-screen-mobile",
-                                  )}
-                                >
-                                  <PageTransition />
-                                </main>
+                            {isMobile ? (
+                              <div className="app-mobile-shell relative min-h-svh w-full min-w-0 max-w-full overflow-x-clip">
+                                <div className="app-ambient min-h-screen w-full min-w-0 max-w-full">
+                                  <AppScreenHeader />
+                                  <main
+                                    id="app-main"
+                                    tabIndex={-1}
+                                    className="app-screen-mobile w-full min-w-0 max-w-full outline-none"
+                                  >
+                                    <PageTransition />
+                                  </main>
+                                </div>
+                                <AppBottomNav />
+                                <MobileNavSheet />
+                                <PostLoginViewModeDialog />
                               </div>
-                              <AppBottomNav />
-                              <MobileNavSheet />
-                              <PostLoginViewModeDialog />
-                            </div>
+                            ) : (
+                              <div className="app-ambient flex min-h-screen w-full overflow-x-clip relative">
+                                <AppSidebar />
+                                <SidebarTourOverlay />
+                                <div className="flex min-w-0 flex-1 flex-col overflow-x-clip">
+                                  <AppHeader />
+                                  <main
+                                    id="app-main"
+                                    tabIndex={-1}
+                                    className="min-w-0 w-full flex-1 outline-none"
+                                  >
+                                    <PageTransition />
+                                  </main>
+                                </div>
+                                <PostLoginViewModeDialog />
+                              </div>
+                            )}
                           </MobileNavProvider>
                         </SidebarProvider>
                       )}
@@ -397,26 +412,36 @@ const CafeProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: s
   }
 
   return (
-    <SidebarProvider>
+    <SidebarProvider
+      className={cn(isMobile && "!block min-w-0 w-full max-w-full")}
+    >
       <CafeMobileNavProvider>
-        <div className="cafe-shell cafe-ambient flex min-h-screen w-full overflow-x-clip relative">
-          <CafeSidebar />
-          <div className="flex-1 flex flex-col overflow-x-clip min-w-0">
-            <CafeScreenHeader />
-            <main
-              id="cafe-main"
-              className={cn(
-                "flex-1 outline-none min-w-0 w-full",
-                isMobile && "app-screen-mobile cafe-screen-mobile",
-              )}
-            >
-              {children}
-            </main>
+        {isMobile ? (
+          <div className="cafe-mobile-shell relative min-h-svh w-full min-w-0 max-w-full overflow-x-clip">
+            <div className="cafe-shell cafe-ambient min-h-screen w-full min-w-0 max-w-full">
+              <CafeScreenHeader />
+              <main
+                id="cafe-main"
+                className="cafe-screen-mobile w-full min-w-0 max-w-full outline-none"
+              >
+                {children}
+              </main>
+            </div>
+            <CafeBottomNav />
+            <CafeMobileNavSheet />
+            <PostLoginViewModeDialog />
           </div>
-          <CafeBottomNav />
-          <CafeMobileNavSheet />
-          <PostLoginViewModeDialog />
-        </div>
+        ) : (
+          <div className="cafe-shell cafe-ambient flex min-h-screen w-full overflow-x-clip">
+            <CafeSidebar />
+            <div className="flex min-w-0 flex-1 flex-col overflow-x-clip">
+              <main id="cafe-main" className="min-w-0 w-full flex-1 outline-none">
+                {children}
+              </main>
+            </div>
+            <PostLoginViewModeDialog />
+          </div>
+        )}
       </CafeMobileNavProvider>
     </SidebarProvider>
   );

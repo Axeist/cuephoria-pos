@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -118,7 +119,7 @@ export function CafeBottomNav() {
     return tab.matchPaths.some((p) => location.pathname === p);
   };
 
-  return (
+  return createPortal(
     <nav
       className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.08] bg-zinc-950/95 backdrop-blur-xl lg:hidden"
       style={{ paddingBottom: "max(0px, env(safe-area-inset-bottom))" }}
@@ -172,6 +173,7 @@ export function CafeBottomNav() {
           );
         })}
       </div>
-    </nav>
+    </nav>,
+    document.body,
   );
 }

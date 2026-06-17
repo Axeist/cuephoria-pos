@@ -158,12 +158,19 @@
     overflow-x: hidden;
   }
 
-  /* Hard clamp every block-level container at viewport width on mobile.
-     This is the safety net that the rest of the codebase implicitly relies
-     on; without it any unconstrained child (a 600px chart, a wide form
-     row) can push the parent layout wider than the screen. */
-  div, section, article, aside, main, header, footer, nav {
-    max-width: 100vw;
+  /* Hard clamp app shell containers — avoid blanket max-width on every div
+     which breaks nested flex rows and squeezes content into a narrow column. */
+  #app-main,
+  #cafe-main,
+  .app-ambient,
+  .cafe-shell,
+  .app-mobile-shell,
+  .cafe-mobile-shell,
+  .group\/sidebar-wrapper {
+    max-width: 100%;
+    width: 100%;
+    min-width: 0;
+    display: block;
   }
 
   main, [role="main"] {
@@ -256,18 +263,26 @@
   .app-screen-mobile {
     padding-top: var(--app-header-height);
     padding-bottom: var(--app-bottom-nav-height);
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
+    box-sizing: border-box;
   }
 
   .cafe-screen-mobile {
     --app-header-height: calc(56px + env(safe-area-inset-top));
     padding-top: var(--app-header-height);
     padding-bottom: var(--app-bottom-nav-height);
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
+    box-sizing: border-box;
   }
 
   /* Horizontal scroll for wide tables instead of page overflow */
@@ -301,6 +316,13 @@
   /* Flex children must shrink on narrow screens */
   .flex > *,
   .flex-col > * {
+    min-width: 0;
+  }
+
+  .mobile-page-shell,
+  #app-main > *,
+  #cafe-main > * {
+    max-width: 100%;
     min-width: 0;
   }
 
