@@ -1,4 +1,5 @@
 // src/pages/StaffManagement.tsx
+import { MobilePageShell } from '@/components/mobile/MobilePageShell';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -72,25 +73,25 @@ const StaffManagementContent: React.FC = () => {
 
   if (!locationResolved) {
     return (
-      <div className="flex-1 p-6">
+      <MobilePageShell>
         <StaffEmptyState loading={true} />
-      </div>
+      </MobilePageShell>
     );
   }
 
   if (!activeLocation) {
     return (
-      <div className="flex-1 p-6">
+      <MobilePageShell>
         <StaffEmptyState
           title="No branch selected"
           description="Assign at least one branch to this workspace, then return here."
         />
-      </div>
+      </MobilePageShell>
     );
   }
 
   return (
-    <div className="flex-1 space-y-4 sm:space-y-6 p-4 sm:p-6 md:p-8 pt-6">
+    <MobilePageShell className="sm:space-y-6 pt-2 sm:pt-6">
       <StaffLocationBanner
         location={activeLocation}
         organizationName={orgCtx?.organization?.name}
@@ -219,7 +220,7 @@ const StaffManagementContent: React.FC = () => {
         staffProfiles={profiles}
         onSuccess={refresh}
       />
-    </div>
+    </MobilePageShell>
   );
 };
 

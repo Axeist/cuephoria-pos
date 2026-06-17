@@ -1,3 +1,4 @@
+import { MobilePageShell } from '@/components/mobile/MobilePageShell';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useExpenses } from '@/context/ExpenseContext';
 import { usePOS } from '@/context/POSContext';
@@ -2117,7 +2118,7 @@ const ReportsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 min-h-screen text-white bg-transparent">
+    <MobilePageShell className="p-3 sm:p-6 space-y-4 sm:space-y-6 min-h-screen text-white bg-transparent">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-2">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl sm:text-4xl font-bold gradient-text font-heading">Reports</h1>
@@ -2500,7 +2501,7 @@ const ReportsPage: React.FC = () => {
           </DialogFooter>
         </ResponsiveDialogContent>
       </ResponsiveDialog>
-    </div>
+    </MobilePageShell>
   );
 };
 

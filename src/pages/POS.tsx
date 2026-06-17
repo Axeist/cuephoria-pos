@@ -1,3 +1,4 @@
+import { MobilePageShell } from '@/components/mobile/MobilePageShell';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -433,7 +434,7 @@ const POS = () => {
   }, [fromSessionEnd, cart.length]);
 
   return (
-    <div className={`flex-1 p-3 sm:p-6 md:p-8 pt-3 sm:pt-6 ${mobileView ? 'pb-28' : ''}`}>
+    <MobilePageShell className={`p-3 sm:p-6 md:p-8 pt-3 sm:pt-6 space-y-0 ${mobileView ? 'pb-28' : ''}`}>
       {/* Mobile-optimized header */}
       <div className="flex items-center justify-between mb-4 sm:mb-6 animate-slide-down">
         <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight gradient-text font-heading">Point of Sale</h2>
@@ -1388,7 +1389,7 @@ const POS = () => {
         title="Unlock discounts"
         description="Enter your workspace PIN to apply discounts after midnight."
       />
-    </div>
+    </MobilePageShell>
   );
 };
 

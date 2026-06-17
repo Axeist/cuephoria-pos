@@ -41,7 +41,7 @@ const HowToUse: React.FC = () => {
   }, []);
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden px-3 py-8 text-base text-zinc-100 md:px-5">
+    <div className="relative min-h-screen w-full min-w-0 max-w-full overflow-x-hidden px-3 py-8 text-base text-zinc-100 md:px-5">
       <div
         className="pointer-events-none fixed inset-0 -z-10 bg-[#07030f]"
         aria-hidden

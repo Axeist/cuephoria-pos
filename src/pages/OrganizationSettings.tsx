@@ -401,7 +401,7 @@ const OrganizationSettings: React.FC<{ embedded?: boolean; section?: OrgSettings
   }
 
   return (
-    <div className="container p-4 mx-auto max-w-5xl space-y-6">
+    <div className="container p-4 mx-auto w-full max-w-5xl space-y-6 min-w-0 overflow-x-hidden">
       <div className="relative overflow-hidden rounded-3xl border border-white/10 p-5 sm:p-8">
         <div
           aria-hidden

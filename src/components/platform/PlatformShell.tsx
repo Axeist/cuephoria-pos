@@ -29,7 +29,7 @@ export const PlatformShell: React.FC<{ children: React.ReactNode }> = ({ childre
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#07070e] text-zinc-100">
+    <div className="min-h-screen bg-[#07070e] text-zinc-100 overflow-x-hidden">
       {/* Ambient gradient (non-interactive) */}
       <div
         aria-hidden
@@ -187,8 +187,8 @@ export const PlatformShell: React.FC<{ children: React.ReactNode }> = ({ childre
           </div>
         </header>
 
-        <main className="flex-1">
-          <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-6 sm:py-8">{children}</div>
+        <main className="flex-1 min-w-0 overflow-x-hidden">
+          <div className="mx-auto max-w-[1400px] w-full min-w-0 px-4 sm:px-6 py-6 sm:py-8">{children}</div>
         </main>
 
         <footer className="border-t border-white/5 py-4 text-center text-[11px] text-zinc-600">

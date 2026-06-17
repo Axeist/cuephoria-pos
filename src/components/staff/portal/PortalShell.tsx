@@ -1,4 +1,5 @@
 import React from 'react';
+import { MobilePageShell } from '@/components/mobile/MobilePageShell';
 import { Button } from '@/components/ui/button';
 import StaffAvatar from '@/components/staff/shared/StaffAvatar';
 
@@ -11,7 +12,7 @@ type Props = {
 };
 
 const PortalShell: React.FC<Props> = ({ displayName, username, designation, onLock, children }) => (
-  <div className="flex-1 space-y-6 p-4 sm:p-6 md:p-8">
+  <MobilePageShell className="space-y-6 pt-2 sm:pt-6">
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div className="flex items-center gap-4">
         <StaffAvatar staff={{ username, full_name: displayName, email: null }} size="lg" />
@@ -36,7 +37,7 @@ const PortalShell: React.FC<Props> = ({ displayName, username, designation, onLo
       </Button>
     </div>
     {children}
-  </div>
+  </MobilePageShell>
 );
 
 export default PortalShell;

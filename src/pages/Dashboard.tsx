@@ -23,6 +23,7 @@ import VaultDashboard from '@/components/vault/VaultDashboard';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
+import { MobilePageShell } from '@/components/mobile/MobilePageShell';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePermissions } from '@/context/PermissionsContext';
 
@@ -168,7 +169,7 @@ const Dashboard = () => {
   }, [stats, activeTab, activeSessionsCount, newMembersCount, lowStockItems]);
 
   return (
-    <div className="flex-1 space-y-3 sm:space-y-6 p-3 sm:p-6 text-white overflow-x-hidden">
+    <MobilePageShell className="space-y-3 sm:space-y-6 p-3 sm:p-6 text-white">
       <WorkspaceHero />
       {/* Mobile-optimized header */}
       <div className="flex items-center justify-between">
@@ -306,7 +307,7 @@ const Dashboard = () => {
           <VaultDashboard />
         </div>
       )}
-    </div>
+    </MobilePageShell>
   );
 };
 

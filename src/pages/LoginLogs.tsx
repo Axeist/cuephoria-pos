@@ -88,7 +88,7 @@ const LoginLogs = () => {
   };
 
   return (
-    <div className="min-h-screen bg-cuephoria-dark p-4">
+    <div className="min-h-screen bg-cuephoria-dark p-4 min-w-0 max-w-full overflow-x-hidden">
       {/* Header */}
       <div className="max-w-7xl mx-auto mb-6">
         <Button 

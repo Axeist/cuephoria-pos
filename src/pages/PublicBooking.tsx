@@ -2407,7 +2407,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   }
 
   return (
-    <div className={`min-h-screen relative overflow-hidden ${
+    <div className={`min-h-screen relative overflow-x-hidden max-w-full min-w-0 ${
       isLiteBranch
         ? "bg-gradient-to-br from-[#060d10] via-[#080e14] to-[#060d10]"
         : "bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]"

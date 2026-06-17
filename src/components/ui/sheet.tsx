@@ -29,7 +29,7 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName
 
 const sheetVariants = cva(
-  "fixed z-[9999] gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
+  "fixed z-[9999] gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500 motion-reduce:transition-none motion-reduce:animate-none",
   {
     variants: {
       side: {
@@ -62,6 +62,12 @@ const SheetContent = React.forwardRef<
       className={cn(sheetVariants({ side }), className)}
       {...props}
     >
+      {side === "bottom" && (
+        <div
+          className="mx-auto mb-1 mt-1 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/35"
+          aria-hidden
+        />
+      )}
       {children}
       <SheetPrimitive.Close className="absolute right-4 top-4 z-50 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 active:opacity-100 touch-manipulation focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary p-2 -m-2 min-w-[44px] min-h-[44px] flex items-center justify-center">
         <X className="h-5 w-5" />

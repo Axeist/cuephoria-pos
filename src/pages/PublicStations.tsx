@@ -254,7 +254,7 @@ const PublicStations = ({ branchSlug = 'main' }: { branchSlug?: string }) => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-r from-gray-900 to-black overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-r from-gray-900 to-black overflow-x-hidden max-w-full min-w-0">
       {/* Header with logo */}
       <header className="py-8 px-4 sm:px-6 md:px-8 animate-fade-in relative">
         <div className="max-w-7xl mx-auto">

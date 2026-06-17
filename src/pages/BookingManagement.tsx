@@ -1,3 +1,4 @@
+import { MobilePageShell } from '@/components/mobile/MobilePageShell';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -1772,7 +1773,7 @@ export default function BookingManagement() {
     .slice(0, 5);
 
   return (
-    <div className="flex-1 space-y-4 sm:space-y-6 p-4 sm:p-6 md:p-8 pt-6">
+    <MobilePageShell className="sm:space-y-6 pt-2 sm:pt-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -3910,6 +3911,6 @@ export default function BookingManagement() {
           />
         </>
       )}
-    </div>
+    </MobilePageShell>
   );
 }

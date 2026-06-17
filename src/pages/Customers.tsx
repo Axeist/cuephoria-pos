@@ -1,3 +1,4 @@
+import { MobilePageShell } from '@/components/mobile/MobilePageShell';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Plus, User, Search, Download, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -685,7 +686,7 @@ const Customers = () => {
   const activeFilterCount = getActiveFilterCount();
 
   return (
-    <div className="flex-1 space-y-4 p-4 sm:p-6 md:p-8 pt-6">
+    <MobilePageShell className="pt-2 sm:pt-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h2 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text font-heading">Customers</h2>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
@@ -1145,7 +1146,7 @@ const Customers = () => {
           )}
         </div>
       )}
-    </div>
+    </MobilePageShell>
   );
 };
 

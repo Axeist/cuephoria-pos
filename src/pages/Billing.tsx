@@ -1035,7 +1035,7 @@ export default function Billing() {
     !internal && !!subscription?.razorpay_subscription_id;
 
   return (
-    <div className="min-h-screen app-ambient text-white">
+    <div className="min-h-screen app-ambient text-white min-w-0 max-w-full overflow-x-hidden">
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-8 space-y-8">
         {subscriptionGateBanner ? (
           <SubscriptionGateRecapBanner
@@ -2234,7 +2234,7 @@ function SubscriptionGateRecapBanner({
 
 function BillingSkeleton({ orgName, prepend }: { orgName?: string; prepend?: React.ReactNode }) {
   return (
-    <div className="min-h-screen app-ambient text-white">
+    <div className="min-h-screen app-ambient text-white min-w-0 max-w-full overflow-x-hidden">
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-8 space-y-6">
         {prepend}
         <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.18em] font-semibold text-white/40">

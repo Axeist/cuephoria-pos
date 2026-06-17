@@ -242,7 +242,7 @@ export default function TournamentsPage() {
 
   return (
     <TournamentMotionProvider intensity="full">
-      <div className="relative min-h-[calc(100vh-4rem)] w-full overflow-hidden">
+      <div className="relative min-h-[calc(100vh-4rem)] w-full min-w-0 max-w-full overflow-x-hidden">
         <AmbientTournamentBg />
 
         <div className="relative w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-6 lg:py-8 space-y-6 lg:space-y-8">

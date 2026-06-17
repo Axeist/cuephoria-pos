@@ -626,7 +626,7 @@ const Settings = () => {
   );
 
   return (
-    <div className="min-h-[calc(100vh-4rem)]">
+    <div className="min-h-[calc(100vh-4rem)] min-w-0 max-w-full overflow-x-hidden">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {/* Page header */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

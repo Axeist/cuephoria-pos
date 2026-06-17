@@ -110,6 +110,9 @@ export const ViewModeProvider: React.FC<{ children: React.ReactNode }> = ({
   const [autoDetected, setAutoDetected] = useState<ViewMode>(() =>
     detectAutoMode(),
   );
+  const [viewportWidth, setViewportWidth] = useState<number>(() =>
+    typeof window !== "undefined" ? window.innerWidth : MOBILE_BREAKPOINT + 1,
+  );
   const [userOverride, setUserOverrideState] = useState<ViewModeOverride>(() =>
     readOverride(),
   );
@@ -121,7 +124,10 @@ export const ViewModeProvider: React.FC<{ children: React.ReactNode }> = ({
     if (typeof window === "undefined") return;
 
     let frame = 0;
-    const update = () => setAutoDetected(detectAutoMode());
+    const update = () => {
+      setAutoDetected(detectAutoMode());
+      setViewportWidth(window.innerWidth);
+    };
 
     const onResize = () => {
       window.cancelAnimationFrame(frame);
@@ -185,7 +191,11 @@ export const ViewModeProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  const mode: ViewMode = userOverride ?? autoDetected;
+  // Phones always use mobile layout — desktop override cannot shrink usable width.
+  const mode: ViewMode =
+    viewportWidth < MOBILE_BREAKPOINT
+      ? "mobile"
+      : userOverride ?? autoDetected;
 
   const value = useMemo<ViewModeContextValue>(
     () => ({

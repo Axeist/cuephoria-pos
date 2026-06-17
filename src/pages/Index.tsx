@@ -40,7 +40,7 @@ const Index: React.FC = () => {
   }, [location.pathname, location.hash]);
 
   return (
-    <div className="lp-root relative min-h-screen bg-[#05060b] text-white antialiased selection:bg-violet-500/40 selection:text-white">
+    <div className="lp-root relative min-h-screen overflow-x-hidden bg-[#05060b] text-white antialiased selection:bg-violet-500/40 selection:text-white">
       <ScrollProgress />
       <SiteAmbientBackground parallax />
 

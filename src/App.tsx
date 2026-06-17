@@ -37,13 +37,17 @@ import SidebarTourOverlay from "@/components/onboarding/SidebarTourOverlay";
 import SubscriptionGate from "@/components/SubscriptionGate";
 import { PlanFeatureGate } from "@/components/PlanFeatureGate";
 import { isInternalOrganization } from "@/types/tenancy";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useViewMode, ViewModeProvider } from "@/context/ViewModeContext";
+import { cn } from "@/lib/utils";
 import { initializeMobileApp, isNativePlatform } from "@/utils/capacitor";
 import SplashScreen from "@/components/SplashScreen";
 import AppLoadingOverlay from "@/components/loading/AppLoadingOverlay";
-import { ViewModeProvider } from "@/context/ViewModeContext";
 import PostLoginViewModeDialog from "@/components/PostLoginViewModeDialog";
 import PageTransition from "@/components/layout/PageTransition";
+import { MobileNavProvider } from "@/components/mobile/MobileNavContext";
+import { AppScreenHeader } from "@/components/mobile/AppScreenHeader";
+import { AppBottomNav } from "@/components/mobile/AppBottomNav";
+import { MobileNavSheet } from "@/components/mobile/MobileNavSheet";
 // REMOVED: import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 // Auth & first paint (keep eager — small or entry routes)
@@ -108,6 +112,11 @@ const CafeCustomerOrder = lazy(() => import("./pages/cafe/CafeCustomerOrder"));
 const CafeCustomers = lazy(() => import("./pages/cafe/CafeCustomers"));
 const CafeStaff = lazy(() => import("./pages/cafe/CafeStaff"));
 import { CafeAuthProvider, useCafeAuth } from "@/context/CafeAuthContext";
+import { useViewMode } from "@/context/ViewModeContext";
+import { CafeMobileNavProvider } from "@/components/cafe/mobile/CafeMobileNavContext";
+import { CafeScreenHeader } from "@/components/cafe/mobile/CafeScreenHeader";
+import { CafeBottomNav } from "@/components/cafe/mobile/CafeBottomNav";
+import { CafeMobileNavSheet } from "@/components/cafe/mobile/CafeMobileNavSheet";
 import CafeSidebar from "@/components/cafe/CafeSidebar";
 
 const HowToUsePage = lazy(() => import("./pages/HowToUse"));
@@ -177,7 +186,7 @@ const ProtectedAppShell: React.FC<{ permission?: string; bare?: boolean }> = ({
   const { user } = useAuth();
   const { can, isLoading, bypass } = usePermissions();
   const location = useLocation();
-  const isMobile = useIsMobile();
+  const { isMobile } = useViewMode();
 
   const firstSegment = location.pathname.split("/").filter(Boolean)[0];
   const modulePath = firstSegment ? `/${firstSegment}` : "";
@@ -230,21 +239,29 @@ const ProtectedAppShell: React.FC<{ permission?: string; bare?: boolean }> = ({
                             } as React.CSSProperties
                           }
                         >
-                          <div className="app-ambient flex min-h-screen w-full overflow-x-clip relative">
-                            <AppSidebar />
-                            <SidebarTourOverlay />
-                            <div className="flex-1 flex flex-col overflow-x-clip min-w-0">
-                              <AppHeader />
-                              <main
-                                id="app-main"
-                                tabIndex={-1}
-                                className={`flex-1 pb-16 sm:pb-0 outline-none ${isMobile ? "pt-[64px]" : ""}`}
-                              >
-                                <PageTransition />
-                              </main>
+                          <MobileNavProvider>
+                            <div className="app-ambient flex min-h-screen w-full overflow-x-clip relative">
+                              <AppSidebar />
+                              <SidebarTourOverlay />
+                              <div className="flex-1 flex flex-col overflow-x-clip min-w-0">
+                                <AppScreenHeader />
+                                <AppHeader />
+                                <main
+                                  id="app-main"
+                                  tabIndex={-1}
+                                  className={cn(
+                                    "flex-1 outline-none min-w-0 w-full",
+                                    isMobile && "app-screen-mobile",
+                                  )}
+                                >
+                                  <PageTransition />
+                                </main>
+                              </div>
+                              <AppBottomNav />
+                              <MobileNavSheet />
+                              <PostLoginViewModeDialog />
                             </div>
-                            <PostLoginViewModeDialog />
-                          </div>
+                          </MobileNavProvider>
                         </SidebarProvider>
                       )}
                     </BookingNotificationProvider>
@@ -353,7 +370,7 @@ const OnboardingRoute: React.FC<{ children: React.ReactNode }> = ({ children }) 
 const CafeProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: string[] }> = ({ children, allowedRoles }) => {
   const { user, isLoading } = useCafeAuth();
   const location = useLocation();
-  const isMobile = useIsMobile();
+  const { isMobile } = useViewMode();
 
   if (isLoading) {
     return (
@@ -381,15 +398,26 @@ const CafeProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: s
 
   return (
     <SidebarProvider>
-      <div className="cafe-shell cafe-ambient flex min-h-screen w-full overflow-x-hidden">
-        <CafeSidebar />
-        <div className="flex-1 flex flex-col overflow-x-hidden min-w-0">
-          <main className={`flex-1 outline-none ${isMobile ? 'pb-4' : ''}`} id="cafe-main">
-            {children}
-          </main>
+      <CafeMobileNavProvider>
+        <div className="cafe-shell cafe-ambient flex min-h-screen w-full overflow-x-clip relative">
+          <CafeSidebar />
+          <div className="flex-1 flex flex-col overflow-x-clip min-w-0">
+            <CafeScreenHeader />
+            <main
+              id="cafe-main"
+              className={cn(
+                "flex-1 outline-none min-w-0 w-full",
+                isMobile && "app-screen-mobile cafe-screen-mobile",
+              )}
+            >
+              {children}
+            </main>
+          </div>
+          <CafeBottomNav />
+          <CafeMobileNavSheet />
+          <PostLoginViewModeDialog />
         </div>
-        <PostLoginViewModeDialog />
-      </div>
+      </CafeMobileNavProvider>
     </SidebarProvider>
   );
 };

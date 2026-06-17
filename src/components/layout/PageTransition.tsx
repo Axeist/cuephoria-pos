@@ -2,6 +2,8 @@ import React, { useLayoutEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { isSessionEndNavigation } from '@/utils/viewTransition';
+import { useViewMode } from '@/context/ViewModeContext';
+import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 
 function getSlideDirection(fromPath: string, toPath: string): number {
   const from = fromPath.split('?')[0];
@@ -21,7 +23,9 @@ const springEase = [0.16, 1, 0.3, 1] as const;
 export const PageTransition: React.FC = () => {
   const location = useLocation();
   const reducedMotion = useReducedMotion();
+  const { isMobile } = useViewMode();
   const prevLocationRef = useRef(location);
+  useScrollRestoration();
 
   const direction = getSlideDirection(
     prevLocationRef.current.pathname,
@@ -53,15 +57,15 @@ export const PageTransition: React.FC = () => {
         initial={{ opacity: 0, x: 36, scale: 0.985 }}
         animate={{ opacity: 1, x: 0, scale: 1 }}
         transition={{ duration: 0.42, ease: springEase }}
-        className="min-h-full will-change-[opacity,transform]"
+        className="min-h-full min-w-0 w-full max-w-full overflow-x-hidden will-change-[opacity,transform]"
       >
         <Outlet />
       </motion.div>
     );
   }
 
-  const slideDistance = isStationsPos ? 32 : 14;
-  const duration = isStationsPos ? 0.34 : 0.24;
+  const slideDistance = isStationsPos ? 32 : isMobile ? 10 : 14;
+  const duration = isStationsPos ? 0.34 : isMobile ? 0.2 : 0.24;
 
   return (
     <AnimatePresence mode="wait" initial={false}>
@@ -79,7 +83,7 @@ export const PageTransition: React.FC = () => {
           scale: isStationsPos ? 0.992 : 1,
         }}
         transition={{ duration, ease: springEase }}
-        className="min-h-full will-change-[opacity,transform]"
+        className="min-h-full min-w-0 w-full max-w-full overflow-x-hidden will-change-[opacity,transform]"
       >
         <Outlet />
       </motion.div>

@@ -168,7 +168,7 @@ export default function AccountSecurity() {
   const status = statusQ.data;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background min-w-0 max-w-full overflow-x-hidden">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex items-center gap-3 mb-4 text-sm text-muted-foreground">
           <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 hover:text-foreground">

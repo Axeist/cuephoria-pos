@@ -1581,7 +1581,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
   const tabIdleClass = 'text-white/50 hover:text-white pt-hover-muted-soft';
 
   return (
-    <div className="pt-page pt-page-bg min-h-screen text-white overflow-hidden">
+    <div className="pt-page pt-page-bg min-h-screen text-white overflow-x-hidden max-w-full min-w-0">
       <PublicPageBrandStyles primary={tenantPrimaryHex} accent={tenantAccentHex} />
       {/* Promotional Popup */}
       <PromotionalPopup blockWhenOpen={isDialogOpen || showVenuePaymentWarning || !!registrationSuccessData} />

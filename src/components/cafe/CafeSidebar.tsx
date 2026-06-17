@@ -1,25 +1,13 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  LayoutDashboard,
-  UtensilsCrossed,
-  Users,
-  ClipboardList,
-  BarChart3,
-  UserCog,
-  Menu,
-  LogOut,
-  ShoppingCart,
-  CookingPot,
-} from "lucide-react";
+import { LogOut } from "lucide-react";
 import { useCafeAuth } from "@/context/CafeAuthContext";
+import { useViewMode } from "@/context/ViewModeContext";
+import { useCafeNavItems } from "@/hooks/useCafeNavItems";
 import { CUETRONIX_ASSETS } from "@/branding/assets";
-import { useCafeOrders } from "@/hooks/cafe/useCafeOrders";
-import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Tooltip,
   TooltipContent,
@@ -111,16 +99,14 @@ function NavLink({
 export function CafeSidebar() {
   const location = useLocation();
   const { user, logout } = useCafeAuth();
-  const isMobile = useIsMobile();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const { isMobile } = useViewMode();
   const [hovered, setHovered] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const expanded = hovered;
   const collapsed = !expanded;
 
-  const { activeOrders } = useCafeOrders(user?.locationId);
-  const orderBadge = activeOrders.length;
+  const { navItems } = useCafeNavItems();
 
   const onEnter = useCallback(() => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
@@ -132,33 +118,8 @@ export function CafeSidebar() {
     hoverTimer.current = setTimeout(() => setHovered(false), 250);
   }, []);
 
-  const navItems: NavItem[] = useMemo(() => {
-    if (!user) return [];
-    const isAdmin = user.role === "cafe_admin";
-    if (isAdmin) {
-      return [
-        { label: "Dashboard", href: "/cafe/dashboard", icon: LayoutDashboard },
-        { label: "POS", href: "/cafe/pos", icon: ShoppingCart },
-        { label: "Kitchen (KOT)", href: "/cafe/kitchen", icon: CookingPot },
-        { label: "Menu & Tables", href: "/cafe/menu", icon: UtensilsCrossed },
-        { label: "Customers", href: "/cafe/customers", icon: Users },
-        { label: "Orders", href: "/cafe/orders", icon: ClipboardList, badge: orderBadge },
-        { label: "Reports", href: "/cafe/reports", icon: BarChart3 },
-        { label: "Staff", href: "/cafe/staff", icon: UserCog },
-      ];
-    }
-    return [
-      { label: "POS", href: "/cafe/pos", icon: ShoppingCart },
-      { label: "Kitchen (KOT)", href: "/cafe/kitchen", icon: CookingPot },
-      { label: "Menu & Tables", href: "/cafe/menu", icon: UtensilsCrossed },
-      { label: "Customers", href: "/cafe/customers", icon: Users },
-      { label: "Orders", href: "/cafe/orders", icon: ClipboardList, badge: orderBadge },
-    ];
-  }, [user, orderBadge]);
-
   if (!user) return null;
-
-  const closeMobile = () => setMobileOpen(false);
+  if (isMobile) return null;
 
   const roleLabel =
     user.role === "cafe_admin"
@@ -172,8 +133,8 @@ export function CafeSidebar() {
             : user.role;
 
   /* ── shared inner layout ── */
-  const sidebarInner = (opts: { mobile?: boolean }) => {
-    const isCollapsed = !opts.mobile && collapsed;
+  const sidebarInner = () => {
+    const isCollapsed = collapsed;
     return (
       <TooltipProvider delayDuration={120}>
         <div className="flex h-full min-h-0 flex-col">
@@ -219,7 +180,7 @@ export function CafeSidebar() {
                   item={item}
                   active={location.pathname === item.href}
                   collapsed={isCollapsed}
-                  onNavigate={opts.mobile ? closeMobile : undefined}
+                  onNavigate={undefined}
                 />
               ))}
             </nav>
@@ -256,7 +217,7 @@ export function CafeSidebar() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    onClick={() => { closeMobile(); logout(); }}
+                    onClick={() => logout()}
                     className="mt-1.5 flex w-full items-center justify-center rounded-lg p-2 text-zinc-500 hover:bg-white/[0.05] hover:text-zinc-200 transition-colors"
                   >
                     <LogOut className="h-4 w-4" />
@@ -271,7 +232,7 @@ export function CafeSidebar() {
                 variant="ghost"
                 size="sm"
                 className="w-full justify-start gap-2 rounded-lg text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-200 h-8 text-xs"
-                onClick={() => { closeMobile(); logout(); }}
+                onClick={() => logout()}
               >
                 <LogOut className="h-3.5 w-3.5 shrink-0" />
                 <span>Sign out</span>
@@ -283,30 +244,6 @@ export function CafeSidebar() {
     );
   };
 
-  /* ── mobile: top bar + sheet ── */
-  if (isMobile) {
-    return (
-      <>
-        <div className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-white/[0.08] bg-zinc-950/90 px-4 backdrop-blur-xl lg:hidden">
-          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="text-zinc-300 hover:bg-white/10">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-[280px] border-white/10 bg-zinc-950/98 p-0 backdrop-blur-2xl">
-              {sidebarInner({ mobile: true })}
-            </SheetContent>
-          </Sheet>
-          <span className="font-display text-base font-semibold text-white">Choco Loca</span>
-          <div className="w-10" />
-        </div>
-        <div className="h-14 shrink-0 lg:hidden" aria-hidden />
-      </>
-    );
-  }
-
-  /* ── desktop sidebar ── */
   return (
     <aside
       onMouseEnter={onEnter}
@@ -316,8 +253,7 @@ export function CafeSidebar() {
         expanded ? "w-[236px]" : "w-[52px]"
       )}
     >
-      {/* no collapse button — hover auto-expands */}
-      {sidebarInner({})}
+      {sidebarInner()}
     </aside>
   );
 }

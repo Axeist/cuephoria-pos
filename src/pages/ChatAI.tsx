@@ -68,7 +68,6 @@ import { useAIUsage } from "@/services/aiUsageTracker";
 import { useAuth } from "@/context/AuthContext";
 import { useOrganizationOptional } from "@/context/OrganizationContext";
 import { useTenantBrandingOptional } from "@/branding/BrandingProvider";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { useViewMode } from "@/context/ViewModeContext";
 import ChatAIMobile from "@/pages/ChatAIMobile";
 
@@ -188,7 +187,6 @@ const ChatAI: React.FC<ChatAIProps> = ({ standalone: standaloneProp }) => {
   const { user } = useAuth();
   const org = useOrganizationOptional();
   const branding = useTenantBrandingOptional();
-  const isMobile = useIsMobile();
   const { isMobile: viewModeIsMobile } = useViewMode();
   const { settings, update: updateSettings } = useAISettings();
   const [searchParams] = useSearchParams();
@@ -202,7 +200,7 @@ const ChatAI: React.FC<ChatAIProps> = ({ standalone: standaloneProp }) => {
   // view from desktop". `viewModeIsMobile` honors the user's explicit
   // post-login choice so a tablet user who opted into Mobile view also
   // gets the optimized mobile chat experience.
-  if (isMobile || viewModeIsMobile || forceMobile) {
+  if (viewModeIsMobile || forceMobile) {
     return <ChatAIMobile />;
   }
 
