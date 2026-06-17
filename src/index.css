@@ -159,18 +159,15 @@
   }
 
   /* Hard clamp app shell containers — avoid blanket max-width on every div
-     which breaks nested flex rows and squeezes content into a narrow column. */
-  #app-main,
-  #cafe-main,
+     which breaks nested flex rows and squeezes content into a narrow column.
+     Do NOT set display:block here — it overrides the flex column scroll shell
+     (.app-mobile-shell / #app-main) and clips content with no scroll. */
   .app-ambient,
   .cafe-shell,
-  .app-mobile-shell,
-  .cafe-mobile-shell,
   .group\/sidebar-wrapper {
     max-width: 100%;
     width: 100%;
     min-width: 0;
-    display: block;
   }
 
   main, [role="main"] {
@@ -261,6 +258,8 @@
 
   .app-mobile-shell,
   .cafe-mobile-shell {
+    display: flex;
+    flex-direction: column;
     height: 100dvh;
     height: 100svh;
     max-height: 100dvh;
@@ -268,8 +267,12 @@
     overflow: hidden;
   }
 
+  #app-main,
+  #cafe-main,
   .app-screen-mobile,
   .cafe-screen-mobile {
+    display: flex;
+    flex-direction: column;
     padding-bottom: var(--app-bottom-nav-height);
     width: 100%;
     max-width: 100%;

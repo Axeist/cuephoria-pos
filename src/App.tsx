@@ -234,7 +234,7 @@ const ProtectedAppShell: React.FC<{ permission?: string; bare?: boolean }> = ({
                         <SidebarProvider
                           defaultOpen={false}
                           className={cn(
-                            isMobile && "!block min-w-0 w-full max-w-full",
+                            isMobile && "min-w-0 w-full max-w-full",
                           )}
                           style={
                             {
@@ -411,7 +411,7 @@ const CafeProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: s
 
   return (
     <SidebarProvider
-      className={cn(isMobile && "!block min-w-0 w-full max-w-full")}
+      className={cn(isMobile && "min-w-0 w-full max-w-full")}
     >
       <CafeMobileNavProvider>
         {isMobile ? (
