@@ -1,6 +1,7 @@
 import { MobilePageShell } from '@/components/mobile/MobilePageShell';
 import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
-import { MobileTabBar } from '@/components/mobile/MobileTabBar';
+import { MobileTabSelect } from '@/components/mobile/MobileTabSelect';
+import { MobileProductGrid } from '@/components/pos/MobileProductGrid';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -452,13 +453,10 @@ const POS = () => {
     >
       <MobilePageHeader title="Point of Sale" className="mb-3 sm:mb-6 animate-slide-down" />
 
-      {/* Mobile-optimized grid layout.
-          On mobile we flip the visual order (products first, cart second) so
-          the user lands on the catalog and uses the StickyMobileActionBar at
-          the bottom to drive checkout. Desktop layout is untouched. */}
+      {/* Mobile: cart + saved carts on top, compact product grid below. Desktop unchanged. */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
-        {/* Cart Section - Mobile optimized */}
-        <Card className={`lg:col-span-1 order-2 lg:order-1 ${isMobile ? 'h-auto min-h-[300px]' : 'h-[calc(100vh-12rem)]'} flex flex-col ${fromSessionEnd ? 'animate-pos-cart-handoff' : 'animate-slide-up'}`}>
+        {/* Cart Section */}
+        <Card className={`lg:col-span-1 order-1 flex flex-col ${isMobile ? 'h-auto' : 'h-[calc(100vh-12rem)]'} ${fromSessionEnd ? 'animate-pos-cart-handoff' : 'animate-slide-up'}`}>
           <CardHeader className="pb-3 sm:pb-4 bg-gradient-to-r from-cuephoria-purple/20 to-transparent px-3 sm:px-6 pt-4 sm:pt-6 border-b border-border/40">
             <div className="flex justify-between items-center gap-2">
               <CardTitle className="text-base sm:text-xl font-heading">
@@ -492,8 +490,19 @@ const POS = () => {
               {cart.length} {cart.length === 1 ? 'item' : 'items'} in cart
               {selectedCustomer ? ` · ${selectedCustomer.name}` : ''}
             </CardDescription>
+            {isMobile && (
+              <Button
+                variant={selectedCustomer ? "outline" : "default"}
+                size="sm"
+                className={`mt-2 w-full h-9 text-xs ${selectedCustomer ? "" : "bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple"}`}
+                onClick={() => setIsCustomerDialogOpen(true)}
+              >
+                <User className="h-3.5 w-3.5 mr-1.5" />
+                {selectedCustomer ? selectedCustomer.name : 'Select Customer'}
+              </Button>
+            )}
           </CardHeader>
-          <CardContent className={`flex-grow overflow-auto px-3 sm:px-6 pt-4 sm:pt-5 pb-3 ${isMobile ? 'max-h-[400px]' : ''}`}>
+          <CardContent className={cn('flex-grow overflow-auto px-3 sm:px-6 pt-4 sm:pt-5 pb-3', isMobile ? 'max-h-[200px]' : '')}>
             {cart.length > 0 ? (
               <div className="space-y-2 sm:space-y-2.5">
                 {!isMobile && (
@@ -612,7 +621,10 @@ const POS = () => {
               </div>
             )}
           </CardContent>
-          <CardFooter className="border-t pt-3 sm:pt-4 flex flex-col bg-gradient-to-r from-transparent to-cuephoria-purple/10 px-3 sm:px-6 pb-3 sm:pb-4">
+          <CardFooter className={cn(
+            'border-t pt-3 sm:pt-4 flex flex-col bg-gradient-to-r from-transparent to-cuephoria-purple/10 px-3 sm:px-6 pb-3 sm:pb-4',
+            isMobile && 'hidden',
+          )}>
             <div className="w-full text-sm sm:text-base">
               <div className="flex justify-between py-1">
                 <span className="text-xs sm:text-sm">Subtotal</span>
@@ -691,8 +703,14 @@ const POS = () => {
           </CardFooter>
         </Card>
 
-        {/* Products Section - Mobile optimized */}
-        <Card className={`lg:col-span-2 order-1 lg:order-2 ${isMobile ? 'h-auto min-h-[500px]' : 'h-[calc(100vh-12rem)]'} flex flex-col animate-slide-up delay-200`}>
+        {isMobile && (
+          <div className="order-2 lg:hidden">
+            <SavedCartsManager />
+          </div>
+        )}
+
+        {/* Products Section */}
+        <Card className={`lg:col-span-2 order-3 lg:order-2 ${isMobile ? 'h-auto' : 'h-[calc(100vh-12rem)]'} flex flex-col animate-slide-up delay-200`}>
           <CardHeader className="pb-2 sm:pb-3 bg-gradient-to-r from-transparent to-cuephoria-blue/10 flex-shrink-0 px-3 sm:px-6 pt-3 sm:pt-6">
             <CardTitle className="text-base sm:text-xl font-heading mb-2 sm:mb-3">Products</CardTitle>
             <div className="flex space-x-2">
@@ -712,8 +730,8 @@ const POS = () => {
             {/* Mobile-optimized category toggle buttons */}
             <div className="px-2 sm:px-3 md:px-6 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-blue/10 flex-shrink-0 animate-scale-in">
               {isMobile ? (
-                <MobileTabBar
-                  className="mb-3 glass-card-0 bg-transparent border-0 p-0 h-auto"
+                <MobileTabSelect
+                  className="mb-3"
                   tabs={posCategoryTabs}
                   activeId={activeTab}
                   onChange={setActiveTab}
@@ -791,8 +809,11 @@ const POS = () => {
               )}
             </div>
 
-            <div className="flex-grow min-h-0 m-0 p-6 overflow-auto">
+            <div className={cn('flex-grow min-h-0 m-0 overflow-auto', isMobile ? 'p-3' : 'p-6')}>
               {searchedProducts.length > 0 ? (
+                isMobile ? (
+                  <MobileProductGrid products={searchedProducts} />
+                ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-fr">
                   {searchedProducts.map((product, index) => (
                     <div
@@ -807,6 +828,7 @@ const POS = () => {
                     </div>
                   ))}
                 </div>
+                )
               ) : (
                 <div className="flex flex-col items-center justify-center h-full animate-fade-in">
                   <h3 className="text-xl font-medium font-heading">No Products Found</h3>
@@ -820,10 +842,11 @@ const POS = () => {
         </Card>
       </div>
 
-      {/* SavedCartsManager */}
+      {!isMobile && (
       <div className="mt-6">
         <SavedCartsManager />
       </div>
+      )}
 
       {/* Customer Dialog — fullscreen sheet on mobile, centered dialog on desktop. */}
       <ResponsiveDialog

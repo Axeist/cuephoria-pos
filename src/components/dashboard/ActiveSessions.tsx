@@ -26,7 +26,7 @@ const ActiveSessions = () => {
   };
   
   return (
-    <Card className="glass-card h-full flex flex-col">
+    <Card className="glass-card h-full w-full min-w-0 flex flex-col">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
@@ -51,17 +51,17 @@ const ActiveSessions = () => {
             const durationText = `${hours > 0 ? `${hours}h ` : ''}${minutes}m`;
             
             return (
-              <div key={station.id} className="flex items-center justify-between p-4 theme-inset">
-                <div className="flex items-center space-x-4">
-                  <div className="h-10 w-10 rounded-full bg-[#0EA5E9]/30 flex items-center justify-center">
+              <div key={station.id} className="flex w-full min-w-0 items-center justify-between gap-2 p-3 sm:p-4 theme-inset">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <div className="h-10 w-10 shrink-0 rounded-full bg-[#0EA5E9]/30 flex items-center justify-center">
                     <Clock className="h-5 w-5 text-blue-400" />
                   </div>
-                  <div>
-                    <p className="font-medium">{station.name}</p>
-                    <p className="text-xs text-white/55">{customer?.name || 'Unknown Customer'}</p>
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{station.name}</p>
+                    <p className="text-xs text-white/55 truncate">{customer?.name || 'Unknown Customer'}</p>
                   </div>
                 </div>
-                <div className="text-white font-semibold">
+                <div className="shrink-0 text-sm font-semibold text-white tabular-nums">
                   {durationText}
                 </div>
               </div>

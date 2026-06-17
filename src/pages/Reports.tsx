@@ -1,5 +1,6 @@
 import { MobilePageShell } from '@/components/mobile/MobilePageShell';
 import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
+import { MobileTabSelect } from '@/components/mobile/MobileTabSelect';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useExpenses } from '@/context/ExpenseContext';
 import { usePOS } from '@/context/POSContext';
@@ -9,7 +10,7 @@ import { DateRange } from 'react-day-picker';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Gift, Wallet, CreditCard, X, Save, CircleDollarSign, MapPin, Globe } from 'lucide-react';
+import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Gift, Wallet, CreditCard, X, Save, CircleDollarSign, MapPin, Globe, Pencil } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -166,6 +167,23 @@ const ReportsPage: React.FC = () => {
       setActiveTab(allowedTabs[0]);
     }
   }, [allowedTabs, activeTab]);
+
+  const reportTabItems = useMemo(
+    () =>
+      allowedTabs.map((tab) => ({
+        id: tab,
+        label:
+          tab === 'bills'
+            ? 'Bills'
+            : tab === 'customers'
+              ? 'Customers'
+              : tab === 'sessions'
+                ? 'Sessions'
+                : 'Summary',
+      })),
+    [allowedTabs],
+  );
+
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [billSearchQuery, setBillSearchQuery] = useState<string>('');
   const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>('all');
@@ -1543,7 +1561,64 @@ const ReportsPage: React.FC = () => {
             </div>
           )}
         </div>
-        <div className="table-container rounded-md overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        {isMobile ? (
+          <div className="px-4 pb-4 space-y-3 md:hidden">
+            {paginatedData.bills.map((bill) => (
+              <div
+                key={bill.id}
+                className="w-full min-w-0 rounded-xl border border-white/10 bg-white/[0.04] p-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-white truncate">
+                      {getCustomerName(bill.customerId)}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {format(new Date(bill.createdAt), 'dd MMM yyyy · HH:mm')}
+                    </p>
+                    <p className="text-[10px] text-gray-500 mt-0.5 truncate">
+                      {bill.id.substring(0, 8)}… · {bill.paymentMethod}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {bill.items?.length ?? 0} item{(bill.items?.length ?? 0) !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-bold text-white">
+                      <CurrencyDisplay amount={bill.total} />
+                    </p>
+                    <div className="flex gap-1 mt-2 justify-end">
+                      {canEditBill && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-gray-400"
+                          onClick={() => handleEditBill(bill)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {canDeleteRecord && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-gray-400"
+                          onClick={() => handleDeleteBill(bill)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {paginatedData.bills.length === 0 && (
+              <p className="text-center text-gray-400 py-8 text-sm">No transactions found</p>
+            )}
+          </div>
+        ) : null}
+        <div className="hidden md:block table-container rounded-md overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -2205,20 +2280,20 @@ const ReportsPage: React.FC = () => {
         }
       />
 
-      <div className="bg-white/[0.06] border border-white/10 rounded-xl p-1 flex gap-2 overflow-x-auto scrollbar-hide">
+      {isMobile ? (
+        <MobileTabSelect
+          tabs={reportTabItems}
+          activeId={activeTab}
+          onChange={(id) => setActiveTab(id as typeof activeTab)}
+        />
+      ) : (
+      <div className="bg-white/[0.06] border border-white/10 rounded-xl p-1 flex gap-2">
         {canViewBills && (
         <Button
           onClick={() => setActiveTab('bills')}
           variant={activeTab === 'bills' ? 'default' : 'ghost'}
           className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'bills' ? 'bg-white/15 text-white' : 'text-white/55'}`}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <path d="M14 2v6h6" />
-            <path d="M16 13H8" />
-            <path d="M16 17H8" />
-            <path d="M10 9H8" />
-          </svg>
           Bills
         </Button>
         )}
@@ -2228,11 +2303,6 @@ const ReportsPage: React.FC = () => {
           variant={activeTab === 'customers' ? 'default' : 'ghost'}
           className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'customers' ? 'bg-white/15 text-white' : 'text-white/55'}`}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M22 21v-2a4 4 0 0 1 0 7.75" />
-          </svg>
           Customers
         </Button>
         )}
@@ -2242,10 +2312,6 @@ const ReportsPage: React.FC = () => {
           variant={activeTab === 'sessions' ? 'default' : 'ghost'}
           className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'sessions' ? 'bg-white/15 text-white' : 'text-white/55'}`}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
           Sessions
         </Button>
         )}
@@ -2255,14 +2321,11 @@ const ReportsPage: React.FC = () => {
           variant={activeTab === 'summary' ? 'default' : 'ghost'}
           className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'summary' ? 'bg-white/15 text-white' : 'text-white/55'}`}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect width="20" height="14" x="2" y="5" rx="2" />
-            <line x1="2" x2="22" y1="10" y2="10" />
-          </svg>
           Summary
         </Button>
         )}
       </div>
+      )}
       
       <div className="space-y-6">
         {renderContent()}

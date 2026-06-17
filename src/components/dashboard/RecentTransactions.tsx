@@ -52,6 +52,7 @@ import { useLocation as useLocationCtx } from '@/context/LocationContext';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
 import { usePermissions } from '@/context/PermissionsContext';
+import { useViewMode } from '@/context/ViewModeContext';
 
 interface RecentTransactionsProps {
   className?: string;
@@ -107,6 +108,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   
   const { toast } = useToast();
   const { can } = usePermissions();
+  const { isMobile } = useViewMode();
   const canVoidBill = can('pos.void_bill');
   const canDeleteRecord = can('reports.delete_record');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -716,7 +718,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   };
   
   return (
-    <Card className={`glass-card h-full flex flex-col ${className}`}>
+    <Card className={`glass-card h-full w-full min-w-0 flex flex-col ${className ?? ''}`}>
       <CardHeader className="space-y-4">
         <div>
           <CardTitle className="text-xl font-bold text-white font-heading">Recent Transactions</CardTitle>
@@ -735,6 +737,74 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       <CardContent className="space-y-4 flex-1 flex flex-col min-h-0">
         {sortedBills.length > 0 ? (
           <>
+            {isMobile ? (
+              <div className="max-h-[420px] w-full min-w-0 space-y-3 overflow-y-auto">
+                {paginatedBills.map(bill => {
+                const customer = customers.find(c => c.id === bill.customerId);
+                const date = new Date(bill.createdAt);
+                const isComplimentary = bill.paymentMethod === 'complimentary';
+                const isRazorpay = bill.paymentMethod === 'razorpay';
+                
+                return (
+                  <div 
+                    key={bill.id} 
+                    className={`w-full min-w-0 rounded-xl border p-3 ${
+                      isComplimentary 
+                        ? 'border-orange-500/30 bg-orange-500/10' 
+                        : isRazorpay
+                        ? 'border-indigo-500/30 bg-indigo-500/10'
+                        : 'theme-inset'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="font-medium text-white truncate">{customer?.name || 'Unknown'}</p>
+                          {isComplimentary && (
+                            <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50 text-[10px] px-1.5 py-0">Comp</Badge>
+                          )}
+                          {isRazorpay && (
+                            <Badge className="bg-indigo-500/20 text-indigo-400 border-indigo-500/50 text-[10px] px-1.5 py-0">Razorpay</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-white/55 mt-0.5">
+                          {date.toLocaleDateString('en-IN')} {date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        <p className="text-[10px] text-white/40 mt-0.5 truncate">ID: {bill.id.substring(0, 8)}</p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        <div className={`font-semibold text-sm ${
+                          isComplimentary ? 'text-orange-400' : 'text-white'
+                        }`}>
+                          <CurrencyDisplay amount={bill.total} />
+                        </div>
+                        <div className="flex gap-1">
+                          {canVoidBill && (
+                          <button
+                            onClick={() => handleEditClick(bill)}
+                            className="p-1.5 text-white/45 hover:text-blue-400 transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                          )}
+                          {canDeleteRecord && (
+                          <button
+                            onClick={() => handleDeleteClick(bill)}
+                            className="p-1.5 text-white/45 hover:text-red-400 transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              </div>
+            ) : (
             <ScrollArea className="flex-1 pr-4">
               <div className="space-y-4">
                 {paginatedBills.map(bill => {
@@ -831,6 +901,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                 })}
               </div>
             </ScrollArea>
+            )}
             {totalPages > 1 && (
               <div className="flex items-center justify-between pt-4 border-t border-white/10">
                 <div className="text-sm text-white/55">

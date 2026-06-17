@@ -25,7 +25,7 @@ import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
 import { MobilePageShell } from '@/components/mobile/MobilePageShell';
 import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
-import { MobileTabBar } from '@/components/mobile/MobileTabBar';
+import { MobileTabSelect } from '@/components/mobile/MobileTabSelect';
 import { useViewMode } from '@/context/ViewModeContext';
 import { usePermissions } from '@/context/PermissionsContext';
 import PullToRefresh from '@/components/PullToRefresh';
@@ -185,9 +185,10 @@ const Dashboard = () => {
       <WorkspaceHero />
       <MobilePageHeader title="Dashboard" />
 
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 overflow-x-hidden">
+      <div className="flex w-full min-w-0 flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
         {isMobile ? (
-          <MobileTabBar
+          <MobileTabSelect
+            className="w-full"
             tabs={dashboardTabs}
             activeId={currentDashboardTab}
             onChange={(id) =>
@@ -261,7 +262,7 @@ const Dashboard = () => {
 
       {/* Mobile-optimized content with better spacing */}
       {currentDashboardTab === 'overview' && (
-        <div className="space-y-3 sm:space-y-6 mt-3 sm:mt-0 overflow-x-hidden">
+        <div className="w-full min-w-0 space-y-3 sm:space-y-6 mt-3 sm:mt-0">
           <StatCardSection
             totalSales={dashboardStats.totalSales}
             salesChange={dashboardStats.salesChange}
@@ -280,7 +281,7 @@ const Dashboard = () => {
             activeTab={activeTab}
             setActiveTab={setActiveTab}
           />
-          <div className="grid gap-3 sm:gap-6 md:grid-cols-1 lg:grid-cols-2 items-stretch overflow-x-hidden">
+          <div className="flex w-full min-w-0 flex-col gap-3 sm:gap-6 lg:grid lg:grid-cols-2 lg:items-stretch">
             <ActiveSessions />
             <RecentTransactions bills={bills} customers={customers} />
           </div>

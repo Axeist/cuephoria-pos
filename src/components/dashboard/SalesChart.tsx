@@ -276,7 +276,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
   };
 
   return (
-    <Card className="glass-card overflow-hidden">
+    <Card className="glass-card w-full min-w-0 overflow-hidden">
       <CardHeader className="pb-2 sm:pb-6">
         <div className="flex flex-col gap-3 sm:gap-4">
           {/* Title and Year Filter */}

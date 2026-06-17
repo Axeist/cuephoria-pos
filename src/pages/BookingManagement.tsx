@@ -1,6 +1,8 @@
 import { MobilePageShell } from '@/components/mobile/MobilePageShell';
 import { MobileActionBar } from '@/components/mobile/MobileActionBar';
 import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
+import { MobileTabSelect } from '@/components/mobile/MobileTabSelect';
+import { useViewMode } from '@/context/ViewModeContext';
 import PullToRefresh from '@/components/PullToRefresh';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -285,6 +287,23 @@ export default function BookingManagement() {
   const permCancelBooking = can('bookings.cancel');
   const permReconciliation = can('bookings.reconciliation');
   const permManageCoupons = can('bookings.coupons_manage');
+  const { isMobile } = useViewMode();
+
+  const bookingAnalyticsTabs = useMemo(() => {
+    const tabs = [
+      { id: 'overview', label: 'Overview' },
+      { id: 'revenue', label: 'Revenue' },
+      { id: 'customers', label: 'Customers' },
+      { id: 'stations', label: 'Stations' },
+    ];
+    if (permManageCoupons) {
+      tabs.push({ id: 'coupons', label: 'Coupons & Marketing' });
+    }
+    if (permReconciliation) {
+      tabs.push({ id: 'reconciliation', label: 'Reconciliation' });
+    }
+    return tabs;
+  }, [permManageCoupons, permReconciliation]);
   const permConfigureSlots = can('bookings.slots_configure');
   const [branchView, setBranchView] = useState<'current' | 'all'>('current');
 
@@ -2400,18 +2419,27 @@ export default function BookingManagement() {
 
           {/* Analytics Dashboard */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="flex w-full overflow-x-auto scrollbar-hide gap-1 sm:grid sm:grid-cols-6">
-              <TabsTrigger value="overview" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Overview</TabsTrigger>
-              <TabsTrigger value="revenue" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Revenue</TabsTrigger>
-              <TabsTrigger value="customers" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Customers</TabsTrigger>
-              <TabsTrigger value="stations" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Stations</TabsTrigger>
+            {isMobile ? (
+              <MobileTabSelect
+                className="mb-4"
+                tabs={bookingAnalyticsTabs}
+                activeId={activeTab}
+                onChange={setActiveTab}
+              />
+            ) : (
+            <TabsList className="grid w-full grid-cols-6 gap-1">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="revenue">Revenue</TabsTrigger>
+              <TabsTrigger value="customers">Customers</TabsTrigger>
+              <TabsTrigger value="stations">Stations</TabsTrigger>
               {permManageCoupons && (
-              <TabsTrigger value="coupons" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Coupons & Marketing</TabsTrigger>
+              <TabsTrigger value="coupons">Coupons & Marketing</TabsTrigger>
               )}
               {permReconciliation && (
-              <TabsTrigger value="reconciliation" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Reconciliation</TabsTrigger>
+              <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
               )}
             </TabsList>
+            )}
 
             <TabsContent value="overview" className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -3497,14 +3525,14 @@ export default function BookingManagement() {
           {/* Bookings List */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3">
                 <CardTitle>Bookings ({bookings.length})</CardTitle>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="group-toggle" className="text-xs font-medium cursor-pointer">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center text-sm text-muted-foreground">
+                  <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                    <Label htmlFor="group-toggle" className="text-xs font-medium">
                       Group by:
                     </Label>
-                    <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+                    <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
                       <Button
                         id="group-toggle"
                         variant={groupByCustomer ? "default" : "ghost"}
@@ -3526,13 +3554,15 @@ export default function BookingManagement() {
                       </Button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Gift className="h-4 w-4" />
-                    {analytics.coupons.totalCouponsUsed} with coupons
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    {getDateRangeLabel()}
+                  <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm">
+                    <span className="inline-flex items-center gap-1">
+                      <Gift className="h-4 w-4" />
+                      {analytics.coupons.totalCouponsUsed} with coupons
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Calendar className="h-4 w-4" />
+                      {getDateRangeLabel()}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -3624,10 +3654,11 @@ export default function BookingManagement() {
                                       }
                                     }}
                                   >
-                                    <div className="flex items-center gap-2 w-full">
+                                    <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
                                       <CollapsibleTrigger
-                                        className="flex flex-1 items-center gap-2 p-2 text-left bg-background rounded border hover:bg-muted/50 transition-colors min-w-0"
+                                        className="flex flex-1 min-w-0 flex-col gap-2 p-2 text-left bg-background rounded border hover:bg-muted/50 transition-colors sm:flex-row sm:items-center"
                                       >
+                                      <div className="flex min-w-0 items-center gap-2">
                                       {isGroupExpanded ? (
                                         <ChevronDown className="h-3 w-3 shrink-0" />
                                       ) : (
@@ -3641,7 +3672,8 @@ export default function BookingManagement() {
                                       <span className="font-medium truncate">
                                         {groupByCustomer ? groupKey : `${groupKey} - ${(parseInt(groupKey.split(':')[0]) + 1).toString().padStart(2, '0')}:00`}
                                       </span>
-                                      <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto sm:justify-end">
                                         <Badge variant="secondary" className="text-xs">
                                           {bookingsForGroup.length} booking{bookingsForGroup.length !== 1 ? 's' : ''}
                                         </Badge>
@@ -3695,7 +3727,7 @@ export default function BookingManagement() {
                                     </div>
                                     
                                     <CollapsibleContent>
-                                      <div key={`${key}-bookings-${bookingsForGroup.map(b => b.id).join('-')}`} className="ml-6 mt-2 space-y-2">
+                                      <div key={`${key}-bookings-${bookingsForGroup.map(b => b.id).join('-')}`} className="ml-0 sm:ml-6 mt-2 space-y-2">
                                           {bookingsForGroup
                                             .sort((a, b) => {
                                               // Sort by time first, then by customer name
@@ -3706,14 +3738,48 @@ export default function BookingManagement() {
                                             .map(booking => (
                                               <div 
                                                 key={booking.id} 
-                                                className={`p-4 border rounded-lg bg-card shadow-sm ${
+                                                className={`p-3 sm:p-4 border rounded-lg bg-card shadow-sm w-full min-w-0 ${
                                                   booking.coupon_code 
                                                     ? 'ring-2 ring-purple-500/40 bg-purple-950/30' 
                                                     : ''
                                                 }`}
                                               >
-                                                <div className="flex items-center justify-between">
-                                                  <div className="grid grid-cols-1 md:grid-cols-8 gap-4 flex-1">
+                                                <div className="md:hidden space-y-2 w-full min-w-0">
+                                                  <div className="flex items-start justify-between gap-2">
+                                                    <div className="min-w-0 flex-1">
+                                                      <p className="font-medium truncate">{booking.customer.name}</p>
+                                                      <p className="text-xs text-muted-foreground mt-0.5">
+                                                        {formatTime(booking.start_time)} – {formatTime(booking.end_time)} · {booking.duration}m
+                                                      </p>
+                                                      <p className="text-xs text-muted-foreground truncate">
+                                                        {booking.station?.name || 'Unknown station'}
+                                                      </p>
+                                                    </div>
+                                                    <BookingStatusBadge status={booking.status} />
+                                                  </div>
+                                                  <div className="flex items-center justify-between gap-2">
+                                                    <span className="text-sm font-semibold tabular-nums">
+                                                      ₹{booking.final_price ?? 0}
+                                                      {booking.coupon_code ? (
+                                                        <Badge variant="secondary" className="ml-1.5 text-[10px]">{booking.coupon_code}</Badge>
+                                                      ) : null}
+                                                    </span>
+                                                    <div className="flex gap-1 shrink-0">
+                                                      {permEditBooking && (
+                                                      <Button size="sm" variant="outline" className="h-8 w-8 p-0" onClick={() => handleEditBooking(booking)}>
+                                                        <Edit2 className="h-3 w-3" />
+                                                      </Button>
+                                                      )}
+                                                      {permCancelBooking && (
+                                                      <Button size="sm" variant="outline" className="h-8 w-8 p-0" onClick={() => handleDeleteBooking(booking)}>
+                                                        <Trash2 className="h-3 w-3" />
+                                                      </Button>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                                <div className="hidden md:flex items-center justify-between">
+                                                  <div className="grid grid-cols-8 gap-4 flex-1">
                                                     <div>
                                                       <div className="text-sm text-muted-foreground">Booking Details</div>
                                                       <div className="space-y-1">

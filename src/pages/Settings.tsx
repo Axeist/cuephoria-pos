@@ -57,7 +57,7 @@ import { useLocation } from '@/context/LocationContext';
 import { cn } from '@/lib/utils';
 import { MobilePageShell } from '@/components/mobile/MobilePageShell';
 import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
-import { MobileTabBar } from '@/components/mobile/MobileTabBar';
+import { MobileTabSelect } from '@/components/mobile/MobileTabSelect';
 
 const SETTINGS_TABS: SettingsTabId[] = [
   'general',
@@ -668,13 +668,11 @@ const Settings = () => {
           }
         />
 
-        <MobileTabBar
-          className="lg:hidden mb-4 h-auto min-h-10"
+        <MobileTabSelect
+          className="lg:hidden mb-4"
           tabs={mobileNavTabs}
           activeId={activeTab}
           onChange={(id) => setActiveTab(id as SettingsTabId)}
-          activeClassName="bg-primary/15 border border-primary/30 text-foreground rounded-full px-3.5"
-          inactiveClassName="bg-muted/30 border border-transparent text-muted-foreground hover:text-foreground rounded-full px-3.5"
         />
 
         <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">

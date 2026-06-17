@@ -274,7 +274,7 @@ const Stations = () => {
         className="border border-white/10 bg-gradient-to-br from-[#0f0a1a] via-[#120818] to-[#0a0612] shadow-[0_8px_40px_rgba(139,92,246,0.12)]"
         noPadding
       >
-        <div className="p-4 sm:p-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="p-4 sm:p-5 flex flex-col gap-4">
           <MobilePageHeader
             title={
               <span className="flex items-center gap-2">
@@ -292,12 +292,12 @@ const Stations = () => {
             }
           />
 
-          <div className={cn('grid gap-3 sm:gap-4', isMobile ? 'grid-cols-3' : 'grid-cols-3')}>
+          <div className="grid w-full grid-cols-3 gap-2 sm:gap-3">
             <button
               type="button"
               onClick={toggleLiveFilter}
               className={cn(
-                'rounded-xl border px-4 py-3 text-center transition-all',
+                'rounded-xl border px-2 py-2.5 sm:px-4 sm:py-3 text-center transition-all',
                 occupancyFilter === 'live'
                   ? 'border-orange-400 bg-orange-500/25 ring-2 ring-orange-400/40'
                   : 'border-orange-500/30 bg-orange-950/30 hover:border-orange-400/50'
@@ -316,7 +316,7 @@ const Stations = () => {
               type="button"
               onClick={toggleOpenFilter}
               className={cn(
-                'rounded-xl border px-4 py-3 text-center transition-all',
+                'rounded-xl border px-2 py-2.5 sm:px-4 sm:py-3 text-center transition-all',
                 occupancyFilter === 'open'
                   ? 'border-emerald-400 bg-emerald-500/20 ring-2 ring-emerald-400/35'
                   : 'border-emerald-500/30 bg-emerald-950/30 hover:border-emerald-400/45'
@@ -331,7 +331,7 @@ const Stations = () => {
                 {totalAvailable}
               </p>
             </button>
-            <div className="rounded-xl border border-violet-500/30 bg-violet-950/30 px-4 py-3 text-center">
+            <div className="rounded-xl border border-violet-500/30 bg-violet-950/30 px-2 py-2.5 sm:px-4 sm:py-3 text-center">
               <div className="text-[10px] font-semibold uppercase tracking-widest text-violet-300/80">
                 Total
               </div>
@@ -341,7 +341,7 @@ const Stations = () => {
             </div>
           </div>
 
-          <MobileActionBar className="w-full lg:shrink-0" maxVisible={4}>
+          <MobileActionBar className="w-full" maxVisible={isMobile ? 2 : 4}>
             {canMultiStart && selectionMode && selectedStations.length > 0 && (
               <>
                 <span className="hidden text-xs text-muted-foreground sm:inline">
@@ -406,8 +406,8 @@ const Stations = () => {
           </MobileActionBar>
         </div>
 
-        <div className="px-4 sm:px-5 mt-0 flex flex-col gap-3 border-t border-white/8 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-2">
+        <div className="px-4 sm:px-5 pb-4 flex flex-col gap-3 border-t border-white/8 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-2 w-full min-w-0">
             <button
               type="button"
               onClick={() => {
@@ -471,10 +471,10 @@ const Stations = () => {
             })}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <Select value={sortMode} onValueChange={(v) => handleSortModeChange(v as StationSortMode)}>
-              <SelectTrigger className="h-9 w-[180px] border-white/10 bg-black/30 text-xs">
+              <SelectTrigger className="h-9 w-full sm:w-[180px] border-white/10 bg-black/30 text-xs">
                 <SelectValue placeholder="Sort stations" />
               </SelectTrigger>
               <SelectContent>
