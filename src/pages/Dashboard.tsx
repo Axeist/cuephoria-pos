@@ -169,7 +169,7 @@ const Dashboard = () => {
   }, [stats, activeTab, activeSessionsCount, newMembersCount, lowStockItems]);
 
   return (
-    <MobilePageShell className="space-y-3 sm:space-y-6 p-3 sm:p-6 text-white">
+    <MobilePageShell className="space-y-3 sm:space-y-6">
       <WorkspaceHero />
       {/* Mobile-optimized header */}
       <div className="flex items-center justify-between">

@@ -1,15 +1,16 @@
 import React from "react";
-import { Sparkles } from "lucide-react";
+import { Menu, Sparkles } from "lucide-react";
 import { GlobalNotificationBell } from "@/components/GlobalNotificationBell";
 import { LocationSwitcher } from "@/components/LocationSwitcher";
 import { useTenantBrandingOptional } from "@/branding/BrandingProvider";
 import { useViewMode } from "@/context/ViewModeContext";
 import { useMobileNav } from "./MobileNavContext";
 import { Button } from "@/components/ui/button";
-import { Menu } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 /**
- * Compact sticky app header for mobile — brand, branch switcher, notifications.
+ * Sticky app header for mobile — sits inside #app-main so content scrolls
+ * naturally beneath it with no phantom gap from fixed + padding-top.
  */
 export function AppScreenHeader() {
   const { isMobile } = useViewMode();
@@ -18,51 +19,63 @@ export function AppScreenHeader() {
   const override = branding?.override ?? {};
   const brandName =
     override.display_name || branding?.brand?.name || "Cuephoria";
+  const brandLogo = override.logo_url;
 
   if (!isMobile) return null;
 
   return (
     <header
-      className="fixed top-0 left-0 right-0 z-40 border-b border-white/10 md:hidden"
+      className={cn(
+        "app-mobile-header sticky top-0 z-40 w-full shrink-0 md:hidden",
+        "border-b border-white/[0.08]",
+        "bg-[linear-gradient(180deg,rgba(12,7,24,0.97)_0%,rgba(10,6,20,0.92)_100%)]",
+        "backdrop-blur-xl backdrop-saturate-150",
+        "shadow-[0_4px_24px_-8px_rgba(0,0,0,0.55)]",
+      )}
       style={{
-        background:
-          "linear-gradient(180deg, rgba(10,6,22,0.95) 0%, rgba(10,6,22,0.88) 100%)",
-        backdropFilter: "blur(18px) saturate(140%)",
-        WebkitBackdropFilter: "blur(18px) saturate(140%)",
         paddingTop: "max(0px, env(safe-area-inset-top))",
       }}
     >
-      <div className="flex items-center justify-between gap-2 px-3 py-2 min-h-[52px]">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="text-white h-9 w-9 shrink-0 hover:bg-white/10 touch-manipulation"
-            onClick={openSheet}
-            aria-label="Open menu"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
+      <div className="flex h-12 items-center gap-2 px-3">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 shrink-0 text-white hover:bg-white/10 touch-manipulation"
+          onClick={openSheet}
+          aria-label="Open menu"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <div
-            className="h-8 w-8 rounded-lg grid place-items-center shrink-0 shadow-[0_6px_18px_-6px_var(--brand-primary-hex)]"
+            className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg shadow-[0_6px_18px_-6px_var(--brand-primary-hex)]"
             style={{
               background:
                 "linear-gradient(135deg, var(--brand-primary-hex), var(--brand-accent-hex))",
             }}
           >
-            <Sparkles className="h-4 w-4 text-white" />
+            {brandLogo ? (
+              <img
+                src={brandLogo}
+                alt=""
+                className="h-full w-full object-contain p-1"
+              />
+            ) : (
+              <Sparkles className="h-4 w-4 text-white" />
+            )}
           </div>
-          <span className="text-sm font-bold text-white truncate tracking-tight">
+          <span className="truncate text-sm font-bold tracking-tight text-white">
             {brandName}
           </span>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+
+        <LocationSwitcher variant="compact" className="min-w-0 max-w-[38%] shrink" />
+
+        <div className="flex shrink-0 items-center">
           <GlobalNotificationBell />
         </div>
-      </div>
-      <div className="px-3 pb-2 flex items-center gap-2 [&:empty]:hidden">
-        <LocationSwitcher />
       </div>
     </header>
   );

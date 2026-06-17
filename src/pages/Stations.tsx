@@ -264,7 +264,7 @@ const Stations = () => {
   const dragEnabled = sortMode === 'custom' && !selectionMode;
 
   return (
-    <MobilePageShell className="space-y-4 p-3 pt-3 sm:p-5 sm:pt-5">
+    <MobilePageShell className="space-y-3 p-3 sm:space-y-4 sm:p-5 sm:pt-5">
       <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#0f0a1a] via-[#120818] to-[#0a0612] p-4 sm:p-5 shadow-[0_8px_40px_rgba(139,92,246,0.12)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -331,7 +331,7 @@ const Stations = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+          <div className="mobile-action-bar w-full lg:shrink-0">
             {canMultiStart && selectionMode && selectedStations.length > 0 && (
               <>
                 <span className="hidden text-xs text-muted-foreground sm:inline">

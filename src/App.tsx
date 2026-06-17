@@ -244,17 +244,15 @@ const ProtectedAppShell: React.FC<{ permission?: string; bare?: boolean }> = ({
                         >
                           <MobileNavProvider>
                             {isMobile ? (
-                              <div className="app-mobile-shell relative min-h-svh w-full min-w-0 max-w-full overflow-x-clip">
-                                <div className="app-ambient min-h-screen w-full min-w-0 max-w-full">
+                              <div className="app-mobile-shell app-ambient flex h-svh w-full min-w-0 max-w-full flex-col overflow-hidden">
+                                <main
+                                  id="app-main"
+                                  tabIndex={-1}
+                                  className="app-screen-mobile flex min-h-0 w-full max-w-full flex-col outline-none"
+                                >
                                   <AppScreenHeader />
-                                  <main
-                                    id="app-main"
-                                    tabIndex={-1}
-                                    className="app-screen-mobile w-full min-w-0 max-w-full outline-none"
-                                  >
-                                    <PageTransition />
-                                  </main>
-                                </div>
+                                  <PageTransition />
+                                </main>
                                 <AppBottomNav />
                                 <MobileNavSheet />
                                 <PostLoginViewModeDialog />
@@ -417,16 +415,14 @@ const CafeProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: s
     >
       <CafeMobileNavProvider>
         {isMobile ? (
-          <div className="cafe-mobile-shell relative min-h-svh w-full min-w-0 max-w-full overflow-x-clip">
-            <div className="cafe-shell cafe-ambient min-h-screen w-full min-w-0 max-w-full">
+          <div className="cafe-mobile-shell cafe-shell cafe-ambient flex h-svh w-full min-w-0 max-w-full flex-col overflow-hidden">
+            <main
+              id="cafe-main"
+              className="cafe-screen-mobile flex min-h-0 w-full max-w-full flex-col outline-none"
+            >
               <CafeScreenHeader />
-              <main
-                id="cafe-main"
-                className="cafe-screen-mobile w-full min-w-0 max-w-full outline-none"
-              >
-                {children}
-              </main>
-            </div>
+              {children}
+            </main>
             <CafeBottomNav />
             <CafeMobileNavSheet />
             <PostLoginViewModeDialog />

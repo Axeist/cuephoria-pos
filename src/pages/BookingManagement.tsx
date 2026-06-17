@@ -1,4 +1,5 @@
 import { MobilePageShell } from '@/components/mobile/MobilePageShell';
+import { MobileActionBar } from '@/components/mobile/MobileActionBar';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -1773,20 +1774,20 @@ export default function BookingManagement() {
     .slice(0, 5);
 
   return (
-    <MobilePageShell className="sm:space-y-6 pt-2 sm:pt-6">
+    <MobilePageShell className="sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight gradient-text font-heading">
+      <div className="flex w-full max-w-full flex-col gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text font-heading">
             Booking Management
           </h1>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <p className="text-muted-foreground">
+          <div className="flex flex-col gap-1.5 mt-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+            <p className="text-sm text-muted-foreground">
               Comprehensive booking analytics and marketing campaign insights
             </p>
             {/* Branch context pill */}
             {activeLocation && (
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+              <span className={`inline-flex w-fit items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
                 activeLocation.slug === 'lite'
                   ? 'bg-cyan-500/10 border-cyan-400/30 text-cyan-300'
                   : 'bg-purple-500/10 border-purple-400/30 text-purple-300'
@@ -1797,7 +1798,7 @@ export default function BookingManagement() {
             )}
           </div>
         </div>
-        <div className="flex gap-2">
+        <MobileActionBar stackPrimary>
           {/* Notification Bell */}
           <Popover open={notificationOpen} onOpenChange={setNotificationOpen}>
             <PopoverTrigger asChild>
@@ -2039,7 +2040,7 @@ export default function BookingManagement() {
             New Booking
           </Button>
           )}
-        </div>
+        </MobileActionBar>
       </div>
 
       <Card className="border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

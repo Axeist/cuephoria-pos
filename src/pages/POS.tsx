@@ -434,9 +434,9 @@ const POS = () => {
   }, [fromSessionEnd, cart.length]);
 
   return (
-    <MobilePageShell className={`p-3 sm:p-6 md:p-8 pt-3 sm:pt-6 space-y-0 ${mobileView ? 'pb-28' : ''}`}>
+    <MobilePageShell className={`p-3 sm:p-6 md:p-8 space-y-0 ${mobileView ? 'pb-28' : ''}`}>
       {/* Mobile-optimized header */}
-      <div className="flex items-center justify-between mb-4 sm:mb-6 animate-slide-down">
+      <div className="mb-3 sm:mb-6 animate-slide-down">
         <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight gradient-text font-heading">Point of Sale</h2>
       </div>
 
@@ -699,7 +699,7 @@ const POS = () => {
           <div className="flex flex-col flex-grow min-h-0">
             {/* Mobile-optimized category toggle buttons */}
             <div className="px-2 sm:px-3 md:px-6 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-blue/10 flex-shrink-0 animate-scale-in">
-              <div className={`${isMobile ? 'flex w-full overflow-x-auto scrollbar-hide gap-1 mb-3 p-1' : 'grid w-full grid-cols-6 gap-1 mb-4 p-1'}`}>
+              <div className={`${isMobile ? 'tabs-list flex w-full max-w-full gap-1 mb-3 p-1' : 'grid w-full grid-cols-6 gap-1 mb-4 p-1'}`}>
                 <button
                   type="button"
                   onClick={() => setActiveTab('all')}

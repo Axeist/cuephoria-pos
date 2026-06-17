@@ -254,35 +254,73 @@
     display: none;
   }
 
-  /* App-like mobile shell spacing — header + bottom tab bar */
+  /* App-like mobile shell spacing — bottom tab bar clearance */
   :root {
-    --app-header-height: calc(88px + env(safe-area-inset-top));
     --app-bottom-nav-height: calc(56px + env(safe-area-inset-bottom));
   }
 
-  .app-screen-mobile {
-    padding-top: var(--app-header-height);
+  .app-mobile-shell,
+  .cafe-mobile-shell {
+    height: 100dvh;
+    height: 100svh;
+    max-height: 100dvh;
+    max-height: 100svh;
+    overflow: hidden;
+  }
+
+  .app-screen-mobile,
+  .cafe-screen-mobile {
     padding-bottom: var(--app-bottom-nav-height);
     width: 100%;
     max-width: 100%;
-    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
     overflow-x: hidden;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
     box-sizing: border-box;
   }
 
-  .cafe-screen-mobile {
-    --app-header-height: calc(56px + env(safe-area-inset-top));
-    padding-top: var(--app-header-height);
-    padding-bottom: var(--app-bottom-nav-height);
+  .app-mobile-header {
+    flex-shrink: 0;
+  }
+
+  /* Wrapping action rows — use .mobile-action-bar on toolbars */
+  .mobile-action-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
-    box-sizing: border-box;
+  }
+
+  .mobile-action-bar > * {
+    max-width: 100%;
+  }
+
+  .mobile-action-bar--stack-primary > .btn-gradient,
+  .mobile-action-bar--stack-primary > button.btn-gradient {
+    flex: 1 1 calc(50% - 0.25rem);
+    min-width: 0;
+  }
+
+  @media (max-width: 399.98px) {
+    .mobile-action-bar--stack-primary > .btn-gradient,
+    .mobile-action-bar--stack-primary > button.btn-gradient {
+      flex: 1 1 100%;
+    }
+  }
+
+  /* Page titles on mobile */
+  .mobile-page-shell h1,
+  .mobile-page-shell h2.gradient-text,
+  .mobile-page-shell h2.gradient-text-hero,
+  .mobile-page-shell h2.font-heading {
+    font-size: clamp(1.25rem, 5vw, 1.75rem);
+    line-height: 1.2;
   }
 
   /* Horizontal scroll for wide tables instead of page overflow */

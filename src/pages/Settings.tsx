@@ -626,8 +626,8 @@ const Settings = () => {
   );
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] min-w-0 max-w-full overflow-x-hidden">
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <div className="mobile-page-shell min-h-[calc(100vh-4rem)] min-w-0 max-w-full overflow-x-hidden">
+      <div className="mx-auto max-w-6xl px-3 py-3 sm:px-6 sm:py-8">
         {/* Page header */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -656,8 +656,7 @@ const Settings = () => {
         </div>
 
         {/* Mobile nav */}
-        <div className="lg:hidden mb-6 -mx-1 overflow-x-auto scrollbar-hide">
-          <div className="flex gap-1.5 px-1 pb-1 min-w-max">
+        <div className="tabs-list lg:hidden mb-4 flex w-full max-w-full gap-1.5 pb-1">
             {mobileNavItems.map((item) => {
               const Icon = item.icon;
               const active = activeTab === item.id;
@@ -678,7 +677,6 @@ const Settings = () => {
                 </button>
               );
             })}
-          </div>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">

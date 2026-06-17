@@ -18,7 +18,7 @@ export function MobilePageShell({
       className={cn(
         "mobile-page-shell flex-1 w-full min-w-0 max-w-full box-border",
         isMobile && "overflow-x-hidden",
-        "space-y-4 p-4 sm:p-6 md:p-8",
+        isMobile ? "space-y-3 p-3" : "space-y-4 p-4 sm:p-6 md:p-8",
         className,
       )}
       {...props}

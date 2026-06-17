@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ChevronDown, MapPin, Zap } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,7 +35,13 @@ const fallbackConfig = {
  * Branch selector shown in the top admin bar.
  * Shows a prominent colored badge for the active branch with a dropdown to switch.
  */
-export function LocationSwitcher() {
+export function LocationSwitcher({
+  variant = "default",
+  className,
+}: {
+  variant?: "default" | "compact";
+  className?: string;
+}) {
   // `locations` here is the franchise-only list — LocationContext strips
   // Cafe (it has its own login + entity) before exposing them.
   const { locations, activeLocationId, activeLocation, setActiveLocationId, loading, isSwitching } =
@@ -47,20 +54,25 @@ export function LocationSwitcher() {
     ? (BRANCH_CONFIG[activeLocation.slug] ?? fallbackConfig)
     : fallbackConfig;
 
+  const compact = variant === "compact";
+
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <button
-          className={`
-            flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold
+          className={cn(
+            `
+            flex items-center gap-1.5 rounded-full border text-xs font-semibold
             tracking-wide transition-all duration-200 select-none outline-none
             ${cfg.bg} ${cfg.color} ${cfg.ring}
             ${isSwitching ? "opacity-60 pointer-events-none" : ""}
-          `}
+          `,
+            compact ? "max-w-full px-2 py-1 min-w-0" : "px-3 py-1.5",
+            className,
+          )}
           aria-label="Switch branch"
         >
-          {/* Pulsing dot */}
-          <span className="relative flex h-2 w-2">
+          <span className="relative flex h-2 w-2 shrink-0">
             <span
               className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-60 ${
                 activeLocation?.slug === "lite" ? "bg-cyan-400" : "bg-purple-400"
@@ -73,22 +85,22 @@ export function LocationSwitcher() {
             />
           </span>
 
-          <span className="hidden sm:inline">
-            {cfg.icon}
-          </span>
+          {!compact && (
+            <span className="hidden sm:inline">{cfg.icon}</span>
+          )}
 
-          <span className="max-w-[120px] truncate">
+          <span className={cn("truncate", compact ? "max-w-[5.5rem]" : "max-w-[120px]")}>
             {activeLocation?.name ?? "Select branch"}
           </span>
 
-          {activeLocation && (
+          {activeLocation && !compact && (
             <span className={`font-mono text-[10px] opacity-60 hidden sm:inline`}>
               [{activeLocation.short_code}]
             </span>
           )}
 
           <ChevronDown
-            className={`h-3.5 w-3.5 opacity-60 transition-transform ${open ? "rotate-180" : ""}`}
+            className={`h-3.5 w-3.5 shrink-0 opacity-60 transition-transform ${open ? "rotate-180" : ""}`}
           />
         </button>
       </DropdownMenuTrigger>
