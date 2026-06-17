@@ -1,4 +1,5 @@
 import { MobilePageShell } from '@/components/mobile/MobilePageShell';
+import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useExpenses } from '@/context/ExpenseContext';
 import { usePOS } from '@/context/POSContext';
@@ -29,7 +30,7 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useViewMode } from '@/context/ViewModeContext';
 import { supabase } from '@/integrations/supabase/client';
 import type { Bill, Session } from '@/types/pos.types';
 import { useLocation } from '@/context/LocationContext';
@@ -117,7 +118,7 @@ const ReportsPage: React.FC = () => {
   } = usePOS();
   
   const { toast } = useToast();
-  const isMobile = useIsMobile();
+  const { isMobile } = useViewMode();
   const { can } = usePermissions();
   const canViewBills = can('reports.bills');
   const canViewCustomers = can('reports.customers');
@@ -2118,11 +2119,11 @@ const ReportsPage: React.FC = () => {
   };
 
   return (
-    <MobilePageShell className="p-3 sm:p-6 space-y-4 sm:space-y-6 min-h-screen text-white bg-transparent">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-2">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl sm:text-4xl font-bold gradient-text font-heading">Reports</h1>
-          {activeLocation && (
+    <MobilePageShell className="space-y-4 sm:space-y-6 text-white bg-transparent">
+      <MobilePageHeader
+        title="Reports"
+        badge={
+          activeLocation ? (
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => setReportScope('location')}
@@ -2147,8 +2148,9 @@ const ReportsPage: React.FC = () => {
                 All locations
               </button>
             </div>
-          )}
-        </div>
+          ) : undefined
+        }
+        actions={
         <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto">
           <Select value={dateRangeKey} onValueChange={handleDateRangeChange}>
             <SelectTrigger className="w-full sm:w-[180px] text-sm">
@@ -2200,8 +2202,9 @@ const ReportsPage: React.FC = () => {
           </Button>
           )}
         </div>
-      </div>
-      
+        }
+      />
+
       <div className="bg-white/[0.06] border border-white/10 rounded-xl p-1 flex gap-2 overflow-x-auto scrollbar-hide">
         {canViewBills && (
         <Button

@@ -55,6 +55,9 @@ import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { useLocation } from '@/context/LocationContext';
 import { cn } from '@/lib/utils';
+import { MobilePageShell } from '@/components/mobile/MobilePageShell';
+import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
+import { MobileTabBar } from '@/components/mobile/MobileTabBar';
 
 const SETTINGS_TABS: SettingsTabId[] = [
   'general',
@@ -625,59 +628,54 @@ const Settings = () => {
     canAccessSettingsItem(item),
   );
 
-  return (
-    <div className="mobile-page-shell min-h-[calc(100vh-4rem)] min-w-0 max-w-full overflow-x-hidden">
-      <div className="mx-auto max-w-6xl px-3 py-3 sm:px-6 sm:py-8">
-        {/* Page header */}
-        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-            <p className="text-muted-foreground mt-1 max-w-lg">
-              Everything for your venue, team, and online checkout — organized by what you need to do.
-            </p>
-          </div>
-          {activeLocation && (
-            <div
-              className={cn(
-                'inline-flex items-center gap-2.5 self-start rounded-xl border px-4 py-2 text-sm font-medium',
-                activeLocation.slug === 'lite'
-                  ? 'border-cyan-400/30 bg-cyan-500/10 text-cyan-200'
-                  : 'border-purple-400/30 bg-purple-500/10 text-purple-200',
-              )}
-            >
-              <MapPin className="h-4 w-4 shrink-0 opacity-80" />
-              <span>
-                <span className="text-muted-foreground font-normal">Branch · </span>
-                {activeLocation.name}
-              </span>
-              <span className="font-mono text-[10px] opacity-50">{activeLocation.short_code}</span>
-            </div>
-          )}
-        </div>
+  const mobileNavTabs = mobileNavItems.map((item) => {
+    const Icon = item.icon;
+    return {
+      id: item.id,
+      label: (
+        <span className="inline-flex items-center gap-1.5">
+          <Icon className="h-3.5 w-3.5" />
+          {item.label}
+        </span>
+      ),
+    };
+  });
 
-        {/* Mobile nav */}
-        <div className="tabs-list lg:hidden mb-4 flex w-full max-w-full gap-1.5 pb-1">
-            {mobileNavItems.map((item) => {
-              const Icon = item.icon;
-              const active = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setActiveTab(item.id)}
-                  className={cn(
-                    'inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium whitespace-nowrap transition-colors border',
-                    active
-                      ? 'bg-primary/15 border-primary/30 text-foreground'
-                      : 'bg-muted/30 border-transparent text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {item.label}
-                </button>
-              );
-            })}
-        </div>
+  return (
+    <MobilePageShell>
+      <div className="mx-auto max-w-6xl sm:py-2">
+        <MobilePageHeader
+          title="Settings"
+          subtitle="Everything for your venue, team, and online checkout — organized by what you need to do."
+          badge={
+            activeLocation ? (
+              <div
+                className={cn(
+                  'inline-flex items-center gap-2.5 rounded-xl border px-4 py-2 text-sm font-medium',
+                  activeLocation.slug === 'lite'
+                    ? 'border-cyan-400/30 bg-cyan-500/10 text-cyan-200'
+                    : 'border-purple-400/30 bg-purple-500/10 text-purple-200',
+                )}
+              >
+                <MapPin className="h-4 w-4 shrink-0 opacity-80" />
+                <span>
+                  <span className="text-muted-foreground font-normal">Branch · </span>
+                  {activeLocation.name}
+                </span>
+                <span className="font-mono text-[10px] opacity-50">{activeLocation.short_code}</span>
+              </div>
+            ) : undefined
+          }
+        />
+
+        <MobileTabBar
+          className="lg:hidden mb-4 h-auto min-h-10"
+          tabs={mobileNavTabs}
+          activeId={activeTab}
+          onChange={(id) => setActiveTab(id as SettingsTabId)}
+          activeClassName="bg-primary/15 border border-primary/30 text-foreground rounded-full px-3.5"
+          inactiveClassName="bg-muted/30 border border-transparent text-muted-foreground hover:text-foreground rounded-full px-3.5"
+        />
 
         <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
           {/* Desktop sidebar */}
@@ -707,7 +705,7 @@ const Settings = () => {
         title="Admin Verification Required"
         description="Enter the admin PIN to perform this restricted action."
       />
-    </div>
+    </MobilePageShell>
   );
 };
 

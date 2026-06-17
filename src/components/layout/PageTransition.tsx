@@ -64,8 +64,8 @@ export const PageTransition: React.FC = () => {
     );
   }
 
-  const slideDistance = isStationsPos ? 32 : isMobile ? 10 : 14;
-  const duration = isStationsPos ? 0.34 : isMobile ? 0.2 : 0.24;
+  const slideDistance = isStationsPos ? 32 : isMobile ? 8 : 14;
+  const duration = isStationsPos ? 0.34 : isMobile ? 0.22 : 0.24;
 
   return (
     <AnimatePresence mode="wait" initial={false}>

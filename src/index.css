@@ -145,7 +145,7 @@
  * explicitly via Tailwind `md:` classes, `useViewMode().isMobile`, or by
  * adding the `.mobile-stack` class below.
  */
-@media (max-width: 767.98px) {
+@media (max-width: 767px) {
   /* Page-level overflow safety net. Without this, any intrinsically wide
      element (Recharts SVG, a tall image, an unconstrained min-w table)
      stretches the entire page wider than the viewport and the layout
@@ -251,9 +251,15 @@
     display: none;
   }
 
-  /* App-like mobile shell spacing — bottom tab bar clearance */
+  /* Mobile design tokens + app shell spacing */
   :root {
+    --mobile-space-xs: 0.5rem;
+    --mobile-space-sm: 0.75rem;
+    --mobile-space-md: 1rem;
+    --mobile-space-lg: 1.5rem;
+    --mobile-page-title: clamp(1.25rem, 5vw, 1.75rem);
     --app-bottom-nav-height: calc(56px + env(safe-area-inset-bottom));
+    --mobile-sticky-footer-height: calc(64px + env(safe-area-inset-bottom));
   }
 
   .app-mobile-shell,
@@ -317,7 +323,29 @@
     }
   }
 
-  /* Page titles on mobile */
+  .mobile-list-row {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mobile-list-row:active {
+      transform: none;
+    }
+  }
+
+  .mobile-tab-bar {
+    mask-image: linear-gradient(to right, #000 92%, transparent);
+    -webkit-mask-image: linear-gradient(to right, #000 92%, transparent);
+  }
+
+  .mobile-sticky-footer + .mobile-page-shell,
+  .has-mobile-sticky-footer {
+    padding-bottom: calc(
+      var(--app-bottom-nav-height) + var(--mobile-sticky-footer-height)
+    );
+  }
+
+  .mobile-page-header h1,
   .mobile-page-shell h1,
   .mobile-page-shell h2.gradient-text,
   .mobile-page-shell h2.gradient-text-hero,
@@ -954,7 +982,7 @@
  * to design mobile-friendly internal spacing. Components now choose whether
  * to stack/flex-wrap via Tailwind responsive variants. The opt-in helpers
  * below stay available for legacy callers. */
-@media (max-width: 767.98px) {
+@media (max-width: 767px) {
   .card-title {
     @apply text-lg;
   }

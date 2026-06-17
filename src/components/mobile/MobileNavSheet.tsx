@@ -8,8 +8,6 @@ import {
   Monitor,
 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { GlobalNotificationBell } from "@/components/GlobalNotificationBell";
-import { LocationSwitcher } from "@/components/LocationSwitcher";
 import { useAuth } from "@/context/AuthContext";
 import { useViewMode } from "@/context/ViewModeContext";
 import { useTenantBrandingOptional } from "@/branding/BrandingProvider";
@@ -86,10 +84,6 @@ export function MobileNavSheet() {
                 {brandName}
               </div>
             </div>
-          </div>
-          <div className="px-3 pb-2 flex items-center gap-2">
-            <GlobalNotificationBell />
-            <LocationSwitcher />
           </div>
           <div className="hero-divider mx-4" />
           <nav className="flex-1 overflow-auto p-3 space-y-1">

@@ -29,6 +29,10 @@ import { type Station } from '@/types/pos.types';
 import { prefetchPOS } from '@/utils/viewTransition';
 import { cn } from '@/lib/utils';
 import { MobilePageShell } from '@/components/mobile/MobilePageShell';
+import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
+import { MobileSection } from '@/components/mobile/MobileSection';
+import { MobileActionBar } from '@/components/mobile/MobileActionBar';
+import { useViewMode } from '@/context/ViewModeContext';
 import { useToast } from '@/hooks/use-toast';
 import { usePermissions } from '@/context/PermissionsContext';
 import { generateId } from '@/utils/pos.utils';
@@ -64,6 +68,7 @@ const typeSortWeight = (type: string) => {
 };
 
 const Stations = () => {
+  const { isMobile } = useViewMode();
   const { stations, startSession, refreshStations, reorderStations } = usePOS();
   const { toast } = useToast();
   const { can } = usePermissions();
@@ -264,25 +269,30 @@ const Stations = () => {
   const dragEnabled = sortMode === 'custom' && !selectionMode;
 
   return (
-    <MobilePageShell className="space-y-3 p-3 sm:space-y-4 sm:p-5 sm:pt-5">
-      <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#0f0a1a] via-[#120818] to-[#0a0612] p-4 sm:p-5 shadow-[0_8px_40px_rgba(139,92,246,0.12)]">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <Radio className="h-5 w-5 text-cuephoria-purple animate-pulse-soft" />
-              <h2 className="gradient-text font-heading text-2xl font-bold sm:text-3xl">
+    <MobilePageShell className="space-y-3 sm:space-y-4">
+      <MobileSection
+        className="border border-white/10 bg-gradient-to-br from-[#0f0a1a] via-[#120818] to-[#0a0612] shadow-[0_8px_40px_rgba(139,92,246,0.12)]"
+        noPadding
+      >
+        <div className="p-4 sm:p-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <MobilePageHeader
+            title={
+              <span className="flex items-center gap-2">
+                <Radio className="h-5 w-5 text-cuephoria-purple animate-pulse-soft" />
                 Station Command
-              </h2>
-            </div>
-            {activeLocation && (
-              <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-                <MapPin className="h-3.5 w-3.5" />
-                {activeLocation.name}
-              </p>
-            )}
-          </div>
+              </span>
+            }
+            subtitle={
+              activeLocation ? (
+                <span className="flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5" />
+                  {activeLocation.name}
+                </span>
+              ) : undefined
+            }
+          />
 
-          <div className="grid grid-cols-3 gap-3 sm:gap-4">
+          <div className={cn('grid gap-3 sm:gap-4', isMobile ? 'grid-cols-3' : 'grid-cols-3')}>
             <button
               type="button"
               onClick={toggleLiveFilter}
@@ -331,7 +341,7 @@ const Stations = () => {
             </div>
           </div>
 
-          <div className="mobile-action-bar w-full lg:shrink-0">
+          <MobileActionBar className="w-full lg:shrink-0" maxVisible={4}>
             {canMultiStart && selectionMode && selectedStations.length > 0 && (
               <>
                 <span className="hidden text-xs text-muted-foreground sm:inline">
@@ -393,10 +403,10 @@ const Stations = () => {
               Add Station
             </Button>
             )}
-          </div>
+          </MobileActionBar>
         </div>
 
-        <div className="mt-4 flex flex-col gap-3 border-t border-white/8 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="px-4 sm:px-5 mt-0 flex flex-col gap-3 border-t border-white/8 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -501,7 +511,7 @@ const Stations = () => {
             Tap open stations to select · use <strong className="font-semibold">Start together</strong> in the header when ready
           </p>
         )}
-      </div>
+      </MobileSection>
 
       <PinVerificationDialog
         open={showPinDialog}

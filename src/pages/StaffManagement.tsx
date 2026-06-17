@@ -1,5 +1,6 @@
 // src/pages/StaffManagement.tsx
 import { MobilePageShell } from '@/components/mobile/MobilePageShell';
+import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -91,21 +92,16 @@ const StaffManagementContent: React.FC = () => {
   }
 
   return (
-    <MobilePageShell className="sm:space-y-6 pt-2 sm:pt-6">
+    <MobilePageShell className="sm:space-y-6">
       <StaffLocationBanner
         location={activeLocation}
         organizationName={orgCtx?.organization?.name}
       />
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text font-heading">
-            Staff Management
-          </h2>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Manage your team, track attendance, and process payroll
-          </p>
-        </div>
+      <MobilePageHeader
+        title="Staff Management"
+        subtitle="Manage your team, track attendance, and process payroll"
+        actions={
         <div className="flex flex-wrap gap-2">
           <Button
             onClick={() => setShowAdminRegularizationDialog(true)}
@@ -121,7 +117,8 @@ const StaffManagementContent: React.FC = () => {
             </Link>
           </Button>
         </div>
-      </div>
+        }
+      />
 
       <StaffBranchScopeToggle
         scope={reportScope}

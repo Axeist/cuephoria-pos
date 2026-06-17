@@ -5,6 +5,8 @@ import { useViewMode } from "@/context/ViewModeContext";
 /**
  * Standard page wrapper for staff app screens — full width on mobile,
  * safe overflow, consistent padding. Desktop padding unchanged.
+ *
+ * Staff mobile layout must use `useViewMode().isMobile`, not `useIsMobile()`.
  */
 export function MobilePageShell({
   className,

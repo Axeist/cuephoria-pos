@@ -186,7 +186,7 @@ const ResponsiveDialogContent = React.forwardRef<
         ref={ref as React.Ref<HTMLDivElement>}
         side="bottom"
         className={cn(
-          "p-0 max-h-[90dvh] flex flex-col overflow-hidden",
+          "p-0 max-h-[85dvh] flex flex-col overflow-hidden",
           "rounded-t-3xl border-t border-x border-white/10",
           "bg-[color:hsl(var(--card))]/95 backdrop-blur-2xl",
           "[&>button.absolute]:hidden",

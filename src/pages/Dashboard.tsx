@@ -24,16 +24,19 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
 import { MobilePageShell } from '@/components/mobile/MobilePageShell';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
+import { MobileTabBar } from '@/components/mobile/MobileTabBar';
+import { useViewMode } from '@/context/ViewModeContext';
 import { usePermissions } from '@/context/PermissionsContext';
+import PullToRefresh from '@/components/PullToRefresh';
 
 const Dashboard = () => {
-  const { customers, bills, stations, sessions, products } = usePOS();
+  const { customers, bills, stations, sessions, products, refreshStations } = usePOS();
   const { expenses, businessSummary } = useExpenses();
   const { stats } = useLocationAnalytics();
   const { toast } = useToast();
   const { can } = usePermissions();
-  const isMobile = useIsMobile();
+  const { isMobile } = useViewMode();
 
   const canViewAnalytics = can('dashboard.analytics.view');
   const canViewExpenses = can('dashboard.expenses.view');
@@ -168,27 +171,35 @@ const Dashboard = () => {
     };
   }, [stats, activeTab, activeSessionsCount, newMembersCount, lowStockItems]);
 
+  const dashboardTabs = useMemo(() => {
+    const tabs = [{ id: 'overview' as const, label: 'Overview' }];
+    if (canViewAnalytics) tabs.push({ id: 'analytics' as const, label: 'Analytics' });
+    if (canViewExpenses) tabs.push({ id: 'expenses' as const, label: 'Expenses' });
+    if (canViewVault) tabs.push({ id: 'cash' as const, label: 'Vault' });
+    return tabs;
+  }, [canViewAnalytics, canViewExpenses, canViewVault]);
+
   return (
+    <PullToRefresh onRefresh={refreshStations} scrollTargetId="app-main">
     <MobilePageShell className="space-y-3 sm:space-y-6">
       <WorkspaceHero />
-      {/* Mobile-optimized header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight gradient-text-hero font-heading">Dashboard</h2>
-      </div>
+      <MobilePageHeader title="Dashboard" />
 
-      {/* Mobile-optimized toggle buttons with better spacing */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-3 sm:mb-6 overflow-x-hidden">
-        <div
-          className={`${
-            isMobile
-              ? 'tabs-list w-full flex gap-1 h-10 p-1 rounded-xl glass-card'
-              : 'w-full sm:w-auto gap-1.5 flex p-1 rounded-xl glass-card'
-          }`}
-        >
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 overflow-x-hidden">
+        {isMobile ? (
+          <MobileTabBar
+            tabs={dashboardTabs}
+            activeId={currentDashboardTab}
+            onChange={(id) =>
+              setCurrentDashboardTab(id as typeof currentDashboardTab)
+            }
+          />
+        ) : (
+        <div className="w-full sm:w-auto gap-1.5 flex p-1 rounded-xl glass-card">
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('overview')}
-            className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-2.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
+            className={`whitespace-nowrap flex-shrink-0 text-sm px-4 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'overview'
                 ? 'btn-gradient text-white'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -200,7 +211,7 @@ const Dashboard = () => {
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('analytics')}
-            className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-2.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
+            className={`whitespace-nowrap flex-shrink-0 text-sm px-4 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'analytics'
                 ? 'btn-gradient text-white'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -213,7 +224,7 @@ const Dashboard = () => {
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('expenses')}
-            className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-2.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
+            className={`whitespace-nowrap flex-shrink-0 text-sm px-4 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'expenses'
                 ? 'btn-gradient text-white'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -226,7 +237,7 @@ const Dashboard = () => {
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('cash')}
-            className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-2.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
+            className={`whitespace-nowrap flex-shrink-0 text-sm px-4 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'cash'
                 ? 'btn-gradient text-white'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -236,6 +247,7 @@ const Dashboard = () => {
           </button>
           )}
         </div>
+        )}
 
         {currentDashboardTab === 'expenses' && (
           <div className={`${isMobile ? 'w-full' : 'w-auto'}`}>
@@ -314,6 +326,7 @@ const Dashboard = () => {
         </div>
       )}
     </MobilePageShell>
+    </PullToRefresh>
   );
 };
 

@@ -1,24 +1,21 @@
 import { useLayoutEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { MOBILE_BREAKPOINT } from "@/context/ViewModeContext";
+import { useViewMode } from "@/context/ViewModeContext";
 
 const positions = new Map<string, number>();
 
-function getScrollContainer(): HTMLElement | null {
-  if (typeof window === "undefined") return null;
-  if (window.innerWidth >= MOBILE_BREAKPOINT) return null;
-  return (
-    document.getElementById("app-main") ??
-    document.getElementById("cafe-main")
-  );
+function getScrollContainer(isMobile: boolean): HTMLElement | null {
+  if (typeof window === "undefined" || !isMobile) return null;
+  return document.getElementById("app-main");
 }
 
 /**
- * Restores scroll position when navigating back within the app shell.
- * On mobile, scrolls the main pane; on desktop, uses window scroll.
+ * Restores scroll position when navigating back within the staff app shell.
+ * On mobile, scrolls #app-main; on desktop, uses window scroll.
  */
 export function useScrollRestoration(enabled = true) {
   const location = useLocation();
+  const { isMobile } = useViewMode();
   const prevKey = useRef<string | null>(null);
 
   useLayoutEffect(() => {
@@ -26,7 +23,7 @@ export function useScrollRestoration(enabled = true) {
 
     const key = `${location.pathname}${location.search}`;
     const prev = prevKey.current;
-    const container = getScrollContainer();
+    const container = getScrollContainer(isMobile);
 
     if (prev) {
       const top = container ? container.scrollTop : window.scrollY;
@@ -43,5 +40,5 @@ export function useScrollRestoration(enabled = true) {
     }
 
     prevKey.current = key;
-  }, [location.pathname, location.search, enabled]);
+  }, [location.pathname, location.search, enabled, isMobile]);
 }

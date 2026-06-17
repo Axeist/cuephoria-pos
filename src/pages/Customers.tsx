@@ -1,4 +1,5 @@
 import { MobilePageShell } from '@/components/mobile/MobilePageShell';
+import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Plus, User, Search, Download, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -686,9 +687,10 @@ const Customers = () => {
   const activeFilterCount = getActiveFilterCount();
 
   return (
-    <MobilePageShell className="pt-2 sm:pt-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text font-heading">Customers</h2>
+    <MobilePageShell>
+      <MobilePageHeader
+        title="Customers"
+        actions={
         <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
           {duplicates.length > 0 && (
             <Button 
@@ -740,7 +742,8 @@ const Customers = () => {
           </Button>
           )}
         </div>
-      </div>
+        }
+      />
 
       <CustomerInsightWidgets customers={customersData} />
 

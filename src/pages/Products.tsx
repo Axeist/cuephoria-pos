@@ -24,6 +24,7 @@ import { usePermissions } from '@/context/PermissionsContext';
 import AdvancedFilters from '@/components/product/AdvancedFilters';
 import StockLogsViewer from '@/components/product/StockLogsViewer';
 import { MobilePageShell } from '@/components/mobile/MobilePageShell';
+import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
 import RestockDialog from '@/components/product/RestockDialog';
 import { FilterOptions } from '@/types/stockLog.types';
 import { createStockLog, saveStockLog } from '@/utils/stockLogger';
@@ -355,9 +356,10 @@ const ProductsPage: React.FC = () => {
   }, [products]);
 
   return (
-    <MobilePageShell className="pt-2 sm:pt-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
-        <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Products</h2>
+    <MobilePageShell>
+      <MobilePageHeader
+        title="Products"
+        actions={
         <div className="flex flex-wrap gap-2">
           {(canEditProduct || canAdjustStock) && (
             <>
@@ -416,7 +418,8 @@ const ProductsPage: React.FC = () => {
           </Button>
           )}
         </div>
-      </div>
+        }
+      />
 
       <ProductDialog
         isOpen={isDialogOpen}

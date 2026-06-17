@@ -23,6 +23,7 @@
  */
 
 import React from "react";
+import { MobilePageShell } from "@/components/mobile/MobilePageShell";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import type { SubscriptionGateBillingState } from "@/components/SubscriptionGate";
@@ -1035,8 +1036,9 @@ export default function Billing() {
     !internal && !!subscription?.razorpay_subscription_id;
 
   return (
-    <div className="min-h-screen app-ambient text-white min-w-0 max-w-full overflow-x-hidden">
-      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-8 space-y-8">
+    <MobilePageShell className="!p-0 space-y-0">
+    <div className="app-ambient text-white min-w-0 max-w-full overflow-x-hidden">
+      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-6 sm:py-8 space-y-8">
         {subscriptionGateBanner ? (
           <SubscriptionGateRecapBanner
             banner={subscriptionGateBanner}
@@ -2051,6 +2053,7 @@ export default function Billing() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </MobilePageShell>
   );
 }
 

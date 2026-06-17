@@ -1,4 +1,6 @@
 import { MobilePageShell } from '@/components/mobile/MobilePageShell';
+import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
+import { MobileTabBar } from '@/components/mobile/MobileTabBar';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -23,8 +25,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import SplitPaymentForm from '@/components/checkout/SplitPaymentForm';
 import SavedCartsManager from '@/components/SavedCartsManager';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { useViewMode } from '@/context/ViewModeContext';
+import { cn } from '@/lib/utils';
 import { hapticImpact } from '@/utils/capacitor';
 import { isSessionEndNavigation } from '@/utils/viewTransition';
 import { getProductStockLimit } from '@/utils/cartStock.utils';
@@ -76,8 +78,7 @@ const POS = () => {
     completeSale,
   } = usePOS();
   const { toast } = useToast();
-  const isMobile = useIsMobile();
-  const { isMobile: mobileView } = useViewMode();
+  const { isMobile } = useViewMode();
 
   const [activeTab, setActiveTab] = useState('all');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
@@ -143,6 +144,18 @@ const POS = () => {
   }, {} as Record<string, number>);
 
   categoryCounts.all = productsWithStock.length;
+
+  const posCategoryTabs = useMemo(
+    () => [
+      { id: 'all', label: `All (${categoryCounts.all || 0})` },
+      { id: 'food', label: `Food (${categoryCounts.food || 0})` },
+      { id: 'drinks', label: `Drinks (${categoryCounts.drinks || 0})` },
+      { id: 'tobacco', label: `Tobacco (${categoryCounts.tobacco || 0})` },
+      { id: 'challenges', label: `Challenges (${categoryCounts.challenges || 0})` },
+      { id: 'membership', label: `Membership (${categoryCounts.membership || 0})` },
+    ],
+    [categoryCounts],
+  );
 
   const categoryOrder = ['food', 'drinks', 'tobacco', 'challenges', 'membership'];
 
@@ -434,11 +447,10 @@ const POS = () => {
   }, [fromSessionEnd, cart.length]);
 
   return (
-    <MobilePageShell className={`p-3 sm:p-6 md:p-8 space-y-0 ${mobileView ? 'pb-28' : ''}`}>
-      {/* Mobile-optimized header */}
-      <div className="mb-3 sm:mb-6 animate-slide-down">
-        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight gradient-text font-heading">Point of Sale</h2>
-      </div>
+    <MobilePageShell
+      className={cn('space-y-0', isMobile && cart.length > 0 && 'has-mobile-sticky-footer pb-28')}
+    >
+      <MobilePageHeader title="Point of Sale" className="mb-3 sm:mb-6 animate-slide-down" />
 
       {/* Mobile-optimized grid layout.
           On mobile we flip the visual order (products first, cart second) so
@@ -699,7 +711,15 @@ const POS = () => {
           <div className="flex flex-col flex-grow min-h-0">
             {/* Mobile-optimized category toggle buttons */}
             <div className="px-2 sm:px-3 md:px-6 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-blue/10 flex-shrink-0 animate-scale-in">
-              <div className={`${isMobile ? 'tabs-list flex w-full max-w-full gap-1 mb-3 p-1' : 'grid w-full grid-cols-6 gap-1 mb-4 p-1'}`}>
+              {isMobile ? (
+                <MobileTabBar
+                  className="mb-3 glass-card-0 bg-transparent border-0 p-0 h-auto"
+                  tabs={posCategoryTabs}
+                  activeId={activeTab}
+                  onChange={setActiveTab}
+                />
+              ) : (
+              <div className="grid w-full grid-cols-6 gap-1 mb-4 p-1">
                 <button
                   type="button"
                   onClick={() => setActiveTab('all')}
@@ -768,6 +788,7 @@ const POS = () => {
                   Membership ({categoryCounts.membership || 0})
                 </button>
               </div>
+              )}
             </div>
 
             <div className="flex-grow min-h-0 m-0 p-6 overflow-auto">
@@ -1337,7 +1358,7 @@ const POS = () => {
           sell. Mirrors the cart footer actions so the user never has to
           scroll back to checkout. Desktop is untouched. */}
       <StickyMobileActionBar
-        visible={mobileView && cart.length > 0}
+        visible={isMobile && cart.length > 0}
         className="flex flex-col gap-2"
       >
         <div className="flex items-center justify-between text-sm">

@@ -50,6 +50,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { RotateCcw, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MobilePageShell } from '@/components/mobile/MobilePageShell';
+import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
 
 type TabId = 'manage' | 'leaderboard' | 'tv';
 
@@ -241,11 +243,12 @@ export default function TournamentsPage() {
   }
 
   return (
-    <TournamentMotionProvider intensity="full">
-      <div className="relative min-h-[calc(100vh-4rem)] w-full min-w-0 max-w-full overflow-x-hidden">
+    <MobilePageShell className="relative sm:space-y-6">
+      <TournamentMotionProvider intensity="full">
+      <div className="relative w-full min-w-0 max-w-full overflow-x-hidden">
         <AmbientTournamentBg />
 
-        <div className="relative w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-6 lg:py-8 space-y-6 lg:space-y-8">
+        <div className="relative w-full space-y-6 lg:space-y-8">
           {/* Hero — full width */}
           <motion.header
             initial={{ opacity: 0, y: 12 }}
@@ -516,5 +519,6 @@ export default function TournamentsPage() {
         />
       </div>
     </TournamentMotionProvider>
+    </MobilePageShell>
   );
 }

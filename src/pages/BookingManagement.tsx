@@ -1,5 +1,7 @@
 import { MobilePageShell } from '@/components/mobile/MobilePageShell';
 import { MobileActionBar } from '@/components/mobile/MobileActionBar';
+import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
+import PullToRefresh from '@/components/PullToRefresh';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -1774,31 +1776,29 @@ export default function BookingManagement() {
     .slice(0, 5);
 
   return (
+    <PullToRefresh onRefresh={fetchBookings} scrollTargetId="app-main">
     <MobilePageShell className="sm:space-y-6">
-      {/* Header */}
-      <div className="flex w-full max-w-full flex-col gap-3">
-        <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text font-heading">
-            Booking Management
-          </h1>
-          <div className="flex flex-col gap-1.5 mt-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
-            <p className="text-sm text-muted-foreground">
-              Comprehensive booking analytics and marketing campaign insights
-            </p>
-            {/* Branch context pill */}
-            {activeLocation && (
-              <span className={`inline-flex w-fit items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+      <MobilePageHeader
+        title="Booking Management"
+        subtitle="Comprehensive booking analytics and marketing campaign insights"
+        badge={
+          activeLocation ? (
+            <span
+              className={`inline-flex w-fit items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
                 activeLocation.slug === 'lite'
                   ? 'bg-cyan-500/10 border-cyan-400/30 text-cyan-300'
                   : 'bg-purple-500/10 border-purple-400/30 text-purple-300'
-              }`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${activeLocation.slug === 'lite' ? 'bg-cyan-400' : 'bg-purple-400'}`} />
-                {branchView === 'all' ? 'All Branches' : activeLocation.name}
-              </span>
-            )}
-          </div>
-        </div>
-        <MobileActionBar stackPrimary>
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${activeLocation.slug === 'lite' ? 'bg-cyan-400' : 'bg-purple-400'}`}
+              />
+              {branchView === 'all' ? 'All Branches' : activeLocation.name}
+            </span>
+          ) : undefined
+        }
+        actions={
+        <MobileActionBar stackPrimary maxVisible={3}>
           {/* Notification Bell */}
           <Popover open={notificationOpen} onOpenChange={setNotificationOpen}>
             <PopoverTrigger asChild>
@@ -2041,7 +2041,8 @@ export default function BookingManagement() {
           </Button>
           )}
         </MobileActionBar>
-      </div>
+        }
+      />
 
       <Card className="border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <CardHeader className="pb-2">
@@ -3410,7 +3411,7 @@ export default function BookingManagement() {
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-3 gap-6">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
                             <div className="text-center p-3 bg-gray-900/50 rounded-lg border border-gray-700 shadow-sm">
                               <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Revenue</p>
                               <p className="text-xl font-bold text-green-400">₹{stats.revenue.toLocaleString()}</p>
@@ -3913,5 +3914,6 @@ export default function BookingManagement() {
         </>
       )}
     </MobilePageShell>
+    </PullToRefresh>
   );
 }
