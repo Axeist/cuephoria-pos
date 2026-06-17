@@ -101,7 +101,7 @@ export function AppBottomNav() {
 
   return createPortal(
     <nav
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[linear-gradient(180deg,rgba(10,6,22,0.98)_0%,rgba(7,3,15,0.98)_100%)] backdrop-blur-xl shadow-[0_-8px_24px_-8px_rgba(0,0,0,0.5)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[linear-gradient(180deg,rgba(10,6,22,0.98)_0%,rgba(7,3,15,0.98)_100%)] backdrop-blur-xl shadow-[0_-8px_24px_-8px_rgba(0,0,0,0.5)]"
       style={{
         paddingBottom: "max(0px, env(safe-area-inset-bottom))",
       }}

@@ -74,11 +74,16 @@ function detectAutoMode(): ViewMode {
   const coarsePointer =
     typeof window.matchMedia === "function" &&
     window.matchMedia("(pointer: coarse)").matches;
+  const finePointer =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: fine)").matches;
   const ua = navigator.userAgent || "";
   const phoneUa = /android.*mobile|iphone|ipod|windows phone|iemobile/i.test(ua);
 
   if (phoneUa && width < 1024) return "mobile";
   if (coarsePointer && width < MOBILE_BREAKPOINT) return "mobile";
+  // Mouse / trackpad on a laptop or desktop browser — always desktop layout.
+  if (width >= MOBILE_BREAKPOINT && finePointer && !phoneUa) return "desktop";
 
   return "desktop";
 }
@@ -192,10 +197,14 @@ export const ViewModeProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   // Phones always use mobile layout — desktop override cannot shrink usable width.
+  // Desktop browsers (auto-detected) always get the classic sidebar + header shell;
+  // a stale "mobile" localStorage override must not strip navigation on wide screens.
   const mode: ViewMode =
     viewportWidth < MOBILE_BREAKPOINT
       ? "mobile"
-      : userOverride ?? autoDetected;
+      : autoDetected === "desktop"
+        ? "desktop"
+        : userOverride ?? autoDetected;
 
   const value = useMemo<ViewModeContextValue>(
     () => ({

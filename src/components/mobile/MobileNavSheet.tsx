@@ -46,7 +46,7 @@ export function MobileNavSheet() {
     <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
       <SheetContent
         side="left"
-        className="p-0 w-[86%] max-w-[300px] border-white/10 text-white md:hidden"
+        className="p-0 w-[86%] max-w-[300px] border-white/10 text-white"
         style={{
           background:
             "linear-gradient(180deg, rgba(10,6,22,0.98) 0%, rgba(7,3,15,0.98) 100%)",

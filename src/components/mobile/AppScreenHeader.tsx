@@ -26,7 +26,7 @@ export function AppScreenHeader() {
   return (
     <header
       className={cn(
-        "app-mobile-header sticky top-0 z-40 w-full shrink-0 md:hidden",
+        "app-mobile-header sticky top-0 z-40 w-full shrink-0",
         "border-b border-white/[0.08]",
         "bg-[linear-gradient(180deg,rgba(12,7,24,0.97)_0%,rgba(10,6,20,0.92)_100%)]",
         "backdrop-blur-xl backdrop-saturate-150",

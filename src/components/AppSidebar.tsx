@@ -226,10 +226,7 @@ const AppSidebar: React.FC = () => {
       </div>
       <button
         type="button"
-        onClick={() => {
-          setSheetOpen(false);
-          logout();
-        }}
+        onClick={() => logout()}
         className="h-8 w-8 grid place-items-center rounded-lg text-white/50 hover:text-white hover:bg-red-500/25 transition-colors"
         title="Sign out"
       >
@@ -259,10 +256,7 @@ const AppSidebar: React.FC = () => {
       </div>
       <button
         type="button"
-        onClick={() => {
-          setSheetOpen(false);
-          logout();
-        }}
+        onClick={() => logout()}
         className="h-8 w-8 grid place-items-center rounded-lg text-white/50 hover:text-white hover:bg-red-500/25 transition-colors"
         title="Sign out"
       >
