@@ -1,0 +1,24 @@
+---
+description: Supabase migration safety — idempotent, no ops RLS without approval
+globs: supabase/migrations/**/*.sql
+alwaysApply: false
+---
+
+# Supabase migrations
+
+## Rules
+
+- **New file only** — never edit migrations already applied in production
+- Idempotent: `IF NOT EXISTS`, `ON CONFLICT DO NOTHING`
+- Name: `YYYYMMDDHHMMSS_description.sql`
+
+## RLS changes
+
+- Premediation: grep client for `supabase.from('table')` before deny-all RLS
+- Safe first targets: `workspace_*`, `admin_user_roles`, `staff_*` (server-only today)
+- **Do not** tighten Slice 11 ops tables or `cafe_*` without explicit approval
+- **Do not** change `customers` RLS (prototype customer auth depends on current behavior)
+
+## Rollback
+
+Add comment at top of migration with rollback SQL or companion down migration notes.

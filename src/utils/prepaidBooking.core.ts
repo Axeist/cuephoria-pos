@@ -1,0 +1,194 @@
+import type { CartItem, Session } from '@/types/pos.types';
+import type { PrepaidBookingLink, StationBookingRow } from '@/types/prepaidBooking.types';
+import { VR_PASS_DURATION_MINUTES } from '@/utils/publicBookingAvailability';
+
+/** Pure helpers safe for Edge/server bundles (no Supabase client). */
+
+export { VR_PASS_DURATION_MINUTES };
+
+export type PrepaidStationRef = {
+  type?: string;
+  slotDuration?: number | null;
+};
+
+/** Play time covered by a pre-paid booking (VR pass = 15 min, not the 1-hour calendar block). */
+export function resolvePrepaidPlayDurationMinutes(
+  stationType: string | undefined,
+  stationSlotDuration: number | null | undefined,
+  bookingDurationMinutes: number
+): number {
+  const type = (stationType ?? '').toLowerCase();
+  if (type === 'vr') {
+    return VR_PASS_DURATION_MINUTES;
+  }
+  if (stationSlotDuration != null && stationSlotDuration > 0) {
+    return stationSlotDuration;
+  }
+  return bookingDurationMinutes > 0 ? bookingDurationMinutes : 60;
+}
+
+/** Planned countdown for live sessions — corrects VR pre-paid rows stored as 60 min. */
+export function getEffectivePlannedDurationMinutes(
+  session: Pick<Session, 'plannedDurationMinutes' | 'prepaidBooking'>,
+  station?: PrepaidStationRef
+): number {
+  const planned = session.plannedDurationMinutes ?? 0;
+  if (!station) return planned;
+
+  if (session.prepaidBooking) {
+    return resolvePrepaidPlayDurationMinutes(
+      station.type,
+      station.slotDuration,
+      session.prepaidBooking.durationMinutes
+    );
+  }
+
+  if ((station.type ?? '').toLowerCase() === 'vr') {
+    if (planned <= 0) return VR_PASS_DURATION_MINUTES;
+    if (station.slotDuration === 15 && planned !== 15) return VR_PASS_DURATION_MINUTES;
+  }
+
+  return planned;
+}
+
+const VENUE_TZ = 'Asia/Kolkata';
+
+export function bookingTodayDate(timeZone = VENUE_TZ): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
+}
+
+export function normalizeBookingPhone(phone: string | null | undefined): string {
+  return (phone ?? '').replace(/\D/g, '');
+}
+
+export function isOnlinePrepaidBooking(
+  booking: Pick<StationBookingRow, 'payment_mode' | 'payment_txn_id' | 'final_price'>
+): boolean {
+  const mode = booking.payment_mode?.toLowerCase();
+  if (!mode || mode === 'venue') return false;
+
+  if (booking.payment_txn_id) return true;
+
+  // Razorpay / online rows should count even if txn id is missing from a partial select
+  if (mode === 'razorpay' || mode === 'upi' || mode === 'online') {
+    return Number(booking.final_price ?? 0) > 0;
+  }
+
+  return Number(booking.final_price ?? 0) > 0;
+}
+
+export function bookingToPrepaidLink(
+  booking: StationBookingRow,
+  station?: PrepaidStationRef
+): PrepaidBookingLink {
+  const bookingDuration = Number(booking.duration) || 60;
+  return {
+    bookingId: booking.id,
+    paidAmount: Number(booking.final_price ?? 0),
+    originalPrice: booking.original_price,
+    durationMinutes: resolvePrepaidPlayDurationMinutes(
+      station?.type,
+      station?.slotDuration,
+      bookingDuration
+    ),
+    slotStartTime: booking.start_time.slice(0, 5),
+    slotEndTime: booking.end_time.slice(0, 5),
+    paymentMode: booking.payment_mode ?? 'online',
+    couponCode: booking.coupon_code,
+  };
+}
+
+export function pickDefaultPrepaidBooking(
+  bookings: StationBookingRow[],
+  station?: PrepaidStationRef
+): { booking: StationBookingRow; link: PrepaidBookingLink } | null {
+  const prepaid = bookings.filter(isOnlinePrepaidBooking);
+  if (prepaid.length !== 1) return null;
+  const booking = prepaid[0];
+  return { booking, link: bookingToPrepaidLink(booking, station) };
+}
+
+export function parsePrepaidBookingLink(raw: unknown): PrepaidBookingLink | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const data = raw as Record<string, unknown>;
+  if (typeof data.bookingId !== 'string' || !data.bookingId) return undefined;
+  return {
+    bookingId: data.bookingId,
+    paidAmount: Number(data.paidAmount ?? 0),
+    originalPrice:
+      data.originalPrice != null ? Number(data.originalPrice) : null,
+    durationMinutes: Number(data.durationMinutes) || 60,
+    slotStartTime: String(data.slotStartTime ?? ''),
+    slotEndTime: String(data.slotEndTime ?? ''),
+    paymentMode: String(data.paymentMode ?? 'online'),
+    couponCode: typeof data.couponCode === 'string' ? data.couponCode : null,
+  };
+}
+
+export function isPrepaidSession(
+  session: Pick<Session, 'prepaidBooking'> | null | undefined
+): boolean {
+  return Boolean(session?.prepaidBooking?.bookingId);
+}
+
+export function getPrepaidOvertimeMs(
+  session: Pick<
+    Session,
+    'prepaidBooking' | 'startTime' | 'isPaused' | 'pausedAt' | 'totalPausedMs' | 'plannedDurationMinutes'
+  >,
+  billableMs: number,
+  station?: PrepaidStationRef
+): number {
+  const prepaid = session.prepaidBooking;
+  if (!prepaid) return 0;
+  const coveredMs =
+    getEffectivePlannedDurationMinutes(session, station) * 60 * 1000;
+  return Math.max(0, billableMs - coveredMs);
+}
+
+export function calculatePrepaidOvertimeCost(
+  hourlyRate: number,
+  overtimeMs: number,
+  isMember = false
+): { overtimeMinutes: number; cost: number } {
+  if (overtimeMs <= 0) {
+    return { overtimeMinutes: 0, cost: 0 };
+  }
+  const overtimeMinutes = Math.max(1, Math.ceil(overtimeMs / 60000));
+  let cost = Math.ceil((overtimeMinutes / 60) * hourlyRate);
+  if (isMember) {
+    cost = Math.ceil(cost * 0.5);
+  }
+  return { overtimeMinutes, cost };
+}
+
+export function sessionNeedsPosCheckout(
+  quickShopItemCount: number,
+  overtimeMs: number
+): boolean {
+  return quickShopItemCount > 0 || overtimeMs > 0;
+}
+
+/** Items with a positive total — used to avoid opening POS for ₹0 after pre-paid sessions. */
+export function getChargeableCartItems(items: CartItem[]): CartItem[] {
+  return items.filter((item) => Number(item.total ?? item.price ?? 0) > 0);
+}
+
+export function prepaidCheckoutHasExtraCharges(
+  quickShopItemCount: number,
+  overtimeMs: number,
+  incomingItems: CartItem[]
+): boolean {
+  if (quickShopItemCount > 0 || overtimeMs > 0) return true;
+  return getChargeableCartItems(incomingItems).length > 0;
+}
+
+export function formatBookingSlotLabel(start: string, end: string): string {
+  const fmt = (t: string) => {
+    const [h, m] = t.slice(0, 5).split(':').map(Number);
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  };
+  return `${fmt(start)} – ${fmt(end)}`;
+}

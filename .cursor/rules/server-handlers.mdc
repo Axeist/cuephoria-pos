@@ -1,0 +1,29 @@
+---
+description: Server handler auth, org scope, and permission checks
+globs: src/server/handlers/**/*.ts
+alwaysApply: false
+---
+
+# Server handlers
+
+## Required for tenant/admin mutations
+
+1. Verify session: `verifyAdminSession` or `withOrgContext` / `resolveOrgContext`
+2. Resolve permissions: `resolveWorkspaceAccess` + `assertWorkspacePermission(access, 'key')`
+3. Scope DB queries: `organization_id` and/or `location_id` — service role bypasses RLS
+
+## Patterns
+
+- Handlers live in `src/server/handlers/`; wired via `api/admin/[action].ts` dispatcher (Vercel Hobby function limit)
+- Return JSON via `j()` from `adminApiUtils`
+- Use `runtime: "edge"` unless Node crypto/SDK required (Razorpay webhook)
+
+## Do not
+
+- Add mutations without permission check when a catalog key exists
+- Use anon key fallback in production handlers
+- Return secrets (PINs, TOTP secrets, plaintext passwords) in API responses
+
+## Rate limiting
+
+Apply `rateLimit` from `platformApiUtils` to login and public abuse-prone endpoints.

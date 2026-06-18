@@ -1,0 +1,192 @@
+import type { Session, Station } from '@/types/pos.types';
+import type { OccupancyRates } from '@/utils/stationPricing';
+
+type DurationTierRow = { minutes: number; price: number };
+
+/** Inline — stationTransform is bundled in Edge; no separate time-based pricing modules. */
+function parseDurationTiersFromRow(raw: unknown): DurationTierRow[] {
+  if (!Array.isArray(raw)) return [];
+  const tiers: DurationTierRow[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const minutes = Number(row.minutes);
+    const price = Number(row.price);
+    if (!Number.isFinite(minutes) || minutes <= 0) continue;
+    if (!Number.isFinite(price) || price < 0) continue;
+    tiers.push({ minutes: Math.round(minutes), price: Math.round(price) });
+  }
+  tiers.sort((a, b) => a.minutes - b.minutes);
+  const seen = new Set<number>();
+  return tiers.filter((t) => {
+    if (seen.has(t.minutes)) return false;
+    seen.add(t.minutes);
+    return true;
+  });
+}
+
+/** Inline parser — stationTransform is bundled in Edge; no separate prepaid modules. */
+function parsePrepaidBookingFromSessionJson(raw: unknown): Session['prepaidBooking'] {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const data = raw as Record<string, unknown>;
+  if (typeof data.bookingId !== 'string' || !data.bookingId) return undefined;
+  return {
+    bookingId: data.bookingId,
+    paidAmount: Number(data.paidAmount ?? 0),
+    originalPrice: data.originalPrice != null ? Number(data.originalPrice) : null,
+    durationMinutes: Number(data.durationMinutes) || 60,
+    slotStartTime: String(data.slotStartTime ?? ''),
+    slotEndTime: String(data.slotEndTime ?? ''),
+    paymentMode: String(data.paymentMode ?? 'online'),
+    couponCode: typeof data.couponCode === 'string' ? data.couponCode : null,
+  };
+}
+
+/** Matches Station Command “On booking page” / `eventEnabled` in transformStationRow. */
+export function isStationPublicBookable(row: {
+  category?: string | null;
+  event_enabled?: boolean | null;
+  maintenance_mode?: boolean | null;
+}): boolean {
+  if (row.maintenance_mode) return false;
+  if (row.category === 'nit_event') return false;
+  return row.event_enabled ?? (row.category ? false : true);
+}
+
+export function parseOccupancyRates(raw: unknown): OccupancyRates {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: OccupancyRates = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const num = Number(v);
+    if (Number.isFinite(num) && num >= 0) out[k] = num;
+  }
+  return out;
+}
+
+export function parseCurrentSession(
+  raw: unknown,
+  stationId: string
+): Session | null {
+  if (!raw) return null;
+  try {
+    const sessionData =
+      typeof raw === 'string' ? JSON.parse(raw) : (raw as Record<string, unknown>);
+
+    if (!sessionData?.id) return null;
+
+    return {
+      id: String(sessionData.id),
+      stationId: String(sessionData.stationId ?? sessionData.station_id ?? stationId),
+      customerId: String(sessionData.customerId ?? sessionData.customer_id ?? ''),
+      startTime: new Date(sessionData.startTime ?? sessionData.start_time),
+      endTime: sessionData.endTime
+        ? new Date(sessionData.endTime as string)
+        : sessionData.end_time
+          ? new Date(sessionData.end_time as string)
+          : undefined,
+      duration: sessionData.duration as number | undefined,
+      hourlyRate: Number(sessionData.hourlyRate ?? sessionData.hourly_rate ?? 0) || undefined,
+      originalRate: Number(sessionData.originalRate ?? sessionData.original_rate ?? 0) || undefined,
+      couponCode: (sessionData.couponCode ?? sessionData.coupon_code) as string | undefined,
+      discountAmount:
+        Number(sessionData.discountAmount ?? sessionData.discount_amount ?? 0) || undefined,
+      playerCount: Number(sessionData.playerCount ?? sessionData.player_count ?? 1) || 1,
+      perPersonRate:
+        Number(sessionData.perPersonRate ?? sessionData.per_person_rate ?? 0) || undefined,
+      isPaused: Boolean(sessionData.isPaused ?? sessionData.is_paused),
+      pausedAt:
+        sessionData.pausedAt || sessionData.paused_at
+          ? new Date((sessionData.pausedAt ?? sessionData.paused_at) as string)
+          : undefined,
+      totalPausedMs: Number(sessionData.totalPausedMs ?? sessionData.total_paused_time ?? 0) || 0,
+      plannedDurationMinutes:
+        Number(
+          sessionData.plannedDurationMinutes ??
+            sessionData.planned_duration_minutes ??
+            0
+        ) || undefined,
+      sessionGroupId:
+        (sessionData.sessionGroupId ?? sessionData.session_group_id) != null
+          ? String(sessionData.sessionGroupId ?? sessionData.session_group_id)
+          : undefined,
+      prepaidBooking: parsePrepaidBookingFromSessionJson(
+        sessionData.prepaidBooking ?? sessionData.prepaid_booking
+      ),
+      timeTierPrice:
+        Number(sessionData.timeTierPrice ?? sessionData.time_tier_price ?? 0) || undefined,
+      overtimePerMinute:
+        Number(sessionData.overtimePerMinute ?? sessionData.overtime_per_minute ?? 0) || undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function transformStationRow(item: Record<string, unknown>): Station {
+  const occupancyRates = parseOccupancyRates(item.occupancy_rates);
+  const maxPlayers = Math.max(
+    1,
+    Number(item.max_players ?? item.max_capacity ?? 1) || 1
+  );
+  const pricingModeRaw = item.pricing_mode as string | undefined;
+  const pricingMode: Station['pricingMode'] =
+    pricingModeRaw === 'per_player' ||
+    pricingModeRaw === 'static' ||
+    pricingModeRaw === 'time_based'
+      ? pricingModeRaw
+      : Object.keys(occupancyRates).length > 0
+        ? 'per_player'
+        : 'static';
+  const durationTiers = parseDurationTiersFromRow(item.duration_tiers);
+
+  return {
+    id: String(item.id),
+    name: String(item.name),
+    type: item.type as Station['type'],
+    hourlyRate: Number(item.hourly_rate) || 0,
+    isOccupied: Boolean(item.is_occupied),
+    currentSession: parseCurrentSession(item.currentsession, String(item.id)),
+    category: (item.category as string | null) ?? null,
+    eventEnabled:
+      typeof item.event_enabled === 'boolean'
+        ? item.event_enabled
+        : item.category
+          ? false
+          : true,
+    slotDuration: item.slot_duration != null ? Number(item.slot_duration) : null,
+    maxPlayers,
+    occupancyRates,
+    pricingMode,
+    durationTiers,
+    teamName: (item.team_name as string | null) ?? null,
+    teamColor: (item.team_color as string | null) ?? null,
+    maxCapacity: item.max_capacity != null ? Number(item.max_capacity) : null,
+    singleRate: item.single_rate != null ? Number(item.single_rate) : null,
+    accentColor: (item.accent_color as string | null) ?? null,
+    sortOrder: item.sort_order != null ? Number(item.sort_order) : 0,
+    maintenanceMode: Boolean(item.maintenance_mode),
+    maintenanceStartedAt: item.maintenance_started_at
+      ? new Date(item.maintenance_started_at as string)
+      : null,
+    maintenancePlannedEndAt: item.maintenance_planned_end_at
+      ? new Date(item.maintenance_planned_end_at as string)
+      : null,
+    maintenanceStartedBy: (item.maintenance_started_by as string | null) ?? null,
+  };
+}
+
+export const STATION_SELECT_FIELDS_LEGACY =
+  'id,name,type,hourly_rate,is_occupied,currentsession,created_at,category,event_enabled,slot_duration,max_players,occupancy_rates,team_name,team_color,max_capacity,single_rate';
+
+export const STATION_SELECT_FIELDS_BASE =
+  `${STATION_SELECT_FIELDS_LEGACY},pricing_mode,duration_tiers`;
+
+export const STATION_SELECT_FIELDS =
+  `${STATION_SELECT_FIELDS_BASE},accent_color,sort_order,maintenance_mode,maintenance_started_at,maintenance_planned_end_at,maintenance_started_by`;
+
+/** Progressive fallbacks when newer migrations are not applied yet */
+export const STATION_SELECT_TIERS = [
+  STATION_SELECT_FIELDS,
+  STATION_SELECT_FIELDS_BASE,
+  STATION_SELECT_FIELDS_LEGACY,
+] as const;

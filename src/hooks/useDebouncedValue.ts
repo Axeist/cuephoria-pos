@@ -1,0 +1,13 @@
+import { useEffect, useState } from 'react';
+
+/** Delays propagating a fast-changing value (e.g. progressively loaded bills) to downstream consumers. */
+export function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(timer);
+  }, [value, delayMs]);
+
+  return debounced;
+}

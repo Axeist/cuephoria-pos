@@ -1,0 +1,28 @@
+---
+description: Vercel API routes — use dispatchers, auth webhooks
+globs: api/**/*.ts
+alwaysApply: false
+---
+
+# Vercel API routes
+
+## Hobby plan constraint
+
+Max ~12 serverless functions. Add handlers to existing dispatchers:
+
+- `api/admin/[action].ts` — tenant admin
+- `api/platform/[action].ts` — platform ops
+- `api/tenant/[action].ts` — org signup/settings
+- `api/webhooks/[action].ts` — integrations
+
+Do not create a new top-level `api/foo.ts` unless removing another function.
+
+## Webhooks
+
+- Require `X-Webhook-Secret` when `WEBHOOK_SECRET` env is set
+- Allow `WEBHOOK_AUTH_DISABLED=1` in local dev only
+- Never use stub `verifyWebhookSignature` that returns `true`
+
+## includeFiles
+
+Server code must live under `src/{server,types,utils}/` for Edge bundling (`vercel.json`).
