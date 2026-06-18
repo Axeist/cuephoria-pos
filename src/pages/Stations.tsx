@@ -277,55 +277,59 @@ const Stations = () => {
         <div className="p-4 sm:p-5">
           {/* ── Desktop: single-row header ── */}
           <div className="hidden lg:flex lg:items-center lg:justify-between lg:gap-6">
-            {/* Title + location */}
+            {/* Title + location — same gradient/font as MobilePageHeader */}
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <Radio className="h-5 w-5 shrink-0 text-cuephoria-purple animate-pulse-soft" />
-                <span className="text-base font-bold text-white">Station Command</span>
-              </div>
+              <h1 className="font-heading font-extrabold tracking-tight gradient-text-hero text-2xl sm:text-3xl flex items-center gap-2">
+                <Radio className="h-7 w-7 shrink-0 text-cuephoria-purple animate-pulse-soft" />
+                Station Command
+              </h1>
               {activeLocation && (
-                <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <MapPin className="h-3 w-3 shrink-0" />
+                <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground leading-snug">
+                  <MapPin className="h-3.5 w-3.5 shrink-0" />
                   {activeLocation.name}
                 </p>
               )}
             </div>
 
-            {/* Compact stat chips */}
-            <div className="flex items-center gap-2 shrink-0">
+            {/* Stat chips — same card style as mobile but horizontal */}
+            <div className="flex items-center gap-3 shrink-0">
               <button
                 type="button"
                 onClick={toggleLiveFilter}
                 title="Show live stations only"
                 className={cn(
-                  'flex items-center gap-2 rounded-xl border px-4 py-2 transition-all',
+                  'rounded-xl border px-5 py-3 text-center transition-all min-w-[90px]',
                   occupancyFilter === 'live'
                     ? 'border-orange-400 bg-orange-500/25 ring-2 ring-orange-400/40'
                     : 'border-orange-500/30 bg-orange-950/30 hover:border-orange-400/50'
                 )}
               >
-                <Zap className="h-4 w-4 text-orange-300" />
-                <span className="text-xs font-semibold uppercase tracking-wider text-orange-300/80">Live</span>
-                <span className="font-mono text-xl font-bold tabular-nums leading-none text-orange-200">{totalActive}</span>
+                <div className="flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-orange-300/80">
+                  <Zap className="h-3 w-3" />
+                  Live
+                </div>
+                <p className="mt-0.5 font-mono text-3xl font-bold tabular-nums text-orange-200">{totalActive}</p>
               </button>
               <button
                 type="button"
                 onClick={toggleOpenFilter}
                 title="Show open stations only"
                 className={cn(
-                  'flex items-center gap-2 rounded-xl border px-4 py-2 transition-all',
+                  'rounded-xl border px-5 py-3 text-center transition-all min-w-[90px]',
                   occupancyFilter === 'open'
                     ? 'border-emerald-400 bg-emerald-500/20 ring-2 ring-emerald-400/35'
                     : 'border-emerald-500/30 bg-emerald-950/30 hover:border-emerald-400/45'
                 )}
               >
-                <CircleDot className="h-4 w-4 text-emerald-300" />
-                <span className="text-xs font-semibold uppercase tracking-wider text-emerald-300/80">Open</span>
-                <span className="font-mono text-xl font-bold tabular-nums leading-none text-emerald-200">{totalAvailable}</span>
+                <div className="flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-emerald-300/80">
+                  <CircleDot className="h-3 w-3" />
+                  Open
+                </div>
+                <p className="mt-0.5 font-mono text-3xl font-bold tabular-nums text-emerald-200">{totalAvailable}</p>
               </button>
-              <div className="flex items-center gap-2 rounded-xl border border-violet-500/30 bg-violet-950/30 px-4 py-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-violet-300/80">Total</span>
-                <span className="font-mono text-xl font-bold tabular-nums leading-none text-violet-200">{visibleStations.length}</span>
+              <div className="rounded-xl border border-violet-500/30 bg-violet-950/30 px-5 py-3 text-center min-w-[90px]">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-violet-300/80">Total</div>
+                <p className="mt-0.5 font-mono text-3xl font-bold tabular-nums text-violet-200">{visibleStations.length}</p>
               </div>
             </div>
 
