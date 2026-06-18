@@ -1,0 +1,279 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Cuetronix — Snooker, 8-Ball & Gaming Centre Billing Software
+#  A Cuephoria Tech product  ·  https://www.cuetronix.com/
+#  robots.txt last updated: 2026-04-22
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Default policy — crawl the marketing site, skip the app
+User-agent: *
+Allow: /$
+Allow: /sitemap.xml
+Allow: /robots.txt
+Allow: /manifest.json
+Allow: /lovable-uploads/
+Allow: /*.png$
+Allow: /*.svg$
+Allow: /*.jpg$
+Allow: /*.jpeg$
+Allow: /*.webp$
+Allow: /*.ico$
+
+# Public marketing / conversion pages
+Allow: /signup
+Allow: /login
+Allow: /contact
+Allow: /contact-us
+Allow: /compare
+Allow: /vs/
+Allow: /terms
+Allow: /terms-and-conditions
+Allow: /privacy
+Allow: /privacy-policy
+Allow: /refund-policy
+Allow: /refunds
+Allow: /cancellation-policy
+Allow: /acceptable-use
+Allow: /acceptable-use-policy
+Allow: /cookies
+Allow: /cookie-policy
+Allow: /shipping-and-delivery
+Allow: /shipping-delivery
+Allow: /service-delivery
+
+# Block the tenant app + internal surfaces (no SEO value, may leak PII)
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /stations
+Disallow: /products
+Disallow: /customers
+Disallow: /reports
+Disallow: /booking-management
+Disallow: /staff
+Disallow: /staff-portal
+Disallow: /chat-ai
+Disallow: /settings
+Disallow: /account/
+Disallow: /onboarding
+Disallow: /how-to-use
+Disallow: /login-logs
+
+# Block tenant-scoped surfaces + all portals
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
+Disallow: /public/payment/
+Disallow: /lite/
+
+# Block auth helpers / utility pages
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /signup/google
+Disallow: /csp-test.html
+Disallow: /phonepe-test.html
+Disallow: /phonepe-direct.html
+Disallow: /placeholder.svg
+
+# Legacy / spammy bots — keep them out
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+User-agent: PetalBot
+Disallow: /
+
+# ─── AI / LLM crawlers ───────────────────────────────────────────────────────
+# We WANT Cuetronix to appear in ChatGPT, Claude, Google AI Overviews, Perplexity
+# and Apple Intelligence answers for "snooker billing software",
+# "8-ball pool POS", "turf booking software", "pickleball court booking", etc.
+# So we allow the marketing site and only hide tenant-scoped surfaces.
+
+# OpenAI ChatGPT crawlers
+User-agent: GPTBot
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
+
+User-agent: ChatGPT-User
+Allow: /
+
+# Common Crawl (feeds many LLMs)
+User-agent: CCBot
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
+
+# Anthropic Claude crawlers
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
+
+User-agent: Claude-Web
+Allow: /
+
+# Google AI Overviews / Gemini (Google-Extended gates AI surfaces)
+User-agent: Google-Extended
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
+
+# Apple Intelligence / Apple AI surfaces
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
+
+User-agent: Applebot
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
+
+# Perplexity
+User-agent: PerplexityBot
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
+
+# You.com
+User-agent: YouBot
+Allow: /
+
+# Meta AI
+User-agent: FacebookBot
+Allow: /
+
+User-agent: Meta-ExternalAgent
+Allow: /
+
+# Mistral / Cohere / Amazon
+User-agent: MistralAI-User
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
+
+# Block TikTok's Bytespider — high volume, no citation value
+User-agent: Bytespider
+Disallow: /
+
+# Explicitly welcome the search engines we care about
+User-agent: Googlebot
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
+
+User-agent: Googlebot-Image
+Allow: /lovable-uploads/
+Allow: /*.png$
+Allow: /*.jpg$
+Allow: /*.jpeg$
+Allow: /*.svg$
+
+User-agent: Bingbot
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /
+
+User-agent: Slackbot
+Allow: /
+
+User-agent: WhatsApp
+Allow: /
+
+# Sitemap
+Sitemap: https://www.cuetronix.com/sitemap.xml
+
+# LLM discoverability (llmstxt.org standard — Anthropic/OpenAI-friendly)
+# See /llms.txt and /llms-full.txt for a structured site overview.
+
+# Host (non-standard but honored by Yandex / some crawlers)
+Host: https://www.cuetronix.com

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSP Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 CSP (Content Security Policy) Test</h1>
+    <p>This page will test what CSP headers are being applied to your site.</p>
+    
+    <div id="results"></div>
+    
+    <script>
+        function addResult(title, content, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test ${type}`;
+            div.innerHTML = `<h3>${title}</h3><pre>${content}</pre>`;
+            resultsDiv.appendChild(div);
+        }
+
+        // Test 1: Check for CSP meta tag
+        const cspMeta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+        if (cspMeta) {
+            addResult('❌ CSP Meta Tag Found', cspMeta.content, 'error');
+        } else {
+            addResult('✅ No CSP Meta Tag', 'No CSP meta tag found in HTML', 'success');
+        }
+
+        // Test 2: Try to create a blob worker (this will fail if CSP blocks it)
+        try {
+            const blob = new Blob(['console.log("Worker test")'], { type: 'application/javascript' });
+            const workerUrl = URL.createObjectURL(blob);
+            const worker = new Worker(workerUrl);
+            worker.terminate();
+            URL.revokeObjectURL(workerUrl);
+            addResult('✅ Blob Worker Creation', 'Successfully created worker from blob URL', 'success');
+        } catch (error) {
+            addResult('❌ Blob Worker Blocked', error.message, 'error');
+        }
+
+        // Test 3: Try to connect to PhonePe domain
+        fetch('https://mercury-t2.phonepe.com/')
+            .then(() => {
+                addResult('✅ PhonePe Domain Access', 'Successfully connected to PhonePe domain', 'success');
+            })
+            .catch(error => {
+                addResult('❌ PhonePe Domain Blocked', error.message, 'error');
+            });
+
+        // Test 4: Check for data: URL access
+        try {
+            const dataUrl = 'data:text/plain;base64,SGVsbG8gV29ybGQ=';
+            fetch(dataUrl)
+                .then(() => {
+                    addResult('✅ Data URL Access', 'Successfully accessed data: URL', 'success');
+                })
+                .catch(error => {
+                    addResult('❌ Data URL Blocked', error.message, 'error');
+                });
+        } catch (error) {
+            addResult('❌ Data URL Blocked', error.message, 'error');
+        }
+
+        // Test 5: Check current page info
+        addResult('📋 Page Information', 
+            `URL: ${window.location.href}\n` +
+            `User Agent: ${navigator.userAgent}\n` +
+            `Timestamp: ${new Date().toISOString()}`, 
+            'info'
+        );
+
+        // Test 6: Check console for CSP violations
+        const originalError = console.error;
+        const cspViolations = [];
+        console.error = function(...args) {
+            const message = args.join(' ');
+            if (message.includes('Content Security Policy') || message.includes('CSP')) {
+                cspViolations.push(message);
+            }
+            originalError.apply(console, args);
+        };
+
+        setTimeout(() => {
+            if (cspViolations.length > 0) {
+                addResult('❌ CSP Violations Detected', cspViolations.join('\n'), 'error');
+            } else {
+                addResult('✅ No CSP Violations', 'No CSP violations detected in console', 'success');
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

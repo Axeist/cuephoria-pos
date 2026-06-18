@@ -1,0 +1,2032 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instanciate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "12.2.3 (519615d)"
+  }
+  public: {
+    Tables: {
+      admin_users: {
+        Row: {
+          created_at: string
+          id: string
+          is_admin: boolean
+          password: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_admin?: boolean
+          password: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_admin?: boolean
+          password?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      bill_items: {
+        Row: {
+          bill_id: string
+          created_at: string
+          id: string
+          item_id: string
+          item_type: string
+          name: string
+          price: number
+          quantity: number
+          total: number
+        }
+        Insert: {
+          bill_id: string
+          created_at?: string
+          id?: string
+          item_id: string
+          item_type: string
+          name: string
+          price: number
+          quantity: number
+          total: number
+        }
+        Update: {
+          bill_id?: string
+          created_at?: string
+          id?: string
+          item_id?: string
+          item_type?: string
+          name?: string
+          price?: number
+          quantity?: number
+          total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_items_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bills: {
+        Row: {
+          cash_amount: number | null
+          created_at: string
+          customer_id: string | null
+          discount: number
+          discount_type: string
+          discount_value: number
+          id: string
+          is_split_payment: boolean | null
+          location_id: string | null
+          loyalty_points_earned: number
+          loyalty_points_used: number
+          payment_method: string
+          subtotal: number
+          total: number
+          upi_amount: number | null
+        }
+        Insert: {
+          cash_amount?: number | null
+          created_at?: string
+          customer_id?: string | null
+          discount?: number
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          is_split_payment?: boolean | null
+          location_id?: string | null
+          loyalty_points_earned?: number
+          loyalty_points_used?: number
+          payment_method: string
+          subtotal: number
+          total: number
+          upi_amount?: number | null
+        }
+        Update: {
+          cash_amount?: number | null
+          created_at?: string
+          customer_id?: string | null
+          discount?: number
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          is_split_payment?: boolean | null
+          location_id?: string | null
+          loyalty_points_earned?: number
+          loyalty_points_used?: number
+          payment_method?: string
+          subtotal?: number
+          total?: number
+          upi_amount?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bills_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_views: {
+        Row: {
+          access_code: string
+          booking_id: string
+          created_at: string
+          id: string
+          last_accessed_at: string | null
+          location_id: string
+        }
+        Insert: {
+          access_code: string
+          booking_id: string
+          created_at?: string
+          id?: string
+          last_accessed_at?: string | null
+          location_id?: string
+        }
+        Update: {
+          access_code?: string
+          booking_id?: string
+          created_at?: string
+          id?: string
+          last_accessed_at?: string | null
+          location_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_views_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bookings: {
+        Row: {
+          booking_date: string
+          booking_group_id: string | null
+          coupon_code: string | null
+          created_at: string
+          customer_id: string
+          discount_percentage: number | null
+          duration: number
+          end_time: string
+          final_price: number | null
+          id: string
+          notes: string | null
+          original_price: number | null
+          start_time: string
+          station_id: string
+          status: string
+          status_updated_at: string | null
+          status_updated_by: string | null
+        }
+        Insert: {
+          booking_date: string
+          booking_group_id?: string | null
+          coupon_code?: string | null
+          created_at?: string
+          customer_id: string
+          discount_percentage?: number | null
+          duration: number
+          end_time: string
+          final_price?: number | null
+          id?: string
+          notes?: string | null
+          original_price?: number | null
+          start_time: string
+          station_id: string
+          status?: string
+          status_updated_at?: string | null
+          status_updated_by?: string | null
+        }
+        Update: {
+          booking_date?: string
+          booking_group_id?: string | null
+          coupon_code?: string | null
+          created_at?: string
+          customer_id?: string
+          discount_percentage?: number | null
+          duration?: number
+          end_time?: string
+          final_price?: number | null
+          id?: string
+          notes?: string | null
+          original_price?: number | null
+          start_time?: string
+          station_id?: string
+          status?: string
+          status_updated_at?: string | null
+          status_updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cash_bank_deposits: {
+        Row: {
+          amount: number
+          created_by: string
+          deposit_date: string
+          id: string
+          notes: string | null
+          person_name: string
+          remarks: string | null
+          transaction_number: string
+        }
+        Insert: {
+          amount: number
+          created_by?: string
+          deposit_date?: string
+          id?: string
+          notes?: string | null
+          person_name: string
+          remarks?: string | null
+          transaction_number: string
+        }
+        Update: {
+          amount?: number
+          created_by?: string
+          deposit_date?: string
+          id?: string
+          notes?: string | null
+          person_name?: string
+          remarks?: string | null
+          transaction_number?: string
+        }
+        Relationships: []
+      }
+      cash_deposits: {
+        Row: {
+          amount: number
+          bank_name: string | null
+          created_at: string
+          created_by: string
+          deposit_date: string
+          id: string
+          notes: string | null
+          reference_number: string | null
+        }
+        Insert: {
+          amount: number
+          bank_name?: string | null
+          created_at?: string
+          created_by?: string
+          deposit_date?: string
+          id?: string
+          notes?: string | null
+          reference_number?: string | null
+        }
+        Update: {
+          amount?: number
+          bank_name?: string | null
+          created_at?: string
+          created_by?: string
+          deposit_date?: string
+          id?: string
+          notes?: string | null
+          reference_number?: string | null
+        }
+        Relationships: []
+      }
+      cash_summary: {
+        Row: {
+          closing_balance: number
+          date: string
+          id: string
+          location_id: string
+          opening_balance: number
+          total_deposits: number
+          total_sales: number
+          total_withdrawals: number
+          updated_at: string
+        }
+        Insert: {
+          closing_balance?: number
+          date?: string
+          id?: string
+          location_id: string
+          opening_balance?: number
+          total_deposits?: number
+          total_sales?: number
+          total_withdrawals?: number
+          updated_at?: string
+        }
+        Update: {
+          closing_balance?: number
+          date?: string
+          id?: string
+          location_id?: string
+          opening_balance?: number
+          total_deposits?: number
+          total_sales?: number
+          total_withdrawals?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cash_transactions: {
+        Row: {
+          amount: number
+          bill_id: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          transaction_type: string
+        }
+        Insert: {
+          amount: number
+          bill_id?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          transaction_type: string
+        }
+        Update: {
+          amount?: number
+          bill_id?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          transaction_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_transactions_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cash_vault: {
+        Row: {
+          current_amount: number
+          id: string
+          location_id: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          current_amount?: number
+          id?: string
+          location_id: string
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          current_amount?: number
+          id?: string
+          location_id?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: []
+      }
+      cash_vault_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          id: string
+          location_id: string
+          notes: string | null
+          person_name: string
+          remarks: string | null
+          transaction_number: string | null
+          transaction_type: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string
+          id?: string
+          location_id: string
+          notes?: string | null
+          person_name: string
+          remarks?: string | null
+          transaction_number?: string | null
+          transaction_type: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          id?: string
+          location_id?: string
+          notes?: string | null
+          person_name?: string
+          remarks?: string | null
+          transaction_number?: string | null
+          transaction_type?: string
+        }
+        Relationships: []
+      }
+      categories: {
+        Row: {
+          created_at: string | null
+          id: string
+          location_id: string | null
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          location_id?: string | null
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          location_id?: string | null
+          name?: string
+        }
+        Relationships: []
+      }
+      customer_users: {
+        Row: {
+          auth_id: string | null
+          created_at: string | null
+          customer_id: string | null
+          email: string
+          id: string
+          pin: string | null
+          referral_code: string | null
+          reset_pin: string | null
+          reset_pin_expiry: string | null
+        }
+        Insert: {
+          auth_id?: string | null
+          created_at?: string | null
+          customer_id?: string | null
+          email: string
+          id?: string
+          pin?: string | null
+          referral_code?: string | null
+          reset_pin?: string | null
+          reset_pin_expiry?: string | null
+        }
+        Update: {
+          auth_id?: string | null
+          created_at?: string | null
+          customer_id?: string | null
+          email?: string
+          id?: string
+          pin?: string | null
+          referral_code?: string | null
+          reset_pin?: string | null
+          reset_pin_expiry?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_users_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          created_at: string
+          created_via_tournament: boolean | null
+          email: string | null
+          id: string
+          is_member: boolean
+          location_id: string | null
+          loyalty_points: number
+          membership_duration: string | null
+          membership_expiry_date: string | null
+          membership_hours_left: number | null
+          membership_plan: string | null
+          membership_seconds_left: number | null
+          membership_start_date: string | null
+          name: string
+          phone: string
+          total_play_time: number
+          total_spent: number
+        }
+        Insert: {
+          created_at?: string
+          created_via_tournament?: boolean | null
+          email?: string | null
+          id?: string
+          is_member?: boolean
+          location_id?: string | null
+          loyalty_points?: number
+          membership_duration?: string | null
+          membership_expiry_date?: string | null
+          membership_hours_left?: number | null
+          membership_plan?: string | null
+          membership_seconds_left?: number | null
+          membership_start_date?: string | null
+          name: string
+          phone: string
+          total_play_time?: number
+          total_spent?: number
+        }
+        Update: {
+          created_at?: string
+          created_via_tournament?: boolean | null
+          email?: string | null
+          id?: string
+          is_member?: boolean
+          location_id?: string | null
+          loyalty_points?: number
+          membership_duration?: string | null
+          membership_expiry_date?: string | null
+          membership_hours_left?: number | null
+          membership_plan?: string | null
+          membership_seconds_left?: number | null
+          membership_start_date?: string | null
+          name?: string
+          phone?: string
+          total_play_time?: number
+          total_spent?: number
+        }
+        Relationships: []
+      }
+      email_templates: {
+        Row: {
+          body_template: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          subject_template: string
+        }
+        Insert: {
+          body_template: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          subject_template: string
+        }
+        Update: {
+          body_template?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          subject_template?: string
+        }
+        Relationships: []
+      }
+      expenses: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          date: string
+          frequency: string
+          id: string
+          is_recurring: boolean
+          location_id: string | null
+          name: string
+          notes: string | null
+        }
+        Insert: {
+          amount: number
+          category: string
+          created_at?: string
+          date: string
+          frequency: string
+          id: string
+          is_recurring?: boolean
+          location_id?: string | null
+          name: string
+          notes?: string | null
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          date?: string
+          frequency?: string
+          id?: string
+          is_recurring?: boolean
+          location_id?: string | null
+          name?: string
+          notes?: string | null
+        }
+        Relationships: []
+      }
+      investment_partners: {
+        Row: {
+          address: string | null
+          company: string | null
+          contact_person: string | null
+          created_at: string
+          email: string | null
+          equity_percentage: number | null
+          id: string
+          initial_investment_amount: number | null
+          investment_amount: number
+          investment_date: string
+          name: string
+          notes: string | null
+          partnership_type: string
+          phone: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          company?: string | null
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          equity_percentage?: number | null
+          id?: string
+          initial_investment_amount?: number | null
+          investment_amount?: number
+          investment_date: string
+          name: string
+          notes?: string | null
+          partnership_type?: string
+          phone?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          company?: string | null
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          equity_percentage?: number | null
+          id?: string
+          initial_investment_amount?: number | null
+          investment_amount?: number
+          investment_date?: string
+          name?: string
+          notes?: string | null
+          partnership_type?: string
+          phone?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      investment_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          id: string
+          notes: string | null
+          partner_id: string
+          reference_number: string | null
+          status: string
+          transaction_date: string
+          transaction_type: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          notes?: string | null
+          partner_id: string
+          reference_number?: string | null
+          status?: string
+          transaction_date: string
+          transaction_type: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          notes?: string | null
+          partner_id?: string
+          reference_number?: string | null
+          status?: string
+          transaction_date?: string
+          transaction_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_investment_transactions_partner"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "investment_partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investment_transactions_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "investment_partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      location_settings: {
+        Row: {
+          id: string
+          location_id: string
+          key: string
+          value: unknown
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          location_id: string
+          key: string
+          value: unknown
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          location_id?: string
+          key?: string
+          value?: unknown
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      locations: {
+        Row: {
+          id: string
+          name: string
+          slug: string
+          short_code: string | null
+          address: string | null
+          is_active: boolean
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          slug: string
+          short_code?: string | null
+          address?: string | null
+          is_active?: boolean
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          slug?: string
+          short_code?: string | null
+          address?: string | null
+          is_active?: boolean
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      loyalty_transactions: {
+        Row: {
+          created_at: string | null
+          customer_id: string | null
+          description: string | null
+          id: string
+          points: number
+          source: string
+        }
+        Insert: {
+          created_at?: string | null
+          customer_id?: string | null
+          description?: string | null
+          id?: string
+          points: number
+          source: string
+        }
+        Update: {
+          created_at?: string | null
+          customer_id?: string | null
+          description?: string | null
+          id?: string
+          points?: number
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loyalty_transactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_templates: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          message_template: string
+          name: string
+          title_template: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message_template: string
+          name: string
+          title_template: string
+          type?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message_template?: string
+          name?: string
+          title_template?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_read: boolean
+          message: string
+          metadata: Json | null
+          title: string
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_read?: boolean
+          message: string
+          metadata?: Json | null
+          title: string
+          type?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_read?: boolean
+          message?: string
+          metadata?: Json | null
+          title?: string
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      offers: {
+        Row: {
+          created_at: string | null
+          current_uses: number | null
+          description: string
+          discount_type: string | null
+          discount_value: number | null
+          id: string
+          is_active: boolean | null
+          max_uses: number | null
+          min_spend: number | null
+          target_audience: string | null
+          title: string
+          updated_at: string | null
+          validity_days: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_uses?: number | null
+          description: string
+          discount_type?: string | null
+          discount_value?: number | null
+          id?: string
+          is_active?: boolean | null
+          max_uses?: number | null
+          min_spend?: number | null
+          target_audience?: string | null
+          title: string
+          updated_at?: string | null
+          validity_days?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          current_uses?: number | null
+          description?: string
+          discount_type?: string | null
+          discount_value?: number | null
+          id?: string
+          is_active?: boolean | null
+          max_uses?: number | null
+          min_spend?: number | null
+          target_audience?: string | null
+          title?: string
+          updated_at?: string | null
+          validity_days?: number | null
+        }
+        Relationships: []
+      }
+      products: {
+        Row: {
+          buying_price: number | null
+          category: string
+          created_at: string
+          duration: string | null
+          id: string
+          image: string | null
+          membership_hours: number | null
+          name: string
+          offer_price: number | null
+          original_price: number | null
+          price: number
+          profit: number | null
+          selling_price: number | null
+          stock: number
+          student_price: number | null
+        }
+        Insert: {
+          buying_price?: number | null
+          category: string
+          created_at?: string
+          duration?: string | null
+          id?: string
+          image?: string | null
+          membership_hours?: number | null
+          name: string
+          offer_price?: number | null
+          original_price?: number | null
+          price: number
+          profit?: number | null
+          selling_price?: number | null
+          stock: number
+          student_price?: number | null
+        }
+        Update: {
+          buying_price?: number | null
+          category?: string
+          created_at?: string
+          duration?: string | null
+          id?: string
+          image?: string | null
+          membership_hours?: number | null
+          name?: string
+          offer_price?: number | null
+          original_price?: number | null
+          price?: number
+          profit?: number | null
+          selling_price?: number | null
+          stock?: number
+          student_price?: number | null
+        }
+        Relationships: []
+      }
+      promotions: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          discount_type: string
+          discount_value: number
+          end_date: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          name: string
+          start_date: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          discount_type: string
+          discount_value: number
+          end_date?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name: string
+          start_date?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          discount_type?: string
+          discount_value?: number
+          end_date?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name?: string
+          start_date?: string | null
+        }
+        Relationships: []
+      }
+      referrals: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          points_awarded: number | null
+          referred_email: string
+          referrer_id: string
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          points_awarded?: number | null
+          referred_email: string
+          referrer_id: string
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          points_awarded?: number | null
+          referred_email?: string
+          referrer_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_referrer_id_fkey"
+            columns: ["referrer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reward_redemptions: {
+        Row: {
+          created_at: string | null
+          customer_id: string | null
+          id: string
+          points_spent: number
+          redeemed_at: string | null
+          redemption_code: string
+          reward_id: string
+          staff_id: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string | null
+          customer_id?: string | null
+          id?: string
+          points_spent: number
+          redeemed_at?: string | null
+          redemption_code: string
+          reward_id: string
+          staff_id?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string | null
+          customer_id?: string | null
+          id?: string
+          points_spent?: number
+          redeemed_at?: string | null
+          redemption_code?: string
+          reward_id?: string
+          staff_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reward_redemptions_customer_id_fkey_new"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reward_redemptions_reward_id_fkey"
+            columns: ["reward_id"]
+            isOneToOne: false
+            referencedRelation: "rewards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rewards: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          name: string
+          points_cost: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name: string
+          points_cost: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name?: string
+          points_cost?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      sessions: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          duration: number | null
+          end_time: string | null
+          id: string
+          is_paused: boolean | null
+          notes: string | null
+          paused_at: string | null
+          price: number | null
+          start_time: string
+          station_id: string
+          status: string | null
+          total_paused_time: number | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          duration?: number | null
+          end_time?: string | null
+          id?: string
+          is_paused?: boolean | null
+          notes?: string | null
+          paused_at?: string | null
+          price?: number | null
+          start_time?: string
+          station_id: string
+          status?: string | null
+          total_paused_time?: number | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          duration?: number | null
+          end_time?: string | null
+          id?: string
+          is_paused?: boolean | null
+          notes?: string | null
+          paused_at?: string | null
+          price?: number | null
+          start_time?: string
+          station_id?: string
+          status?: string | null
+          total_paused_time?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sessions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sessions_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_attendance: {
+        Row: {
+          clock_in: string | null
+          clock_out: string | null
+          created_at: string
+          date: string
+          duration_minutes: number | null
+          id: string
+          notes: string | null
+          staff_id: string
+          status: string
+        }
+        Insert: {
+          clock_in?: string | null
+          clock_out?: string | null
+          created_at?: string
+          date: string
+          duration_minutes?: number | null
+          id?: string
+          notes?: string | null
+          staff_id: string
+          status?: string
+        }
+        Update: {
+          clock_in?: string | null
+          clock_out?: string | null
+          created_at?: string
+          date?: string
+          duration_minutes?: number | null
+          id?: string
+          notes?: string | null
+          staff_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_attendance_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_leave_requests: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_date: string
+          id: string
+          reason: string | null
+          remarks: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          staff_id: string
+          start_date: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_date: string
+          id?: string
+          reason?: string | null
+          remarks?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          staff_id: string
+          start_date: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string
+          id?: string
+          reason?: string | null
+          remarks?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          staff_id?: string
+          start_date?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_leave_requests_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string
+          id: string
+          location_id: string
+          phone: string | null
+          photo_url: string | null
+          role: string | null
+          user_id: string | null
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name: string
+          id?: string
+          location_id: string
+          phone?: string | null
+          photo_url?: string | null
+          role?: string | null
+          user_id?: string | null
+          username: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+          location_id?: string
+          phone?: string | null
+          photo_url?: string | null
+          role?: string | null
+          user_id?: string | null
+          username?: string
+        }
+        Relationships: []
+      }
+      staff_work_schedules: {
+        Row: {
+          created_at: string
+          end_time: string
+          id: string
+          is_active: boolean
+          staff_id: string
+          start_time: string
+          weekday: number
+        }
+        Insert: {
+          created_at?: string
+          end_time: string
+          id?: string
+          is_active?: boolean
+          staff_id: string
+          start_time: string
+          weekday: number
+        }
+        Update: {
+          created_at?: string
+          end_time?: string
+          id?: string
+          is_active?: boolean
+          staff_id?: string
+          start_time?: string
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_work_schedules_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stations: {
+        Row: {
+          consolidated_name: string | null
+          created_at: string
+          hourly_rate: number
+          id: string
+          is_controller: boolean | null
+          is_occupied: boolean
+          name: string
+          parent_station_id: string | null
+          type: string
+          category: string | null
+          event_enabled: boolean | null
+          slot_duration: number | null
+        }
+        Insert: {
+          consolidated_name?: string | null
+          created_at?: string
+          hourly_rate: number
+          id?: string
+          is_controller?: boolean | null
+          is_occupied?: boolean
+          name: string
+          parent_station_id?: string | null
+          type: string
+          category?: string | null
+          event_enabled?: boolean | null
+          slot_duration?: number | null
+        }
+        Update: {
+          consolidated_name?: string | null
+          created_at?: string
+          hourly_rate?: number
+          id?: string
+          is_controller?: boolean | null
+          is_occupied?: boolean
+          name?: string
+          parent_station_id?: string | null
+          type?: string
+          category?: string | null
+          event_enabled?: boolean | null
+          slot_duration?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stations_parent_station_id_fkey"
+            columns: ["parent_station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournament_history: {
+        Row: {
+          created_at: string
+          id: string
+          match_date: string
+          match_id: string
+          match_stage: string
+          player1_name: string
+          player2_name: string
+          tournament_id: string
+          winner_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          match_date: string
+          match_id: string
+          match_stage: string
+          player1_name: string
+          player2_name: string
+          tournament_id: string
+          winner_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          match_date?: string
+          match_id?: string
+          match_stage?: string
+          player1_name?: string
+          player2_name?: string
+          tournament_id?: string
+          winner_name?: string
+        }
+        Relationships: []
+      }
+      tournament_public_registrations: {
+        Row: {
+          created_at: string
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string
+          entry_fee: number | null
+          id: string
+          registration_date: string
+          registration_source: string | null
+          status: string
+          tournament_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_email?: string | null
+          customer_name: string
+          customer_phone: string
+          entry_fee?: number | null
+          id?: string
+          registration_date?: string
+          registration_source?: string | null
+          status?: string
+          tournament_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string
+          entry_fee?: number | null
+          id?: string
+          registration_date?: string
+          registration_source?: string | null
+          status?: string
+          tournament_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_public_registrations_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_public_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_public_registrations_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_public_registrations_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournament_registrations: {
+        Row: {
+          created_at: string | null
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string
+          entry_fee: number | null
+          id: string
+          registration_date: string | null
+          registration_source: string | null
+          status: string | null
+          tournament_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          customer_email?: string | null
+          customer_name: string
+          customer_phone: string
+          entry_fee?: number | null
+          id?: string
+          registration_date?: string | null
+          registration_source?: string | null
+          status?: string | null
+          tournament_id: string
+        }
+        Update: {
+          created_at?: string | null
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string
+          entry_fee?: number | null
+          id?: string
+          registration_date?: string | null
+          registration_source?: string | null
+          status?: string | null
+          tournament_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_registrations_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_public_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_registrations_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_registrations_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournament_winner_images: {
+        Row: {
+          caption: string | null
+          created_by: string | null
+          id: string
+          image_url: string
+          tournament_id: string
+          uploaded_at: string | null
+          winner_name: string | null
+        }
+        Insert: {
+          caption?: string | null
+          created_by?: string | null
+          id?: string
+          image_url: string
+          tournament_id: string
+          uploaded_at?: string | null
+          winner_name?: string | null
+        }
+        Update: {
+          caption?: string | null
+          created_by?: string | null
+          id?: string
+          image_url?: string
+          tournament_id?: string
+          uploaded_at?: string | null
+          winner_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_winner_images_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_public_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_winner_images_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_winner_images_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournament_winners: {
+        Row: {
+          created_at: string
+          game_type: string
+          game_variant: string | null
+          id: string
+          runner_up_name: string | null
+          tournament_date: string
+          tournament_id: string
+          tournament_name: string
+          winner_name: string
+        }
+        Insert: {
+          created_at?: string
+          game_type: string
+          game_variant?: string | null
+          id?: string
+          runner_up_name?: string | null
+          tournament_date: string
+          tournament_id: string
+          tournament_name: string
+          winner_name: string
+        }
+        Update: {
+          created_at?: string
+          game_type?: string
+          game_variant?: string | null
+          id?: string
+          runner_up_name?: string | null
+          tournament_date?: string
+          tournament_id?: string
+          tournament_name?: string
+          winner_name?: string
+        }
+        Relationships: []
+      }
+      tournaments: {
+        Row: {
+          budget: number | null
+          created_at: string
+          date: string
+          game_title: string | null
+          game_type: string
+          game_variant: string | null
+          id: string
+          matches: Json
+          max_players: number | null
+          name: string
+          players: Json
+          runner_up: Json | null
+          runner_up_prize: number | null
+          status: string
+          tournament_format: string
+          updated_at: string | null
+          winner: Json | null
+          winner_prize: number | null
+        }
+        Insert: {
+          budget?: number | null
+          created_at?: string
+          date: string
+          game_title?: string | null
+          game_type: string
+          game_variant?: string | null
+          id?: string
+          matches?: Json
+          max_players?: number | null
+          name: string
+          players?: Json
+          runner_up?: Json | null
+          runner_up_prize?: number | null
+          status: string
+          tournament_format?: string
+          updated_at?: string | null
+          winner?: Json | null
+          winner_prize?: number | null
+        }
+        Update: {
+          budget?: number | null
+          created_at?: string
+          date?: string
+          game_title?: string | null
+          game_type?: string
+          game_variant?: string | null
+          id?: string
+          matches?: Json
+          max_players?: number | null
+          name?: string
+          players?: Json
+          runner_up?: Json | null
+          runner_up_prize?: number | null
+          status?: string
+          tournament_format?: string
+          updated_at?: string | null
+          winner?: Json | null
+          winner_prize?: number | null
+        }
+        Relationships: []
+      }
+      user_preferences: {
+        Row: {
+          created_at: string
+          default_timeout: number
+          email_notifications: boolean
+          how_to_use_dismissed: boolean
+          id: string
+          notifications_enabled: boolean
+          receipt_template: string
+          theme: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          default_timeout?: number
+          email_notifications?: boolean
+          how_to_use_dismissed?: boolean
+          id?: string
+          notifications_enabled?: boolean
+          receipt_template?: string
+          theme?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          default_timeout?: number
+          email_notifications?: boolean
+          how_to_use_dismissed?: boolean
+          id?: string
+          notifications_enabled?: boolean
+          receipt_template?: string
+          theme?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      tournament_public_view: {
+        Row: {
+          budget: number | null
+          date: string | null
+          game_title: string | null
+          game_type: string | null
+          game_variant: string | null
+          id: string | null
+          matches: Json | null
+          max_players: number | null
+          name: string | null
+          players: Json | null
+          runner_up: Json | null
+          runner_up_prize: number | null
+          status: string | null
+          total_registrations: number | null
+          winner: Json | null
+          winner_prize: number | null
+        }
+        Relationships: []
+      }
+      tournament_stats: {
+        Row: {
+          budget: number | null
+          date: string | null
+          game_title: string | null
+          game_type: string | null
+          game_variant: string | null
+          id: string | null
+          matches: Json | null
+          max_players: number | null
+          name: string | null
+          players: Json | null
+          runner_up_prize: number | null
+          status: string | null
+          total_registrations: number | null
+          winner: Json | null
+          winner_prize: number | null
+        }
+        Relationships: []
+      }
+    }
+    Functions: {
+      check_stations_availability: {
+        Args: {
+          p_date: string
+          p_start_time: string
+          p_end_time: string
+          p_station_ids: string[]
+        }
+        Returns: {
+          station_id: string
+          is_available: boolean
+        }[]
+      }
+      generate_booking_access_code: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_available_slots: {
+        Args: { p_date: string; p_station_id: string; p_slot_duration?: number }
+        Returns: {
+          start_time: string
+          end_time: string
+          is_available: boolean
+        }[]
+      }
+      save_bill_edit_audit: {
+        Args: { p_bill_id: string; p_editor_name: string; p_changes: string }
+        Returns: undefined
+      }
+      update_missed_bookings: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const

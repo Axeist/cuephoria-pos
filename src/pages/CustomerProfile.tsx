@@ -1,0 +1,527 @@
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import {
+  User,
+  Phone,
+  Mail,
+  Star,
+  Trophy,
+  Crown,
+  LogOut,
+  ArrowLeft,
+  Edit2,
+  Save,
+  X,
+  Shield,
+  Clock,
+  Calendar,
+  CheckCircle2
+} from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { getCustomerSession, clearCustomerSession, formatDate } from '@/utils/customerAuth';
+import { toast } from 'sonner';
+import BottomNav from '@/components/customer/BottomNav';
+import '@/styles/customer-animations.css';
+
+export default function CustomerProfile() {
+  const navigate = useNavigate();
+  const [customer, setCustomer] = useState(getCustomerSession());
+  const [customerData, setCustomerData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    email: ''
+  });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+
+  useEffect(() => {
+    if (!customer) {
+      navigate('/customer/login');
+      return;
+    }
+    loadCustomerData();
+  }, [customer, navigate]);
+
+  const loadCustomerData = async () => {
+    if (!customer) return;
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', customer.id)
+        .single();
+
+      if (error) throw error;
+
+      setCustomerData(data);
+      setEditForm({
+        name: data.name,
+        email: data.email || ''
+      });
+    } catch (error) {
+      console.error('Error loading customer data:', error);
+      toast.error('Failed to load profile data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .update({
+          name: editForm.name,
+          email: editForm.email || null
+        })
+        .eq('id', customer!.id);
+
+      if (error) throw error;
+
+      // Update session
+      const updatedSession = {
+        ...customer!,
+        name: editForm.name,
+        email: editForm.email
+      };
+      localStorage.setItem('cuephoria_customer_session', JSON.stringify(updatedSession));
+      setCustomer(updatedSession);
+
+      toast.success('Profile updated successfully');
+      setIsEditing(false);
+      loadCustomerData();
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast.error('Failed to update profile');
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error('New passwords do not match');
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    try {
+      // Verify current password first
+      const defaultPassword = `CUE${customer!.phone}`;
+      
+      // Simple verification (in production, this should be server-side)
+      if (passwordForm.currentPassword !== defaultPassword) {
+        toast.error('Current password is incorrect');
+        return;
+      }
+
+      // Update password using Supabase function
+      const { error } = await supabase.rpc('update_customer_password', {
+        customer_id: customer!.id,
+        new_password: passwordForm.newPassword
+      });
+
+      if (error) {
+        // If RPC doesn't exist, we can't update password securely
+        toast.error('Password update not available. Please contact support.');
+        return;
+      }
+
+      // Update first_login flag
+      await supabase
+        .from('customers')
+        .update({ is_first_login: false })
+        .eq('id', customer!.id);
+
+      toast.success('Password changed successfully! 🔐');
+      setIsChangingPassword(false);
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (error) {
+      console.error('Error changing password:', error);
+      toast.error('Failed to change password');
+    }
+  };
+
+  const handleLogout = () => {
+    clearCustomerSession();
+    toast.success('Logged out successfully');
+    navigate('/customer/login');
+  };
+
+  const getMembershipTier = (totalSpent: number) => {
+    // Same tier system as dashboard - based on bills spent, not loyalty points
+    if (totalSpent >= 40000) return { 
+      name: 'Platinum', 
+      color: 'from-purple-500 to-pink-500', 
+      icon: Crown,
+      tagline: 'ELITE PLAYER',
+      perks: ['Priority Booking', 'VIP Lounge Access', 'Exclusive Events', 'Personal Gaming Advisor']
+    };
+    if (totalSpent >= 20000) return { 
+      name: 'Diamond', 
+      color: 'from-cyan-400 to-blue-500', 
+      icon: Trophy,
+      tagline: 'PREMIUM MEMBER',
+      perks: ['Extended Hours', 'Priority Support', 'Free Upgrades', 'Birthday Bonus']
+    };
+    if (totalSpent >= 10000) return { 
+      name: 'Gold', 
+      color: 'from-yellow-400 to-orange-400', 
+      icon: Trophy,
+      tagline: 'VALUED GAMER',
+      perks: ['Weekly Offers', 'Loyalty Bonuses', 'Group Discounts', 'Event Access']
+    };
+    if (totalSpent >= 5000) return { 
+      name: 'Silver', 
+      color: 'from-gray-300 to-gray-400', 
+      icon: Star,
+      tagline: 'RISING STAR',
+      perks: ['Monthly Offers', 'Points Multiplier', 'Referral Bonus', 'Special Deals']
+    };
+    return { 
+      name: 'Bronze', 
+      color: 'from-orange-600 to-red-600', 
+      icon: Shield,
+      tagline: 'NEW ADVENTURER',
+      perks: ['Welcome Bonus', 'Birthday Offer', 'Basic Rewards', 'Community Access']
+    };
+  };
+
+  if (!customer || !customerData) {
+    return (
+      <div className="min-h-screen bg-cuephoria-dark flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin h-12 w-12 border-4 border-cuephoria-purple border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Calculate total spent from BILLS ONLY (same as dashboard)
+  const totalSpentFromBills = customerData.total_spent || 0;
+  const tier = getMembershipTier(totalSpentFromBills);
+  const TierIcon = tier.icon;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 pb-20 relative overflow-hidden">
+      {/* Animated Background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/3 right-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-0 left-1/3 w-80 h-80 bg-pink-500/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+      </div>
+      <div className="relative z-10">
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-black/35 backdrop-blur-xl border-b border-white/10">
+        <div className="max-w-5xl mx-auto px-4 py-4">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/customer/dashboard')}
+              className="text-gray-400 hover:text-white"
+            >
+              <ArrowLeft size={20} />
+            </Button>
+            <div className="flex-1">
+              <h1 className="text-lg font-semibold text-white tracking-wide">Profile</h1>
+              <p className="text-xs text-gray-400">Manage your account</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="text-red-500 hover:text-red-400 hover:bg-red-500/10"
+            >
+              <LogOut size={18} />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+        {/* Profile Card */}
+        <Card className="bg-gradient-to-br from-purple-600/40 to-blue-600/40 border border-purple-400/50 shadow-2xl shadow-purple-500/30 backdrop-blur-xl">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4 mb-4">
+              <div className={`w-20 h-20 rounded-full bg-gradient-to-br ${tier.color} flex items-center justify-center text-white shadow-lg`}>
+                <TierIcon size={36} />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-2xl font-bold text-white mb-1">{customerData.name}</h2>
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <Badge className={`bg-gradient-to-r ${tier.color} text-white shadow-lg px-3 py-1`}>
+                    {React.createElement(TierIcon, { size: 14, className: "mr-1 inline" })}
+                    {tier.name} Member
+                  </Badge>
+                  <Badge className="bg-white/20 backdrop-blur-xl text-white text-xs">
+                    ⚡ {tier.tagline}
+                  </Badge>
+                </div>
+                <p className="text-sm text-gray-400">Member since {formatDate(customerData.created_at)}</p>
+              </div>
+            </div>
+
+            {/* Exclusive Perks */}
+            <div className="surface-panel border-purple-500/30 p-4 mb-4">
+              <h3 className="text-white font-semibold mb-2 text-sm flex items-center gap-1">
+                <Star className="text-yellow-400" size={14} />
+                Your Exclusive Perks
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                {tier.perks.map((perk, index) => (
+                  <div key={index} className="flex items-start gap-1.5 text-xs text-white/90">
+                    <CheckCircle2 className="text-green-400 flex-shrink-0 mt-0.5" size={12} />
+                    <span>{perk}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/10">
+              <div className="text-center">
+                <Star className="mx-auto mb-1 text-yellow-400" size={20} />
+                <p className="text-2xl font-bold text-white">{customerData.loyalty_points}</p>
+                <p className="text-xs text-gray-400">Points</p>
+              </div>
+              <div className="text-center">
+                <Clock className="mx-auto mb-1 text-blue-400" size={20} />
+                <p className="text-2xl font-bold text-white">{Math.floor((customerData.total_play_time || 0) / 60)}</p>
+                <p className="text-xs text-gray-400">Hours</p>
+              </div>
+              <div className="text-center">
+                <Trophy className="mx-auto mb-1 text-green-400" size={20} />
+                <p className="text-2xl font-bold text-white">₹{totalSpentFromBills.toLocaleString()}</p>
+                <p className="text-xs text-gray-400">Spent</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Personal Information */}
+        <Card className="glass-card border-white/10 text-white">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <User size={20} className="text-cuephoria-lightpurple" />
+                Personal Information
+              </h3>
+              {!isEditing ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsEditing(true)}
+                  className="text-cuephoria-lightpurple hover:text-cuephoria-lightpurple/80"
+                >
+                  <Edit2 size={16} className="mr-1" />
+                  Edit
+                </Button>
+              ) : (
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setIsEditing(false);
+                      setEditForm({
+                        name: customerData.name,
+                        email: customerData.email || ''
+                      });
+                    }}
+                    className="text-gray-400"
+                  >
+                    <X size={16} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSave}
+                    className="text-cuephoria-green hover:text-cuephoria-green/80"
+                  >
+                    <Save size={16} className="mr-1" />
+                    Save
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <Label className="text-gray-400 text-sm flex items-center gap-2 mb-2">
+                  <User size={14} />
+                  Full Name
+                </Label>
+                {isEditing ? (
+                  <Input
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="theme-inset border-cuephoria-lightpurple/30 text-white"
+                  />
+                ) : (
+                  <p className="text-white font-medium">{customerData.name}</p>
+                )}
+              </div>
+
+              <div>
+                <Label className="text-gray-400 text-sm flex items-center gap-2 mb-2">
+                  <Phone size={14} />
+                  Phone Number
+                </Label>
+                <p className="text-white font-medium">{customerData.phone}</p>
+                <p className="text-xs text-gray-500 mt-1">Phone number cannot be changed</p>
+              </div>
+
+              <div>
+                <Label className="text-gray-400 text-sm flex items-center gap-2 mb-2">
+                  <Mail size={14} />
+                  Email Address
+                </Label>
+                {isEditing ? (
+                  <Input
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    placeholder="your@email.com"
+                    className="theme-inset border-cuephoria-lightpurple/30 text-white placeholder:text-white/40"
+                  />
+                ) : (
+                  <p className="text-white font-medium">{customerData.email || 'Not set'}</p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Account Settings */}
+        <Card className="glass-card border-white/10 text-white">
+          <CardContent className="p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Shield size={20} className="text-cuephoria-orange" />
+              Account Settings
+            </h3>
+
+            <div className="space-y-3">
+              <Button
+                variant="outline"
+                className="w-full justify-start border-white/10 hover:bg-white/10"
+                onClick={() => setIsChangingPassword(true)}
+              >
+                <Shield size={18} className="mr-2" />
+                Change Password
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full justify-start border-red-600 text-red-500 hover:bg-red-600 hover:text-white"
+                onClick={handleLogout}
+              >
+                <LogOut size={18} className="mr-2" />
+                Logout
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* App Info */}
+        <Card className="glass-card border-white/10 text-white/90">
+          <CardContent className="p-4 text-center">
+            <p className="text-xs text-gray-500">
+              Customer ID: {customerData.custom_id || customerData.phone}
+            </p>
+            <p className="text-xs text-gray-600 mt-1">Cuephoria v1.0</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Password Change Dialog */}
+      <Dialog open={isChangingPassword} onOpenChange={setIsChangingPassword}>
+        <DialogContent className="glass-card border-cuephoria-lightpurple/30 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Shield className="text-cuephoria-orange" />
+              Change Password
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Enter your current password and choose a new one
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label className="text-gray-400">Current Password</Label>
+              <Input
+                type="password"
+                value={passwordForm.currentPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                placeholder="Enter current password"
+                className="theme-inset border-white/10 text-white placeholder:text-white/40 mt-2"
+              />
+            </div>
+
+            <div>
+              <Label className="text-gray-400">New Password</Label>
+              <Input
+                type="password"
+                value={passwordForm.newPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                placeholder="Enter new password"
+                className="theme-inset border-white/10 text-white placeholder:text-white/40 mt-2"
+              />
+            </div>
+
+            <div>
+              <Label className="text-gray-400">Confirm New Password</Label>
+              <Input
+                type="password"
+                value={passwordForm.confirmPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                placeholder="Confirm new password"
+                className="theme-inset border-white/10 text-white placeholder:text-white/40 mt-2"
+              />
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setIsChangingPassword(false);
+                  setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-cuephoria-purple hover:bg-cuephoria-purple/80"
+                onClick={handleChangePassword}
+              >
+                Change Password
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bottom Navigation */}
+      <BottomNav />
+      </div>
+    </div>
+  );
+}

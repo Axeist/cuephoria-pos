@@ -1,0 +1,574 @@
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { ChartContainer } from '@/components/ui/chart';
+import { CurrencyDisplay } from '@/components/ui/currency';
+import { usePOS } from '@/context/POSContext';
+import { useExpenses } from '@/context/ExpenseContext';
+import { startOfDay, startOfWeek, startOfMonth, endOfDay, endOfWeek, endOfMonth, format, addDays, addWeeks } from 'date-fns';
+import { Calendar, Loader2 } from 'lucide-react';
+
+interface SalesChartProps {
+  data: {
+    name: string;
+    amount: number;
+  }[];
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+}
+
+const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
+  const { bills } = usePOS();
+  const { expenses } = useExpenses();
+  const [chartData, setChartData] = useState<{ name: string; sales: number; expenses: number; withdrawals: number; }[]>([]);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [availableYears, setAvailableYears] = useState<string[]>([]);
+
+  // Calculate available years from bills
+  useEffect(() => {
+    const years = new Set<string>();
+    bills.forEach(bill => {
+      const billDate = new Date(bill.createdAt);
+      years.add(billDate.getFullYear().toString());
+    });
+    const sortedYears = Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
+    setAvailableYears(sortedYears);
+  }, [bills]);
+
+  // Filter bills by year and exclude complimentary
+  const filteredBills = useMemo(() => {
+    const paidBills = bills.filter(bill => bill.paymentMethod !== 'complimentary');
+    
+    if (selectedYear === 'all') {
+      return paidBills;
+    }
+    
+    const year = parseInt(selectedYear);
+    return paidBills.filter(bill => {
+      const billDate = new Date(bill.createdAt);
+      return billDate.getFullYear() === year;
+    });
+  }, [bills, selectedYear]);
+
+  const generateChartData = () => {
+    const now = new Date();
+    
+    // Helper function to normalize category (same as ExpenseContext)
+    const normalizeCategory = (c: string) => (c === 'restock' ? 'inventory' : c);
+    
+    // Helper function to prorate recurring expenses
+    const prorate = (e: typeof expenses[0]) => {
+      if (!e.isRecurring) return e.amount;
+      switch (e.frequency) {
+        case 'monthly': return e.amount;
+        case 'quarterly': return e.amount / 3;
+        case 'yearly': return e.amount / 12;
+        default: return e.amount;
+      }
+    };
+    
+    if (activeTab === 'hourly') {
+      // Show revenue for the current day (24 hours)
+      const todayStart = startOfDay(now);
+      const todayEnd = endOfDay(now);
+      
+      const hours = Array.from({ length: 24 }, (_, i) => i);
+      const hourlyTotals = new Map();
+      
+      filteredBills.forEach(bill => {
+        const billDate = new Date(bill.createdAt);
+        if (billDate >= todayStart && billDate <= todayEnd) {
+          const hour = billDate.getHours();
+          const current = hourlyTotals.get(hour) || 0;
+          hourlyTotals.set(hour, current + bill.total);
+        }
+      });
+
+      // For hourly view, distribute daily expenses and withdrawals evenly across hours
+      const todayExpenses = expenses.filter(expense => {
+        const expenseDate = new Date(expense.date);
+        return expenseDate >= todayStart && expenseDate <= todayEnd;
+      });
+      
+      const todayOperatingExpenses = todayExpenses
+        .filter(e => normalizeCategory(e.category) !== 'withdrawal')
+        .reduce((sum, expense) => sum + prorate(expense), 0);
+      
+      const todayWithdrawals = todayExpenses
+        .filter(e => normalizeCategory(e.category) === 'withdrawal')
+        .reduce((sum, expense) => sum + prorate(expense), 0);
+      
+      const hourlyExpenseAmount = todayOperatingExpenses / 24;
+      const hourlyWithdrawalAmount = todayWithdrawals / 24;
+      
+      return hours.map(hour => {
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const hour12 = hour % 12 || 12;
+        const formattedHour = `${hour12}${ampm}`;
+        
+        return {
+          name: formattedHour,
+          sales: hourlyTotals.get(hour) || 0,
+          expenses: hourlyExpenseAmount,
+          withdrawals: hourlyWithdrawalAmount
+        };
+      });
+      
+    } else if (activeTab === 'daily') {
+      // Show revenue for all days of the current week
+      const weekStart = startOfWeek(now);
+      const weekEnd = endOfWeek(now);
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const dailyTotals = new Map();
+      const dailyExpenses = new Map();
+      const dailyWithdrawals = new Map();
+      
+      filteredBills.forEach(bill => {
+        const billDate = new Date(bill.createdAt);
+        if (billDate >= weekStart && billDate <= weekEnd) {
+          const dayOfWeek = billDate.getDay();
+          const current = dailyTotals.get(dayOfWeek) || 0;
+          dailyTotals.set(dayOfWeek, current + bill.total);
+        }
+      });
+
+      expenses.forEach(expense => {
+        const expenseDate = new Date(expense.date);
+        if (expenseDate >= weekStart && expenseDate <= weekEnd) {
+          const dayOfWeek = expenseDate.getDay();
+          if (normalizeCategory(expense.category) === 'withdrawal') {
+            const current = dailyWithdrawals.get(dayOfWeek) || 0;
+            dailyWithdrawals.set(dayOfWeek, current + prorate(expense));
+          } else {
+            const current = dailyExpenses.get(dayOfWeek) || 0;
+            dailyExpenses.set(dayOfWeek, current + prorate(expense));
+          }
+        }
+      });
+      
+      return days.map((day, index) => ({
+        name: day,
+        sales: dailyTotals.get(index) || 0,
+        expenses: dailyExpenses.get(index) || 0,
+        withdrawals: dailyWithdrawals.get(index) || 0
+      }));
+      
+    } else if (activeTab === 'weekly') {
+      // Show revenue for all weeks of the current month
+      const monthStart = startOfMonth(now);
+      const monthEnd = endOfMonth(now);
+      const weeks = [];
+      
+      let weekStart = startOfWeek(monthStart);
+      let weekIndex = 1;
+      
+      while (weekStart <= monthEnd) {
+        const weekEnd = endOfWeek(weekStart);
+        weeks.push({
+          start: weekStart,
+          end: weekEnd,
+          label: `Week ${weekIndex}`,
+          index: weekIndex
+        });
+        weekStart = addWeeks(weekStart, 1);
+        weekIndex++;
+      }
+      
+      const weeklyTotals = new Map();
+      const weeklyExpenses = new Map();
+      const weeklyWithdrawals = new Map();
+      
+      filteredBills.forEach(bill => {
+        const billDate = new Date(bill.createdAt);
+        if (billDate >= monthStart && billDate <= monthEnd) {
+          const week = weeks.find(w => billDate >= w.start && billDate <= w.end);
+          if (week) {
+            const current = weeklyTotals.get(week.index) || 0;
+            weeklyTotals.set(week.index, current + bill.total);
+          }
+        }
+      });
+
+      expenses.forEach(expense => {
+        const expenseDate = new Date(expense.date);
+        if (expenseDate >= monthStart && expenseDate <= monthEnd) {
+          const week = weeks.find(w => expenseDate >= w.start && expenseDate <= w.end);
+          if (week) {
+            if (normalizeCategory(expense.category) === 'withdrawal') {
+              const current = weeklyWithdrawals.get(week.index) || 0;
+              weeklyWithdrawals.set(week.index, current + prorate(expense));
+            } else {
+              const current = weeklyExpenses.get(week.index) || 0;
+              weeklyExpenses.set(week.index, current + prorate(expense));
+            }
+          }
+        }
+      });
+      
+      return weeks.map(week => ({
+        name: week.label,
+        sales: weeklyTotals.get(week.index) || 0,
+        expenses: weeklyExpenses.get(week.index) || 0,
+        withdrawals: weeklyWithdrawals.get(week.index) || 0
+      }));
+      
+    } else {
+      // Monthly
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const monthlyTotals = new Map();
+      const monthlyExpenses = new Map();
+      const monthlyWithdrawals = new Map();
+      
+      filteredBills.forEach(bill => {
+        const date = new Date(bill.createdAt);
+        const month = months[date.getMonth()];
+        const current = monthlyTotals.get(month) || 0;
+        monthlyTotals.set(month, current + bill.total);
+      });
+
+      expenses.forEach(expense => {
+        const date = new Date(expense.date);
+        const month = months[date.getMonth()];
+        if (normalizeCategory(expense.category) === 'withdrawal') {
+          const current = monthlyWithdrawals.get(month) || 0;
+          monthlyWithdrawals.set(month, current + prorate(expense));
+        } else {
+          const current = monthlyExpenses.get(month) || 0;
+          monthlyExpenses.set(month, current + prorate(expense));
+        }
+      });
+      
+      return months.map(month => ({
+        name: month,
+        sales: monthlyTotals.get(month) || 0,
+        expenses: monthlyExpenses.get(month) || 0,
+        withdrawals: monthlyWithdrawals.get(month) || 0
+      }));
+    }
+  };
+
+  const generateChartDataRef = useRef(generateChartData);
+  generateChartDataRef.current = generateChartData;
+
+  // Defer heavy aggregation so the UI can show a loading state first (main thread stays responsive).
+  useEffect(() => {
+    setIsTransitioning(true);
+    let cancelled = false;
+    const apply = () => {
+      if (cancelled) return;
+      setChartData(generateChartDataRef.current());
+      setIsTransitioning(false);
+    };
+    let idleId: number | undefined;
+    let fallbackId: ReturnType<typeof setTimeout> | undefined;
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+      idleId = window.requestIdleCallback(apply, { timeout: 500 });
+    } else if (typeof window !== 'undefined') {
+      fallbackId = window.setTimeout(apply, 0);
+    } else {
+      apply();
+    }
+    return () => {
+      cancelled = true;
+      if (idleId != null && typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleId);
+      }
+      if (fallbackId != null) clearTimeout(fallbackId);
+    };
+  }, [activeTab, filteredBills, expenses, selectedYear]);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+  };
+
+  return (
+    <Card className="glass-card overflow-hidden">
+      <CardHeader className="pb-2 sm:pb-6">
+        <div className="flex flex-col gap-3 sm:gap-4">
+          {/* Title and Year Filter */}
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-base sm:text-xl font-bold text-white font-heading">Sales Overview</CardTitle>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger className="w-[100px] sm:w-[140px] h-8 sm:h-10 text-xs sm:text-sm">
+                  <SelectValue placeholder="Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Years</SelectItem>
+                  {availableYears.map(year => (
+                    <SelectItem key={year} value={year}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          {/* Time Period Toggle Buttons - Full Width on Mobile */}
+          <div className="w-full overflow-x-auto scrollbar-hide -mx-1 px-1">
+            <div className="flex gap-1 p-1 rounded-xl bg-white/[0.06] border border-white/10 text-white/55 min-w-min w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => handleTabChange('hourly')}
+                className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                  activeTab === 'hourly'
+                    ? 'bg-cuephoria-lightpurple text-white shadow-lg shadow-cuephoria-lightpurple/30'
+                    : 'hover:text-white hover:bg-cuephoria-lightpurple/20'
+                }`}
+              >
+                Hourly
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTabChange('daily')}
+                className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                  activeTab === 'daily'
+                    ? 'bg-cuephoria-lightpurple text-white shadow-lg shadow-cuephoria-lightpurple/30'
+                    : 'hover:text-white hover:bg-cuephoria-lightpurple/20'
+                }`}
+              >
+                Daily
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTabChange('weekly')}
+                className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                  activeTab === 'weekly'
+                    ? 'bg-cuephoria-lightpurple text-white shadow-lg shadow-cuephoria-lightpurple/30'
+                    : 'hover:text-white hover:bg-cuephoria-lightpurple/20'
+                }`}
+              >
+                Weekly
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTabChange('monthly')}
+                className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                  activeTab === 'monthly'
+                    ? 'bg-cuephoria-lightpurple text-white shadow-lg shadow-cuephoria-lightpurple/30'
+                    : 'hover:text-white hover:bg-cuephoria-lightpurple/20'
+                }`}
+              >
+                Monthly
+              </button>
+            </div>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="h-[250px] sm:h-[350px] pt-2 sm:pt-4 relative">
+        {isTransitioning && (
+          <div
+            className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-background/55 backdrop-blur-[2px]"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <Loader2 className="h-8 w-8 animate-spin text-cuephoria-lightpurple" />
+            <span className="text-xs text-muted-foreground">Updating chart…</span>
+          </div>
+        )}
+        <div className={`transition-all duration-300 ease-in-out h-full ${isTransitioning ? 'opacity-40' : 'opacity-100'}`}>
+          <ChartContainer
+            config={{
+              sales: {
+                label: "Sales",
+                theme: {
+                  light: "#9b87f5",
+                  dark: "#9b87f5",
+                },
+              },
+              expenses: {
+                label: "Expenses",
+                theme: {
+                  light: "#ef4444",
+                  dark: "#ef4444",
+                },
+              },
+              withdrawals: {
+                label: "Withdrawals",
+                theme: {
+                  light: "#f59e0b",
+                  dark: "#f59e0b",
+                },
+              },
+            }}
+            className="h-full w-full"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart 
+                data={chartData}
+                margin={{ top: 5, right: 10, left: 10, bottom: 50 }}
+              >
+                <defs>
+                  <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#9b87f5" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#9b87f5" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorWithdrawals" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
+                <XAxis 
+                  dataKey="name" 
+                  stroke="#777" 
+                  axisLine={false}
+                  tickLine={false}
+                  padding={{ left: 10, right: 10 }}
+                />
+                <YAxis 
+                  stroke="#777"
+                  axisLine={false}
+                  tickLine={false}
+                  width={40}
+                />
+                <Tooltip 
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div className="rounded-lg border bg-card p-3 shadow-md transition-all duration-200 animate-fade-in">
+                          <div className="grid gap-2">
+                            <div className="flex flex-col">
+                              <span className="text-[0.70rem] uppercase text-muted-foreground">
+                                {activeTab === 'hourly' ? 'Hour' : activeTab === 'daily' ? 'Day' : activeTab === 'weekly' ? 'Week' : 'Month'}
+                              </span>
+                              <span className="font-bold text-muted-foreground">
+                                {payload[0].payload.name}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="flex flex-col">
+                                <span className="text-[0.70rem] uppercase text-muted-foreground flex items-center gap-1">
+                                  <div className="w-2 h-2 rounded-full bg-[#9b87f5]"></div>
+                                  Sales
+                                </span>
+                                <span className="font-bold">
+                                  <CurrencyDisplay amount={payload.find(p => p.dataKey === 'sales')?.value as number || 0} />
+                                </span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[0.70rem] uppercase text-muted-foreground flex items-center gap-1">
+                                  <div className="w-2 h-2 rounded-full bg-[#ef4444]"></div>
+                                  Expenses
+                                </span>
+                                <span className="font-bold">
+                                  <CurrencyDisplay amount={payload.find(p => p.dataKey === 'expenses')?.value as number || 0} />
+                                </span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[0.70rem] uppercase text-muted-foreground flex items-center gap-1">
+                                  <div className="w-2 h-2 rounded-full bg-[#f59e0b]"></div>
+                                  Withdrawals
+                                </span>
+                                <span className="font-bold">
+                                  <CurrencyDisplay amount={payload.find(p => p.dataKey === 'withdrawals')?.value as number || 0} />
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    return null;
+                  }}
+                />
+                <Legend 
+                  wrapperStyle={{ paddingTop: '20px' }}
+                  content={({ payload }) => (
+                    <div className="flex items-center justify-center gap-6">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-[#9b87f5]"></div>
+                        <span className="text-sm text-gray-300">Sales</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-[#ef4444]"></div>
+                        <span className="text-sm text-gray-300">Expenses</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-[#f59e0b]"></div>
+                        <span className="text-sm text-gray-300">Withdrawals</span>
+                      </div>
+                    </div>
+                  )}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="sales"
+                  name="Sales"
+                  stroke="#9b87f5"
+                  strokeWidth={2}
+                  dot={{ r: 4, fill: "#9b87f5", strokeWidth: 0 }}
+                  activeDot={{ 
+                    r: 6, 
+                    fill: "#9b87f5", 
+                    stroke: "#1A1F2C", 
+                    strokeWidth: 2,
+                    className: "transition-all duration-200 hover:r-8"
+                  }}
+                  fillOpacity={1}
+                  fill="url(#colorSales)"
+                  animationBegin={0}
+                  animationDuration={800}
+                  animationEasing="ease-in-out"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="expenses"
+                  name="Expenses"
+                  stroke="#ef4444"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={{ r: 4, fill: "#ef4444", strokeWidth: 0 }}
+                  activeDot={{ 
+                    r: 6, 
+                    fill: "#ef4444", 
+                    stroke: "#1A1F2C", 
+                    strokeWidth: 2,
+                    className: "transition-all duration-200 hover:r-8"
+                  }}
+                  fillOpacity={1}
+                  fill="url(#colorExpenses)"
+                  animationBegin={200}
+                  animationDuration={800}
+                  animationEasing="ease-in-out"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="withdrawals"
+                  name="Withdrawals"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  strokeDasharray="3 3"
+                  dot={{ r: 4, fill: "#f59e0b", strokeWidth: 0 }}
+                  activeDot={{ 
+                    r: 6, 
+                    fill: "#f59e0b", 
+                    stroke: "#1A1F2C", 
+                    strokeWidth: 2,
+                    className: "transition-all duration-200 hover:r-8"
+                  }}
+                  fillOpacity={1}
+                  fill="url(#colorWithdrawals)"
+                  animationBegin={400}
+                  animationDuration={800}
+                  animationEasing="ease-in-out"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default SalesChart;

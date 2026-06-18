@@ -1,0 +1,4025 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { StationSelector } from "@/components/booking/StationSelector";
+import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
+import CouponPromotionalPopup from "@/components/CouponPromotionalPopup";
+import BookingConfirmationDialog from "@/components/BookingConfirmationDialog";
+import LegalDialog from "@/components/dialog/LegalDialog";
+import OnlinePaymentPromoDialog from "@/components/OnlinePaymentPromoDialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  CalendarIcon,
+  Clock,
+  MapPin,
+  Phone,
+  Mail,
+  User,
+  Gamepad2,
+  Timer,
+  Sparkles,
+  CheckCircle,
+  AlertTriangle,
+  Lock,
+  X,
+  CreditCard,
+  Headset,
+  Shield,
+  CheckCircle2,
+  Zap,
+  BadgeCheck,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+  Instagram,
+  ExternalLink,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { format, parse, getDay } from "date-fns";
+import { getCustomerSession, clearCustomerSession } from "@/utils/customerAuth";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
+import BottomNav from "@/components/customer/BottomNav";
+import {
+  BOOKING_ACCESS_KEYS,
+  parseBookingSettingBool,
+} from "@/utils/bookingAccessSettings";
+
+/* =========================
+   Types
+   ========================= */
+type StationType = "ps5" | "8ball" | "vr";
+interface Station {
+  id: string;
+  name: string;
+  type: StationType;
+  hourly_rate: number;
+  team_name?: string | null;
+  team_color?: string | null;
+  max_capacity?: number | null;
+  single_rate?: number | null;
+  category?: string | null;
+  event_enabled?: boolean | null;
+  slot_duration?: number | null;
+}
+interface TimeSlot {
+  start_time: string;
+  end_time: string;
+  is_available: boolean;
+  status?: 'available' | 'booked' | 'elapsed';
+}
+interface CustomerInfo {
+  id?: string;
+  name: string;
+  phone: string;
+  email: string;
+}
+
+/** Enabled coupons from booking_settings — drives public list + generic %/fixed discounts */
+interface BookingCouponMeta {
+  code: string;
+  description: string;
+  discount_type: "percentage" | "fixed";
+  discount_value: number;
+}
+interface TodayBookingRow {
+  id: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  status: "confirmed" | "in-progress" | "completed" | "cancelled" | "no-show";
+  station_id: string;
+  customer_id: string;
+  stationName: string;
+  customerName: string;
+  customerPhone: string;
+}
+
+/* =========================
+   Helpers
+   ========================= */
+const INR = (n: number) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(n);
+
+const genTxnId = () =>
+  `CUE-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+const isHappyHour = (date: Date, slot: TimeSlot | null) => {
+  if (!slot) return false;
+  const day = getDay(date);
+  const startHour = Number(slot.start_time.split(":")[0]);
+  return day >= 1 && day <= 5 && startHour >= 11 && startHour < 16;
+};
+
+const couponRowEmoji = (code: string) => {
+  switch (code) {
+    case "NIT35":
+      return "🎓";
+    case "HH99":
+      return "⏰";
+    case "CUEPHORIA35":
+      return "📚";
+    case "CUEPHORIA20":
+      return "🎉";
+    default:
+      return "🏷️";
+  }
+};
+
+/** Hidden on public booking only (still in DB / admin; not accepted here). */
+const PUBLIC_BOOKING_EXCLUDED_COUPON_CODES = new Set([
+  "AXEIST",
+  "TEST210198$",
+  "GAMEINSIDER50",
+]);
+
+const FALLBACK_ALLOWED_COUPON_CODES = [
+  "CUEPHORIA20",
+  "CUEPHORIA35",
+  "HH99",
+  "NIT35",
+  "AAVEG50",
+];
+
+// ✅ NEW: Phone number normalization
+const normalizePhoneNumber = (phone: string): string => {
+  return phone.replace(/\D/g, '');
+};
+
+// ✅ NEW: Generate unique Customer ID
+const generateCustomerID = (phone: string): string => {
+  const normalized = normalizePhoneNumber(phone);
+  const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
+  const phoneHash = normalized.slice(-4);
+  return `CUE${phoneHash}${timestamp}`;
+};
+
+// ✅ NEW: Validate Indian phone number
+const validatePhoneNumber = (phone: string): { valid: boolean; error?: string } => {
+  const normalized = normalizePhoneNumber(phone);
+  
+  if (normalized.length !== 10) {
+    return { valid: false, error: 'Phone number must be exactly 10 digits' };
+  }
+
+  const phoneRegex = /^[6-9]\d{9}$/;
+  if (!phoneRegex.test(normalized)) {
+    return { valid: false, error: 'Please enter a valid Indian mobile number (starting with 6, 7, 8, or 9)' };
+  }
+
+  return { valid: true };
+};
+
+const getSlotDuration = (station: Station) => {
+  // Use slot_duration from station if available, otherwise fallback to type-based logic
+  if (station.slot_duration) {
+    return station.slot_duration;
+  }
+  // Fallback: VR is 15 mins, others are 60 mins
+  return station.type === 'vr' ? 15 : 60;
+};
+
+const getBookingDuration = (stationIds: string[], stations: Station[]) => {
+  // Find the first selected station to determine duration
+  const firstStation = stations.find(s => stationIds.includes(s.id));
+  if (firstStation) {
+    return getSlotDuration(firstStation);
+  }
+  // Default fallback
+  return 60;
+};
+
+/* =========================
+   Component
+   ========================= */
+export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: string }) {
+  const navigate = useNavigate();
+  const isLiteBranch = branchSlug === "lite";
+
+  const [publicLocationId, setPublicLocationId] = useState<string | null>(null);
+  const [branchLocationLoading, setBranchLocationLoading] = useState(true);
+  const [accessSettingsLoading, setAccessSettingsLoading] = useState(false);
+  const [publicBookingEnabled, setPublicBookingEnabled] = useState(true);
+  const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setBranchLocationLoading(true);
+      const { data, error } = await supabase
+        .from("locations")
+        .select("id")
+        .eq("slug", branchSlug)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (cancelled) return;
+      if (!error && data?.id) setPublicLocationId(data.id);
+      else {
+        console.warn("Branch slug not found or inactive:", branchSlug, error);
+        setPublicLocationId(null);
+      }
+      setBranchLocationLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [branchSlug]);
+
+  useEffect(() => {
+    if (!publicLocationId) {
+      setAccessSettingsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setAccessSettingsLoading(true);
+      try {
+        const { data: rows, error } = await supabase
+          .from("booking_settings")
+          .select("setting_key, setting_value")
+          .eq("location_id", publicLocationId)
+          .in("setting_key", [
+            BOOKING_ACCESS_KEYS.publicBooking,
+            BOOKING_ACCESS_KEYS.onlinePayment,
+          ]);
+        if (cancelled) return;
+        if (error) throw error;
+        let pub = true;
+        let online = true;
+        for (const r of rows || []) {
+          if (r.setting_key === BOOKING_ACCESS_KEYS.publicBooking) {
+            pub = parseBookingSettingBool(r.setting_value);
+          }
+          if (r.setting_key === BOOKING_ACCESS_KEYS.onlinePayment) {
+            online = parseBookingSettingBool(r.setting_value);
+          }
+        }
+        setPublicBookingEnabled(pub);
+        setOnlinePaymentEnabled(online);
+      } catch (e) {
+        console.error("booking access settings:", e);
+        setPublicBookingEnabled(true);
+        setOnlinePaymentEnabled(true);
+      } finally {
+        if (!cancelled) setAccessSettingsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [publicLocationId]);
+
+  // Razorpay keys differ per branch (lite uses RAZORPAY_*_LITE env vars)
+  useEffect(() => {
+    setRazorpayKeyId("");
+  }, [branchSlug]);
+
+  // Check if user is logged in as customer (for bottom nav)
+  const customerSession = getCustomerSession();
+  
+  const [stations, setStations] = useState<Station[]>([]);
+  const [stationType, setStationType] = useState<"all" | StationType | "nit_event">("all");
+  const [selectedStations, setSelectedStations] = useState<string[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  const [selectedSlots, setSelectedSlots] = useState<TimeSlot[]>([]);
+  const [availableStationIds, setAvailableStationIds] = useState<string[]>([]); // NEW: Track which stations are available for selected time
+  const [checkingStationAvailability, setCheckingStationAvailability] = useState(false); // NEW: Loading state for station availability check
+  // Generate a unique session ID for this booking session
+  const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
+
+  const [customerNumber, setCustomerNumber] = useState("");
+  const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
+    name: "",
+    phone: "",
+    email: "",
+  });
+  const [isReturningCustomer, setIsReturningCustomer] = useState(false);
+  const [searchingCustomer, setSearchingCustomer] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  
+  // Auto-search when phone number reaches 10 digits
+  useEffect(() => {
+    const normalized = normalizePhoneNumber(customerNumber);
+    if (normalized.length === 10 && !hasSearched) {
+      const validation = validatePhoneNumber(normalized);
+      if (validation.valid) {
+        searchCustomer();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerNumber]);
+
+  const [appliedCoupons, setAppliedCoupons] = useState<Record<string, string>>({});
+  const [couponCode, setCouponCode] = useState("");
+
+  const [paymentMethod, setPaymentMethod] = useState<"venue" | "razorpay">("venue");
+  const [loading, setLoading] = useState(false);
+
+  const hasAppliedCoupons = useMemo(
+    () => Object.keys(appliedCoupons).length > 0,
+    [appliedCoupons]
+  );
+
+  useEffect(() => {
+    if (!onlinePaymentEnabled && paymentMethod === "razorpay") {
+      setPaymentMethod("venue");
+    }
+  }, [onlinePaymentEnabled, paymentMethod]);
+
+  // Discount coupons require online payment (Razorpay)
+  useEffect(() => {
+    if (hasAppliedCoupons && onlinePaymentEnabled) {
+      setPaymentMethod("razorpay");
+    }
+  }, [hasAppliedCoupons, onlinePaymentEnabled]);
+
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
+  const [bookingConfirmationData, setBookingConfirmationData] = useState<any>(null);
+  const [showLegalDialog, setShowLegalDialog] = useState(false);
+  const [legalDialogType, setLegalDialogType] = useState<
+    "terms" | "privacy" | "contact" | "shipping"
+  >("terms");
+  const [showRefundDialog, setShowRefundDialog] = useState(false);
+  const [todayRows, setTodayRows] = useState<TodayBookingRow[]>([]);
+  const [todayLoading, setTodayLoading] = useState(false);
+  const [showOnlinePaymentPromo, setShowOnlinePaymentPromo] = useState(false);
+  const [showPaymentWarning, setShowPaymentWarning] = useState(false);
+  const [showInstagramFollowDialog, setShowInstagramFollowDialog] = useState(false);
+  const [instagramLinkClicked, setInstagramLinkClicked] = useState(false);
+  const [showFollowConfirmation, setShowFollowConfirmation] = useState(false);
+  const [expandedCoupons, setExpandedCoupons] = useState<Record<string, boolean>>({});
+  const [pendingCoupon, setPendingCoupon] = useState<{ code: string; type: "all" | "per-station"; stationTypes?: { ps5?: string; "8ball"?: string; vr?: string } } | null>(null);
+  
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [paymentStatus, setPaymentStatus] = useState<"processing" | "success" | "failed" | null>(null);
+  const [razorpayKeyId, setRazorpayKeyId] = useState<string>("");
+  const [loggedInCustomer, setLoggedInCustomer] = useState<any>(null);
+  
+  // IIM EVENT booking state
+  const [isNitEventBooking, setIsNitEventBooking] = useState<boolean | null>(null); // null = not selected yet, true = EVENT, false = regular
+  const [nitEventMode, setNitEventMode] = useState<"vr" | "ps5" | "8ball" | null>(null); // For EVENT only
+
+  // Dynamic settings from database
+  const [eventName, setEventName] = useState("IIM Event");
+  const [eventDescription, setEventDescription] = useState("Choose VR (15m) or PS5 Gaming (30m)");
+  const [bookingCouponsFromDB, setBookingCouponsFromDB] = useState<BookingCouponMeta[]>([]);
+
+  // Check if customer info is complete (using useMemo to avoid initialization issues)
+  const isCustomerInfoComplete = useMemo(() => 
+    hasSearched && customerNumber.trim() !== "" && customerInfo.name.trim() !== "",
+    [hasSearched, customerNumber, customerInfo]
+  );
+
+  // Fetch booking settings from database (per branch)
+  useEffect(() => {
+    if (!publicLocationId) return;
+
+    const fetchBookingSettings = async () => {
+      try {
+        const { data: eventData, error: eventError } = await supabase
+          .from('booking_settings')
+          .select('setting_value')
+          .eq('setting_key', 'event_name')
+          .eq('location_id', publicLocationId)
+          .maybeSingle();
+
+        if (!eventError && eventData) {
+          const eventSettings = eventData.setting_value as { name: string; description: string };
+          setEventName(eventSettings.name || "IIM Event");
+          setEventDescription(eventSettings.description || "Choose VR (15m) or PS5 Gaming (30m)");
+        }
+
+        const { data: couponsData, error: couponsError } = await supabase
+          .from('booking_settings')
+          .select('setting_value')
+          .eq('setting_key', 'booking_coupons')
+          .eq('location_id', publicLocationId)
+          .maybeSingle();
+
+        if (!couponsError && couponsData) {
+          const couponsArray = couponsData.setting_value as Array<{
+            code: string;
+            description?: string;
+            discount_type?: string;
+            discount_value?: number;
+            enabled?: boolean;
+          }>;
+          const enabled: BookingCouponMeta[] = couponsArray
+            .filter((c) => c.enabled !== false && String(c.code || "").trim())
+            .map((c) => {
+              const code = String(c.code).trim().toUpperCase();
+              const dv = c.discount_value;
+              const num =
+                typeof dv === "number" && Number.isFinite(dv) ? dv : Number(dv) || 0;
+              return {
+                code,
+                description:
+                  String(c.description ?? "").trim() || `Discount — ${code}`,
+                discount_type: c.discount_type === "fixed" ? "fixed" : "percentage",
+                discount_value: Number.isFinite(num) ? num : 0,
+              };
+            })
+            .filter((c) => !PUBLIC_BOOKING_EXCLUDED_COUPON_CODES.has(c.code));
+          setBookingCouponsFromDB(enabled);
+        }
+      } catch (error) {
+        console.error('Error fetching booking settings:', error);
+        // Fallback to default values already set in state
+      }
+    };
+
+    fetchBookingSettings();
+  }, [publicLocationId]);
+
+  // When switching to EVENT, force-remove any applied coupons
+  useEffect(() => {
+    if (isNitEventBooking === true && Object.keys(appliedCoupons).length > 0) {
+      setAppliedCoupons({});
+      setCouponCode("");
+      toast.info(`Coupons are not applicable for ${eventName} bookings.`, { duration: 2500 });
+    }
+  }, [isNitEventBooking, appliedCoupons, eventName]);
+
+  // Old PhonePe payment handling removed - now using Razorpay with separate success page
+
+  // Check for logged-in customer and auto-fill information
+  useEffect(() => {
+    const customerSession = getCustomerSession();
+    if (customerSession) {
+      setLoggedInCustomer(customerSession);
+      setCustomerInfo({
+        id: customerSession.id,
+        name: customerSession.name,
+        phone: customerSession.phone,
+        email: customerSession.email || ""
+      });
+      setCustomerNumber(customerSession.phone);
+      setIsReturningCustomer(true);
+      setHasSearched(true);
+      toast.success(`Welcome back, ${customerSession.name}! 👋 Your information has been pre-filled.`, {
+        duration: 3000
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!publicLocationId) return;
+    fetchStations();
+    fetchTodaysBookings();
+  }, [publicLocationId]);
+
+  // Check if there are enabled event stations for Event option
+  const hasEnabledEventStations = useMemo(() => 
+    stations.some(s => s.category === 'nit_event' && s.event_enabled),
+    [stations]
+  );
+
+  // Reset booking type when customer info is cleared
+  useEffect(() => {
+    if (!isCustomerInfoComplete) {
+      setIsNitEventBooking(null);
+      setNitEventMode(null);
+      setSelectedStations([]);
+      setSelectedSlot(null);
+      setSelectedSlots([]);
+      setSelectedDate(new Date());
+    }
+  }, [isCustomerInfoComplete]);
+
+  useEffect(() => {
+    if (appliedCoupons["8ball"] === "HH99" && !isHappyHour(selectedDate, selectedSlot)) {
+      setAppliedCoupons((prev) => {
+        const copy = { ...prev };
+        delete copy["8ball"];
+        toast.error("❌ HH99 removed: valid only Mon–Fri 11 AM–4 PM");
+        return copy;
+      });
+    }
+    if (appliedCoupons["ps5"] === "HH99" && !isHappyHour(selectedDate, selectedSlot)) {
+      setAppliedCoupons((prev) => {
+        const copy = { ...prev };
+        delete copy["ps5"];
+        toast.error("❌ HH99 removed: valid only Mon–Fri 11 AM–4 PM");
+        return copy;
+      });
+    }
+  }, [selectedDate, selectedSlot, appliedCoupons]);
+
+  useEffect(() => {
+    const ch = supabase
+      .channel("booking-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "bookings" },
+        () => {
+          // NEW FLOW: Refresh slots if date is selected and customer info is complete
+          if (isCustomerInfoComplete && selectedDate) fetchAvailableSlots();
+          fetchTodaysBookings();
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [selectedDate, hasSearched, customerInfo]);
+
+  // NEW FLOW: Fetch slots when date changes OR when customer info is complete OR when event type changes
+  // No longer requires station selection first
+  useEffect(() => {
+    const nitReady = isNitEventBooking === false || (isNitEventBooking === true && nitEventMode !== null);
+    if (isCustomerInfoComplete && selectedDate && isNitEventBooking !== null && nitReady) {
+      fetchAvailableSlots();
+    } else {
+      setAvailableSlots([]);
+      setSelectedSlot(null);
+      setSelectedSlots([]);
+    }
+  }, [selectedDate, selectedStations, isCustomerInfoComplete, isNitEventBooking, nitEventMode]);
+  
+  // Re-fetch slots when stations change to update availability
+  useEffect(() => {
+    if (selectedStations.length > 0 && selectedDate && isCustomerInfoComplete) {
+      fetchAvailableSlots();
+    }
+  }, [selectedStations, selectedDate, isCustomerInfoComplete]);
+  
+  // NEW: Update available stations when a time slot is selected
+  useEffect(() => {
+    const updateAvailableStations = async () => {
+      if ((selectedSlot || selectedSlots.length > 0) && stations.length > 0 && selectedDate) {
+        setCheckingStationAvailability(true);
+        try {
+          const available = await getAvailableStationsForSlot();
+          setAvailableStationIds(available);
+        } catch (e) {
+          console.error("Error updating available stations:", e);
+          setAvailableStationIds([]);
+        } finally {
+          setCheckingStationAvailability(false);
+        }
+      } else {
+        setAvailableStationIds([]);
+        setCheckingStationAvailability(false);
+      }
+    };
+    
+    updateAvailableStations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSlot, selectedSlots, selectedDate, stations.length]);
+
+  // Check for booking confirmation from payment success redirect
+  useEffect(() => {
+    const bookingSuccess = searchParams.get("booking_success");
+    
+    if (bookingSuccess === "true") {
+      const confirmationData = localStorage.getItem("bookingConfirmation");
+      if (confirmationData) {
+        try {
+          const data = JSON.parse(confirmationData);
+          setBookingConfirmationData(data);
+          setShowConfirmationDialog(true);
+          // Clear the data after showing
+          localStorage.removeItem("bookingConfirmation");
+          // Clean up URL
+          window.history.replaceState({}, "", "/public/booking");
+          toast.success("🎉 Booking confirmed! Get ready to game! 🎮");
+        } catch (e) {
+          console.error("Error parsing booking confirmation:", e);
+        }
+      }
+    }
+  }, [searchParams]);
+
+   // NOTE: Slot blocks auto-expire server-side; we do not attempt client-side cleanup.
+
+  async function fetchStations() {
+    if (!publicLocationId) return;
+    try {
+      const { data, error } = await (supabase as any)
+        .from("stations")
+        .select("id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate, category, event_enabled, slot_duration")
+        .eq("location_id", publicLocationId)
+        // Only show stations enabled for public booking.
+        // For legacy regular stations where event_enabled is NULL, we still show them.
+        .or("event_enabled.eq.true,and(category.is.null,event_enabled.is.null)")
+        .order("name");
+      if (error) throw error;
+      setStations(((data || []) as any[]).map((station) => ({
+        ...station,
+        type: station.type as StationType,
+      })));
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to load stations");
+    }
+  }
+
+  async function fetchAvailableSlots() {
+    // NEW FLOW: Show time slots as available if ANY station is available
+    setSlotsLoading(true);
+    try {
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+      const isToday = dateStr === format(new Date(), "yyyy-MM-dd");
+      
+      if (stations.length === 0) {
+        setAvailableSlots([]);
+        setSlotsLoading(false);
+        return;
+      }
+      
+      // Generate all possible time slots (11 AM to 11 PM)
+      const openingTime = 11; // 11 AM
+      const closingTime = 23; // 11 PM
+      
+      const allSlots: TimeSlot[] = [];
+      
+      // Determine slot duration based on booking type and selected stations
+      // For EVENT: user chooses PS5 (30min), 8-Ball (30min), OR VR (15min)
+      // For Regular: PS5 = 60min, VR = 15min (or station.slot_duration)
+      let slotDuration = 60; // Default
+      if (isNitEventBooking === true) {
+        if (nitEventMode === "vr") slotDuration = 15;
+        else if (nitEventMode === "ps5" || nitEventMode === "8ball") slotDuration = 30; // Both PS5 and 8-Ball use 30min
+        else {
+          // Event selected but mode not picked yet
+          setAvailableSlots([]);
+          setSlotsLoading(false);
+          return;
+        }
+      } else {
+        // Regular booking: Use slot_duration from first selected station, or fallback to type-based logic
+        if (selectedStations.length > 0) {
+          const firstStation = stations.find(s => selectedStations.includes(s.id));
+          if (firstStation) {
+            slotDuration = getSlotDuration(firstStation);
+          } else {
+            // Fallback: Check if any selected station is VR
+            const hasVRSelected = selectedStations.some(id => 
+              stations.find(s => s.id === id && s.type === 'vr')
+            );
+            slotDuration = hasVRSelected ? 15 : 60;
+          }
+        } else if (stations.length > 0) {
+          // No stations selected yet, use first station's duration as default
+          slotDuration = getSlotDuration(stations[0]);
+        }
+      }
+      
+      if (isNitEventBooking === true) {
+        if (slotDuration === 30) {
+          // EVENT: PS5 and 8-Ball (30min slots)
+          for (let hour = openingTime; hour <= closingTime; hour++) {
+            for (let half = 0; half < 2; half++) {
+              const minutes = half * 30;
+              const startTime = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+              
+              let endHour = hour;
+              let endMinutes = minutes + 30;
+              if (endMinutes >= 60) {
+                endMinutes = 0;
+                endHour = hour + 1;
+              }
+              if (endHour >= 24) {
+                endHour = 0;
+              }
+              const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`;
+              
+              // Check if past
+              let isPast = false;
+              if (isToday) {
+                const now = new Date();
+                const currentHour = now.getHours();
+                const currentMinute = now.getMinutes();
+                isPast = hour < currentHour || (hour === currentHour && minutes <= currentMinute);
+              }
+              
+              if (isPast) {
+                allSlots.push({
+                  start_time: startTime,
+                  end_time: endTime,
+                  is_available: false,
+                  status: 'elapsed'
+                });
+                continue;
+              }
+              
+              // Include both PS5 and 8-Ball stations for 30min slots
+              const eventStations30min = stations.filter(s => 
+                (s.category === 'nit_event' && s.event_enabled && (s.type === 'ps5' || s.type === '8ball')) &&
+                (selectedStations.length === 0 || selectedStations.includes(s.id))
+              );
+              let anyAvailable30min = false;
+              
+              if (eventStations30min.length > 0) {
+                try {
+                  const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
+                    p_date: dateStr,
+                    p_start_time: startTime,
+                    p_end_time: endTime,
+                    p_station_ids: eventStations30min.map(s => s.id)
+                  });
+                  if (!availError && availabilityData) {
+                    anyAvailable30min = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
+                  }
+                } catch (e) {
+                  console.error("Error checking 30min event station availability:", e);
+                }
+              }
+              
+              allSlots.push({
+                start_time: startTime,
+                end_time: endTime,
+                is_available: anyAvailable30min,
+                status: anyAvailable30min ? 'available' : 'booked'
+              });
+            }
+          }
+        } else if (slotDuration === 15) {
+          // EVENT: VR (15min slots)
+          for (let hour = openingTime; hour <= closingTime; hour++) {
+            for (let quarter = 0; quarter < 4; quarter++) {
+              const minutes = quarter * 15;
+              const startTime = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+              
+              let endHour = hour;
+              let endMinutes = minutes + 15;
+              if (endMinutes >= 60) {
+                endMinutes = 0;
+                endHour = hour + 1;
+              }
+              if (endHour >= 24) {
+                endHour = 0;
+              }
+              const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`;
+              
+              // Check if past
+              let isPast = false;
+              if (isToday) {
+                const now = new Date();
+                const currentHour = now.getHours();
+                const currentMinute = now.getMinutes();
+                isPast = hour < currentHour || (hour === currentHour && minutes <= currentMinute);
+              }
+              
+              if (isPast) {
+                allSlots.push({
+                  start_time: startTime,
+                  end_time: endTime,
+                  is_available: false,
+                  status: 'elapsed'
+                });
+                continue;
+              }
+              
+              const eventVrStations = stations.filter(s => 
+                s.category === 'nit_event' && s.event_enabled && s.type === 'vr' &&
+                (selectedStations.length === 0 || selectedStations.includes(s.id))
+              );
+              let anyVRAvailable = false;
+              
+              if (eventVrStations.length > 0) {
+                try {
+                  const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
+                    p_date: dateStr,
+                    p_start_time: startTime,
+                    p_end_time: endTime,
+                    p_station_ids: eventVrStations.map(s => s.id)
+                  });
+                  if (!availError && availabilityData) {
+                    anyVRAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
+                  }
+                } catch (e) {
+                  console.error("Error checking VR event station availability:", e);
+                }
+              }
+              
+              allSlots.push({
+                start_time: startTime,
+                end_time: endTime,
+                is_available: anyVRAvailable,
+                status: anyVRAvailable ? 'available' : 'booked'
+              });
+            }
+          }
+        }
+      } else if (slotDuration === 15) {
+        // VR slots: 15-minute intervals (regular booking)
+        for (let hour = openingTime; hour <= closingTime; hour++) {
+          for (let quarter = 0; quarter < 4; quarter++) {
+            const minutes = quarter * 15;
+            const startTime = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+            
+            let endHour = hour;
+            let endMinutes = minutes + 15;
+            if (endMinutes >= 60) {
+              endMinutes = 0;
+              endHour = hour + 1;
+            }
+            if (endHour >= 24) {
+              endHour = 0;
+            }
+            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`;
+            
+            // Check if past
+            let isPast = false;
+            if (isToday) {
+              const now = new Date();
+              const currentHour = now.getHours();
+              const currentMinute = now.getMinutes();
+              isPast = hour < currentHour || (hour === currentHour && minutes <= currentMinute);
+            }
+            
+            if (isPast) {
+              allSlots.push({
+                start_time: startTime,
+                end_time: endTime,
+                is_available: false,
+                status: 'elapsed'
+              });
+              continue;
+            }
+            
+            // Check VR station availability (exclude event + 8-Ball)
+            const vrStations = stations.filter(
+              (s) => s.type === 'vr' && (!s.category || s.category !== 'nit_event')
+            );
+            let anyVRAvailable = false;
+            
+            if (vrStations.length > 0) {
+              try {
+                const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
+                  p_date: dateStr,
+                  p_start_time: startTime,
+                  p_end_time: endTime,
+                  p_station_ids: vrStations.map(s => s.id)
+                });
+                
+                if (!availError && availabilityData) {
+                  anyVRAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
+                }
+              } catch (e) {
+                console.error("Error checking VR availability:", e);
+              }
+            }
+            
+            allSlots.push({
+              start_time: startTime,
+              end_time: endTime,
+              is_available: anyVRAvailable,
+              status: anyVRAvailable ? 'available' : 'booked'
+            });
+          }
+        }
+      } else if (slotDuration === 30) {
+        // Event slots: 30-minute intervals (for event PS5 and 8-Ball)
+        for (let hour = openingTime; hour <= closingTime; hour++) {
+          for (let half = 0; half < 2; half++) {
+            const minutes = half * 30;
+            const startTime = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+            
+            let endHour = hour;
+            let endMinutes = minutes + 30;
+            if (endMinutes >= 60) {
+              endMinutes = 0;
+              endHour = hour + 1;
+            }
+            if (endHour >= 24) {
+              endHour = 0;
+            }
+            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`;
+            
+            // Check if past
+            let isPast = false;
+            if (isToday) {
+              const now = new Date();
+              const currentHour = now.getHours();
+              const currentMinute = now.getMinutes();
+              isPast = hour < currentHour || (hour === currentHour && minutes <= currentMinute);
+            }
+            
+            if (isPast) {
+              allSlots.push({
+                start_time: startTime,
+                end_time: endTime,
+                is_available: false,
+                status: 'elapsed'
+              });
+              continue;
+            }
+            
+            // Check station availability for 30-min slots
+            const eventStations = stations.filter(s => 
+              selectedStations.length === 0 || selectedStations.includes(s.id)
+            );
+            let anyAvailable = false;
+            
+            if (eventStations.length > 0) {
+              try {
+                const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
+                  p_date: dateStr,
+                  p_start_time: startTime,
+                  p_end_time: endTime,
+                  p_station_ids: eventStations.map(s => s.id)
+                });
+                
+                if (!availError && availabilityData) {
+                  anyAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
+                }
+              } catch (e) {
+                console.error("Error checking event station availability:", e);
+              }
+            }
+            
+            allSlots.push({
+              start_time: startTime,
+              end_time: endTime,
+              is_available: anyAvailable,
+              status: anyAvailable ? 'available' : 'booked'
+            });
+          }
+        }
+      } else {
+        // Regular slots: 60-minute intervals (PS5 + 8-Ball)
+        for (let hour = openingTime; hour <= closingTime; hour++) {
+          const startTime = `${hour.toString().padStart(2, '0')}:00:00`;
+          let endHour = hour + 1;
+          let endTime = `${endHour.toString().padStart(2, '0')}:00:00`;
+          
+          // Handle midnight crossover
+          if (endHour >= 24) {
+            endTime = '00:00:00';
+          }
+          
+          // Check if this slot is past (for today)
+          let isPast = false;
+          if (isToday) {
+            const now = new Date();
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+            isPast = hour < currentHour || (hour === currentHour && 0 <= currentMinute);
+          }
+          
+          if (isPast) {
+            allSlots.push({
+              start_time: startTime,
+              end_time: endTime,
+              is_available: false,
+              status: 'elapsed'
+            });
+            continue;
+          }
+          
+          // Check if ANY non-VR regular station is available for this time slot (exclude IIM event)
+          const nonVRStations = stations.filter(
+            (s) => s.type !== 'vr' && (!s.category || s.category !== 'nit_event')
+          );
+          
+          let anyStationAvailable = false;
+          
+          if (nonVRStations.length > 0) {
+            try {
+              const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
+                p_date: dateStr,
+                p_start_time: startTime,
+                p_end_time: endTime,
+                p_station_ids: nonVRStations.map(s => s.id)
+              });
+              
+              if (!availError && availabilityData) {
+                // TIME SLOT AVAILABILITY: Show as available if ANY station is free
+                // Don't restrict by teams here - let users see all available time slots
+                // Team restrictions will be applied in Step 3 (station selection)
+                anyStationAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => {
+                  return item.is_available; // If ANY station is available, slot is available
+                });
+              }
+            } catch (e) {
+              console.error("Error checking station availability:", e);
+            }
+          }
+          
+          allSlots.push({
+            start_time: startTime,
+            end_time: endTime,
+            is_available: anyStationAvailable,
+            status: anyStationAvailable ? 'available' : 'booked'
+          });
+        }
+      }
+      
+      setAvailableSlots(allSlots);
+      setSlotsLoading(false);
+
+      if (
+        selectedSlot &&
+        !availableSlots.some(
+          (s) =>
+            s.start_time === selectedSlot.start_time &&
+            s.end_time === selectedSlot.end_time &&
+            s.is_available
+        )
+      ) {
+        setSelectedSlot(null);
+        setSelectedSlots([]);
+      }
+      
+      // Also clear selectedSlots that are no longer available
+      setSelectedSlots(prev => prev.filter(slot =>
+        availableSlots.some(
+          (s) =>
+            s.start_time === slot.start_time &&
+            s.end_time === slot.end_time &&
+            s.is_available
+        )
+      ));
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to load time slots");
+    } finally {
+      setSlotsLoading(false);
+    }
+  }
+
+  // ✅ UPDATED: searchCustomer with phone normalization
+  async function searchCustomer() {
+    if (!customerNumber.trim()) {
+      toast.error("Please enter a customer number");
+      return;
+    }
+
+    const normalizedPhone = normalizePhoneNumber(customerNumber);
+    
+    const validation = validatePhoneNumber(normalizedPhone);
+    if (!validation.valid) {
+      toast.error(validation.error || "Invalid phone number");
+      return;
+    }
+
+    if (!publicLocationId) {
+      toast.error("Loading branch… please try again in a moment.");
+      return;
+    }
+
+    setSearchingCustomer(true);
+    try {
+      const res = await fetch("/api/webhooks/get-customer", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ customer_phone: normalizedPhone, location_id: publicLocationId }),
+      });
+      const json = await res.json();
+      if (!json?.ok) throw new Error(json?.error || "Failed to fetch customer");
+
+      const data = json?.customer;
+      if (json?.found && data) {
+        setIsReturningCustomer(true);
+        setCustomerInfo({
+          id: data.id,
+          name: data.name,
+          phone: normalizedPhone,
+          email: data.email || "",
+        });
+        toast.success(`Welcome back, ${data.name}! 🎮`);
+      } else {
+        setIsReturningCustomer(false);
+        setCustomerInfo({ 
+          name: "", 
+          phone: normalizedPhone,
+          email: "" 
+        });
+        toast.info("New customer! Please fill in your details below.");
+      }
+      setHasSearched(true);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to search customer");
+    } finally {
+      setSearchingCustomer(false);
+    }
+  }
+
+  const handleStationToggle = (id: string) => {
+    const station = stations.find(s => s.id === id);
+    if (!station) return;
+    
+    if (!selectedStations.includes(id)) {
+      // Check slot duration conflicts - stations with different slot durations cannot be mixed
+      const selectedSlotDuration = selectedStations.length > 0 
+        ? getSlotDuration(stations.find(s => selectedStations.includes(s.id)) || station)
+        : null;
+      const newStationSlotDuration = getSlotDuration(station);
+      
+      if (selectedSlotDuration !== null && selectedSlotDuration !== newStationSlotDuration) {
+        toast.error(`Cannot mix stations with different slot durations (${selectedSlotDuration} min vs ${newStationSlotDuration} min)`);
+        return;
+      }
+      
+      // REMOVED: Team conflict check - allow selecting multiple controllers from same team
+      // Team-based filtering will be handled by booking availability checks in getAvailableStationsForSlot
+      // This allows users to select multiple controllers if there are no existing bookings
+    }
+    
+    // Update selected stations without clearing slot selection
+    setSelectedStations((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+    // DON'T reset slots - keep the selected time
+  };
+
+  async function filterStationsForSlot(slot: TimeSlot) {
+    if (selectedStations.length === 0) return selectedStations;
+    const dateStr = format(selectedDate, "yyyy-MM-dd");
+    
+    const hasVR = selectedStations.some(id => 
+      stations.find(s => s.id === id && s.type === 'vr')
+    );
+    // Use slot duration from selected stations
+    const firstSelectedStation = stations.find(s => selectedStations.includes(s.id));
+    const slotDuration = firstSelectedStation ? getSlotDuration(firstSelectedStation) : (hasVR ? 15 : 60);
+    
+    const checks = await Promise.all(
+      selectedStations.map(async (stationId) => {
+        const { data, error } = await supabase.rpc("get_available_slots", {
+          p_date: dateStr,
+          p_station_id: stationId,
+          p_slot_duration: slotDuration,
+        });
+        if (error) return { stationId, available: false };
+        const match = (data || []).find(
+          (s: any) =>
+            s.start_time === slot.start_time &&
+            s.end_time === slot.end_time &&
+            s.is_available
+        );
+        return { stationId, available: Boolean(match) };
+      })
+    );
+    const availableIds = checks.filter((c) => c.available).map((c) => c.stationId);
+    const removed = checks.filter((c) => !c.available).map((c) => c.stationId);
+    if (removed.length) {
+      const names = stations
+        .filter((s) => removed.includes(s.id))
+        .map((s) => s.name)
+        .join(", ");
+      toast.message("Some stations aren't free at this time", {
+        description: `Removed: ${names}.`,
+      });
+    }
+    return availableIds;
+  }
+
+  async function handleSlotSelect(slot: TimeSlot) {
+    if (slot.status === 'elapsed') {
+      toast.error("Cannot select a time slot that has already passed.");
+      return;
+    }
+    
+    // Check if slot is already selected (for multiple selection)
+    const isAlreadySelected = selectedSlots.some(
+      s => s.start_time === slot.start_time && s.end_time === slot.end_time
+    );
+    
+    if (isAlreadySelected) {
+      // Deselect the slot
+      setSelectedSlots(prev => {
+        const updated = prev.filter(
+          s => !(s.start_time === slot.start_time && s.end_time === slot.end_time)
+        );
+        // If we removed the current selectedSlot, set it to the first remaining slot (if any)
+        if (selectedSlot?.start_time === slot.start_time) {
+          if (updated.length > 0) {
+            setSelectedSlot(updated[0]);
+          } else {
+            setSelectedSlot(null);
+          }
+        }
+        return updated;
+      });
+      return;
+    }
+    
+    if (selectedStations.length > 0) {
+      const filtered = await filterStationsForSlot(slot);
+      if (filtered.length === 0) {
+        toast.error("That time isn't available for the selected stations.");
+        return;
+      }
+      if (filtered.length !== selectedStations.length) setSelectedStations(filtered);
+    }
+    
+    // Add to multiple selection
+    setSelectedSlots(prev => [...prev, slot]);
+    // Also set as single selection for backward compatibility
+    setSelectedSlot(slot);
+  }
+
+  // Use dynamic coupons from database, fallback to defaults if not loaded yet
+  const allowedCoupons =
+    bookingCouponsFromDB.length > 0
+      ? bookingCouponsFromDB.map((c) => c.code)
+      : FALLBACK_ALLOWED_COUPON_CODES;
+
+  function validateStudentID() {
+    return window.confirm(
+      "🎓 CUEPHORIA35 is for other college & school students ONLY.\nShow a valid student ID card during your visit for this discount. Apply?"
+    );
+  }
+
+  function removeCoupon(key: string) {
+    setAppliedCoupons((prev) => {
+      const c = { ...prev };
+      delete c[key];
+      return c;
+    });
+  }
+
+  function applyCoupon(raw: string) {
+    // Block all coupon usage for Event bookings
+    if (isNitEventBooking === true) {
+      toast.error(`Coupons cannot be applied for ${eventName} bookings.`);
+      return;
+    }
+
+    if (!onlinePaymentEnabled) {
+      toast.error("Online payment is unavailable. Coupons cannot be applied — pay at venue without a coupon or call us.");
+      return;
+    }
+
+    const code = (raw || "").toUpperCase().trim();
+    if (!allowedCoupons.includes(code)) {
+      toast.error("🚫 Invalid coupon code. Please re-check and try again!");
+      return;
+    }
+
+    const selectedHas8Ball = selectedStations.some(
+      (id) => stations.find((s) => s.id === id && s.type === "8ball")
+    );
+    const selectedHasPS5 = selectedStations.some(
+      (id) => stations.find((s) => s.id === id && s.type === "ps5")
+    );
+    const selectedHasVR = selectedStations.some(
+      (id) => stations.find((s) => s.id === id && s.type === "vr")
+    );
+    const happyHourActive = isHappyHour(selectedDate, selectedSlot);
+
+    // Check if customer is new (no customerInfo.id means new customer)
+    const isNewCustomer = !customerInfo.id;
+    
+    // Helper function to check if Instagram follow dialog should be shown
+    const shouldShowInstagramDialog = (couponCode: string) => {
+      if (isLiteBranch) return false;
+      if (!isNewCustomer) return false; // Only for new customers
+      
+      // Check if any other dialog is open - don't show Instagram popup if so
+      const isAnyDialogOpen = 
+        showConfirmationDialog || 
+        showLegalDialog || 
+        showRefundDialog || 
+        showOnlinePaymentPromo || 
+        showPaymentWarning ||
+        showFollowConfirmation;
+      
+      if (isAnyDialogOpen) {
+        return false; // Don't show popup when other dialogs are open
+      }
+      
+      return true;
+    };
+
+    // Helper function to apply coupon after Instagram follow
+    const applyCouponAfterInstagram = (couponCode: string, couponType: "all" | "per-station", stationTypes?: { ps5?: string; "8ball"?: string; vr?: string }) => {
+      if (couponType === "all") {
+        setAppliedCoupons({ all: couponCode });
+      } else if (stationTypes) {
+        setAppliedCoupons((prev) => {
+          let updated = { ...prev };
+          if (stationTypes.ps5) updated["ps5"] = stationTypes.ps5;
+          if (stationTypes["8ball"]) updated["8ball"] = stationTypes["8ball"];
+          if (stationTypes.vr) updated["vr"] = stationTypes.vr;
+          return updated;
+        });
+      }
+    };
+
+    if (code === "CUEPHORIA35") {
+      if (!validateStudentID()) return;
+      
+      // For new customers, show Instagram follow dialog
+      if (shouldShowInstagramDialog("CUEPHORIA35")) {
+        setShowInstagramFollowDialog(true);
+        setInstagramLinkClicked(false);
+        // Store coupon info to apply after Instagram follow
+        setPendingCoupon({ code: "CUEPHORIA35", type: "all" });
+        return;
+      }
+      
+      setAppliedCoupons({ all: "CUEPHORIA35" });
+      toast.success(
+        "📚 CUEPHORIA35 applied: 35% OFF for students with valid ID!\nShow your student ID when you visit! 🤝"
+      );
+      return;
+    }
+
+    if (code === "CUEPHORIA20") {
+      // For new customers, show Instagram follow dialog
+      if (shouldShowInstagramDialog("CUEPHORIA20")) {
+        setShowInstagramFollowDialog(true);
+        setInstagramLinkClicked(false);
+        // Store coupon info to apply after Instagram follow
+        setPendingCoupon({ code: "CUEPHORIA20", type: "all" });
+        return;
+      }
+      
+      setAppliedCoupons({ all: "CUEPHORIA20" });
+      toast.success("🎉 CUEPHORIA20 applied: 20% OFF! Book more, play more! 🕹️");
+      return;
+    }
+
+    if (code === "HH99") {
+      if (selectedHasVR) {
+        toast.error("⏰ HH99 is not applicable to VR gaming stations.");
+        return;
+      }
+      if (!(selectedHas8Ball || selectedHasPS5)) {
+        toast.error("⏰ HH99 applies to PS5 and 8-Ball stations during Happy Hours.");
+        return;
+      }
+      if (!happyHourActive) {
+        toast.error("🕒 HH99 valid only Mon–Fri 11 AM to 4 PM (Happy Hours).");
+        return;
+      }
+      setAppliedCoupons((prev) => {
+        let updated = { ...prev };
+        if (selectedHas8Ball) updated["8ball"] = "HH99";
+        if (selectedHasPS5) updated["ps5"] = "HH99";
+        return updated;
+      });
+      toast.success(
+        "⏰ HH99 applied! PS5 & 8-Ball stations at ₹99/hour during Happy Hours! ✨"
+      );
+      return;
+    }
+
+    if (code === "NIT35") {
+      if (!(selectedHas8Ball || selectedHasPS5 || selectedHasVR)) {
+        toast.error(
+          "NIT35 can be applied to PS5, 8-Ball, or VR stations in your selection."
+        );
+        return;
+      }
+      
+      // For new customers, show Instagram follow dialog
+      if (shouldShowInstagramDialog("NIT35")) {
+        setShowInstagramFollowDialog(true);
+        setInstagramLinkClicked(false);
+        // Store coupon info to apply after Instagram follow
+        const stationTypes: { ps5?: string; "8ball"?: string; vr?: string } = {};
+        if (selectedHasPS5) stationTypes.ps5 = "NIT35";
+        if (selectedHas8Ball) stationTypes["8ball"] = appliedCoupons["8ball"] === "HH99" ? "HH99" : "NIT35";
+        if (selectedHasVR) stationTypes.vr = "NIT35";
+        setPendingCoupon({ code: "NIT35", type: "per-station", stationTypes });
+        return;
+      }
+      
+      setAppliedCoupons((prev) => {
+        let updated = { ...prev };
+        if (selectedHasPS5) updated["ps5"] = "NIT35";
+        if (selectedHas8Ball) updated["8ball"] = prev["8ball"] === "HH99" ? "HH99" : "NIT35";
+        if (selectedHasVR) updated["vr"] = "NIT35";
+        return updated;
+      });
+      let msg = "🎓 NIT35 applied! 35% OFF for ";
+      const types = [];
+      if (selectedHasPS5) types.push("PS5");
+      if (selectedHas8Ball) types.push("8-Ball");
+      if (selectedHasVR) types.push("VR");
+      msg += types.join(" & ") + " stations!";
+      toast.success(msg);
+      return;
+    }
+
+    if (code === "AAVEG50") {
+      if (!(selectedHas8Ball || selectedHasPS5 || selectedHasVR)) {
+        toast.error(
+          "AAVEG50 can be applied to PS5, 8-Ball, or VR stations in your selection."
+        );
+        return;
+      }
+      setAppliedCoupons((prev) => {
+        let updated = { ...prev };
+        if (selectedHasPS5) updated["ps5"] = "AAVEG50";
+        if (selectedHas8Ball) updated["8ball"] = "AAVEG50";
+        if (selectedHasVR) updated["vr"] = "AAVEG50";
+        return updated;
+      });
+      let msg = "🏫 AAVEG50 applied! 50% OFF for ";
+      const types = [];
+      if (selectedHasPS5) types.push("PS5");
+      if (selectedHas8Ball) types.push("8-Ball");
+      if (selectedHasVR) types.push("VR");
+      msg += types.join(" & ") + " stations!";
+      toast.success(msg);
+      return;
+    }
+
+    // Configured in Settings → Booking: generic % or fixed off entire selection
+    const dbMeta = bookingCouponsFromDB.find((c) => c.code === code);
+    if (dbMeta) {
+      setAppliedCoupons({ all: dbMeta.code });
+      if (dbMeta.discount_type === "percentage") {
+        toast.success(
+          `🎟️ ${dbMeta.code} applied: ${dbMeta.discount_value}% off your booking!`
+        );
+      } else {
+        toast.success(
+          `🎟️ ${dbMeta.code} applied: ${INR(dbMeta.discount_value)} off your booking!`
+        );
+      }
+      return;
+    }
+  }
+
+  const handleCouponApply = () => {
+    applyCoupon(couponCode);
+    setCouponCode("");
+  };
+
+  // NEW: Filter stations to show only those available for the selected time slot
+  // IMPORTANT: For PS5 teams, if ANY controller from a team is booked, hide ALL controllers from that team
+  const getAvailableStationsForSlot = async (): Promise<string[]> => {
+    if (!selectedSlot && selectedSlots.length === 0) return [];
+    if (stations.length === 0) return [];
+    
+    const slotsToCheck = selectedSlots.length > 0 ? selectedSlots : (selectedSlot ? [selectedSlot] : []);
+    if (slotsToCheck.length === 0) return [];
+    
+    const dateStr = format(selectedDate, "yyyy-MM-dd");
+    
+    try {
+      // Check availability for ALL stations for the selected slots
+      const availableStationIds: Set<string> = new Set();
+      
+      // Pick stations relevant to current booking type.
+      // - Regular: only regular stations (exclude event category)
+      // - EVENT: All enabled event stations (PS5, 8-Ball, VR) - NO RESTRICTIONS
+      let stationsToCheck: Station[] = [];
+      if (isNitEventBooking === true) {
+        // ✅ CHANGED: No longer exclude 8ball - all event stations are allowed
+        stationsToCheck = stations.filter(s => s.category === 'nit_event' && s.event_enabled);
+      } else {
+        stationsToCheck = stations.filter(s => !s.category || s.category !== 'nit_event');
+      }
+
+      if (isNitEventBooking === true && slotsToCheck.length > 0) {
+        // Get the duration of the first slot (in minutes)
+        const firstSlot = slotsToCheck[0];
+        const slotDurationMinutes = (() => {
+          const start = new Date(`2000-01-01T${firstSlot.start_time}`);
+          const end = new Date(`2000-01-01T${firstSlot.end_time}`);
+          return (end.getTime() - start.getTime()) / (1000 * 60);
+        })();
+        
+        // Filter stations by duration: 30min = PS5 and 8-Ball, 15min = VR
+        if (slotDurationMinutes === 30) {
+          stationsToCheck = stations.filter(s => 
+            s.category === 'nit_event' && s.event_enabled && (s.type === 'ps5' || s.type === '8ball')
+          );
+        } else if (slotDurationMinutes === 15) {
+          stationsToCheck = stations.filter(s => 
+            s.category === 'nit_event' && s.event_enabled && s.type === 'vr'
+          );
+        }
+      }
+      
+      const allStationIds = stationsToCheck.map(s => s.id);
+      
+      // Group stations by team
+      const teamGroups: Map<string, string[]> = new Map();
+      stations.forEach(s => {
+        if (s.team_name) {
+          if (!teamGroups.has(s.team_name)) {
+            teamGroups.set(s.team_name, []);
+          }
+          teamGroups.get(s.team_name)!.push(s.id);
+        }
+      });
+      
+      for (const slot of slotsToCheck) {
+        const { data, error } = await supabase.rpc("check_stations_availability", {
+          p_date: dateStr,
+          p_start_time: slot.start_time,
+          p_end_time: slot.end_time,
+          p_station_ids: allStationIds
+        });
+        
+        if (error) {
+          console.error("Error checking station availability:", error);
+          continue;
+        }
+        
+        if (data) {
+          // Create a map of station_id -> is_available
+          const availabilityMap = new Map<string, boolean>();
+          data.forEach((item: { station_id: string, is_available: boolean }) => {
+            availabilityMap.set(item.station_id, item.is_available);
+          });
+          
+          // For PS5 teams: if ANY controller from a team is booked, ALL controllers from that team are unavailable
+          const unavailableTeamStations = new Set<string>();
+          
+          teamGroups.forEach((teamStationIds, teamName) => {
+            // Check if ANY controller from this team is booked
+            const anyBooked = teamStationIds.some(id => {
+              const isAvailable = availabilityMap.get(id);
+              return isAvailable === false; // Explicitly booked
+            });
+            
+            if (anyBooked) {
+              // If any controller is booked, mark ALL controllers from this team as unavailable
+              teamStationIds.forEach(id => unavailableTeamStations.add(id));
+            }
+          });
+          
+          // For the first slot, add all available stations (excluding team-blocked ones)
+          if (availableStationIds.size === 0) {
+            data.forEach((item: { station_id: string, is_available: boolean }) => {
+              // Station is available if:
+              // 1. It's marked as available in the database
+              // 2. It's not blocked by team rules (no teammate is booked)
+              if (item.is_available && !unavailableTeamStations.has(item.station_id)) {
+                availableStationIds.add(item.station_id);
+              }
+            });
+          } else {
+            // For subsequent slots, keep only stations that are available in ALL slots
+            const slotAvailableIds = new Set<string>();
+            data.forEach((item: { station_id: string, is_available: boolean }) => {
+              if (item.is_available && !unavailableTeamStations.has(item.station_id)) {
+                slotAvailableIds.add(item.station_id);
+              }
+            });
+            // Keep only stations that are available in both previous slots AND this slot
+            const toRemove: string[] = [];
+            availableStationIds.forEach(id => {
+              if (!slotAvailableIds.has(id)) {
+                toRemove.push(id);
+              }
+            });
+            toRemove.forEach(id => availableStationIds.delete(id));
+          }
+        }
+      }
+      
+      return Array.from(availableStationIds);
+    } catch (e) {
+      console.error("Error getting available stations:", e);
+      return [];
+    }
+  };
+
+  const calculateOriginalPrice = () => {
+    if (selectedStations.length === 0) return 0;
+    // Check if we have any slots selected (either single or multiple)
+    if (!selectedSlot && selectedSlots.length === 0) return 0;
+    
+    const selectedStationObjects = stations.filter((s) => selectedStations.includes(s.id));
+    
+    // Separate PS5 and non-PS5 stations
+    const ps5Stations = selectedStationObjects.filter(s => s.type === 'ps5');
+    const nonPS5Stations = selectedStationObjects.filter(s => s.type !== 'ps5');
+    
+    // Calculate PS5 pricing with dynamic rates
+    let ps5Total = 0;
+    if (ps5Stations.length === 1) {
+      // Single controller: use single_rate if available
+      const station = ps5Stations[0];
+      ps5Total = station.single_rate || station.hourly_rate;
+    } else if (ps5Stations.length > 1) {
+      // Multiple controllers: use regular hourly_rate for all
+      ps5Total = ps5Stations.reduce((sum, s) => sum + s.hourly_rate, 0);
+    }
+    
+    // Calculate non-PS5 pricing (VR, 8-Ball)
+    const nonPS5Total = nonPS5Stations.reduce((sum, s) => sum + s.hourly_rate, 0);
+    
+    return ps5Total + nonPS5Total;
+  };
+
+  const calculateDiscount = () => {
+    const original = calculateOriginalPrice();
+    if (original === 0) return { total: 0, breakdown: {} as Record<string, number> };
+    if (!Object.keys(appliedCoupons).length)
+      return { total: 0, breakdown: {} as Record<string, number> };
+
+    if (appliedCoupons["all"]) {
+      if (appliedCoupons["all"] === "CUEPHORIA20") {
+        const disc = original * 0.20;
+        return { total: disc, breakdown: { all: disc } };
+      }
+      if (appliedCoupons["all"] === "CUEPHORIA35") {
+        const disc = original * 0.35;
+        return { total: disc, breakdown: { all: disc } };
+      }
+      const dbAll = bookingCouponsFromDB.find(
+        (c) => c.code === appliedCoupons["all"]
+      );
+      if (dbAll) {
+        if (dbAll.discount_type === "percentage") {
+          const rate = Math.min(100, Math.max(0, dbAll.discount_value)) / 100;
+          const disc = original * rate;
+          return { total: disc, breakdown: { [dbAll.code]: disc } };
+        }
+        const disc = Math.min(original, Math.max(0, dbAll.discount_value));
+        return { total: disc, breakdown: { [dbAll.code]: disc } };
+      }
+      return { total: 0, breakdown: {} as Record<string, number> };
+    }
+
+    let totalDiscount = 0;
+    const breakdown: Record<string, number> = {};
+
+    if (
+      appliedCoupons["8ball"] === "HH99" &&
+      appliedCoupons["ps5"] === "NIT35"
+    ) {
+      const eightBalls = stations.filter(
+        (s) => selectedStations.includes(s.id) && s.type === "8ball"
+      );
+      const sum = eightBalls.reduce((x, s) => x + s.hourly_rate, 0);
+      const d = sum - eightBalls.length * 99;
+      if (d > 0) {
+        totalDiscount += d;
+        breakdown["8-Ball (HH99)"] = d;
+      }
+      const ps5s = stations.filter(
+        (s) => selectedStations.includes(s.id) && s.type === "ps5"
+      );
+      const sum2 = ps5s.reduce((x, s) => x + s.hourly_rate, 0);
+      const d2 = sum2 * 0.35; // NIT35 is 35% off
+      totalDiscount += d2;
+      breakdown["PS5 (HH99+NIT35)"] = d2;
+    } else {
+      if (appliedCoupons["8ball"] === "HH99") {
+        const eightBalls = stations.filter(
+          (s) => selectedStations.includes(s.id) && s.type === "8ball"
+        );
+        const sum = eightBalls.reduce((x, s) => x + s.hourly_rate, 0);
+        const d = sum - eightBalls.length * 99;
+        if (d > 0) {
+          totalDiscount += d;
+          breakdown["8-Ball (HH99)"] = d;
+        }
+      }
+
+      if (appliedCoupons["ps5"] === "HH99") {
+        const ps5s = stations.filter(
+          (s) => selectedStations.includes(s.id) && s.type === "ps5"
+        );
+        const sum = ps5s.reduce((x, s) => x + s.hourly_rate, 0);
+        const d = sum - ps5s.length * 99;
+        if (d > 0) {
+          totalDiscount += d;
+          breakdown["PS5 (HH99)"] = d;
+        }
+      }
+
+      if (appliedCoupons["8ball"] === "NIT35" || appliedCoupons["8ball"] === "AAVEG50") {
+        const balls = stations.filter(
+          (s) => selectedStations.includes(s.id) && s.type === "8ball"
+        );
+        const sum = balls.reduce((x, s) => x + s.hourly_rate, 0);
+        const d = appliedCoupons["8ball"] === "NIT35" ? sum * 0.35 : sum * 0.5;
+        totalDiscount += d;
+        breakdown[`8-Ball (${appliedCoupons["8ball"]})`] = d;
+      }
+
+      if (appliedCoupons["ps5"] === "NIT35" || appliedCoupons["ps5"] === "AAVEG50") {
+        const ps5s = stations.filter(
+          (s) => selectedStations.includes(s.id) && s.type === "ps5"
+        );
+        const sum = ps5s.reduce((x, s) => x + s.hourly_rate, 0);
+        const d = appliedCoupons["ps5"] === "NIT35" ? sum * 0.35 : sum * 0.5;
+        totalDiscount += d;
+        breakdown[`PS5 (${appliedCoupons["ps5"]})`] = d;
+      }
+
+      if (appliedCoupons["vr"] === "NIT35" || appliedCoupons["vr"] === "AAVEG50") {
+        const vrStations = stations.filter(
+          (s) => selectedStations.includes(s.id) && s.type === "vr"
+        );
+        const sum = vrStations.reduce((x, s) => x + s.hourly_rate, 0);
+        const d = appliedCoupons["vr"] === "NIT35" ? sum * 0.35 : sum * 0.5;
+        totalDiscount += d;
+        breakdown[`VR (${appliedCoupons["vr"]})`] = d;
+      }
+    }
+
+    return { total: totalDiscount, breakdown };
+  };
+
+  const originalPrice = calculateOriginalPrice();
+  const discountObj = calculateDiscount();
+  const discount = discountObj.total;
+  const discountBreakdown = discountObj.breakdown;
+  const finalPrice = Math.max(originalPrice - discount, 0);
+
+  const isStationSelectionAvailable = () => isCustomerInfoComplete;
+  const isTimeSelectionAvailable = () =>
+    isStationSelectionAvailable() && selectedStations.length > 0;
+
+  // ✅ UPDATED: createVenueBooking with duplicate check and Customer ID
+  async function createVenueBooking() {
+    setLoading(true);
+    try {
+      const couponCodes = Object.values(appliedCoupons).join(",");
+      
+      // Use selectedSlots if available, otherwise fall back to single selectedSlot
+      const slotsToBook = selectedSlots.length > 0 ? selectedSlots : (selectedSlot ? [selectedSlot] : []);
+      
+      if (slotsToBook.length === 0) {
+        toast.error("Please select at least one time slot");
+        return;
+      }
+
+      const normalizedPhone = normalizePhoneNumber(customerInfo.phone);
+      const validation = validatePhoneNumber(normalizedPhone);
+      if (!validation.valid) {
+        toast.error(validation.error || "Invalid phone number");
+        return;
+      }
+      
+      // Calculate total price for all slots
+      const slotsCount = slotsToBook.length;
+      const totalOriginalPrice = originalPrice * slotsCount;
+      const totalDiscountAmount = discount * slotsCount;
+      const totalFinalPrice = finalPrice * slotsCount;
+
+      if (!publicLocationId) {
+        toast.error("Branch not ready. Please refresh the page.");
+        return;
+      }
+
+      const res = await fetch("/api/bookings/create", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          customerInfo: {
+            ...customerInfo,
+            phone: normalizedPhone,
+          },
+          selectedStations,
+          selectedDate: format(selectedDate, "yyyy-MM-dd"),
+          selectedSlot: selectedSlot ?? slotsToBook[0],
+          selectedSlots: slotsToBook,
+          originalPrice,
+          discount,
+          finalPrice,
+          appliedCoupons,
+          payment_mode: "venue",
+          sessionId,
+          location_id: publicLocationId,
+        }),
+      });
+
+      const json = await res.json();
+      if (!json?.ok) {
+        if (json?.conflict) {
+          toast.error(json?.error || "Selected slot is no longer available. Please select another time slot.");
+          return;
+        }
+        const errMsg = json?.error || "Failed to create booking";
+        console.error("Booking API error:", errMsg, json?.details);
+        throw new Error(errMsg);
+      }
+
+      const stationObjects = stations.filter((s) =>
+        selectedStations.includes(s.id)
+      );
+      
+      const hasVR = selectedStations.some(id => 
+        stations.find(s => s.id === id && s.type === 'vr')
+      );
+      const sessionDuration = hasVR ? "15 minutes" : "60 minutes";
+      
+      // Use first slot for confirmation display (or selectedSlot if available)
+      const displaySlot = selectedSlot || slotsToBook[0];
+      
+      setBookingConfirmationData({
+        bookingId: String(json.bookingId || "").slice(0, 8).toUpperCase(),
+        customerName: customerInfo.name,
+        stationNames: stationObjects.map((s) => s.name),
+        date: format(selectedDate, "yyyy-MM-dd"),
+        startTime: new Date(`2000-01-01T${displaySlot.start_time}`).toLocaleTimeString(
+          "en-US",
+          { hour: "numeric", minute: "2-digit", hour12: true }
+        ),
+        endTime: new Date(`2000-01-01T${displaySlot.end_time}`).toLocaleTimeString(
+          "en-US",
+          { hour: "numeric", minute: "2-digit", hour12: true }
+        ),
+        totalAmount: totalFinalPrice, // Total for all slots
+        couponCode: couponCodes || undefined,
+        discountAmount: totalDiscountAmount > 0 ? totalDiscountAmount : undefined,
+        sessionDuration: sessionDuration,
+        paymentMode: "venue", // Venue payment
+        paymentTxnId: undefined, // No transaction ID for venue payments
+      });
+      setShowConfirmationDialog(true);
+
+      toast.success("🎉 Booking confirmed! Get ready to game! 🎮");
+
+      setSelectedStations([]);
+      setSelectedSlot(null);
+      setSelectedSlots([]);
+      setCustomerNumber("");
+      setCustomerInfo({ name: "", phone: "", email: "" });
+      setIsReturningCustomer(false);
+      setHasSearched(false);
+      setCouponCode("");
+      setAppliedCoupons({});
+      setAvailableSlots([]);
+    } catch (e) {
+      console.error(e);
+      const msg = (e as any)?.message;
+      toast.error(msg && msg !== "Failed to create booking" ? msg : "Failed to create booking. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Load Razorpay script and key ID when payment method is set to razorpay
+  useEffect(() => {
+    if (paymentMethod === "razorpay" && onlinePaymentEnabled) {
+      // Load Razorpay script if not already loaded
+      if (!(window as any).Razorpay) {
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.async = true;
+        script.onload = () => {
+          console.log("✅ Razorpay script loaded");
+        };
+        script.onerror = () => {
+          console.error("❌ Failed to load Razorpay script");
+          toast.error("Failed to load payment gateway. Please refresh the page.");
+        };
+        document.body.appendChild(script);
+      }
+      
+      // Pre-fetch Razorpay key ID for faster payment initiation
+      if (!razorpayKeyId) {
+        const profileQs = branchSlug === "lite" ? "?profile=lite" : "";
+        fetch(`/api/razorpay/get-key-id${profileQs}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.ok && data.keyId) {
+              setRazorpayKeyId(data.keyId);
+              console.log("✅ Razorpay key ID pre-loaded");
+            }
+          })
+          .catch((err) => {
+            console.error("Failed to pre-load Razorpay key ID:", err);
+            // Don't show error to user yet, will retry during payment
+          });
+      }
+    }
+  }, [paymentMethod, razorpayKeyId, branchSlug, onlinePaymentEnabled]);
+
+  const initiateRazorpay = async () => {
+    if (!onlinePaymentEnabled) {
+      toast.error("Online payment is unavailable right now. Please pay at the venue or call us to book.");
+      return;
+    }
+    // Use selectedSlots if available, otherwise fall back to single selectedSlot
+    const slotsToBook = selectedSlots.length > 0 ? selectedSlots : (selectedSlot ? [selectedSlot] : []);
+    
+    if (slotsToBook.length === 0) {
+      toast.error("Please select at least one time slot");
+      return;
+    }
+    
+    const totalPrice = finalPrice * slotsToBook.length;
+    
+    if (totalPrice <= 0) {
+      toast.error("Amount must be greater than 0 for online payment.");
+      return;
+    }
+    if (!customerInfo.phone) {
+      toast.error("Customer phone is required for payment.");
+      return;
+    }
+
+    if (!(window as any).Razorpay) {
+      toast.error("Payment gateway is loading. Please wait a moment and try again.");
+      return;
+    }
+
+    // Calculate 2.5% transaction fee for Razorpay
+    const transactionFee = Math.round((totalPrice * 0.025) * 100) / 100; // Round to 2 decimal places
+    const totalWithFee = totalPrice + transactionFee;
+
+    const txnId = genTxnId();
+    setLoading(true);
+
+    try {
+      const bookingDuration = getBookingDuration(selectedStations, stations);
+      // Store all slots for booking creation after payment
+      const pendingBooking = {
+        selectedStations,
+        selectedDateISO: format(selectedDate, "yyyy-MM-dd"),
+        slots: slotsToBook.map(slot => ({
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+        })),
+        duration: bookingDuration,
+        customer: customerInfo,
+        locationId: publicLocationId,
+        pricing: {
+          original: originalPrice * slotsToBook.length,
+          discount: discount * slotsToBook.length,
+          final: totalPrice,
+          transactionFee: transactionFee,
+          totalWithFee: totalWithFee,
+          coupons: Object.values(appliedCoupons).join(","),
+        },
+      };
+      localStorage.setItem("pendingBooking", JSON.stringify(pendingBooking));
+
+      // Serialize booking data for order notes (compact format to fit 256 char limit per field)
+      // Use minimal keys to save space
+      const bookingDataCompact = JSON.stringify({
+        s: selectedStations, // stations
+        d: format(selectedDate, "yyyy-MM-dd"), // date
+        t: slotsToBook.map(s => ({ s: s.start_time, e: s.end_time })), // time slots
+        du: bookingDuration, // duration
+        c: { n: customerInfo.name, p: customerInfo.phone, e: customerInfo.email || "", i: customerInfo.id || "" }, // customer
+        p: { o: originalPrice * slotsToBook.length, d: discount * slotsToBook.length, f: totalPrice, tf: transactionFee, twf: totalWithFee }, // pricing
+        cp: Object.values(appliedCoupons).join(","), // coupons
+      });
+
+      // Split booking_data across multiple note fields if needed (each field max 256 chars)
+      const bookingDataStr = bookingDataCompact;
+      const notes: Record<string, string> = {
+        customer_name: customerInfo.name,
+        customer_phone: customerInfo.phone,
+        customer_email: customerInfo.email || "",
+        booking_date: format(selectedDate, "yyyy-MM-dd"),
+        stations: selectedStations.join(","),
+      };
+
+      // Store booking_data, split if necessary
+      if (bookingDataStr.length <= 256) {
+        notes.booking_data = bookingDataStr;
+      } else {
+        // Split into multiple fields
+        notes.booking_data_1 = bookingDataStr.substring(0, 256);
+        if (bookingDataStr.length > 256) {
+          notes.booking_data_2 = bookingDataStr.substring(256, 512);
+        }
+      }
+
+      // Create order on server with total including transaction fee.
+      // We send the FULL booking_payload alongside notes so the server can
+      // persist a payment_orders intent row — this is what lets the
+      // webhook / pg_cron reconciler materialize the booking even if the
+      // customer never returns from their UPI app. Notes are kept for
+      // backward compatibility with in-flight orders during the deploy.
+      const orderRes = await fetch("/api/razorpay/create-order", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          provider: "razorpay",
+          currency: "INR",
+          amount: totalWithFee,
+          receipt: txnId,
+          notes: notes,
+          location_id: publicLocationId || undefined,
+          customer: {
+            name: customerInfo.name,
+            phone: customerInfo.phone,
+            email: customerInfo.email || "",
+          },
+          booking_payload: pendingBooking,
+          kind: "booking",
+          ...(branchSlug === "lite" ? { profile: "lite" } : {}),
+        }),
+      });
+
+      const profileQs = branchSlug === "lite" ? "?profile=lite" : "";
+      // Fetch key ID in parallel with order creation if not already cached
+      const keyPromise = razorpayKeyId 
+        ? Promise.resolve({ keyId: razorpayKeyId })
+        : fetch(`/api/razorpay/get-key-id${profileQs}`)
+            .then((res) => res.json())
+            .catch(() => ({ keyId: "" }));
+
+      const [orderData, keyData] = await Promise.all([
+        orderRes.json().catch(() => null),
+        keyPromise
+      ]);
+
+      if (!orderRes.ok || !orderData?.ok || !orderData?.orderId) {
+        const error = orderData?.error || "Failed to create payment order";
+        console.error("❌ Order creation failed:", error);
+        toast.error(`Payment setup failed: ${error}`);
+        setLoading(false);
+        return;
+      }
+
+      console.log("✅ Razorpay order created:", orderData.orderId);
+
+      // Use cached key ID or fetch result
+      const finalKeyId = keyData.keyId || razorpayKeyId;
+      
+      // Cache the key ID for future use
+      if (keyData.keyId && !razorpayKeyId) {
+        setRazorpayKeyId(keyData.keyId);
+      }
+
+      if (!finalKeyId) {
+        toast.error("Payment gateway configuration error. Please contact support.");
+        setLoading(false);
+        return;
+      }
+
+      const origin = window.location.origin;
+      const callbackProfileQs = branchSlug === "lite" ? "?profile=lite" : "";
+      const callbackUrl = `${origin}/api/razorpay/callback${callbackProfileQs}`;
+
+      // Razorpay checkout options
+      const options = {
+        key: finalKeyId,
+        amount: orderData.amount, // Amount in paise
+        currency: orderData.currency || "INR",
+        name: branchSlug === "lite" ? "Cuephoria Lite" : "Cuephoria Gaming Lounge",
+        description: `Booking for ${slotsToBook.length} slot(s)`,
+        order_id: orderData.orderId,
+        handler: function (response: any) {
+          console.log("✅ Razorpay payment success:", response);
+          // Redirect to success page with payment details
+          const liteQs = branchSlug === "lite" ? "&profile=lite" : "";
+          window.location.href = `/public/payment/success?payment_id=${encodeURIComponent(response.razorpay_payment_id)}&order_id=${encodeURIComponent(response.razorpay_order_id)}&signature=${encodeURIComponent(response.razorpay_signature)}${liteQs}`;
+        },
+        prefill: {
+          name: customerInfo.name,
+          email: customerInfo.email || "",
+          contact: customerInfo.phone,
+        },
+        notes: {
+          transaction_id: txnId,
+          customer_name: customerInfo.name,
+          customer_phone: customerInfo.phone,
+        },
+        theme: {
+          color: "#8B5CF6", // Cuephoria purple
+        },
+        modal: {
+          ondismiss: function() {
+            console.log("Payment cancelled by user");
+            setLoading(false);
+            toast.info("Payment was cancelled");
+          },
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      
+      rzp.on("payment.failed", function (response: any) {
+        console.error("❌ Razorpay payment failed:", response);
+        const error = response.error?.description || response.error?.reason || "Payment failed";
+        toast.error(`Payment failed: ${error}`);
+        setLoading(false);
+        // Redirect to failure page
+        const liteQs = branchSlug === "lite" ? "&profile=lite" : "";
+        window.location.href = `/public/payment/failed?order_id=${encodeURIComponent(orderData.orderId)}&error=${encodeURIComponent(error)}${liteQs}`;
+      });
+
+      rzp.open();
+    } catch (e: any) {
+      console.error("💥 Razorpay payment error:", e);
+      toast.error(`Unable to start payment: ${e?.message || e}`);
+      setLoading(false);
+    }
+  };
+
+  // Helper function to determine service type for promo
+  const getServiceTypeForPromo = (): 'ps5' | '8ball' | null => {
+    if (selectedStations.length === 0) return null;
+    
+    // Find the first non-VR station type
+    const selectedStationTypes = selectedStations
+      .map(id => stations.find(s => s.id === id))
+      .filter(s => s && s.type !== 'vr')
+      .map(s => s!.type);
+    
+    if (selectedStationTypes.length === 0) return null;
+    
+    // Prioritize PS5, then 8-ball
+    if (selectedStationTypes.includes('ps5')) return 'ps5';
+    if (selectedStationTypes.includes('8ball')) return '8ball';
+    
+    return null;
+  };
+
+  async function handleConfirm() {
+    if (!isCustomerInfoComplete) {
+      toast.error("Please complete customer information first");
+      return;
+    }
+    if (hasAppliedCoupons && !onlinePaymentEnabled) {
+      toast.error("Coupons require online payment, which is unavailable. Remove the coupon or call us.");
+      return;
+    }
+    if (hasAppliedCoupons && paymentMethod !== "razorpay") {
+      toast.error("Please choose Pay Online — coupons are only valid with online payment.");
+      return;
+    }
+    if (selectedStations.length === 0) {
+      toast.error("Please select at least one station");
+      return;
+    }
+    const slotsToBook = selectedSlots.length > 0 ? selectedSlots : (selectedSlot ? [selectedSlot] : []);
+    if (slotsToBook.length === 0) {
+      toast.error("Please select at least one time slot");
+      return;
+    }
+    if (!customerInfo.name.trim()) {
+      toast.error("Please enter your name");
+      return;
+    }
+
+    // Show promotional popup if paying at venue and service type is PS5 or 8-ball
+    if (paymentMethod === "venue") {
+      // Don't show online payment promo if Instagram pop-up is open
+      if (showInstagramFollowDialog || showFollowConfirmation) {
+        // If Instagram pop-up is open, proceed directly with venue booking
+        await createVenueBooking();
+        return;
+      }
+      
+      const serviceType = getServiceTypeForPromo();
+      if (serviceType && onlinePaymentEnabled) {
+        setShowOnlinePaymentPromo(true);
+        return;
+      }
+      await createVenueBooking();
+    } else {
+      if (!onlinePaymentEnabled) {
+        toast.error("Online payment is unavailable. Please pay at the venue or call us.");
+        return;
+      }
+      // Don't show payment warning if Instagram pop-up is open
+      if (showInstagramFollowDialog || showFollowConfirmation) {
+        // If Instagram pop-up is open, proceed directly with online booking
+        return;
+      }
+      // Show warning modal before opening payment gateway
+      setShowPaymentWarning(true);
+    }
+  }
+
+  const handlePromoAccept = async () => {
+    setShowOnlinePaymentPromo(false);
+    if (!onlinePaymentEnabled) {
+      await createVenueBooking();
+      return;
+    }
+    setPaymentMethod("razorpay");
+    setShowPaymentWarning(true);
+  };
+
+  const handlePromoDecline = async () => {
+    setShowOnlinePaymentPromo(false);
+    // Proceed with venue booking
+    await createVenueBooking();
+  };
+
+  // Auto-close payment warning modal and proceed with payment after 3 seconds
+  useEffect(() => {
+    if (showPaymentWarning) {
+      const timer = setTimeout(async () => {
+        setShowPaymentWarning(false);
+        await initiateRazorpay();
+      }, 3000); // 3 seconds
+
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showPaymentWarning]);
+
+  function maskPhone(p?: string) {
+    if (!p) return "";
+    const s = p.replace(/\D/g, "");
+    if (s.length <= 4) return s;
+    return `${s.slice(0, 3)}${"X".repeat(Math.max(0, s.length - 5))}${s.slice(-2)}`;
+  }
+
+  async function fetchTodaysBookings() {
+    if (!publicLocationId) {
+      setTodayRows([]);
+      return;
+    }
+    setTodayLoading(true);
+    try {
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      const { data: bookingsData, error } = await supabase
+        .from("bookings")
+        .select(
+          "id, booking_date, start_time, end_time, status, station_id, customer_id"
+        )
+        .eq("booking_date", todayStr)
+        .eq("location_id", publicLocationId)
+        .order("start_time", { ascending: true });
+
+      if (error) throw error;
+      if (!bookingsData?.length) {
+        setTodayRows([]);
+        setTodayLoading(false);
+        return;
+      }
+
+      const stationIds = [...new Set(bookingsData.map((b) => b.station_id))];
+
+      // SECURITY: do not fetch customer PII for public pages.
+      const { data: stationsData } = await supabase
+        .from("stations")
+        .select("id, name")
+        .in("id", stationIds);
+
+      const rows: TodayBookingRow[] = bookingsData.map((b) => {
+        const st = stationsData?.find((s) => s.id === b.station_id);
+        return {
+          id: b.id,
+          booking_date: b.booking_date,
+          start_time: b.start_time,
+          end_time: b.end_time,
+          status: b.status as TodayBookingRow["status"],
+          station_id: b.station_id,
+          customer_id: b.customer_id,
+          stationName: st?.name || "—",
+          customerName: "—",
+          customerPhone: "",
+        };
+      });
+
+      setTodayRows(rows);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to load today's bookings");
+    } finally {
+      setTodayLoading(false);
+    }
+  }
+
+  const timeKey = (s: string, e: string) => {
+    const start = new Date(`2000-01-01T${s}`);
+    const end = new Date(`2000-01-01T${e}`);
+    return `${start.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    })} — ${end.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    })}`;
+  };
+
+  const groupedByTime = useMemo(() => {
+    const map = new Map<string, TodayBookingRow[]>();
+    todayRows.forEach((r) => {
+      const k = timeKey(r.start_time, r.end_time);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(r);
+    });
+    const entries = Array.from(map.entries()).sort(([a], [b]) => {
+      const aStart = parse(a.split(" — ")[0], "h:mm a", new Date()).getTime();
+      const bStart = parse(b.split(" — ")[0], "h:mm a", new Date()).getTime();
+      return aStart - bStart;
+    });
+    return entries;
+  }, [todayRows]);
+
+  const statusChip = (s: TodayBookingRow["status"]) => {
+    const base = "px-2 py-0.5 rounded-full text-xs capitalize";
+    switch (s) {
+      case "confirmed":
+        return (
+          <span
+            className={cn(
+              base,
+              "bg-blue-500/15 text-blue-300 border border-blue-400/20"
+            )}
+          >
+            confirmed
+          </span>
+        );
+      case "in-progress":
+        return (
+          <span
+            className={cn(
+              base,
+              "bg-amber-500/15 text-amber-300 border border-amber-400/20"
+            )}
+          >
+            in-progress
+          </span>
+        );
+      case "completed":
+        return (
+          <span
+            className={cn(
+              base,
+              "bg-emerald-500/15 text-emerald-300 border border-emerald-400/20"
+            )}
+          >
+            completed
+          </span>
+        );
+      case "cancelled":
+        return (
+          <span
+            className={cn(
+              base,
+              "bg-rose-500/15 text-rose-300 border border-rose-400/20"
+            )}
+          >
+            cancelled
+          </span>
+        );
+      case "no-show":
+        return (
+          <span
+            className={cn(
+              base,
+              "bg-zinc-500/15 text-zinc-300 border border-zinc-400/20"
+            )}
+          >
+            no-show
+          </span>
+        );
+      default:
+        return (
+          <span
+            className={cn(
+              base,
+              "bg-zinc-500/15 text-zinc-300 border border-zinc-400/20"
+            )}
+          >
+            {s}
+          </span>
+        );
+    }
+  };
+
+  const gateLoading =
+    branchLocationLoading || (!!publicLocationId && accessSettingsLoading);
+
+  if (gateLoading) {
+    return (
+      <div
+        className={`min-h-screen flex flex-col items-center justify-center p-6 ${
+          branchSlug === "lite"
+            ? "bg-gradient-to-br from-[#060d10] via-[#080e14] to-[#060d10]"
+            : "bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]"
+        }`}
+      >
+        <Loader2 className="h-10 w-10 animate-spin text-cuephoria-purple mb-4" />
+        <p className="text-gray-400 text-sm">Loading booking…</p>
+      </div>
+    );
+  }
+
+  if (!branchLocationLoading && !publicLocationId) {
+    return (
+      <div
+        className={`min-h-screen flex flex-col items-center justify-center p-6 ${
+          branchSlug === "lite"
+            ? "bg-gradient-to-br from-[#060d10] via-[#080e14] to-[#060d10]"
+            : "bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]"
+        }`}
+      >
+        <AlertTriangle className="h-12 w-12 text-amber-400 mb-4" />
+        <h1 className="text-xl font-semibold text-white mb-2">Branch unavailable</h1>
+        <p className="text-gray-400 text-center max-w-md">
+          This booking link is not valid or the branch is inactive. Please contact us for assistance.
+        </p>
+      </div>
+    );
+  }
+
+  if (publicLocationId && !publicBookingEnabled) {
+    return (
+      <div
+        className={`min-h-screen flex flex-col items-center justify-center p-6 ${
+          branchSlug === "lite"
+            ? "bg-gradient-to-br from-[#060d10] via-[#080e14] to-[#060d10]"
+            : "bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]"
+        }`}
+      >
+        <Headset className="h-14 w-14 text-cuephoria-purple mb-4 opacity-90" />
+        <h1 className="text-xl font-semibold text-white mb-3 text-center">
+          Booking service unavailable
+        </h1>
+        <p className="text-gray-300 text-center max-w-md leading-relaxed">
+          Sorry for the inconvenience. Online booking is temporarily turned off for this branch.
+          Please call us to make your reservation — our team will be happy to help.
+        </p>
+        <div className="mt-6 flex items-center gap-2 text-sm text-gray-400">
+          <Phone className="h-4 w-4" />
+          <span>Use the phone number on our website or Google listing.</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`min-h-screen relative overflow-hidden ${
+      branchSlug === "lite"
+        ? "bg-gradient-to-br from-[#060d10] via-[#080e14] to-[#060d10]"
+        : "bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]"
+    } ${customerSession ? 'pb-20' : ''}`}>
+      <div className="pointer-events-none absolute inset-0">
+        {branchSlug === "lite" ? (
+          <>
+            <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-cyan-500/15 blur-3xl" />
+            <div className="absolute top-1/3 -right-24 h-64 w-64 rounded-full bg-sky-600/10 blur-3xl" />
+            <div className="absolute bottom-10 left-1/3 h-56 w-56 rounded-full bg-cyan-400/10 blur-3xl" />
+          </>
+        ) : (
+          <>
+            <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-cuephoria-purple/20 blur-3xl" />
+            <div className="absolute top-1/3 -right-24 h-64 w-64 rounded-full bg-cuephoria-blue/20 blur-3xl" />
+            <div className="absolute bottom-10 left-1/3 h-56 w-56 rounded-full bg-cuephoria-lightpurple/20 blur-3xl" />
+          </>
+        )}
+      </div>
+
+      {!isLiteBranch && (
+      <CouponPromotionalPopup 
+        onCouponSelect={applyCoupon} 
+        blockWhenOpen={showOnlinePaymentPromo || showInstagramFollowDialog || showFollowConfirmation}
+      />
+      )}
+
+      <header className="py-10 px-4 sm:px-6 md:px-8 relative z-10">
+        <div className="max-w-7xl mx-auto">
+          {/* Back to Dashboard Button (only for logged-in customers) */}
+          {loggedInCustomer && (
+            <Button
+              variant="ghost"
+              className="mb-4 text-gray-300 hover:text-white hover:bg-white/10"
+              onClick={() => navigate('/customer/dashboard')}
+            >
+              <ArrowLeft className="mr-2" size={18} />
+              Back to Home
+            </Button>
+          )}
+          
+          <div className="flex flex-col items-center mb-8">
+            <div className="mb-6">
+              <img
+                src={branchSlug === "lite"
+                  ? "/lovable-uploads/cuephoria-lite-logo.png"
+                  : "/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"}
+                alt={branchSlug === "lite" ? "Cuephoria Lite Logo" : "Cuephoria Logo"}
+                className="h-24 drop-shadow-[0_0_25px_rgba(168,85,247,0.15)]"
+              />
+            </div>
+
+            {branchSlug === "lite" ? (
+              <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-xs tracking-widest uppercase text-cyan-300 backdrop-blur-md">
+                <MapPin className="h-3.5 w-3.5 text-cyan-400" />
+                Cuephoria Lite
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs tracking-widest uppercase text-gray-300 backdrop-blur-md">
+                <Sparkles className="h-3.5 w-3.5 text-cuephoria-lightpurple" />
+                Premium Gaming Lounge
+              </span>
+            )}
+
+            <h1 className="mt-3 text-4xl md:text-5xl font-extrabold text-white">
+              Book Your Gaming Session
+            </h1>
+            <p className="mt-2 text-lg text-gray-300/90 max-w-2xl text-center">
+              {branchSlug === "lite"
+                ? "Reserve your session at Cuephoria Lite — the compact branch experience"
+                : "Reserve PlayStation 5, Pool Table, or VR Gaming sessions at Cuephoria"}
+            </p>
+
+              <div className={`mt-3 w-full max-w-2xl rounded-2xl border px-4 py-2 text-[11px] sm:text-xs backdrop-blur-md ${
+                branchSlug === "lite"
+                  ? "border-cyan-500/20 bg-cyan-500/5 text-cyan-200/70"
+                  : "border-white/10 bg-white/5 text-gray-300"
+              }`}>
+                <div className="flex flex-col items-center justify-center gap-1 text-center sm:flex-row sm:gap-2">
+                  <span className={`font-semibold tracking-wide ${branchSlug === "lite" ? "text-cyan-100" : "text-gray-200"}`}>
+                    {branchSlug === "lite" ? "Cuephoria Lite Branch" : "Line of Business"}
+                  </span>
+                  <span className="hidden sm:inline text-white/25">•</span>
+                  <span className="leading-snug">
+                    {branchSlug === "lite"
+                      ? "Time-based gaming rentals at our Lite location"
+                      : "Amusement & Gaming Lounge Services (time-based PS5, 8-Ball & VR rentals)"}
+                  </span>
+                </div>
+              </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="px-4 sm:px-6 md:px-8 max-w-7xl mx-auto pb-14 relative z-10">
+        <section className={`mb-6 rounded-2xl border px-4 py-4 text-sm ${
+          branchSlug === "lite"
+            ? "border-cyan-500/20 bg-cyan-500/5 text-cyan-200/80"
+            : "border-white/10 bg-white/5 text-gray-300"
+        }`}>
+          <h2 className={`mb-1 text-base font-semibold ${branchSlug === "lite" ? "text-cyan-100" : "text-white"}`}>
+            About {branchSlug === "lite" ? "Cuephoria Lite" : "Cuephoria"}
+          </h2>
+          <p>
+            {branchSlug === "lite"
+              ? <>Cuephoria Lite is our <span className="font-medium">compact branch</span> — offering the same quality gaming experience in a focused environment. Book your session and enjoy premium gaming at the Lite location.</>
+              : <>Cuephoria offers <span className="font-medium">time-based rentals</span> of PlayStation 5 stations, 8-Ball pool tables, and VR Gaming stations. Book 60-minute sessions for PS5/Pool or 15-minute sessions for VR Gaming.</>
+            }
+          </p>
+          <p className={`mt-2 ${branchSlug === "lite" ? "text-cyan-300/60" : "text-gray-400"}`}>
+            <span className={`font-medium ${branchSlug === "lite" ? "text-cyan-200" : "text-gray-200"}`}>Pricing:</span> All prices are
+            displayed in <span className="ml-1 font-semibold">INR (₹)</span>.
+          </p>
+        </section>
+
+        <div className="grid lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-6">
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <div className="w-8 h-8 rounded-lg bg-cuephoria-purple/20 ring-1 ring-white/10 flex items-center justify-center">
+                    <User className="h-4 w-4 text-cuephoria-purple" />
+                  </div>
+                  Step 1: Customer Information
+                  {isCustomerInfoComplete && (
+                    <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-cuephoria-purple/10 border border-cuephoria-purple/20 rounded-xl p-3">
+                  <p className="text-sm text-cuephoria-purple/90 font-medium flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" /> Please complete customer
+                    information to proceed with booking
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <Input
+                    value={customerNumber}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const normalized = normalizePhoneNumber(value);
+                      
+                      if (normalized.length <= 10) {
+                        setCustomerNumber(normalized);
+                        // Don't reset hasSearched here - let auto-search handle it
+                        if (normalized.length < 10) {
+                          setHasSearched(false);
+                          setIsReturningCustomer(false);
+                          setCustomerInfo((prev) => ({
+                            ...prev,
+                            name: "",
+                            email: "",
+                            phone: normalized,
+                          }));
+                        }
+                      }
+                    }}
+                    placeholder="Enter 10-digit phone number (auto-searches)"
+                    className="bg-black/30 border-white/10 text-white placeholder:text-gray-400 rounded-xl flex-1"
+                    maxLength={10}
+                  />
+                  <Button
+                    onClick={searchCustomer}
+                    disabled={searchingCustomer}
+                    className="rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple"
+                  >
+                    {searchingCustomer ? "Searching..." : "Search"}
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-400 italic">
+                  💡 Phone number will be automatically searched when you enter 10 digits
+                </p>
+
+                {hasSearched && (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs font-semibold text-gray-300 uppercase">
+                        Full Name{" "}
+                        {isReturningCustomer && (
+                          <CheckCircle className="inline h-4 w-4 text-green-400 ml-1" />
+                        )}
+                      </Label>
+                      <Input
+                        value={customerInfo.name}
+                        onChange={(e) =>
+                          setCustomerInfo((prev) => ({ ...prev, name: e.target.value }))
+                        }
+                        placeholder="Enter your full name"
+                        className="mt-1 bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl"
+                        disabled={isReturningCustomer}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-semibold text-gray-300 uppercase">
+                        Email (Optional)
+                      </Label>
+                      <Input
+                        type="email"
+                        value={customerInfo.email}
+                        onChange={(e) =>
+                          setCustomerInfo((prev) => ({ ...prev, email: e.target.value }))
+                        }
+                        placeholder="Enter your email address"
+                        className="mt-1 bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl"
+                        disabled={isReturningCustomer}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {isCustomerInfoComplete && (
+                  <div className="flex items-center gap-2 text-green-400 text-sm">
+                    <CheckCircle className="h-4 w-4" /> Customer information complete!
+                    You can now select your preferred date and time.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <div className="w-8 h-8 rounded-lg bg-cuephoria-lightpurple/20 ring-1 ring-white/10 flex items-center justify-center">
+                    {!isCustomerInfoComplete ? (
+                      <Lock className="h-4 w-4 text-gray-500" />
+                    ) : (
+                      <CalendarIcon className="h-4 w-4 text-cuephoria-lightpurple" />
+                    )}
+                  </div>
+                  Step 2: Choose Date & Time
+                  {isCustomerInfoComplete && isNitEventBooking !== null && selectedSlot && (
+                    <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {!isCustomerInfoComplete ? (
+                  <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
+                    <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
+                    <p className="text-gray-400">
+                      Complete customer information to select date and time
+                    </p>
+                  </div>
+                ) : isNitEventBooking === null ? (
+                  <div className="space-y-4">
+                    <Label className="text-base font-medium text-gray-200 block text-center mb-4">
+                      Select Booking Type
+                    </Label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Button
+                        onClick={() => {
+                          setIsNitEventBooking(false);
+                          setNitEventMode(null);
+                          setSelectedSlot(null);
+                          setSelectedSlots([]);
+                          setSelectedStations([]);
+                          toast.info("📅 Regular booking mode selected.", {
+                            duration: 2000
+                          });
+                        }}
+                        className="w-full h-auto py-6 bg-gradient-to-r from-cuephoria-purple/50 to-cuephoria-lightpurple/40 border-2 border-white/15 hover:from-cuephoria-purple/60 hover:to-cuephoria-lightpurple/50 text-white font-bold text-lg shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
+                      >
+                        <div className="flex flex-col items-center gap-2">
+                          <Gamepad2 className="h-6 w-6 text-white" />
+                          <span>Regular</span>
+                          <span className="text-xs font-normal text-white/75">
+                            Standard booking flow
+                          </span>
+                        </div>
+                      </Button>
+                      {hasEnabledEventStations && (
+                        <Button
+                          onClick={() => {
+                            setIsNitEventBooking(true);
+                            setNitEventMode(null);
+                            setSelectedSlot(null);
+                            setSelectedSlots([]);
+                            setSelectedStations([]);
+                            toast.success(`🎯 ${eventName} selected! Choose VR or PS5 Gaming next.`, { duration: 2500 });
+                          }}
+                          className="w-full h-auto py-6 bg-gradient-to-r from-yellow-500/45 to-orange-500/35 border-2 border-white/15 hover:from-yellow-500/55 hover:to-orange-500/45 text-white font-bold text-lg shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
+                        >
+                          <div className="flex flex-col items-center gap-2">
+                            <CalendarIcon className="h-6 w-6 text-white" />
+                            <span>{eventName}</span>
+                            <span className="text-xs font-normal text-white/75">
+                              {eventDescription}
+                            </span>
+                          </div>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ) : isNitEventBooking === true && nitEventMode === null ? (
+                  <div className="space-y-4">
+                    <Label className="text-base font-medium text-gray-200 block text-center mb-2">
+                      {eventName}: What would you like to book?
+                    </Label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Button
+                        onClick={() => {
+                          setNitEventMode("ps5");
+                          setStationType("ps5");
+                          setSelectedSlot(null);
+                          setSelectedSlots([]);
+                          setSelectedStations([]);
+                          toast.info(`🎮 ${eventName} PS5 selected (30 min slots).`, { duration: 2000 });
+                        }}
+                        className="w-full h-auto py-6 bg-gradient-to-r from-cuephoria-purple/45 to-cuephoria-lightpurple/35 border-2 border-white/15 hover:from-cuephoria-purple/55 hover:to-cuephoria-lightpurple/45 text-white font-bold text-lg"
+                      >
+                        <div className="flex flex-col items-center gap-2">
+                          <Gamepad2 className="h-6 w-6 text-white" />
+                          <span>PS5 Gaming</span>
+                          <span className="text-xs font-normal text-white/75">30 min slots</span>
+                        </div>
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setNitEventMode("8ball");
+                          setStationType("8ball");
+                          setSelectedSlot(null);
+                          setSelectedSlots([]);
+                          setSelectedStations([]);
+                          toast.info(`🎱 ${eventName} 8-Ball selected (30 min slots).`, { duration: 2000 });
+                        }}
+                        className="w-full h-auto py-6 bg-gradient-to-r from-green-600/35 to-emerald-600/25 border-2 border-white/15 hover:from-green-600/45 hover:to-emerald-600/35 text-white font-bold text-lg"
+                      >
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="h-6 w-6 rounded-full bg-white flex items-center justify-center">
+                            <span className="text-black text-sm font-bold">8</span>
+                          </div>
+                          <span>8-Ball Pool</span>
+                          <span className="text-xs font-normal text-white/75">30 min slots</span>
+                        </div>
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setNitEventMode("vr");
+                          setStationType("vr");
+                          setSelectedSlot(null);
+                          setSelectedSlots([]);
+                          setSelectedStations([]);
+                          toast.info(`🥽 ${eventName} VR selected (15 min slots).`, { duration: 2000 });
+                        }}
+                        className="w-full h-auto py-6 bg-gradient-to-r from-blue-500/35 to-cyan-500/25 border-2 border-white/15 hover:from-blue-500/45 hover:to-cyan-500/35 text-white font-bold text-lg"
+                      >
+                        <div className="flex flex-col items-center gap-2">
+                          <Headset className="h-6 w-6 text-white" />
+                          <span>VR</span>
+                          <span className="text-xs font-normal text-white/75">15 min slots</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                      <Label className="text-base font-medium text-gray-200">
+                        Choose Date
+                      </Label>
+                      <div className="mt-2">
+                        <Calendar
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={(date) => date && setSelectedDate(date)}
+                          disabled={(date) => {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const compareDate = new Date(date);
+                            compareDate.setHours(0, 0, 0, 0);
+                            
+                            return compareDate < today;
+                          }}
+                          className={cn(
+                            "rounded-xl border bg-black/30 border-white/10 pointer-events-auto"
+                          )}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mb-3 bg-cuephoria-blue/10 border border-cuephoria-blue/20 rounded-lg p-2.5">
+                        <p className="text-xs text-cuephoria-blue flex items-center gap-2">
+                          <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span><span className="font-medium">Multiple Slot Selection:</span> Click multiple time slots to book consecutive sessions. Click again to deselect.</span>
+                        </p>
+                      </div>
+                      <Label className="text-base font-medium text-gray-200">
+                        Available Time Slots
+                      </Label>
+                      <div className="mt-2">
+                        <TimeSlotPicker
+                          slots={availableSlots}
+                          selectedSlot={selectedSlot}
+                          selectedSlots={selectedSlots}
+                          onSlotSelect={handleSlotSelect}
+                          loading={slotsLoading}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl">
+              <CardHeader className="relative pb-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg ring-1 ring-white/10 bg-gradient-to-br from-cuephoria-blue/25 to-transparent">
+                      {(!isCustomerInfoComplete || !selectedSlot) ? (
+                        <Lock className="h-4 w-4 text-gray-500" />
+                      ) : (
+                        <MapPin className="h-4 w-4 text-cuephoria-blue" />
+                      )}
+                    </div>
+                    <CardTitle className="m-0 p-0 text-white">
+                      Step 3: Select Available Stations
+                    </CardTitle>
+                  </div>
+                  {isCustomerInfoComplete && selectedSlot && selectedStations.length > 0 && (
+                    <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-300">
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      {selectedStations.length} selected
+                    </div>
+                  )}
+                </div>
+                <div className="mt-3 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+              </CardHeader>
+              <CardContent className="relative pt-3">
+                <div
+                  className={cn(
+                    "grid gap-2 sm:gap-3 mb-4",
+                    isNitEventBooking === true ? "grid-cols-4" : "grid-cols-5",
+                    (!isCustomerInfoComplete || !selectedSlot) && "pointer-events-none"
+                  )}
+                >
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setStationType("all")}
+                    className={cn(
+                      "h-9 rounded-full border-white/15 text-[12px]",
+                      stationType === "all"
+                        ? "bg-white/12 text-gray-100"
+                        : "bg-transparent text-gray-300"
+                    )}
+                  >
+                    All
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setStationType("ps5")}
+                    className={cn(
+                      "h-9 rounded-full border-white/15 text-[12px]",
+                      stationType === "ps5"
+                        ? "bg-cuephoria-purple/15 text-cuephoria-purple"
+                        : "bg-transparent text-cuephoria-purple"
+                    )}
+                  >
+                    PS5
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setStationType("8ball")}
+                    className={cn(
+                      "h-9 rounded-full border-white/15 text-[12px]",
+                      stationType === "8ball"
+                        ? "bg-emerald-400/15 text-emerald-300"
+                        : "bg-transparent text-emerald-300"
+                    )}
+                  >
+                    8-Ball
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setStationType("vr")}
+                    className={cn(
+                      "h-9 rounded-full border-white/15 text-[12px]",
+                      stationType === "vr"
+                        ? "bg-blue-400/15 text-blue-300"
+                        : "bg-transparent text-blue-300"
+                    )}
+                  >
+                    VR
+                  </Button>
+                  {isNitEventBooking !== true && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setStationType("nit_event")}
+                      className={cn(
+                        "h-9 rounded-full border-white/15 text-[12px]",
+                        stationType === "nit_event"
+                          ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
+                          : "bg-transparent text-yellow-400"
+                      )}
+                    >
+                      {eventName}
+                    </Button>
+                  )}
+                  {isNitEventBooking === true && (
+                    <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[12px]">
+                      <CalendarIcon className="h-3.5 w-3.5" />
+                      {eventName}
+                    </div>
+                  )}
+                </div>
+
+                {(!isCustomerInfoComplete || !selectedSlot) ? (
+                  <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
+                    <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
+                    <p className="text-gray-400">
+                      Select date and time first to see available stations
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-white/10 p-3 sm:p-4 bg-white/6">
+                    {checkingStationAvailability ? (
+                      <div className="text-center py-8 text-gray-400">
+                        <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin" />
+                        <p>Checking station availability...</p>
+                      </div>
+                    ) : availableStationIds.length === 0 && (selectedSlot || selectedSlots.length > 0) ? (
+                      <div className="text-center py-8 text-gray-400">
+                        <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-yellow-500" />
+                        <p>No stations available for the selected time slot</p>
+                        <p className="text-sm mt-2">Please select a different time</p>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Filter by booking type (EVENT vs Regular), then by type/category, then by availability */}
+                        <StationSelector
+                          stations={(
+                            isNitEventBooking === true
+                              ? stationType === "all"
+                                ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled) // ✅ All EVENT stations (NO restrictions - includes 8-Ball!)
+                                : stations.filter((s) => s.category === 'nit_event' && s.event_enabled && s.type === stationType) // ✅ EVENT stations by type (includes 8-Ball!)
+                              : stationType === "all"
+                              ? stations.filter(s => (!s.category || s.category !== 'nit_event')) // All regular stations
+                              : stationType === "nit_event"
+                              ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled) // ✅ EVENT stations only (includes 8-Ball!)
+                              : stations.filter((s) => s.type === stationType && (!s.category || s.category !== 'nit_event')) // Regular stations by type
+                          ).filter(s => 
+                            // Show only stations that are available for the selected time
+                            availableStationIds.includes(s.id)
+                          )}
+                          selectedStations={selectedStations}
+                          onStationToggle={handleStationToggle}
+                        />
+                      </>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="lg:col-span-1">
+            <Card className="sticky top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl">
+              <CardHeader>
+                <CardTitle className="text-white">Booking Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {selectedStations.length > 0 && (
+                  <div>
+                    <Label className="text-xs font-semibold text-gray-400 uppercase">
+                      Selected Stations
+                    </Label>
+                    <div className="mt-2 space-y-1">
+                      {selectedStations.map((id) => {
+                        const s = stations.find((x) => x.id === id);
+                        if (!s) return null;
+                        return (
+                          <div key={id} className="flex items-center gap-2">
+                            <div className={cn(
+                              "w-5 h-5 rounded-md border flex items-center justify-center",
+                              s.category === 'nit_event'
+                                ? "bg-yellow-500/20 border-yellow-500/30"
+                                : "bg-cuephoria-purple/20 border-white/10"
+                            )}>
+                              {s.type === "ps5" ? (
+                                <Gamepad2 className={cn(
+                                  "h-3.5 w-3.5",
+                                  s.category === 'nit_event' ? "text-yellow-400" : "text-cuephoria-purple"
+                                )} />
+                              ) : s.type === "vr" ? (
+                                <Headset className={cn(
+                                  "h-3.5 w-3.5",
+                                  s.category === 'nit_event' ? "text-yellow-400" : "text-blue-400"
+                                )} />
+                              ) : (
+                                <Timer className={cn(
+                                  "h-3.5 w-3.5",
+                                  s.category === 'nit_event' ? "text-yellow-400" : "text-green-400"
+                                )} />
+                              )}
+                            </div>
+                            <Badge className={cn(
+                              "rounded-full px-2.5 py-1",
+                              s.category === 'nit_event' 
+                                ? "bg-yellow-500/20 border-yellow-500/30 text-yellow-300" 
+                                : "bg-white/5 border-white/10 text-gray-200"
+                            )}>
+                              {s.name}
+                              {s.category === 'nit_event' && (
+                                <span className="ml-1 text-[10px]">🎯</span>
+                              )}
+                            </Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {selectedDate && (
+                  <div>
+                    <Label className="text-xs font-semibold text-gray-400 uppercase">
+                      Date
+                    </Label>
+                    <p className="mt-1 text-sm text-gray-200">
+                      {format(selectedDate, "EEEE, MMMM d, yyyy")}
+                    </p>
+                  </div>
+                )}
+
+                {(selectedSlot || selectedSlots.length > 0) && (
+                  <div>
+                    <Label className="text-xs font-semibold text-gray-400 uppercase">
+                      Session Duration & Time
+                    </Label>
+                    <p className="mt-1 text-sm text-gray-200">
+                      {selectedStations.some(id => stations.find(s => s.id === id && s.type === 'vr')) 
+                        ? '15 minutes' : '60 minutes'}
+                    </p>
+                    {selectedSlots.length > 0 ? (
+                      <div className="mt-2 space-y-1">
+                        {selectedSlots.map((slot, idx) => (
+                          <p key={idx} className="text-sm text-gray-200">
+                            {new Date(`2000-01-01T${slot.start_time}`).toLocaleTimeString(
+                              "en-US",
+                              { hour: "numeric", minute: "2-digit", hour12: true }
+                            )}{" "}
+                            —{" "}
+                            {new Date(`2000-01-01T${slot.end_time}`).toLocaleTimeString(
+                              "en-US",
+                              { hour: "numeric", minute: "2-digit", hour12: true }
+                            )}
+                          </p>
+                        ))}
+                        <p className="text-xs text-cuephoria-lightpurple mt-1">
+                          {selectedSlots.length} slot{selectedSlots.length !== 1 ? 's' : ''} selected
+                        </p>
+                      </div>
+                    ) : selectedSlot ? (
+                      <p className="text-sm text-gray-200">
+                        {new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString(
+                          "en-US",
+                          { hour: "numeric", minute: "2-digit", hour12: true }
+                        )}{" "}
+                        —{" "}
+                        {new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString(
+                          "en-US",
+                          { hour: "numeric", minute: "2-digit", hour12: true }
+                        )}
+                      </p>
+                    ) : null}
+                  </div>
+                )}
+
+                {isNitEventBooking !== true && (
+                  <div>
+                    <Label className="text-xs font-semibold text-gray-400 uppercase">
+                      Coupon Code
+                    </Label>
+                    <div className="flex gap-2 mt-1">
+                      <Input
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        placeholder="Enter coupon code"
+                        className="bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl flex-1"
+                      />
+                      <Button
+                        onClick={handleCouponApply}
+                        size="sm"
+                        className="rounded-xl bg-green-600 hover:bg-green-700"
+                      >
+                        Apply
+                      </Button>
+                    </div>
+                    <p className="mt-1 text-[11px] text-gray-400">
+                      All discounts and totals are calculated in INR (₹).
+                    </p>
+                    
+                    {/* Coupon Rules - Redesigned with Apply Buttons and Expandable */}
+                    <div className="mt-3 space-y-2">
+                      <Label className="text-xs font-semibold text-gray-400 uppercase mb-2 block">
+                        📝 Available Coupons
+                      </Label>
+                      
+                      <div className="space-y-2.5">
+                      {bookingCouponsFromDB.length > 0 ? (
+                        bookingCouponsFromDB.map((coupon) => (
+                          <div
+                            key={coupon.code}
+                            className="rounded-lg bg-gray-800/30 border border-gray-700/50 overflow-hidden"
+                          >
+                            <div
+                              className="p-2 cursor-pointer flex items-center justify-between gap-2"
+                              onClick={() =>
+                                setExpandedCoupons((prev) => ({
+                                  ...prev,
+                                  [coupon.code]: !prev[coupon.code],
+                                }))
+                              }
+                            >
+                              <div className="flex items-start gap-2 flex-1 min-w-0">
+                                <span className="text-sm flex-shrink-0">{couponRowEmoji(coupon.code)}</span>
+                                <div className="flex-1 min-w-0">
+                                  <span className="font-semibold text-gray-200 text-xs font-mono">
+                                    {coupon.code}
+                                  </span>
+                                  {!expandedCoupons[coupon.code] && (
+                                    <span className="text-xs text-gray-400 ml-1.5">
+                                      • {coupon.description}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <Button
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    applyCoupon(coupon.code);
+                                  }}
+                                  className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-7"
+                                >
+                                  Apply
+                                </Button>
+                                {expandedCoupons[coupon.code] ? (
+                                  <ChevronUp className="h-4 w-4 text-gray-400" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4 text-gray-400" />
+                                )}
+                              </div>
+                            </div>
+                            {expandedCoupons[coupon.code] && (
+                              <div className="px-2 pb-2 pt-0 border-t border-gray-700/50">
+                                <p className="text-xs text-gray-400 mt-2">{coupon.description}</p>
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                  {coupon.discount_type === "percentage"
+                                    ? `${coupon.discount_value}% off the booking total`
+                                    : `${INR(coupon.discount_value)} off the booking total`}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-gray-500 italic py-2">
+                          No coupons available for this branch.
+                        </p>
+                      )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                  {isNitEventBooking !== true && Object.entries(appliedCoupons).length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <Label className="text-xs font-semibold text-gray-400 uppercase mb-1 block">
+                        ✅ Applied Coupons
+                      </Label>
+                      {Object.entries(appliedCoupons).map(([key, val]) => {
+                        let emoji = "🏷️";
+                        if (val === "HH99") emoji = "⏰";
+                        else if (val === "NIT35") emoji = "🎓";
+                        else if (val === "CUEPHORIA20") emoji = "🎉";
+                        else if (val === "CUEPHORIA35") emoji = "📚";
+                        else if (val === "AAVEG50") emoji = "🏫";
+                        return (
+                          <div
+                            key={key}
+                            className="flex items-center justify-between px-3 py-2.5 rounded-lg shadow-md font-semibold bg-gradient-to-r from-purple-900/60 to-indigo-900/60 border border-purple-400/50"
+                          >
+                            <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+                              <span className="text-lg flex-shrink-0">{emoji}</span>
+                              <span className="font-extrabold uppercase tracking-wider text-purple-200 flex-shrink-0">
+                                {val}
+                              </span>
+                              <span className="ml-1.5 text-xs font-bold px-1.5 py-0.5 rounded text-green-400">
+                                ✓ Applied
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => removeCoupon(key)}
+                              aria-label="Remove coupon"
+                              className="ml-2 p-1.5 hover:bg-black/20 rounded-full transition-colors flex-shrink-0 hover:bg-purple-500/20"
+                            >
+                              <X className="h-4 w-4 text-purple-200" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                {onlinePaymentEnabled && isNitEventBooking !== true && (
+                  <div className="mt-3 rounded-xl border border-[#3395FF]/20 bg-[#3395FF]/10 px-3 py-2.5 text-xs text-sky-100/95 leading-relaxed">
+                    <span className="font-semibold text-white">Book online on this page</span>
+                    {" "}for instant confirmation, secure Razorpay checkout, and the ability to use coupons.
+                  </div>
+                )}
+
+                <div className="mt-2">
+                  <Label className="text-xs font-semibold text-gray-400 uppercase">
+                    Payment Method
+                  </Label>
+                  {hasAppliedCoupons && onlinePaymentEnabled && (
+                    <div className="mt-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-100/95">
+                      A coupon is applied —{" "}
+                      <span className="font-semibold text-white">Pay Online</span> is required to confirm this discounted booking.
+                    </div>
+                  )}
+                  {!onlinePaymentEnabled ? (
+                    <div className="mt-2 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-3 text-sm text-amber-100/95">
+                      <p className="font-medium">Online payment is temporarily unavailable</p>
+                      <p className="text-xs text-amber-200/80 mt-1">
+                        Please choose <span className="font-semibold">Pay at Venue</span> below, or call us to complete your booking.
+                      </p>
+                    </div>
+                  ) : null}
+                  <div
+                    className={cn(
+                      "mt-2 gap-2",
+                      onlinePaymentEnabled ? "grid grid-cols-1 sm:grid-cols-2" : "grid grid-cols-1"
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (hasAppliedCoupons && onlinePaymentEnabled) {
+                          toast.info("Coupons require online payment. Remove the coupon first if you need to pay at the venue.");
+                          return;
+                        }
+                        setPaymentMethod("venue");
+                      }}
+                      disabled={hasAppliedCoupons && onlinePaymentEnabled}
+                      className={cn(
+                        "w-full rounded-xl px-3 py-2.5 text-sm border transition-all",
+                        "h-12 flex items-center justify-center text-center leading-tight",
+                        paymentMethod === "venue"
+                          ? "bg-white/10 border-white/20 text-white"
+                          : "bg-black/20 border-white/10 text-gray-300 hover:bg-black/30",
+                        hasAppliedCoupons && onlinePaymentEnabled && "opacity-45 cursor-not-allowed hover:bg-black/20"
+                      )}
+                    >
+                      Pay at Venue
+                    </button>
+                    {onlinePaymentEnabled ? (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod("razorpay")}
+                      className={cn(
+                        "w-full rounded-xl px-3 py-3 text-sm border transition-all relative",
+                        "h-12 flex items-center justify-center text-center leading-tight overflow-hidden",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3395FF]/60",
+                        "gh-pay-online-cta",
+                        paymentMethod === "razorpay"
+                          ? "bg-gradient-to-r from-[#3395FF] to-[#2563EB] border-[#3395FF]/55 text-white shadow-lg shadow-[#3395FF]/20"
+                          : "bg-black/20 border-white/10 text-gray-200 hover:bg-black/30 hover:border-[#3395FF]/35"
+                      )}
+                    >
+                      <div className="flex items-center justify-center gap-2 relative z-10">
+                        {paymentMethod === "razorpay" ? (
+                          <Shield className="h-4 w-4 flex-shrink-0" />
+                        ) : (
+                          <CreditCard className="h-4 w-4 flex-shrink-0" />
+                        )}
+                        <span className="font-semibold">Pay Online</span>
+                      </div>
+                      {paymentMethod === "razorpay" && (
+                        <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-gradient-to-r from-white/10 to-transparent opacity-50"></div>
+                      )}
+                    </button>
+                    ) : null}
+                  </div>
+                </div>
+
+                {originalPrice > 0 && (
+                  <>
+                    <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                    <div className="space-y-2">
+                      {(() => {
+                        const slotsCount = selectedSlots.length > 0 ? selectedSlots.length : (selectedSlot ? 1 : 0);
+                        const totalOriginal = originalPrice * slotsCount;
+                        const totalDiscount = discount * slotsCount;
+                        const totalFinal = finalPrice * slotsCount;
+                        
+                        return (
+                          <>
+                            <div className="flex justify-between items-center">
+                              <Label className="text-sm text-gray-300">Price per slot</Label>
+                              <span className="text-sm text-gray-200">
+                                {INR(originalPrice)}
+                              </span>
+                            </div>
+                            {slotsCount > 1 && (
+                              <div className="flex justify-between items-center text-xs text-gray-400">
+                                <Label>× {slotsCount} slot{slotsCount !== 1 ? 's' : ''}</Label>
+                                <span>{INR(totalOriginal)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between items-center">
+                              <Label className="text-sm text-gray-300">Subtotal</Label>
+                              <span className="text-sm text-gray-200">
+                                {INR(totalOriginal)}
+                              </span>
+                            </div>
+                          </>
+                        );
+                      })()}
+
+                      {(() => {
+                        const slotsCount = selectedSlots.length > 0 ? selectedSlots.length : (selectedSlot ? 1 : 0);
+                        const totalOriginal = originalPrice * slotsCount;
+                        const totalDiscount = discount * slotsCount;
+                        const totalFinal = finalPrice * slotsCount;
+                        
+                        return (
+                          <>
+                            {discount > 0 && (
+                              <>
+                                <div className="border p-2 rounded bg-black/10 text-green-400">
+                                  <Label className="font-semibold text-xs uppercase">
+                                    Discount Breakdown (per slot)
+                                  </Label>
+                                  <ul className="list-disc ml-5 mt-1 text-sm">
+                                    {Object.entries(discountBreakdown).map(([k, v]) => (
+                                      <li key={k}>
+                                        {k}: -{INR(v)}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                                {slotsCount > 1 && (
+                                  <div className="flex justify-between items-center text-xs text-gray-400">
+                                    <Label>× {slotsCount} slot{slotsCount !== 1 ? 's' : ''}</Label>
+                                    <span>-{INR(totalDiscount)}</span>
+                                  </div>
+                                )}
+                                <div className="flex justify-between items-center">
+                                  <Label className="text-sm text-green-400">
+                                    Total Discount
+                                  </Label>
+                                  <span className="text-sm text-green-400">-{INR(totalDiscount)}</span>
+                                </div>
+                              </>
+                            )}
+
+                            <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+                            <div className="flex justify-between items-center">
+                              <Label className="text-base font-semibold text-gray-100">
+                                Total Amount
+                              </Label>
+                              <span className="text-xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">
+                                {INR(totalFinal)}
+                              </span>
+                            </div>
+
+                            {paymentMethod === "razorpay" && (
+                              <>
+                                <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                                <div className="space-y-2">
+                                  <div className="flex justify-between items-center text-sm">
+                                    <div className="flex flex-col">
+                                      <Label className="text-gray-300">
+                                        Online Payment Transaction Fee
+                                      </Label>
+                                      <span className="text-xs text-gray-400 mt-0.5">
+                                        (2.5%) — Razorpay gateway processing
+                                      </span>
+                                    </div>
+                                    <span className="text-sm text-gray-200 font-medium">
+                                      +{INR(Math.round((totalFinal * 0.025) * 100) / 100)}
+                                    </span>
+                                  </div>
+                                  <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg p-2.5">
+                                    <p className="text-xs text-blue-300/90 leading-relaxed">
+                                      Paying online confirms your slot immediately and supports cards, UPI, and net banking. The fee covers secure processing through Razorpay.
+                                    </p>
+                                  </div>
+                                  <div className="flex justify-between items-center pt-1 border-t border-white/10">
+                                    <Label className="text-base font-semibold text-gray-100">
+                                      Amount to Pay
+                                    </Label>
+                                    <span className="text-xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+                                      {INR(Math.round((totalFinal + (totalFinal * 0.025)) * 100) / 100)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </>
+                )}
+
+                <Button
+                  onClick={handleConfirm}
+                  disabled={
+                    (selectedSlots.length === 0 && !selectedSlot) || selectedStations.length === 0 || !customerNumber || loading
+                  }
+                  className={cn(
+                    "w-full rounded-xl relative overflow-hidden transition-all",
+                    paymentMethod === "razorpay"
+                      ? "bg-gradient-to-r from-[#3395FF] to-[#2563EB] hover:from-[#2B85E6] hover:to-[#1E50D9] shadow-lg shadow-[#3395FF]/30 border border-[#3395FF]/30"
+                      : "bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple"
+                  )}
+                  size="lg"
+                >
+                  <div className="inline-flex items-center justify-center gap-2 relative z-10">
+                    {paymentMethod === "razorpay" && !loading && (
+                      <Shield className="h-4 w-4 flex-shrink-0" />
+                    )}
+                    <span className="font-semibold">
+                      {loading
+                        ? paymentMethod === "razorpay"
+                          ? "Starting Payment..."
+                          : "Creating Booking..."
+                        : paymentMethod === "razorpay"
+                        ? "Pay Online"
+                        : "Confirm Booking"}
+                    </span>
+                  </div>
+                  {paymentMethod === "razorpay" && (
+                    <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-gradient-to-r from-white/10 via-white/5 to-transparent opacity-60"></div>
+                  )}
+                </Button>
+
+                <div className="text-center space-y-2">
+                  <p className="text-xs text-gray-400">
+                    All prices are shown in <span className="font-semibold">INR (₹)</span>.{" "}
+                    {paymentMethod === "razorpay"
+                      ? "You will complete payment securely via Razorpay."
+                      : "Payment will be collected at the venue."}
+                  </p>
+                  {paymentMethod === "razorpay" && (
+                    <div className="flex items-center justify-center gap-4 pt-2 border-t border-white/5">
+                      <div className="flex items-center gap-1.5 text-[9px] text-[#3395FF]/70">
+                        <Shield className="h-3 w-3" />
+                        <span>Secured by Razorpay</span>
+                      </div>
+                      <div className="h-3 w-px bg-white/10"></div>
+                      <div className="flex items-center gap-1.5 text-[9px] text-gray-500">
+                        <Lock className="h-3 w-3" />
+                        <span>100% Secure Payment</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        <section className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <h3 className="text-white font-semibold mb-2">
+              Terms & Conditions (Summary)
+            </h3>
+            <ul className="ml-5 list-disc text-sm text-gray-300 space-y-1.5">
+              <li>Bookings are for specified time slots (60 min for PS5/Pool, 15 min for VR); extensions subject to availability.</li>
+              <li>Arrive on time; late arrivals may reduce play time without fee adjustment.</li>
+              <li>Damage to equipment may incur charges as per in-store policy.</li>
+              <li>Management may refuse service in cases of misconduct or safety concerns.</li>
+              <li>All prices are in <strong>INR (₹)</strong>.</li>
+            </ul>
+            <button
+              onClick={() => {
+                setLegalDialogType("terms");
+                setShowLegalDialog(true);
+              }}
+              className="mt-3 text-sm text-cuephoria-lightpurple hover:underline"
+            >
+              View full Terms & Conditions
+            </button>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <h3 className="text-white font-semibold mb-2">Privacy Policy (Summary)</h3>
+            <ul className="ml-5 list-disc text-sm text-gray-300 space-y-1.5">
+              <li>We collect minimal personal data (name, phone, optional email).</li>
+              <li>Data is stored securely and used only for bookings/updates.</li>
+              <li>No selling of data; limited sharing only to fulfill your booking.</li>
+              <li>Contact us to correct or delete your data.</li>
+            </ul>
+            <button
+              onClick={() => {
+                setLegalDialogType("privacy");
+                setShowLegalDialog(true);
+              }}
+              className="mt-3 text-sm text-cuephoria-lightpurple hover:underline"
+            >
+              View full Privacy Policy
+            </button>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <h3 className="text-white font-semibold mb-2">Shipping & Delivery (Summary)</h3>
+            <ul className="ml-5 list-disc text-sm text-gray-300 space-y-1.5">
+              <li>All services are delivered on-site at our physical location.</li>
+              <li>We do not ship physical products or equipment to addresses.</li>
+              <li>Bookings are confirmed immediately upon successful payment.</li>
+              <li>You must arrive at our premises to access your booked services.</li>
+              <li>Equipment is available on-site only during your scheduled time slot.</li>
+            </ul>
+            <button
+              onClick={() => {
+                setLegalDialogType("shipping");
+                setShowLegalDialog(true);
+              }}
+              className="mt-3 text-sm text-cuephoria-lightpurple hover:underline"
+            >
+              View full Shipping & Delivery Policy
+            </button>
+          </div>
+        </section>
+
+        <div className="mt-10">
+          <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
+            <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-white flex items-center gap-2 min-w-0">
+                <Clock className="h-5 w-5 text-cuephoria-lightpurple" />
+                <span className="truncate">Today's Bookings</span>
+              </CardTitle>
+              <span className="text-xs text-gray-300 rounded-full border border-white/10 px-2 py-0.5">
+                {todayRows.length} total
+              </span>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {todayLoading ? (
+                <div className="h-12 rounded-md bg-white/5 animate-pulse" />
+              ) : groupedByTime.length === 0 ? (
+                <div className="text-sm text-gray-400">No bookings today.</div>
+              ) : (
+                groupedByTime.map(([timeLabel, rows]) => (
+                  <details
+                    key={timeLabel}
+                    className="group rounded-xl border border-white/10 bg-black/30 open:bg-black/40 overflow-hidden"
+                  >
+                    <summary className="list-none cursor-pointer select-none px-3 sm:px-4 py-3 sm:py-3.5 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-gray-200 min-w-0">
+                        <Clock className="h-4 w-4 text-cuephoria-lightpurple" />
+                        <span className="font-medium truncate">{timeLabel}</span>
+                      </div>
+                      <span className="text-xs text-gray-300 rounded-full border border-white/10 px-2 py-0.5 flex-shrink-0">
+                        {rows.length} booking{rows.length !== 1 ? "s" : ""}
+                      </span>
+                    </summary>
+                    <div className="px-3 sm:px-4 pb-3 sm:pb-4 overflow-x-auto">
+                      <table className="min-w-[520px] w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-400">
+                            <th className="py-2 pr-3 font-medium">Customer</th>
+                            <th className="py-2 pr-3 font-medium">Station</th>
+                            <th className="py-2 font-medium">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((r) => (
+                            <tr key={r.id} className="border-t border-white/10">
+                              <td className="py-2 pr-3">
+                                <div className="text-gray-100">{r.customerName}</div>
+                                <div className="text-xs text-gray-400">{r.customerPhone}</div>
+                              </td>
+                              <td className="py-2 pr-3">
+                                <Badge className="bg-white/5 border-white/10 text-gray-200 rounded-full">
+                                  {r.stationName}
+                                </Badge>
+                              </td>
+                              <td className="py-2">{statusChip(r.status)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+
+      <footer className="py-10 px-4 sm:px-6 md:px-8 border-t border-white/10 backdrop-blur-md bg-black/30 relative z-10">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <div className="flex items-center mb-4 md:mb-0">
+              <img
+                src={branchSlug === "lite"
+                  ? "/lovable-uploads/cuephoria-lite-logo.png"
+                  : "/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"}
+                alt={branchSlug === "lite" ? "Cuephoria Lite Logo" : "Cuephoria Logo"}
+                className="h-8 mr-3"
+              />
+              <p className="text-gray-400 text-sm">
+                © {new Date().getFullYear()} {branchSlug === "lite" ? "Cuephoria Lite" : "Cuephoria"}. All rights reserved.
+              </p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center text-gray-400 text-sm">
+                <Clock className="h-4 w-4 text-gray-400 mr-1.5" />
+                <span>Book anytime, anywhere</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+            <div className="flex flex-wrap justify-center md:justify-start gap-6">
+              <button
+                onClick={() => {
+                  setLegalDialogType("terms");
+                  setShowLegalDialog(true);
+                }}
+                className="text-gray-400 hover:text-white hover:underline text-sm flex items-center gap-1 transition"
+              >
+                Terms & Conditions
+              </button>
+              <button
+                onClick={() => {
+                  setLegalDialogType("privacy");
+                  setShowLegalDialog(true);
+                }}
+                className="text-gray-400 hover:text-white hover:underline text-sm flex items-center gap-1 transition"
+              >
+                Privacy Policy
+              </button>
+              <button
+                onClick={() => {
+                  setLegalDialogType("contact");
+                  setShowLegalDialog(true);
+                }}
+                className="text-gray-400 hover:text-white hover:underline text-sm flex items-center gap-1 transition"
+              >
+                Contact Us
+              </button>
+              <button
+                onClick={() => setShowRefundDialog(true)}
+                className="text-gray-400 hover:text-white hover:underline text-sm flex items-center gap-1 transition"
+              >
+                Refund Policy
+              </button>
+              <button
+                onClick={() => {
+                  setLegalDialogType("shipping");
+                  setShowLegalDialog(true);
+                }}
+                className="text-gray-400 hover:text-white hover:underline text-sm flex items-center gap-1 transition"
+              >
+                Shipping & Delivery
+              </button>
+            </div>
+
+            <div className="flex flex-col md:flex-row items-center gap-4 text-sm text-gray-400">
+              <div className="flex items-center gap-1">
+                <Phone className="h-4 w-4" />
+                <a href="tel:918637625155" className="hover:text-white transition-colors">
+                  +91 86376 25155
+                </a>
+              </div>
+              <div className="flex items-center gap-1">
+                <Mail className="h-4 w-4" />
+                <a href="mailto:contact@cuephoria.in" className="hover:text-white transition-colors">
+                  contact@cuephoria.in
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </footer>
+
+      {bookingConfirmationData && (
+        <BookingConfirmationDialog 
+          isOpen={showConfirmationDialog}
+          onClose={() => setShowConfirmationDialog(false)}
+          bookingData={bookingConfirmationData}
+        />
+      )}
+
+      {!isLiteBranch && (
+      <OnlinePaymentPromoDialog
+        isOpen={showOnlinePaymentPromo}
+        onClose={() => setShowOnlinePaymentPromo(false)}
+        onAccept={handlePromoAccept}
+        onDecline={handlePromoDecline}
+        serviceType={getServiceTypeForPromo()}
+      />
+      )}
+
+      {/* Instagram Follow Dialog for New Customers */}
+      {!isLiteBranch && (
+      <Dialog open={showInstagramFollowDialog} onOpenChange={setShowInstagramFollowDialog}>
+        <DialogContent className="sm:max-w-md bg-gradient-to-br from-pink-900/95 via-purple-900/95 to-indigo-900/95 border-2 border-pink-400/50 text-white"
+        style={{
+          position: 'fixed',
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 9999,
+          margin: 0
+        }}>
+          <DialogHeader>
+            <DialogTitle className="text-xl sm:text-2xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400">
+              ✨ Follow Us on Instagram ✨
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="text-center space-y-3">
+              <p className="text-sm sm:text-base text-gray-200">
+                To apply the <span className="font-bold text-pink-300">{pendingCoupon?.code || "coupon"}</span> coupon, please follow our Instagram profile first!
+              </p>
+              <div className="flex items-center justify-center gap-2 p-3 bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-indigo-500/20 rounded-lg border border-pink-400/30">
+                <Instagram className="h-5 w-5 text-pink-400" />
+                <a 
+                  href="https://www.instagram.com/cuephoriaclub/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  onClick={() => setInstagramLinkClicked(true)}
+                  className="text-base sm:text-lg font-bold text-pink-300 hover:text-pink-200 transition-colors underline flex items-center gap-2"
+                >
+                  @cuephoriaclub
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </div>
+              {instagramLinkClicked && (
+                <div className="mt-3 p-3 bg-green-500/20 border border-green-400/50 rounded-lg">
+                  <p className="text-sm text-green-300 flex items-center gap-2 justify-center">
+                    <CheckCircle className="h-4 w-4" />
+                    Link opened! Please follow us and come back.
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <Button
+                onClick={() => {
+                  if (instagramLinkClicked) {
+                    setShowFollowConfirmation(true);
+                  } else {
+                    toast.error("Please click the Instagram link first!");
+                  }
+                }}
+                className="flex-1 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-bold"
+                disabled={!instagramLinkClicked}
+              >
+                {instagramLinkClicked ? "Yes, I've Followed - Apply Coupon" : "Click Instagram Link First"}
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowInstagramFollowDialog(false);
+                  setInstagramLinkClicked(false);
+                }}
+                variant="outline"
+                className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      )}
+
+      {/* Follow Confirmation Dialog */}
+      {!isLiteBranch && (
+      <Dialog open={showFollowConfirmation} onOpenChange={setShowFollowConfirmation}>
+        <DialogContent className="sm:max-w-md bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12] border-white/10 text-white"
+        style={{
+          position: 'fixed',
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 9999,
+          margin: 0
+        }}>
+          <DialogHeader>
+            <DialogTitle className="text-lg sm:text-xl font-bold text-center">
+              Have you followed us on Instagram?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-gray-300 text-center">
+              Please confirm that you have followed <span className="font-bold text-pink-300">@cuephoriaclub</span> on Instagram to proceed with applying the {pendingCoupon?.code || "coupon"} coupon.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                onClick={() => {
+                  if (pendingCoupon) {
+                    if (pendingCoupon.type === "all") {
+                      setAppliedCoupons({ all: pendingCoupon.code });
+                    } else if (pendingCoupon.stationTypes) {
+                      setAppliedCoupons((prev) => {
+                        let updated = { ...prev };
+                        if (pendingCoupon.stationTypes?.ps5) updated["ps5"] = pendingCoupon.stationTypes.ps5;
+                        if (pendingCoupon.stationTypes?.["8ball"]) updated["8ball"] = pendingCoupon.stationTypes["8ball"];
+                        if (pendingCoupon.stationTypes?.vr) updated["vr"] = pendingCoupon.stationTypes.vr;
+                        return updated;
+                      });
+                    }
+                    
+                    // Show success message based on coupon
+                    let successMsg = "";
+                    if (pendingCoupon.code === "CUEPHORIA35") {
+                      successMsg = "📚 CUEPHORIA35 applied: 35% OFF for students with valid ID!\nShow your student ID when you visit! 🤝";
+                    } else if (pendingCoupon.code === "CUEPHORIA20") {
+                      successMsg = "🎉 CUEPHORIA20 applied: 20% OFF! Book more, play more! 🕹️";
+                    } else if (pendingCoupon.code === "NIT35") {
+                      const types = [];
+                      if (pendingCoupon.stationTypes?.ps5) types.push("PS5");
+                      if (pendingCoupon.stationTypes?.["8ball"]) types.push("8-Ball");
+                      if (pendingCoupon.stationTypes?.vr) types.push("VR");
+                      successMsg = `🎓 NIT35 applied! 35% OFF for ${types.join(" & ")} stations!`;
+                    } else {
+                      successMsg = `🎉 ${pendingCoupon.code} applied!`;
+                    }
+                    toast.success(successMsg);
+                  }
+                  setShowInstagramFollowDialog(false);
+                  setShowFollowConfirmation(false);
+                  setInstagramLinkClicked(false);
+                  setPendingCoupon(null);
+                }}
+                className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold"
+              >
+                Yes, I've Followed
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowFollowConfirmation(false);
+                }}
+                variant="outline"
+                className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
+              >
+                Not Yet
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      )}
+
+
+      {/* Payment Warning Modal */}
+      <Dialog open={showPaymentWarning} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12] border-white/10 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3 text-xl">
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-yellow-500/20 animate-ping"></div>
+                <AlertTriangle className="h-6 w-6 text-yellow-400 relative z-10" />
+              </div>
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-orange-400">
+                Important: Don't Close or Refresh
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-500/40 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 space-y-2">
+                  <p className="text-sm font-semibold text-yellow-300">
+                    ⚠️ Please Keep This Window Open
+                  </p>
+                  <p className="text-xs text-yellow-200/90 leading-relaxed">
+                    Your booking will be created automatically after successful payment. 
+                    <strong className="text-yellow-300"> Do not close or refresh this browser window</strong> until you receive the booking confirmation.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg p-3">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="h-4 w-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-300/90 leading-relaxed">
+                  The payment gateway will open in a moment. After completing payment, you'll be redirected back here to see your booking confirmation.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <Loader2 className="h-4 w-4 text-cuephoria-lightpurple animate-spin" />
+              <span className="text-xs text-gray-400">
+                Opening payment gateway...
+              </span>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <LegalDialog 
+        isOpen={showLegalDialog}
+        onClose={() => setShowLegalDialog(false)}
+        type={legalDialogType}
+      />
+
+      {showRefundDialog && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4">
+          <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0c0c13] p-5 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">Refund & Cancellation Policy</h3>
+              <button
+                aria-label="Close refund policy"
+                onClick={() => setShowRefundDialog(false)}
+                className="rounded-md p-1 text-gray-400 hover:bg-white/10 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="prose prose-invert max-w-none text-sm text-gray-300">
+              <p className="text-gray-400">
+                This policy outlines how a booking for a gaming service made through the Platform can be canceled or refunded.
+              </p>
+              
+              <h4 className="mt-4 text-white">Cancellations</h4>
+              <ul className="ml-5 list-disc">
+                <li>Requests must be made within <strong>1 day</strong> of placing the booking.</li>
+                <li>Cancellation may not be possible if the session is already confirmed or about to commence.</li>
+              </ul>
+
+              <h4 className="mt-4 text-white">Non-Cancellable Services</h4>
+              <ul className="ml-5 list-disc">
+                <li>No cancellations for time-sensitive or non-refundable bookings.</li>
+                <li>Refunds/rescheduling may be considered if the session wasn't provided as described.</li>
+              </ul>
+
+              <h4 className="mt-4 text-white">Service Quality Issues</h4>
+              <ul className="ml-5 list-disc">
+                <li>Report issues within <strong>1 day</strong> of the scheduled session.</li>
+              </ul>
+
+              <h4 className="mt-4 text-white">Refund Processing</h4>
+              <ul className="ml-5 list-disc">
+                <li>If approved, refunds are processed within <strong>3 days</strong> to the original payment method.</li>
+              </ul>
+
+              <p className="mt-4 text-xs text-gray-400">
+                Need help? Call{' '}
+                <a className="underline hover:text-white" href="tel:918637625155">
+                  +91 86376 25155
+                </a>{' '}
+                or email{' '}
+                <a className="ml-1 underline hover:text-white" href="mailto:contact@cuephoria.in">
+                  contact@cuephoria.in
+                </a>
+                .
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Navigation - Only show if accessed through customer dashboard */}
+      {customerSession && <BottomNav />}
+    </div>
+  );
+}

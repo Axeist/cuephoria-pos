@@ -1,0 +1,289 @@
+import { createClient } from "@supabase/supabase-js";
+
+function getEnv(name: string): string | undefined {
+  const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
+  const fromProcess = typeof process !== "undefined" ? (process.env as any)?.[name] : undefined;
+  const fromGlobalProcess = (globalThis as any)?.process?.env?.[name];
+  return fromDeno ?? fromProcess ?? fromGlobalProcess;
+}
+
+function needEnv(name: string): string {
+  const v = getEnv(name);
+  if (!v) throw new Error(`Missing env: ${name}`);
+  return v;
+}
+
+const SUPABASE_URL = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL") || needEnv("SUPABASE_URL");
+const SUPABASE_KEY =
+  getEnv("SUPABASE_SERVICE_ROLE_KEY") ||
+  getEnv("SUPABASE_SERVICE_KEY") ||
+  getEnv("SUPABASE_ANON_KEY") ||
+  getEnv("VITE_SUPABASE_PUBLISHABLE_KEY") ||
+  needEnv("SUPABASE_SERVICE_ROLE_KEY");
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+  global: { headers: { "x-application-name": "cuephoria-api" } },
+});
+
+type VercelRequest = {
+  method?: string;
+  body?: any;
+  headers?: Record<string, string | string[] | undefined>;
+};
+
+type VercelResponse = {
+  setHeader: (name: string, value: string) => void;
+  status: (code: number) => VercelResponse;
+  json: (data: unknown) => void;
+  end: () => void;
+};
+
+function setCorsHeaders(res: VercelResponse) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "content-type, authorization");
+}
+
+function j(res: VercelResponse, data: unknown, status = 200) {
+  setCorsHeaders(res);
+  res.status(status).json(data);
+}
+
+const normalizePhoneNumber = (phone: string): string => phone.replace(/\D/g, "");
+
+const generateCustomerID = (phone: string): string => {
+  const normalized = normalizePhoneNumber(phone);
+  const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
+  const phoneHash = normalized.slice(-4);
+  return `CUE${phoneHash}${timestamp}`;
+};
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === "OPTIONS") {
+    setCorsHeaders(res);
+    return res.status(200).end();
+  }
+  if (req.method !== "POST") return j(res, { ok: false, error: "Method not allowed" }, 405);
+
+  try {
+    const payload = (req.body as any) || {};
+    const {
+      customerInfo,
+      selectedStations,
+      selectedDate,
+      selectedSlot,
+      selectedSlots,
+      originalPrice,
+      discount,
+      finalPrice,
+      appliedCoupons,
+      orderId,
+      payment_mode = "venue",
+      location_id: locationIdRaw,
+    } = payload;
+
+    const location_id = typeof locationIdRaw === "string" && locationIdRaw.length > 0 ? locationIdRaw : null;
+    if (!location_id) return j(res, { ok: false, error: "Missing location_id (branch)" }, 400);
+
+    const slotsToBook =
+      Array.isArray(selectedSlots) && selectedSlots.length > 0 ? selectedSlots : selectedSlot ? [selectedSlot] : [];
+    if (!customerInfo || !selectedStations || !selectedDate || slotsToBook.length === 0) {
+      return j(res, { ok: false, error: "Missing required booking data" }, 400);
+    }
+
+    let customerId = customerInfo.id;
+    if (!customerId) {
+      const normalizedPhone = normalizePhoneNumber(customerInfo.phone);
+      const { data: existingCustomer, error: searchError } = await supabase
+        .from("customers")
+        .select("id")
+        .eq("phone", normalizedPhone)
+        .eq("location_id", location_id)
+        .maybeSingle();
+
+      if (searchError && searchError.code !== "PGRST116") {
+        return j(res, { ok: false, error: `Customer search failed: ${searchError.message}` }, 500);
+      }
+
+      if (existingCustomer) {
+        customerId = existingCustomer.id;
+      } else {
+        const customerID = generateCustomerID(normalizedPhone);
+        const { data: newCustomer, error: customerError } = await supabase
+          .from("customers")
+          .insert({
+            name: customerInfo.name.trim(),
+            phone: normalizedPhone,
+            email: customerInfo.email?.trim() || null,
+            custom_id: customerID,
+            is_member: false,
+            loyalty_points: 0,
+            total_spent: 0,
+            total_play_time: 0,
+            location_id,
+          })
+          .select("id")
+          .single();
+        if (customerError) return j(res, { ok: false, error: `Failed to create customer: ${customerError.message}` }, 500);
+        customerId = newCustomer.id;
+      }
+    }
+
+    const normalizedPhone = normalizePhoneNumber(customerInfo.phone);
+    const sessionId = payload.sessionId || `session_${Date.now()}_${normalizedPhone.slice(-4)}`;
+
+    const { data: existingBookings, error: checkError } = await supabase
+      .from("bookings")
+      .select("id, station_id, start_time, end_time")
+      .in("station_id", selectedStations)
+      .eq("booking_date", selectedDate)
+      .eq("location_id", location_id)
+      .in("status", ["confirmed", "in-progress"]);
+
+    if (checkError) return j(res, { ok: false, error: "Failed to check availability" }, 500);
+
+    const timeToMinutes = (timeStr: string) => {
+      const [hours, minutes] = timeStr.split(":").map(Number);
+      return hours * 60 + minutes;
+    };
+
+    const hasAnyConflict = (existingBookings || []).some((booking) => {
+      const existingStart = timeToMinutes(booking.start_time);
+      const existingEnd = timeToMinutes(booking.end_time);
+      const existingEndMinutes = existingEnd === 0 ? 24 * 60 : existingEnd;
+      return slotsToBook.some((slot: any) => {
+        const requestedStart = timeToMinutes(slot.start_time);
+        const requestedEnd = timeToMinutes(slot.end_time);
+        const requestedEndMinutes = requestedEnd === 0 ? 24 * 60 : requestedEnd;
+        return (
+          (requestedStart >= existingStart && requestedStart < existingEndMinutes) ||
+          (requestedEndMinutes > existingStart && requestedEndMinutes <= existingEndMinutes) ||
+          (requestedStart <= existingStart && requestedEndMinutes >= existingEndMinutes) ||
+          (existingStart <= requestedStart && existingEndMinutes >= requestedEndMinutes)
+        );
+      });
+    });
+
+    if (hasAnyConflict) {
+      return j(
+        res,
+        { ok: false, error: "Selected slot is no longer available. Please select another time slot.", conflict: true },
+        409,
+      );
+    }
+
+    for (const slot of slotsToBook) {
+      const { data: activeBlocks, error: blockCheckError } = await supabase
+        .from("slot_blocks")
+        .select("id, station_id, session_id")
+        .in("station_id", selectedStations)
+        .eq("booking_date", selectedDate)
+        .eq("location_id", location_id)
+        .eq("start_time", slot.start_time)
+        .eq("end_time", slot.end_time)
+        .gt("expires_at", new Date().toISOString())
+        .eq("is_confirmed", false)
+        .neq("session_id", sessionId);
+
+      if (blockCheckError) return j(res, { ok: false, error: "Failed to check slot availability" }, 500);
+      if (activeBlocks && activeBlocks.length > 0) {
+        return j(
+          res,
+          {
+            ok: false,
+            error: "This slot is currently being booked by another customer. Please try again in a moment or select another slot.",
+            conflict: true,
+            blocked: true,
+          },
+          409,
+        );
+      }
+    }
+
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    const blockRows = (slotsToBook as any[]).flatMap((slot) =>
+      selectedStations.map((stationId: string) => ({
+        station_id: stationId,
+        location_id,
+        booking_date: selectedDate,
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+        expires_at: expiresAt,
+        session_id: sessionId,
+        customer_phone: normalizedPhone,
+        is_confirmed: false,
+      })),
+    );
+
+    const { error: blockError } = await supabase.from("slot_blocks").upsert(blockRows, {
+      onConflict: "station_id,booking_date,start_time,end_time",
+      ignoreDuplicates: false,
+    });
+    if (blockError) {
+      return j(
+        res,
+        {
+          ok: false,
+          error: "This slot was just booked by another customer. Please select another time slot.",
+          conflict: true,
+          blocked: true,
+        },
+        409,
+      );
+    }
+
+    const couponCodes = appliedCoupons ? Object.values(appliedCoupons).join(",") : "";
+    const rows = (slotsToBook as any[]).flatMap((slot) =>
+      selectedStations.map((stationId: string) => ({
+        station_id: stationId,
+        customer_id: customerId,
+        location_id,
+        booking_date: selectedDate,
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+        duration: 60,
+        status: "confirmed",
+        original_price: originalPrice || 0,
+        discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
+        final_price: finalPrice || 0,
+        coupon_code: couponCodes || null,
+        payment_mode: payment_mode || null,
+        payment_txn_id: orderId || null,
+      })),
+    );
+
+    const { data: inserted, error: bookingError } = await supabase.from("bookings").insert(rows).select("id");
+    if (bookingError) {
+      await supabase
+        .from("slot_blocks")
+        .delete()
+        .eq("booking_date", selectedDate)
+        .eq("session_id", sessionId)
+        .eq("location_id", location_id)
+        .eq("is_confirmed", false);
+      return j(res, { ok: false, error: `Failed to create booking: ${bookingError.message}` }, 500);
+    }
+
+    await supabase
+      .from("slot_blocks")
+      .update({ is_confirmed: true })
+      .eq("booking_date", selectedDate)
+      .eq("session_id", sessionId)
+      .eq("location_id", location_id)
+      .eq("is_confirmed", false);
+
+    return j(
+      res,
+      {
+        ok: true,
+        bookingId: inserted?.[0]?.id,
+        bookingIds: (inserted || []).map((r: any) => r.id),
+        message: "Booking created successfully",
+      },
+      200,
+    );
+  } catch (error: any) {
+    return j(res, { ok: false, error: "Unexpected error occurred", details: error.message }, 500);
+  }
+}

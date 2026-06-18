@@ -1,0 +1,46 @@
+{
+  "type": "webhook",
+  "name": "get_customer",
+  "description": "Fetch customer details by phone number. Returns customer information including name, email, membership status, loyalty points, booking history, and total spending. Use this to check if a customer exists before creating a booking.",
+  "api_schema": {
+    "url": "https://admin.cuephoria.in/api/webhooks/get-customer",
+    "method": "POST",
+    "path_params_schema": [],
+    "query_params_schema": [],
+    "request_body_schema": {
+      "id": "get_customer_request",
+      "type": "object",
+      "description": "Request body for fetching customer by phone number",
+      "required": true,
+      "properties": [
+        {
+          "id": "customer_phone",
+          "name": "customer_phone",
+          "type": "string",
+          "description": "Customer phone number (10 digits, can include country code or formatting - will be normalized automatically)",
+          "required": true,
+          "dynamic_variable": "customer_phone"
+        }
+      ]
+    },
+    "request_headers": [
+      {
+        "name": "Content-Type",
+        "type": "value",
+        "value": "application/json"
+      }
+    ],
+    "auth_connection": null
+  },
+  "response_timeout_secs": 30,
+  "dynamic_variables": {
+    "dynamic_variable_placeholders": {}
+  },
+  "assignments": [],
+  "disable_interruptions": false,
+  "force_pre_tool_speech": "auto",
+  "tool_call_sound": null,
+  "tool_call_sound_behavior": "always",
+  "execution_mode": "immediate"
+}
+

@@ -1,0 +1,1292 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Quicksand:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Deep-violet "Cuetronix" palette — mirrors the landing / login shell */
+    --background: 258 65% 5%;
+    --foreground: 0 0% 100%;
+
+    --card: 260 40% 9%;
+    --card-foreground: 0 0% 100%;
+
+    /* Popover / menus — violet-tinted (avoid flat slate gray) */
+    --popover: 262 42% 11%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 262 83% 64%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 25 95% 53%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 262 28% 16%;
+    --muted-foreground: 255 14% 72%;
+
+    --accent: 293 69% 55%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 262 30% 22%;
+    --input: 262 28% 18%;
+    --ring: 262 83% 55%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 258 70% 4%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 262 83% 64%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 260 35% 12%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 260 25% 16%;
+    --sidebar-ring: 262 83% 55%;
+
+    /* Brand gradient hexes — overridden per-tenant by BrandingProvider.
+       These drive app-wide ambient backgrounds, glass surfaces, and the
+       `.btn-gradient` CTA. Defaults match the Cuetronix landing gradient. */
+    --brand-primary-hex: #7c3aed;
+    --brand-accent-hex: #ec4899;
+    --brand-tertiary-hex: #3b82f6;
+
+    /* Safe area insets for mobile devices with notches */
+    --safe-area-inset-top: env(safe-area-inset-top);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom);
+    --safe-area-inset-left: env(safe-area-inset-left);
+    --safe-area-inset-right: env(safe-area-inset-right);
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html, body {
+    @apply overflow-x-hidden;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-background text-foreground font-quicksand;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Content wrapper for all main areas */
+  #root {
+    @apply overflow-x-hidden;
+    width: 100%;
+    max-width: 100vw;
+  }
+  
+  /* Ensure all elements use border-box */
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+}
+
+/* Custom styles for Cuephoria */
+.indian-rupee::before {
+  content: "₹";
+  display: inline-block;
+  margin-right: 2px;
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.5);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.7);
+}
+
+/* Better outlines for focus */
+:focus-visible {
+  outline: 2px solid #9b87f5;
+  outline-offset: 2px;
+}
+
+/* Gradient text for headings */
+.gradient-text {
+  @apply bg-gradient-to-r from-[#9b87f5] to-[#0EA5E9] bg-clip-text text-transparent;
+}
+
+/* Cards hover effects */
+.card-hover {
+  @apply transition-all duration-300 hover:shadow-lg hover:shadow-[#9b87f5]/20 hover:translate-y-[-4px];
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  /* Force all containers to fit viewport */
+  div, section, article, aside, main {
+    max-width: 100vw;
+  }
+  
+  /* Cards should fit within viewport with proper spacing */
+  .card, [class*="Card"], [class*="card"] {
+    @apply p-3 !important;
+    max-width: 100%;
+    width: 100%;
+  }
+  
+  /* Headers shouldn't overflow */
+  [class*="CardHeader"], [class*="card-header"] {
+    @apply p-3 overflow-hidden;
+    max-width: 100%;
+  }
+  
+  /* Content areas */
+  [class*="CardContent"], [class*="card-content"] {
+    @apply p-3 overflow-hidden;
+    max-width: 100%;
+  }
+  
+  h1, h2, h3 {
+    @apply text-center;
+    max-width: 100%;
+    overflow-wrap: break-word;
+  }
+  
+  /* Enhanced table container with proper overflow */
+  .table-container {
+    @apply overflow-x-auto -mx-4 px-4;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    max-width: 100vw;
+  }
+  
+  /* Fix for tables on mobile - ensure scrolling */
+  table {
+    @apply min-w-full;
+    white-space: nowrap;
+  }
+  
+  /* Table cells with proper spacing on mobile */
+  table td, table th {
+    @apply px-2 py-2 text-xs;
+  }
+  
+  /* Improved touch targets */
+  button, a, [role="button"] {
+    @apply min-h-[44px] min-w-[44px];
+  }
+  
+  /* Forms on mobile */
+  input, select, textarea {
+    @apply text-base;
+    width: 100%;
+  }
+  
+  /* Grid adjustments - ensure single column on mobile */
+  .grid {
+    @apply grid-cols-1;
+    max-width: 100%;
+    width: 100%;
+  }
+  
+  /* Flex containers */
+  .flex, [class*="flex"] {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+  
+  /* Charts and visualizations */
+  [class*="recharts"], [class*="Chart"] {
+    max-width: 100% !important;
+    overflow: hidden;
+  }
+  
+  /* Better scroll behavior on mobile */
+  body {
+    @apply overflow-x-hidden;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100vw;
+  }
+  
+  /* Main content areas */
+  main, [role="main"] {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+  
+  /* Prevent zoom on input focus */
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+  
+  /* Dialog/Modal improvements for mobile */
+  [role="dialog"] {
+    @apply max-w-[calc(100vw-1rem)] mx-2;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+  }
+  
+  /* Popover/Dropdown improvements */
+  [data-radix-popper-content-wrapper] {
+    max-width: calc(100vw - 2rem) !important;
+  }
+  
+  /* Filter panels and dropdowns */
+  .filter-panel, .filter-dropdown {
+    @apply max-w-full;
+    overflow-x: visible;
+  }
+  
+  /* Tabs - allow horizontal scroll */
+  .tabs-list {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  
+  .tabs-list::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Cards and containers */
+  .card-content, .card-header {
+    @apply p-3;
+  }
+  
+  /* Better spacing on mobile */
+  .space-y-4 > * + *, .space-y-6 > * + * {
+    margin-top: 1rem;
+  }
+  
+  /* Fix for absolute positioned elements */
+  [class*="absolute"] {
+    max-width: 100vw;
+  }
+}
+
+/* Mobile-specific utilities */
+@media (max-width: 640px) {
+  .mobile-hidden {
+    @apply hidden;
+  }
+}
+
+@media (min-width: 641px) {
+  .desktop-hidden {
+    @apply hidden;
+  }
+}
+
+/* Animations */
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(155, 135, 245, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 15px rgba(155, 135, 245, 0.6);
+  }
+}
+
+@keyframes pulse-soft {
+  0% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.5;
+  }
+}
+
+/* VR Station Rotating Border Animation */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.02);
+  }
+}
+
+/* Animation classes */
+.animate-slide-up {
+  animation: slideUp 0.5s ease forwards;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.5s ease forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s infinite;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s infinite ease-in-out;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s ease-in-out infinite;
+}
+
+/* Animation delays */
+.delay-75 {
+  animation-delay: 75ms;
+}
+
+.delay-100 {
+  animation-delay: 100ms;
+}
+
+.delay-150 {
+  animation-delay: 150ms;
+}
+
+.delay-200 {
+  animation-delay: 200ms;
+}
+
+.delay-300 {
+  animation-delay: 300ms;
+}
+
+.delay-400 {
+  animation-delay: 400ms;
+}
+
+.delay-500 {
+  animation-delay: 500ms;
+}
+
+/* Menu animation */
+.menu-item {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.menu-item:hover {
+  transform: translateX(4px);
+}
+
+/* Badge animations */
+.badge-pulse {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Button animations */
+.btn-hover-effect {
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-hover-effect:after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+}
+
+.btn-hover-effect:hover:after {
+  transform: translateX(0);
+}
+
+/* Receipt styling */
+.receipt {
+  font-family: 'Courier New', monospace;
+  background: white;
+  color: #222;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+}
+
+.receipt-header {
+  text-align: center;
+  border-bottom: 1px dashed #ccc;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.receipt-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.3rem;
+}
+
+.receipt-total {
+  border-top: 1px dashed #ccc;
+  margin-top: 1rem;
+  padding-top: 0.5rem;
+  font-weight: bold;
+}
+
+/* Mobile fixes for common components */
+@media (max-width: 768px) {
+  /* Card adjustments */
+  .card-title {
+    @apply text-lg;
+  }
+  
+  /* Button size adjustments */
+  .btn-mobile {
+    @apply px-2 py-1 text-sm;
+  }
+  
+  /* Fix for forms */
+  .form-group {
+    @apply mb-3;
+  }
+  
+  /* Dashboard stats cards */
+  .stats-card {
+    @apply mx-auto max-w-[100%];
+  }
+  
+  /* Better spacing for mobile */
+  .p-8 {
+    @apply p-4;
+  }
+  
+  .p-6 {
+    @apply p-3;
+  }
+  
+  /* Ensure all containers respect viewport */
+  .container, [class*="max-w"] {
+    max-width: 100% !important;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  /* Fix for flex containers */
+  .flex {
+    flex-wrap: wrap;
+  }
+  
+  /* Ensure select/dropdowns don't overflow */
+  select, [role="combobox"] {
+    max-width: 100%;
+  }
+}
+
+/* Custom animations for action buttons */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(155, 135, 245, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(155, 135, 245, 0.8);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+.action-button-glow:hover {
+  animation: pulse-glow 2s infinite;
+  transform: translateY(-2px);
+}
+
+/* --- Hide scrollbar elegantly for the product tags filter --- */
+.cuephoria-scrollbar-hide {
+  overflow-x: auto;
+  -ms-overflow-style: none;        /* IE and Edge */
+  scrollbar-width: none;           /* Firefox */
+}
+.cuephoria-scrollbar-hide::-webkit-scrollbar {
+  display: none !important;        /* Chrome, Safari, Opera */
+}
+
+/* Scrollbar hide utility class */
+.scrollbar-hide {
+  -ms-overflow-style: none;        /* IE and Edge */
+  scrollbar-width: none;           /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none !important;        /* Chrome, Safari, Opera */
+}
+
+/* --- Product Filter Tag Custom Styling --- */
+.cuephoria-filter-tag {
+  background: transparent;
+  border: none;
+  outline: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-family: 'Poppins', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  color: #dad8e7;
+  transition: background 0.18s, color 0.18s;
+  min-width: 80px;
+  margin-right: 6px;
+  margin-left: 0;
+  margin-bottom: 0;
+  margin-top: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cuephoria-filter-tag:last-child {
+  margin-right: 0;
+}
+
+.cuephoria-filter-tag:hover:not([data-state="active"]) {
+  background: rgba(155,135,245,0.08);
+  color: #9b87f5;
+}
+
+.cuephoria-filter-tag[data-state="active"] {
+  background: #9b87f5;
+  color: #fff;
+  box-shadow: 0 2px 10px 0 rgba(155, 135, 245, 0.10);
+}
+
+.cuephoria-filter-tag[data-state="active"]::after {
+  content: "";
+  display: block;
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 6px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(to right, #9b87f5 60%, #0EA5E9 100%);
+  opacity: 0.9;
+}
+
+.cuephoria-filter-tag:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #9b87f5bb;
+}
+
+@media (max-width: 600px) {
+  .cuephoria-filter-tag {
+    padding: 0.5rem 0.7rem;
+    font-size: 0.98rem;
+    min-width: 68px;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Gamehause-style splash layers + animations                                 */
+/* -------------------------------------------------------------------------- */
+
+.bg-grid-pattern {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-position: center;
+}
+
+.bg-noise-soft {
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    radial-gradient(rgba(0, 0, 0, 0.10) 1px, transparent 1px);
+  background-size: 22px 22px, 28px 28px;
+  background-position: 0 0, 11px 9px;
+}
+
+.bg-scanlines {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.05) 0px,
+    rgba(255, 255, 255, 0.05) 1px,
+    rgba(0, 0, 0, 0) 3px,
+    rgba(0, 0, 0, 0) 6px
+  );
+}
+
+@keyframes gh-float {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(18px, -14px, 0) scale(1.06); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes gh-float2 {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-16px, 12px, 0) scale(1.04); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+.gh-splash-float {
+  animation: gh-float 14s ease-in-out infinite;
+  will-change: transform;
+}
+
+.gh-splash-float2 {
+  animation: gh-float2 16s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes gh-pop {
+  0% { transform: scale(0.88); opacity: 0; filter: blur(1px); }
+  100% { transform: scale(1); opacity: 1; filter: blur(0); }
+}
+
+.gh-splash-pop {
+  animation: gh-pop 520ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+  will-change: transform, opacity, filter;
+}
+
+.gh-splash-shimmer {
+  position: relative;
+}
+
+.gh-splash-shimmer::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  pointer-events: none;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.10) 35%,
+    transparent 70%
+  );
+  transform: translateX(-120%);
+  mix-blend-mode: overlay;
+  animation: gh-shimmer 2.35s ease-in-out infinite;
+}
+
+@keyframes gh-shimmer {
+  0% { transform: translateX(-120%); }
+  55% { transform: translateX(120%); }
+  100% { transform: translateX(120%); }
+}
+
+.gh-scanline {
+  position: relative;
+  overflow: hidden;
+}
+
+.gh-scanline::before {
+  content: "";
+  position: absolute;
+  left: -20%;
+  top: -35%;
+  width: 140%;
+  height: 28%;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(255, 255, 255, 0.06),
+    transparent
+  );
+  transform: translate3d(0, -120%, 0);
+  animation: gh-scanline-sweep 3.2s linear infinite;
+}
+
+@keyframes gh-scanline-sweep {
+  0% { transform: translate3d(0, -120%, 0); }
+  100% { transform: translate3d(0, 420%, 0); }
+}
+
+@keyframes gh-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.gh-blink-cursor {
+  animation: gh-blink 1s step-end infinite;
+}
+
+.gh-glitch {
+  position: relative;
+  display: inline-block;
+  text-shadow: 0 0 18px rgba(16, 185, 129, 0.14);
+}
+
+.gh-glitch::before,
+.gh-glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.gh-glitch::before {
+  color: rgba(16, 185, 129, 0.92);
+  transform: translate3d(-1px, 0, 0);
+  opacity: 0.70;
+  animation: gh-glitch-1 2.1s infinite linear alternate-reverse;
+}
+
+.gh-glitch::after {
+  color: rgba(236, 72, 153, 0.88);
+  transform: translate3d(1px, 0, 0);
+  opacity: 0.60;
+  animation: gh-glitch-2 2.3s infinite linear alternate-reverse;
+}
+
+@keyframes gh-glitch-1 {
+  0% { clip-path: inset(8% 0 80% 0); }
+  15% { clip-path: inset(30% 0 55% 0); }
+  30% { clip-path: inset(55% 0 30% 0); }
+  45% { clip-path: inset(10% 0 70% 0); }
+  60% { clip-path: inset(72% 0 10% 0); }
+  75% { clip-path: inset(40% 0 45% 0); }
+  100% { clip-path: inset(18% 0 62% 0); }
+}
+
+@keyframes gh-glitch-2 {
+  0% { clip-path: inset(70% 0 10% 0); }
+  18% { clip-path: inset(12% 0 72% 0); }
+  36% { clip-path: inset(52% 0 28% 0); }
+  54% { clip-path: inset(24% 0 58% 0); }
+  72% { clip-path: inset(60% 0 18% 0); }
+  100% { clip-path: inset(8% 0 78% 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gh-splash-float,
+  .gh-splash-float2,
+  .gh-splash-pop,
+  .gh-splash-shimmer::before,
+  .gh-scanline::before,
+  .gh-glitch::before,
+  .gh-glitch::after,
+  .gh-blink-cursor {
+    animation: none !important;
+  }
+}
+
+/* Pay Online CTA glow (Public Booking) - clipped + wrap-safe */
+.gh-pay-online-cta {
+  position: relative;
+  will-change: transform;
+}
+
+.gh-pay-online-cta::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 25% 30%, rgba(51, 149, 255, 0.42), transparent 58%),
+    radial-gradient(circle at 75% 70%, rgba(37, 99, 235, 0.28), transparent 60%);
+  filter: blur(18px);
+  opacity: 0.55;
+  transform: translate3d(-6%, -4%, 0) scale(1);
+  animation: gh-pay-online-cta 2.35s ease-in-out infinite;
+}
+
+.gh-pay-online-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.10) 40%, transparent 75%);
+  transform: translateX(-120%);
+  animation: gh-pay-online-shine 2.6s ease-in-out infinite;
+  opacity: 0.35;
+}
+
+@keyframes gh-pay-online-cta {
+  0%, 100% {
+    opacity: 0.48;
+    transform: translate3d(-6%, -4%, 0) scale(1);
+  }
+  50% {
+    opacity: 0.70;
+    transform: translate3d(6%, 6%, 0) scale(1.04);
+  }
+}
+
+@keyframes gh-pay-online-shine {
+  0% { transform: translateX(-120%); }
+  55% { transform: translateX(120%); }
+  100% { transform: translateX(120%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gh-pay-online-cta::before,
+  .gh-pay-online-cta::after {
+    animation: none !important;
+  }
+}
+
+/* Cafe module — layered “glass” shell (used by CafeProtectedRoute) */
+.cafe-page-bg {
+  background:
+    radial-gradient(ellipse 90% 55% at 10% -10%, rgba(249, 115, 22, 0.14), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 100% 0%, rgba(139, 92, 246, 0.12), transparent 50%),
+    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(59, 130, 246, 0.06), transparent 45%),
+    hsl(var(--background));
+}
+
+.cafe-glass-card {
+  @apply rounded-2xl border border-white/[0.09]
+    shadow-[0_12px_48px_-16px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.07)]
+    backdrop-blur-xl;
+  background: linear-gradient(to bottom right,
+    rgb(2 6 23 / 0.88),
+    rgb(15 23 42 / 0.82),
+    rgb(30 27 75 / 0.35));
+}
+
+/* Gen-2 ambient shell: mesh lights + subtle grain (CafeProtectedRoute) */
+.cafe-ambient {
+  isolation: isolate;
+  position: relative;
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 130% 90% at 0% -15%, rgba(249, 115, 22, 0.2), transparent 55%),
+    radial-gradient(ellipse 100% 80% at 100% 0%, rgba(139, 92, 246, 0.16), transparent 52%),
+    radial-gradient(ellipse 90% 60% at 50% 100%, rgba(59, 130, 246, 0.09), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 88% 65%, rgba(16, 185, 129, 0.06), transparent 45%),
+    hsl(222 47% 5%);
+}
+
+.cafe-ambient::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.cafe-ambient > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Segmented controls (tabs / sort chips) */
+.cafe-segment {
+  @apply inline-flex gap-0.5 rounded-xl border border-white/[0.08] bg-black/25 p-1 shadow-inner backdrop-blur-md;
+}
+
+.cafe-segment button[data-active="true"],
+.cafe-segment .cafe-segment-active {
+  @apply bg-gradient-to-r from-orange-500/25 to-violet-500/15 text-orange-100 shadow-sm ring-1 ring-orange-500/25;
+}
+
+/* Orders list scroll area — always visible themed scrollbar */
+.cafe-orders-scroll [data-radix-scroll-area-scrollbar] {
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.cafe-orders-scroll [data-radix-scroll-area-thumb] {
+  background: linear-gradient(180deg, rgba(249, 115, 22, 0.45), rgba(139, 92, 246, 0.45)) !important;
+  border-radius: 9999px;
+  transition: background 150ms ease;
+}
+
+.cafe-orders-scroll [data-radix-scroll-area-thumb]:hover {
+  background: linear-gradient(180deg, rgba(249, 115, 22, 0.75), rgba(139, 92, 246, 0.75)) !important;
+}
+
+/* Stat / filter pills */
+.cafe-pill {
+  @apply rounded-xl border border-white/[0.07] bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-zinc-300 shadow-sm backdrop-blur-sm transition-colors hover:border-white/15 hover:bg-white/[0.07];
+}
+
+.cafe-pill-active {
+  @apply border-orange-500/35 bg-orange-500/15 text-orange-200 ring-1 ring-orange-500/20;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cafe-ambient::before {
+    opacity: 0.03;
+  }
+}
+
+/* ==========================================================================
+   Cuetronix app shell — post-login "landing-class" theme primitives.
+   Applied via utility classes so individual pages / components can opt in
+   without rewriting their markup. Driven by the --brand-primary-hex /
+   --brand-accent-hex CSS vars that BrandingProvider sets per tenant.
+   ========================================================================== */
+
+/* Deep-violet ambient background for every authenticated screen.
+   Matches HeroSection / Login's 3-D scene vibe without the WebGL cost. */
+.app-ambient {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 120% 70% at 8% -10%, color-mix(in oklab, var(--brand-primary-hex) 30%, transparent) 0%, transparent 55%),
+    radial-gradient(ellipse 100% 70% at 100% 5%, color-mix(in oklab, var(--brand-accent-hex) 22%, transparent) 0%, transparent 55%),
+    radial-gradient(ellipse 90% 60% at 50% 105%, color-mix(in oklab, var(--brand-tertiary-hex, #3b82f6) 14%, transparent) 0%, transparent 55%),
+    hsl(var(--background));
+}
+
+.app-ambient::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 35%, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 35%, #000 30%, transparent 75%);
+}
+
+.app-ambient::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+.app-ambient > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Glass surface — use for elevated cards, dialogs, popovers. */
+.glass-card {
+  @apply rounded-2xl border border-white/10 backdrop-blur-xl;
+  background: linear-gradient(
+    165deg,
+    color-mix(in oklab, var(--brand-primary-hex) 16%, rgba(255, 255, 255, 0.045)) 0%,
+    color-mix(in oklab, var(--brand-primary-hex) 7%, rgba(255, 255, 255, 0.02)) 45%,
+    rgba(6, 4, 14, 0.82) 100%
+  );
+  box-shadow:
+    0 24px 60px -28px color-mix(in oklab, var(--brand-primary-hex) 28%, rgba(0, 0, 0, 0.75)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.glass-card-interactive {
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    transform 180ms ease,
+    box-shadow 220ms ease;
+}
+
+.glass-card-interactive:hover {
+  border-color: color-mix(in oklab, var(--brand-primary-hex) 45%, rgba(255, 255, 255, 0.12));
+  background: linear-gradient(
+    165deg,
+    color-mix(in oklab, var(--brand-primary-hex) 22%, rgba(255, 255, 255, 0.06)) 0%,
+    color-mix(in oklab, var(--brand-primary-hex) 10%, rgba(255, 255, 255, 0.03)) 50%,
+    rgba(6, 4, 14, 0.78) 100%
+  );
+  box-shadow:
+    0 28px 70px -26px color-mix(in oklab, var(--brand-primary-hex) 42%, rgba(0, 0, 0, 0.65)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+/* Subtle "panel" — cheaper than full glass for inner sections. */
+.surface-panel {
+  @apply rounded-xl border border-white/10;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--brand-primary-hex) 10%, rgba(255, 255, 255, 0.035)) 0%,
+    rgba(4, 3, 12, 0.45) 100%
+  );
+}
+
+/* Nested rows / list cells inside glass cards — matches ambient violet tone. */
+.theme-inset {
+  @apply rounded-xl border border-white/[0.08];
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--brand-primary-hex) 9%, rgba(255, 255, 255, 0.04)) 0%,
+    rgba(4, 3, 10, 0.5) 100%
+  );
+}
+
+/* Select triggers, compact filter buttons — matches ambient glass (replaces flat gray-800). */
+.theme-menu-trigger {
+  @apply rounded-xl border border-white/10 backdrop-blur-md text-white shadow-lg shadow-black/25;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--brand-primary-hex) 14%, rgba(255, 255, 255, 0.05)) 0%,
+    rgba(6, 4, 16, 0.82) 100%
+  );
+}
+.theme-menu-trigger:hover {
+  border-color: color-mix(in oklab, var(--brand-primary-hex) 45%, rgba(255, 255, 255, 0.12));
+}
+
+/* Dropdown / select panel / date popover content */
+.theme-menu-content {
+  @apply rounded-xl border border-white/10 backdrop-blur-xl text-white;
+  background: linear-gradient(
+    165deg,
+    color-mix(in oklab, var(--brand-primary-hex) 20%, rgba(255, 255, 255, 0.06)) 0%,
+    color-mix(in oklab, var(--brand-primary-hex) 8%, rgba(255, 255, 255, 0.02)) 48%,
+    rgba(5, 3, 14, 0.94) 100%
+  );
+  box-shadow:
+    0 24px 56px -20px color-mix(in oklab, var(--brand-primary-hex) 32%, rgba(0, 0, 0, 0.85)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+/* Landing-class gradient CTA. Use for primary actions. */
+.btn-gradient {
+  background-image: linear-gradient(
+    90deg,
+    var(--brand-primary-hex) 0%,
+    var(--brand-accent-hex) 100%
+  );
+  color: #fff;
+  box-shadow:
+    0 10px 28px -10px color-mix(in oklab, var(--brand-accent-hex) 60%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: transform 160ms ease, box-shadow 200ms ease, filter 200ms ease;
+}
+
+.btn-gradient:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow:
+    0 14px 34px -12px color-mix(in oklab, var(--brand-accent-hex) 70%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.btn-gradient:active {
+  transform: translateY(0);
+  filter: brightness(0.98);
+}
+
+/* Hero gradient text — reproduces the landing "One billing OS" shimmer. */
+.gradient-text-hero {
+  background-image: linear-gradient(
+    90deg,
+    #a78bfa 0%,
+    #f0abfc 40%,
+    #93c5fd 80%,
+    #a78bfa 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: hueShiftApp 7s ease-in-out infinite;
+}
+
+@keyframes hueShiftApp {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* Brand-tinted gradient text that follows the active tenant palette. */
+.gradient-text-brand {
+  background-image: linear-gradient(
+    90deg,
+    var(--brand-primary-hex) 0%,
+    var(--brand-accent-hex) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Divider with subtle top glow — used under hero strips. */
+.hero-divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--brand-primary-hex) 50%, transparent) 45%,
+    color-mix(in oklab, var(--brand-accent-hex) 50%, transparent) 55%,
+    transparent 100%
+  );
+}
+
+/* Refined focus ring that picks up the brand color. */
+.focus-brand:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px hsl(var(--background)),
+    0 0 0 4px color-mix(in oklab, var(--brand-primary-hex) 60%, transparent);
+}
+
+/* Tint a whole element subtly with the brand gradient (pills, badges). */
+.brand-soft {
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--brand-primary-hex) 20%, transparent) 0%,
+    color-mix(in oklab, var(--brand-accent-hex) 16%, transparent) 100%
+  );
+  border: 1px solid color-mix(in oklab, var(--brand-primary-hex) 40%, transparent);
+  color: #fff;
+}
+
+/* Card hover effect re-skinned to match the landing glow. */
+.card-hover {
+  @apply transition-all duration-300;
+}
+
+.card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 40px -22px color-mix(in oklab, var(--brand-primary-hex) 60%, rgba(0, 0, 0, 0.6));
+}
+
+/* Override the legacy `.gradient-text` so it now matches the landing shimmer. */
+.gradient-text {
+  background-image: linear-gradient(
+    90deg,
+    #a78bfa 0%,
+    #f0abfc 50%,
+    #93c5fd 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ─── Cafe order splash animations ─── */
+@keyframes foodFloat {
+  0%   { opacity: 0; transform: translateY(60vh) rotate(0deg) scale(0.7); }
+  10%  { opacity: 0.6; }
+  50%  { opacity: 0.4; transform: translateY(-10vh) rotate(20deg) scale(1); }
+  90%  { opacity: 0; }
+  100% { opacity: 0; transform: translateY(-40vh) rotate(40deg) scale(0.5); }
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  25%      { transform: rotate(-8deg) scale(1.05); }
+  75%      { transform: rotate(8deg) scale(1.05); }
+}
+
+@keyframes steamRise {
+  0%, 100% { opacity: 0; transform: translateY(0) scaleY(1); }
+  30%      { opacity: 0.5; transform: translateY(-8px) scaleY(1.2); }
+  60%      { opacity: 0.2; transform: translateY(-16px) scaleY(0.8); }
+}
+
+@keyframes shimmerSlide {
+  0%   { width: 0%; margin-left: 0; }
+  50%  { width: 100%; margin-left: 0; }
+  100% { width: 0%; margin-left: 100%; }
+}

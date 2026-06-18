@@ -1,0 +1,46 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+.env
+.env.*
+!.env.example
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Claude agent worktrees (never track — each has its own moving git head)
+.claude/worktrees/
+
+# Capacitor & Android
+android/app/build/
+android/app/release/
+android/build/
+android/.gradle/
+android/.idea/
+android/local.properties
+android/captures/
+android/gradle/
+android/gradlew
+android/gradlew.bat
+*.keystore
+*.jks
+gradle.properties
+# Keep the android folder structure but ignore build artifacts
