@@ -42,7 +42,7 @@ export function MobileActionBar({
   return (
     <div
       className={cn(
-        "mobile-action-bar",
+        "mobile-action-bar flex flex-wrap items-center gap-2 w-full min-w-0 max-w-full",
         stackPrimary && "mobile-action-bar--stack-primary",
         className,
       )}

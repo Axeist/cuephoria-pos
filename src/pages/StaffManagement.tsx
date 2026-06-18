@@ -102,7 +102,7 @@ const StaffManagementContent: React.FC = () => {
         title="Staff Management"
         subtitle="Manage your team, track attendance, and process payroll"
         actions={
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:justify-end">
           <Button
             onClick={() => setShowAdminRegularizationDialog(true)}
             variant="outline"

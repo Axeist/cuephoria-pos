@@ -403,7 +403,7 @@ const OrganizationSettings: React.FC<{ embedded?: boolean; section?: OrgSettings
 
   return (
     <MobilePageShell>
-    <div className="mx-auto w-full max-w-5xl space-y-6 min-w-0 overflow-x-hidden sm:py-2">
+    <div className="w-full space-y-6 min-w-0 overflow-x-hidden sm:py-2">
       <div className="relative overflow-hidden rounded-3xl border border-white/10 p-5 sm:p-8">
         <div
           aria-hidden

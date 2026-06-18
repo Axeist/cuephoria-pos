@@ -227,7 +227,7 @@ export default function PaymentGatewaySettings() {
   const isLive = razorpayConfig?.mode === "live";
 
   return (
-    <div className="space-y-8 max-w-3xl">
+    <div className="space-y-8 w-full">
       {/* Page header */}
       <div className="space-y-1.5">
         <div className="flex items-center gap-2">

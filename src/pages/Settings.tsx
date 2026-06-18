@@ -175,7 +175,7 @@ function SettingsSectionHeader({ title, description }: { title: string; descript
   return (
     <header className="mb-6">
       <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
-      <p className="text-sm text-muted-foreground mt-1 max-w-2xl leading-relaxed">{description}</p>
+      <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{description}</p>
     </header>
   );
 }
@@ -643,7 +643,7 @@ const Settings = () => {
 
   return (
     <MobilePageShell>
-      <div className="mx-auto max-w-6xl sm:py-2">
+      <div className="w-full sm:py-2">
         <MobilePageHeader
           title="Settings"
           subtitle="Everything for your venue, team, and online checkout — organized by what you need to do."
@@ -675,20 +675,22 @@ const Settings = () => {
           onChange={(id) => setActiveTab(id as SettingsTabId)}
         />
 
-        <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 xl:gap-10 w-full">
           {/* Desktop sidebar */}
-          <aside className="hidden lg:block w-56 shrink-0">
-            <SettingsNav
-              groups={NAV_GROUPS}
-              activeTab={activeTab}
-              onSelect={setActiveTab}
-              canAccess={canAccessSettingsItem}
-            />
+          <aside className="hidden lg:block w-60 xl:w-64 shrink-0">
+            <div className="sticky top-24">
+              <SettingsNav
+                groups={NAV_GROUPS}
+                activeTab={activeTab}
+                onSelect={setActiveTab}
+                canAccess={canAccessSettingsItem}
+              />
+            </div>
           </aside>
 
           {/* Main content */}
-          <main className="flex-1 min-w-0">
-            <div className="rounded-2xl border border-border/50 bg-card/20 p-6 sm:p-8">
+          <main className="flex-1 min-w-0 w-full">
+            <div className="w-full rounded-2xl border border-border/50 bg-card/20 p-6 sm:p-8">
               <SettingsSectionHeader title={sectionMeta.title} description={sectionMeta.description} />
               {renderContent()}
             </div>

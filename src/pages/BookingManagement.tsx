@@ -1817,7 +1817,10 @@ export default function BookingManagement() {
           ) : undefined
         }
         actions={
-        <MobileActionBar stackPrimary maxVisible={3}>
+          <MobileActionBar
+            className={cn(isMobile ? 'w-full' : 'w-auto flex-nowrap justify-end')}
+            maxVisible={isMobile ? 3 : undefined}
+          >
           {/* Notification Bell */}
           <Popover open={notificationOpen} onOpenChange={setNotificationOpen}>
             <PopoverTrigger asChild>
@@ -2059,7 +2062,7 @@ export default function BookingManagement() {
             New Booking
           </Button>
           )}
-        </MobileActionBar>
+          </MobileActionBar>
         }
       />
 

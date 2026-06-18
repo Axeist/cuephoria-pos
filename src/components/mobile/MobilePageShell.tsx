@@ -7,6 +7,7 @@ import { useViewMode } from "@/context/ViewModeContext";
  * safe overflow, consistent padding. Desktop padding unchanged.
  *
  * Staff mobile layout must use `useViewMode().isMobile`, not `useIsMobile()`.
+ * Desktop: full-width content area inside `#app-main`; do not add max-w-* here.
  */
 export function MobilePageShell({
   className,

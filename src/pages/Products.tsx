@@ -360,7 +360,7 @@ const ProductsPage: React.FC = () => {
       <MobilePageHeader
         title="Products"
         actions={
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:justify-end">
           {(canEditProduct || canAdjustStock) && (
             <>
               <ProductSalesExport />

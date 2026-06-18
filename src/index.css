@@ -145,6 +145,26 @@
  * explicitly via Tailwind `md:` classes, `useViewMode().isMobile`, or by
  * adding the `.mobile-stack` class below.
  */
+
+/* Action toolbars — flex layout at all breakpoints (mobile-only block below duplicates width helpers). */
+.mobile-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.mobile-action-bar.w-auto {
+  width: auto;
+}
+
+.mobile-action-bar.flex-nowrap {
+  flex-wrap: nowrap;
+}
+
 @media (max-width: 767px) {
   /* Page-level overflow safety net. Without this, any intrinsically wide
      element (Recharts SVG, a tall image, an unconstrained min-w table)
@@ -295,17 +315,7 @@
     flex-shrink: 0;
   }
 
-  /* Wrapping action rows — use .mobile-action-bar on toolbars */
-  .mobile-action-bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-  }
-
+  /* Mobile-only action bar overrides (base flex layout is global above). */
   .mobile-action-bar > * {
     max-width: 100%;
   }

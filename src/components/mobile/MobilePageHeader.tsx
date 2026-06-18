@@ -27,7 +27,7 @@ export function MobilePageHeader({
     <header
       className={cn(
         "mobile-page-header w-full min-w-0 max-w-full",
-        isMobile ? "space-y-2" : "flex flex-wrap items-start justify-between gap-3",
+        isMobile ? "space-y-2" : "flex flex-wrap items-center justify-between gap-3",
         className,
       )}
     >
@@ -50,7 +50,12 @@ export function MobilePageHeader({
         ) : null}
       </div>
       {actions ? (
-        <div className={cn("w-full min-w-0", !isMobile && "w-auto shrink-0")}>
+        <div
+          className={cn(
+            "flex min-w-0 items-center gap-2",
+            isMobile ? "w-full flex-wrap" : "ml-auto shrink-0 flex-nowrap justify-end",
+          )}
+        >
           {actions}
         </div>
       ) : null}

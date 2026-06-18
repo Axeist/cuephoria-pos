@@ -196,11 +196,11 @@ const Dashboard = () => {
             }
           />
         ) : (
-        <div className="w-full sm:w-auto gap-1.5 flex p-1 rounded-xl glass-card">
+        <div className="flex w-full sm:w-auto gap-1.5 p-1 rounded-xl glass-card">
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('overview')}
-            className={`whitespace-nowrap flex-shrink-0 text-sm px-4 rounded-lg font-medium transition-all duration-200 ${
+            className={`flex-shrink-0 whitespace-nowrap text-sm px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'overview'
                 ? 'btn-gradient text-white'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -212,7 +212,7 @@ const Dashboard = () => {
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('analytics')}
-            className={`whitespace-nowrap flex-shrink-0 text-sm px-4 rounded-lg font-medium transition-all duration-200 ${
+            className={`flex-shrink-0 whitespace-nowrap text-sm px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'analytics'
                 ? 'btn-gradient text-white'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -225,7 +225,7 @@ const Dashboard = () => {
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('expenses')}
-            className={`whitespace-nowrap flex-shrink-0 text-sm px-4 rounded-lg font-medium transition-all duration-200 ${
+            className={`flex-shrink-0 whitespace-nowrap text-sm px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'expenses'
                 ? 'btn-gradient text-white'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -238,7 +238,7 @@ const Dashboard = () => {
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('cash')}
-            className={`whitespace-nowrap flex-shrink-0 text-sm px-4 rounded-lg font-medium transition-all duration-200 ${
+            className={`flex-shrink-0 whitespace-nowrap text-sm px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'cash'
                 ? 'btn-gradient text-white'
                 : 'text-white/60 hover:text-white hover:bg-white/5'

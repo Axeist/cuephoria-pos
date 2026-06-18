@@ -32,6 +32,7 @@ import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useViewMode } from '@/context/ViewModeContext';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import type { Bill, Session } from '@/types/pos.types';
 import { useLocation } from '@/context/LocationContext';
@@ -2287,43 +2288,22 @@ const ReportsPage: React.FC = () => {
           onChange={(id) => setActiveTab(id as typeof activeTab)}
         />
       ) : (
-      <div className="bg-white/[0.06] border border-white/10 rounded-xl p-1 flex gap-2">
-        {canViewBills && (
-        <Button
-          onClick={() => setActiveTab('bills')}
-          variant={activeTab === 'bills' ? 'default' : 'ghost'}
-          className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'bills' ? 'bg-white/15 text-white' : 'text-white/55'}`}
-        >
-          Bills
-        </Button>
-        )}
-        {canViewCustomers && (
-        <Button
-          onClick={() => setActiveTab('customers')}
-          variant={activeTab === 'customers' ? 'default' : 'ghost'}
-          className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'customers' ? 'bg-white/15 text-white' : 'text-white/55'}`}
-        >
-          Customers
-        </Button>
-        )}
-        {canViewSessions && (
-        <Button
-          onClick={() => setActiveTab('sessions')}
-          variant={activeTab === 'sessions' ? 'default' : 'ghost'}
-          className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'sessions' ? 'bg-white/15 text-white' : 'text-white/55'}`}
-        >
-          Sessions
-        </Button>
-        )}
-        {canViewSummary && (
-        <Button
-          onClick={() => setActiveTab('summary')}
-          variant={activeTab === 'summary' ? 'default' : 'ghost'}
-          className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'summary' ? 'bg-white/15 text-white' : 'text-white/55'}`}
-        >
-          Summary
-        </Button>
-        )}
+      <div className="flex w-full gap-1 rounded-xl glass-card p-1">
+        {reportTabItems.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id as typeof activeTab)}
+            className={cn(
+              'flex-1 whitespace-nowrap rounded-lg px-3 py-2 text-xs sm:text-sm font-medium transition-all duration-200',
+              activeTab === tab.id
+                ? 'btn-gradient text-white'
+                : 'text-white/55 hover:bg-white/5 hover:text-white',
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
       )}
       
