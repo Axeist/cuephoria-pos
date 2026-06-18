@@ -44,7 +44,7 @@ const StationCustomerPanel: React.FC<StationCustomerPanelProps> = ({
 }) => {
   if (!station.isOccupied || !customer) {
     const statBoxClass =
-      'flex min-w-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.06] px-1.5 py-3 min-h-[72px]';
+      'flex min-w-0 flex-1 flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.06] px-1.5 py-2.5 min-h-[80px]';
     const statLabelClass =
       'mt-1.5 max-w-full truncate text-center text-[10px] font-semibold uppercase tracking-wide';
     const statLabelMuted = theme.textPalette

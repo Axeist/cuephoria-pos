@@ -23,6 +23,7 @@ import {
   themeText,
   type StationPhase,
 } from '@/utils/stationTheme';
+import { cn } from '@/lib/utils';
 import {
   getSessionDurationState,
   getUrgencyRingClass,
@@ -134,6 +135,8 @@ const StationCard: React.FC<StationCardProps> = ({
   const inMaintenance = isStationInMaintenance(station) && !station.isOccupied;
   const isLive = station.isOccupied || phase === 'live' || phase === 'starting';
   const showSessionBlock = station.isOccupied && session && phase !== 'ending';
+  const showIdleStatsOnly =
+    !showSessionBlock && phase !== 'starting' && phase !== 'ending' && !inMaintenance;
   void durationTick;
   const durationState = session ? getSessionDurationState(session, new Date(), station) : null;
   const urgencyRing = durationState ? getUrgencyRingClass(durationState.urgency) : '';
@@ -400,8 +403,8 @@ const StationCard: React.FC<StationCardProps> = ({
               customerName={customerName}
               phase={phase}
             />
-            <div className="flex items-center justify-between gap-2 rounded-lg border border-white/8 bg-black/25 px-2.5 py-1.5">
-              <div className="flex items-center gap-2 min-w-0">
+            <div className="flex flex-col gap-2 rounded-lg border border-white/8 bg-black/25 px-2.5 py-2 sm:flex-row sm:items-center sm:justify-between sm:py-1.5">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 {dragEnabled && !station.isOccupied && !inMaintenance && (
                   <span
                     className="flex h-8 w-6 shrink-0 cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing"
@@ -432,18 +435,18 @@ const StationCard: React.FC<StationCardProps> = ({
                     {selected ? 'Selected' : 'Select'}
                   </button>
                 )}
-                <div className="flex items-center gap-1.5 min-w-0">
+                <div className="flex min-w-0 items-center gap-1.5">
                   <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="truncate text-[11px] text-muted-foreground">On booking page</span>
+                  <span className="text-[11px] text-muted-foreground whitespace-nowrap">On booking page</span>
                   <Switch
-                    className="ml-1 scale-90 data-[state=checked]:bg-green-600"
+                    className="shrink-0 scale-90 data-[state=checked]:bg-green-600"
                     checked={!!isPublicLive && !inMaintenance}
                     disabled={isTogglingPublic || inMaintenance}
                     onCheckedChange={handleTogglePublicBooking}
                   />
                 </div>
               </div>
-              <div className="flex shrink-0 gap-0.5 opacity-80 group-hover:opacity-100">
+              <div className="flex shrink-0 gap-0.5 self-end opacity-80 group-hover:opacity-100 sm:self-auto">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -490,7 +493,14 @@ const StationCard: React.FC<StationCardProps> = ({
           </div>
 
           {/* Body: intel + prominent timer */}
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(180px,220px)] sm:items-stretch">
+          <div
+            className={cn(
+              'grid gap-3',
+              showIdleStatsOnly
+                ? 'grid-cols-1'
+                : 'sm:grid-cols-[minmax(0,1fr)_minmax(180px,220px)] sm:items-stretch'
+            )}
+          >
             <StationCustomerPanel
               station={station}
               customer={customer}
@@ -500,6 +510,7 @@ const StationCard: React.FC<StationCardProps> = ({
               expanded={!!showSessionBlock}
             />
 
+            {!showIdleStatsOnly && (
             <div className="flex min-h-[130px] min-w-0 flex-col gap-2 overflow-hidden">
               {showSessionBlock ? (
                 <div key={sessionId} className="flex flex-1 flex-col animate-station-content-in">
@@ -550,6 +561,7 @@ const StationCard: React.FC<StationCardProps> = ({
                 </div>
               )}
             </div>
+            )}
           </div>
 
           {!showSessionBlock && phase !== 'starting' && phase !== 'ending' && (

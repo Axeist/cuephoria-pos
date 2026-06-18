@@ -26,7 +26,7 @@ export function MobileSection({
   return (
     <section
       className={cn(
-        "mobile-section glass-card w-full min-w-0 max-w-full overflow-hidden",
+        "mobile-section glass-card w-full min-w-0 max-w-full overflow-x-hidden",
         isMobile ? "rounded-2xl" : "rounded-2xl",
         !noPadding && (isMobile ? "p-3" : "p-4 sm:p-5"),
         className,

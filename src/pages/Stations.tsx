@@ -406,8 +406,9 @@ const Stations = () => {
           </MobileActionBar>
         </div>
 
-        <div className="px-4 sm:px-5 pb-4 flex flex-col gap-3 border-t border-white/8 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-2 w-full min-w-0">
+        <div className="border-t border-white/8 px-4 pb-4 pt-4 sm:px-5 sm:pb-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 gap-2 overflow-x-auto pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0">
             <button
               type="button"
               onClick={() => {
@@ -415,7 +416,7 @@ const Stations = () => {
                 setOccupancyFilter('all');
               }}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all',
+                'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all',
                 typeFilter === 'all' && occupancyFilter === 'all'
                   ? 'border-cuephoria-purple/60 bg-cuephoria-purple/20 text-white'
                   : 'border-white/10 bg-black/30 text-muted-foreground hover:border-white/20'
@@ -435,7 +436,7 @@ const Stations = () => {
                 }
               }}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all',
+                'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all',
                 occupancyFilter === 'live'
                   ? 'border-orange-400/60 bg-orange-500/20 text-orange-100 ring-1 ring-orange-400/30'
                   : 'border-white/10 bg-black/30 text-muted-foreground hover:border-orange-400/35 hover:text-orange-200/90'
@@ -455,7 +456,7 @@ const Stations = () => {
                   type="button"
                   onClick={() => setTypeFilter(group.type)}
                   className={cn(
-                    'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all',
+                    'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all',
                     isActive
                       ? `${theme.border} bg-white/10 text-white`
                       : 'border-white/10 bg-black/30 text-muted-foreground hover:border-white/20'
@@ -471,10 +472,10 @@ const Stations = () => {
             })}
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex shrink-0 items-center gap-2 w-full lg:w-auto">
             <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <Select value={sortMode} onValueChange={(v) => handleSortModeChange(v as StationSortMode)}>
-              <SelectTrigger className="h-9 w-full sm:w-[180px] border-white/10 bg-black/30 text-xs">
+              <SelectTrigger className="h-9 w-full border-white/10 bg-black/30 text-xs lg:w-[200px]">
                 <SelectValue placeholder="Sort stations" />
               </SelectTrigger>
               <SelectContent>
@@ -485,10 +486,10 @@ const Stations = () => {
               </SelectContent>
             </Select>
           </div>
-        </div>
+          </div>
 
         {occupancyFilter !== 'all' && (
-          <p className="mt-2 text-xs text-cuephoria-lightpurple">
+          <p className="mt-3 text-xs text-cuephoria-lightpurple">
             Showing {occupancyFilter === 'live' ? 'live' : 'open'} stations only ·{' '}
             <button
               type="button"
@@ -501,16 +502,17 @@ const Stations = () => {
         )}
 
         {dragEnabled && (
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
             Drag the grip handle on a card to rearrange stations. Order is saved for this branch.
           </p>
         )}
 
         {selectionMode && (
-          <p className="mt-3 border-t border-white/8 pt-3 text-center text-xs text-cuephoria-lightpurple">
+          <p className="mt-3 border-t border-white/8 pt-3 text-center text-xs leading-relaxed text-cuephoria-lightpurple">
             Tap open stations to select · use <strong className="font-semibold">Start together</strong> in the header when ready
           </p>
         )}
+        </div>
       </MobileSection>
 
       <PinVerificationDialog

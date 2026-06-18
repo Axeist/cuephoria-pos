@@ -903,33 +903,43 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
             </ScrollArea>
             )}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                <div className="text-sm text-white/55">
-                  Showing {startIndex + 1}-{Math.min(endIndex, sortedBills.length)} of {sortedBills.length} transactions
-                </div>
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-center text-xs text-white/55 sm:text-left sm:text-sm">
+                  {isMobile ? (
+                    <>
+                      {startIndex + 1}–{Math.min(endIndex, sortedBills.length)} of {sortedBills.length}
+                    </>
+                  ) : (
+                    <>
+                      Showing {startIndex + 1}-{Math.min(endIndex, sortedBills.length)} of {sortedBills.length} transactions
+                    </>
+                  )}
+                </p>
+                <div className="flex w-full items-center justify-center gap-2 sm:w-auto">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
-                    className="bg-white/[0.06] border-white/10 text-white hover:bg-white/10"
+                    className="h-9 flex-1 bg-white/[0.06] border-white/10 text-white hover:bg-white/10 sm:flex-none sm:px-3"
+                    aria-label="Previous page"
                   >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    Previous
+                    <ChevronLeft className="h-4 w-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Previous</span>
                   </Button>
-                  <div className="text-sm text-white/55 px-2">
-                    Page {currentPage} of {totalPages}
-                  </div>
+                  <span className="shrink-0 text-xs text-white/55 tabular-nums sm:text-sm">
+                    {currentPage}/{totalPages}
+                  </span>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage >= totalPages}
-                    className="bg-white/[0.06] border-white/10 text-white hover:bg-white/10"
+                    className="h-9 flex-1 bg-white/[0.06] border-white/10 text-white hover:bg-white/10 sm:flex-none sm:px-3"
+                    aria-label="Next page"
                   >
-                    Next
-                    <ChevronRight className="h-4 w-4 ml-1" />
+                    <span className="hidden sm:inline">Next</span>
+                    <ChevronRight className="h-4 w-4 sm:ml-1" />
                   </Button>
                 </div>
               </div>
