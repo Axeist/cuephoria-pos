@@ -290,6 +290,20 @@ const Stations = () => {
                 </span>
               ) : undefined
             }
+            actions={
+              canConfigureStations ? (
+                <Button
+                  size="sm"
+                  className="w-full bg-cuephoria-purple hover:bg-cuephoria-purple/80 sm:w-auto"
+                  onClick={() =>
+                    requestPinVerification(() => setOpenAddDialog(true), { requireForAdmin: true })
+                  }
+                >
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  Add Station
+                </Button>
+              ) : undefined
+            }
           />
 
           <div className="grid w-full grid-cols-3 gap-2 sm:gap-3">
@@ -341,69 +355,66 @@ const Stations = () => {
             </div>
           </div>
 
-          <MobileActionBar className="w-full" maxVisible={isMobile ? 2 : 4}>
-            {canMultiStart && selectionMode && selectedStations.length > 0 && (
-              <>
-                <span className="hidden text-xs text-muted-foreground sm:inline">
-                  {selectedStations.length} selected
-                </span>
-                <Button
-                  size="sm"
-                  className="bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:opacity-90"
-                  onClick={() => setOpenMultiStartDialog(true)}
-                >
-                  Start together ({selectedStations.length})
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="px-2"
-                  onClick={() => setSelectedStationIds(new Set())}
-                  title="Clear selection"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </>
-            )}
-            {canMultiStart && (
-            <Button
-              size="sm"
-              variant={selectionMode ? 'default' : 'outline'}
-              className={selectionMode ? 'bg-cuephoria-purple hover:bg-cuephoria-purple/80' : ''}
-              onClick={() => {
-                if (selectionMode) exitSelectionMode();
-                else setSelectionMode(true);
-              }}
+          {(canMultiStart || canConfigureStations) && (
+            <div
+              className={cn(
+                'flex flex-wrap items-center gap-x-3 gap-y-2',
+                canMultiStart && canConfigureStations ? 'justify-between' : 'justify-end'
+              )}
             >
-              <Users className="mr-1.5 h-3.5 w-3.5" />
-              {selectionMode ? 'Cancel select' : 'Group start'}
-            </Button>
-            )}
-            {canConfigureStations && (
-            <Button size="sm" variant="outline" onClick={() => setOpenReplaceDialog(true)}>
-              <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
-              Legacy
-            </Button>
-            )}
-            {canConfigureStations && (
-            <Button size="sm" variant="outline" onClick={() => setOpenTypesDialog(true)}>
-              <Layers className="mr-1.5 h-3.5 w-3.5" />
-              Types
-            </Button>
-            )}
-            {canConfigureStations && (
-            <Button
-              size="sm"
-              className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
-              onClick={() =>
-                requestPinVerification(() => setOpenAddDialog(true), { requireForAdmin: true })
-              }
-            >
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
-              Add Station
-            </Button>
-            )}
-          </MobileActionBar>
+              {canMultiStart && (
+                <MobileActionBar className="min-w-0 flex-1" maxVisible={isMobile ? 2 : undefined}>
+                  {selectionMode && selectedStations.length > 0 && (
+                    <>
+                      <span className="hidden text-xs text-muted-foreground sm:inline">
+                        {selectedStations.length} selected
+                      </span>
+                      <Button
+                        size="sm"
+                        className="bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:opacity-90"
+                        onClick={() => setOpenMultiStartDialog(true)}
+                      >
+                        Start together ({selectedStations.length})
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="px-2"
+                        onClick={() => setSelectedStationIds(new Set())}
+                        title="Clear selection"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    size="sm"
+                    variant={selectionMode ? 'default' : 'outline'}
+                    className={selectionMode ? 'bg-cuephoria-purple hover:bg-cuephoria-purple/80' : ''}
+                    onClick={() => {
+                      if (selectionMode) exitSelectionMode();
+                      else setSelectionMode(true);
+                    }}
+                  >
+                    <Users className="mr-1.5 h-3.5 w-3.5" />
+                    {selectionMode ? 'Cancel select' : 'Group start'}
+                  </Button>
+                </MobileActionBar>
+              )}
+              {canConfigureStations && (
+                <MobileActionBar className="shrink-0 justify-end">
+                  <Button size="sm" variant="outline" onClick={() => setOpenReplaceDialog(true)}>
+                    <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
+                    Legacy
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setOpenTypesDialog(true)}>
+                    <Layers className="mr-1.5 h-3.5 w-3.5" />
+                    Types
+                  </Button>
+                </MobileActionBar>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="border-t border-white/8 px-4 pb-4 pt-4 sm:px-5 sm:pb-5">
