@@ -186,16 +186,27 @@ export default async function handler(req: Request) {
       if (sub.status !== "trialing") {
         return j({ ok: true, subscription: sub, noop: true }, 200);
       }
+      // Mark subscription as canceled + access_suspended with no anchor timestamp
+      // so the gate immediately blocks (no grace window) and shows "Subscription
+      // suspended — retry payment" rather than granting access as if they paid.
       const { data: subUpd, error: subUpdErr } = await supabase
         .from("subscriptions")
-        .update({ status: "active", trial_ends_at: null })
+        .update({
+          status: "canceled",
+          trial_ends_at: null,
+          access_suspended: true,
+          access_suspended_at: null,
+        })
         .eq("id", sub.id)
         .select("*")
         .single();
       if (subUpdErr) return j({ ok: false, error: subUpdErr.message }, 500);
+      // Move org out of 'trialing' so the trial bypass in SubscriptionGate no
+      // longer fires. 'past_due' signals billing needs attention without
+      // platform-suspending the workspace (which would block /subscription too).
       await supabase
         .from("organizations")
-        .update({ status: "active", trial_ends_at: null })
+        .update({ status: "past_due", trial_ends_at: null })
         .eq("id", id);
       await audit(supabase, session, id, "subscription.trial_ended_manually", {});
       return j({ ok: true, subscription: subUpd }, 200);
