@@ -95,29 +95,36 @@ const PlatformAudit: React.FC = () => {
   return (
     <div className="space-y-5">
       <motion.header
-        initial={{ opacity: 0, y: -4 }}
+        initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-end justify-between gap-4 flex-wrap"
+        transition={{ duration: 0.4 }}
+        className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#120a2e] via-[#180f3d] to-[#0b061e] p-5 sm:p-6 shadow-[0_10px_40px_rgba(0,0,0,0.3)]"
       >
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">Audit log</h1>
-          <p className="mt-1 text-sm text-zinc-400">
-            Every operator action and sensitive tenant event, in one stream.
-          </p>
+        <div className="relative flex flex-wrap items-end justify-between gap-4 font-quicksand">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase font-bold tracking-[0.18em] text-zinc-300">
+              <Activity className="h-3.5 w-3.5 text-indigo-300 animate-pulse" />
+              Operator Security Log
+            </div>
+            <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-zinc-50 font-quicksand">Audit log</h1>
+            <p className="mt-1.5 text-sm text-zinc-400">
+              Every operator action and sensitive tenant event, in one stream.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => query.refetch()}
+            className="border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10 transition-all text-xs font-semibold"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5 mr-2", query.isFetching && "animate-spin")} />
+            Refresh
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => query.refetch()}
-          className="border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"
-        >
-          <RefreshCw className={cn("h-4 w-4 mr-2", query.isFetching && "animate-spin")} />
-          Refresh
-        </Button>
       </motion.header>
 
-      <div className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-5 py-3 border-b border-white/5">
+      <div className="rounded-2xl border border-white/5 bg-[#130b2c]/30 backdrop-blur-md overflow-hidden shadow-xl">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-5 py-4 border-b border-white/5 bg-white/[0.01]">
           <div className="flex items-center gap-2 flex-wrap">
             <FilterSelect value={actorFilter} onChange={setActorFilter} options={ACTOR_OPTIONS} icon={<SlidersHorizontal className="h-3.5 w-3.5" />} />
             <FilterSelect value={actionPrefix} onChange={setActionPrefix} options={ACTION_OPTIONS} icon={<Activity className="h-3.5 w-3.5" />} />
@@ -128,7 +135,7 @@ const PlatformAudit: React.FC = () => {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search action or actor"
-              className="pl-8 h-9 bg-black/40 border-white/10 text-sm"
+              className="pl-8 h-9 bg-[#0b061c]/60 border-white/10 text-sm focus:border-indigo-500/40 focus:ring-indigo-500/20"
             />
           </div>
         </div>
@@ -152,35 +159,37 @@ const PlatformAudit: React.FC = () => {
             </div>
           </div>
         ) : (
-          <ol className="divide-y divide-white/5">
+          <ol className="divide-y divide-white/5 bg-[#0b061c]/10">
             {entries.map((e) => (
-              <li key={e.id} className="px-5 py-3 flex items-start gap-3 hover:bg-white/[0.02]">
+              <li key={e.id} className="px-5 py-3.5 flex items-start gap-3.5 hover:bg-white/[0.03] transition-colors border-b border-white/[0.02] last:border-b-0">
                 <div className={cn("mt-1.5 h-2 w-2 rounded-full shrink-0", actorDot(e.actor_type))} />
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 font-quicksand">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-xs text-zinc-100">{e.action}</span>
-                    <Badge variant="outline" className="border-white/10 bg-white/5 text-zinc-400 text-[10px] uppercase tracking-wider">
-                      {e.actor_type}
+                    <span className="font-mono text-[13px] font-semibold text-zinc-100 bg-[#0b061c]/60 border border-white/5 px-1.5 py-0.5 rounded">{e.action}</span>
+                    <Badge variant="outline" className="border-white/10 bg-white/5 text-zinc-400 text-[9px] font-bold uppercase tracking-wider">
+                      {e.actor_type.replace("_", " ")}
                     </Badge>
-                    <span className="text-xs text-zinc-400 truncate">{e.actor_label}</span>
+                    <span className="text-xs text-zinc-300 font-medium">{e.actor_label}</span>
                     {e.organization_id && e.organizationName && (
                       <Link
                         to={`/platform/organizations/${e.organization_id}`}
-                        className="inline-flex items-center gap-1 text-[11px] text-indigo-300 hover:text-indigo-200"
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-300 hover:text-indigo-200"
                       >
-                        <Building2 className="h-3 w-3" />
+                        <Building2 className="h-3 w-3 text-indigo-400" />
                         {e.organizationName}
                       </Link>
                     )}
                   </div>
                   {e.meta && Object.keys(e.meta).length > 0 && (
-                    <pre className="mt-1 text-[11px] text-zinc-500 font-mono whitespace-pre-wrap break-words">
-                      {JSON.stringify(e.meta, null, 0)}
-                    </pre>
+                    <div className="mt-2 rounded-lg bg-[#0b061c]/40 border border-white/5 p-2 max-w-2xl">
+                      <pre className="text-[10.5px] text-zinc-400 font-mono whitespace-pre-wrap break-words leading-relaxed">
+                        {JSON.stringify(e.meta, null, 2)}
+                      </pre>
+                    </div>
                   )}
                 </div>
                 <div
-                  className="text-[11px] text-zinc-500 whitespace-nowrap"
+                  className="text-[11px] text-zinc-500 font-medium whitespace-nowrap mt-1"
                   title={new Date(e.created_at).toLocaleString()}
                 >
                   {relative(e.created_at)} ago
@@ -247,7 +256,7 @@ const FilterSelect: React.FC<{
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-9 pl-8 pr-6 rounded-md bg-black/40 border border-white/10 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      className="h-9 pl-8 pr-8 rounded-md bg-[#0b061c]/60 border border-white/10 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/40 transition-all cursor-pointer appearance-none"
     >
       {options.map((o) => (
         <option key={o.value} value={o.value}>

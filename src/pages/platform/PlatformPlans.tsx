@@ -97,24 +97,35 @@ const PlatformPlans: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">Billing plans</h1>
-          <p className="mt-1 text-sm text-zinc-400 max-w-2xl">
-            Map Razorpay subscription plan IDs here. Charges use the Razorpay plan amount — not the
-            display prices below.
-          </p>
+      <motion.header
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#120a2e] via-[#180f3d] to-[#0b061e] p-5 sm:p-6 shadow-[0_10px_40px_rgba(0,0,0,0.3)]"
+      >
+        <div className="relative flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase font-bold tracking-[0.18em] text-zinc-300">
+              <Wallet className="h-3.5 w-3.5 text-indigo-300 animate-pulse" />
+              Razorpay Sync
+            </div>
+            <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-zinc-50 font-quicksand">Billing plans</h1>
+            <p className="mt-1.5 text-sm text-zinc-400 max-w-2xl">
+              Map Razorpay subscription plan IDs here. Charges use the Razorpay plan amount — not the
+              display prices below.
+            </p>
+          </div>
+          <a
+            href="https://dashboard.razorpay.com/app/subscriptions/plans"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-indigo-300 hover:bg-white/10 transition-all shadow-md"
+          >
+            <Wallet className="h-3.5 w-3.5" />
+            Razorpay plans dashboard
+          </a>
         </div>
-        <a
-          href="https://dashboard.razorpay.com/app/subscriptions/plans"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-indigo-300 hover:bg-white/10"
-        >
-          <Wallet className="h-3.5 w-3.5" />
-          Razorpay plans dashboard
-        </a>
-      </header>
+      </motion.header>
 
       {query.isLoading ? (
         <Skeleton className="h-40 w-full bg-white/5 rounded-xl" />
@@ -198,16 +209,18 @@ const TestPlanPanel: React.FC<{ plan: Plan }> = ({ plan }) => {
   };
 
   return (
-    <section className="rounded-2xl border border-amber-500/25 bg-gradient-to-br from-amber-500/10 to-transparent p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <section className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-5 shadow-lg shadow-amber-950/5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between font-quicksand">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <FlaskConical className="h-5 w-5 text-amber-300" />
-            <h2 className="text-lg font-semibold text-zinc-50">Test billing plan</h2>
+            <div className="rounded-lg bg-amber-500/10 p-1.5 border border-amber-500/20">
+              <FlaskConical className="h-4.5 w-4.5 text-amber-300 animate-pulse" />
+            </div>
+            <h2 className="text-lg font-bold text-zinc-50">Test billing plan</h2>
             <Badge
               variant="outline"
               className={cn(
-                "text-[10px] uppercase tracking-wider",
+                "text-[10px] uppercase font-bold tracking-wider",
                 enabled
                   ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
                   : "border-zinc-500/40 bg-zinc-500/10 text-zinc-400",
@@ -218,17 +231,17 @@ const TestPlanPanel: React.FC<{ plan: Plan }> = ({ plan }) => {
           </div>
           <p className="mt-2 text-sm text-zinc-400 max-w-xl">
             Use this to verify checkout, webhooks, and access unlock with a{" "}
-            <span className="text-amber-200 font-medium">
+            <span className="text-amber-200 font-semibold">
               {plan.price_inr_month != null ? inr.format(plan.price_inr_month) : "₹1"}/mo
             </span>{" "}
             Razorpay test plan. Disable when you are done testing.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/30 px-4 py-3">
+        <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-[#0b061c]/50 px-4 py-2.5">
           <div className="text-right">
-            <div className="text-sm font-medium text-zinc-100">Show on tenant billing</div>
-            <div className="text-[11px] text-zinc-500">Toggle off to hide instantly</div>
+            <div className="text-sm font-semibold text-zinc-200">Show on tenant billing</div>
+            <div className="text-[11px] text-zinc-500 font-medium">Toggle off to hide instantly</div>
           </div>
           <Switch
             checked={enabled}
@@ -243,13 +256,13 @@ const TestPlanPanel: React.FC<{ plan: Plan }> = ({ plan }) => {
           value={planId}
           onChange={(e) => setPlanId(e.target.value.trim())}
           placeholder="plan_XXXXXXXXXXXX"
-          className="font-mono text-sm bg-black/40 border-white/10 flex-1"
+          className="font-mono text-sm bg-[#0b061c]/60 border-white/10 flex-1 focus:border-indigo-500/40 focus:ring-indigo-500/20"
         />
         <Button
           size="sm"
           disabled={!idDirty || mutation.isPending}
           onClick={savePlanId}
-          className="bg-amber-600 hover:bg-amber-700 text-white shrink-0"
+          className="bg-amber-600 hover:bg-amber-700 text-white shrink-0 transition-all font-semibold"
         >
           {mutation.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -274,10 +287,10 @@ type RowDraft = {
 
 const ProductionPlansTable: React.FC<{ plans: Plan[] }> = ({ plans }) => {
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
-      <div className="border-b border-white/5 px-5 py-4">
-        <h2 className="text-sm font-semibold text-zinc-100">Production plans</h2>
-        <p className="mt-1 text-xs text-zinc-500">
+    <section className="rounded-2xl border border-white/5 bg-[#130b2c]/30 backdrop-blur-md overflow-hidden shadow-xl">
+      <div className="border-b border-white/5 px-5 py-4 bg-white/[0.01]">
+        <h2 className="text-sm font-bold text-zinc-100">Production plans</h2>
+        <p className="mt-1 text-xs text-zinc-400">
           Paste monthly and yearly Razorpay plan IDs for each tier. Display prices are shown to tenants only.
         </p>
       </div>
@@ -391,8 +404,8 @@ const PlanRow: React.FC<{ plan: Plan }> = ({ plan }) => {
   return (
     <tr className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
       <td className="px-5 py-3">
-        <div className="font-medium text-zinc-100">{plan.name}</div>
-        <div className="text-[11px] text-zinc-500 uppercase tracking-wider">{plan.code}</div>
+        <div className="font-semibold text-zinc-100">{plan.name}</div>
+        <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">{plan.code}</div>
       </td>
       <td className="px-3 py-3">
         <Input
@@ -400,7 +413,7 @@ const PlanRow: React.FC<{ plan: Plan }> = ({ plan }) => {
           min={0}
           value={draft.price_inr_month}
           onChange={(e) => setDraft((d) => ({ ...d, price_inr_month: e.target.value }))}
-          className="h-9 w-24 font-mono bg-black/30 border-white/10"
+          className="h-9 w-24 font-mono bg-[#0b061c]/60 border-white/10 focus:border-indigo-500/40 focus:ring-indigo-500/20"
         />
       </td>
       <td className="px-3 py-3">
@@ -409,7 +422,7 @@ const PlanRow: React.FC<{ plan: Plan }> = ({ plan }) => {
           min={0}
           value={draft.price_inr_year}
           onChange={(e) => setDraft((d) => ({ ...d, price_inr_year: e.target.value }))}
-          className="h-9 w-28 font-mono bg-black/30 border-white/10"
+          className="h-9 w-28 font-mono bg-[#0b061c]/60 border-white/10 focus:border-indigo-500/40 focus:ring-indigo-500/20"
         />
       </td>
       <td className="px-3 py-3">
@@ -417,7 +430,7 @@ const PlanRow: React.FC<{ plan: Plan }> = ({ plan }) => {
           value={draft.razorpay_plan_id_month}
           onChange={(e) => setDraft((d) => ({ ...d, razorpay_plan_id_month: e.target.value.trim() }))}
           placeholder="plan_…"
-          className="h-9 min-w-[180px] font-mono text-xs bg-black/30 border-white/10"
+          className="h-9 min-w-[180px] font-mono text-xs bg-[#0b061c]/60 border-white/10 focus:border-indigo-500/40 focus:ring-indigo-500/20"
         />
       </td>
       <td className="px-3 py-3">
@@ -425,7 +438,7 @@ const PlanRow: React.FC<{ plan: Plan }> = ({ plan }) => {
           value={draft.razorpay_plan_id_year}
           onChange={(e) => setDraft((d) => ({ ...d, razorpay_plan_id_year: e.target.value.trim() }))}
           placeholder="plan_…"
-          className="h-9 min-w-[180px] font-mono text-xs bg-black/30 border-white/10"
+          className="h-9 min-w-[180px] font-mono text-xs bg-[#0b061c]/60 border-white/10 focus:border-indigo-500/40 focus:ring-indigo-500/20"
         />
       </td>
       <td className="px-3 py-3">
@@ -437,7 +450,7 @@ const PlanRow: React.FC<{ plan: Plan }> = ({ plan }) => {
           variant="outline"
           disabled={!dirty || mutation.isPending}
           onClick={onSave}
-          className="border-white/15 bg-white/5 hover:bg-white/10"
+          className="border-white/15 bg-white/5 hover:bg-white/10 transition-all font-semibold"
         >
           {mutation.isPending ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />

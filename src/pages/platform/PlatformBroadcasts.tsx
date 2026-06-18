@@ -142,41 +142,41 @@ const PreviewCard: React.FC<{
   const Icon = opt.icon;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0a0814]/90 shadow-[0_24px_60px_-30px_rgba(99,102,241,0.45)]">
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0d0a21]/95 shadow-[0_15px_40px_rgba(0,0,0,0.4)] backdrop-blur-md max-w-sm w-full mx-auto relative">
       <div
         className={cn(
-          "h-1 bg-gradient-to-r",
+          "h-1 w-full bg-gradient-to-r",
           severity === "critical"
-            ? "from-rose-400 via-red-500 to-fuchsia-500"
+            ? "from-rose-500 via-red-500 to-fuchsia-500"
             : severity === "warning"
-              ? "from-amber-400 via-orange-500 to-yellow-400"
+              ? "from-amber-500 via-orange-500 to-yellow-400"
               : severity === "success"
-                ? "from-emerald-400 via-teal-500 to-cyan-400"
-                : "from-indigo-400 via-violet-500 to-cyan-400"
+                ? "from-emerald-500 via-teal-500 to-cyan-400"
+                : "from-indigo-500 via-violet-500 to-cyan-400"
         )}
       />
-      <div className="p-4">
+      <div className="p-4 font-quicksand">
         <div className="mb-3 flex items-start gap-3">
           <div
             className={cn(
-              "flex h-10 w-10 items-center justify-center rounded-xl ring-1",
-              "bg-gradient-to-br from-indigo-500/30 via-violet-600/20 to-cyan-500/15 text-cyan-100 ring-indigo-400/40"
+              "flex h-9 w-9 items-center justify-center rounded-xl border shrink-0",
+              opt.ring
             )}
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-4.5 w-4.5" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="bg-gradient-to-r from-cyan-200 via-violet-200 to-fuchsia-200 bg-clip-text text-[10px] font-bold uppercase tracking-[0.16em] text-transparent">
+            <p className="bg-gradient-to-r from-cyan-300 via-indigo-300 to-fuchsia-300 bg-clip-text text-[9px] font-extrabold uppercase tracking-[0.2em] text-transparent">
               Cuetronix Platform
             </p>
-            <p className="mt-1 font-semibold text-white">{title || "Notification title"}</p>
-            <p className="mt-0.5 bg-gradient-to-r from-cyan-300/90 to-violet-300/90 bg-clip-text text-xs text-transparent">
+            <p className="mt-0.5 font-bold text-white text-sm truncate">{title || "Announcement Title"}</p>
+            <p className="mt-0.5 text-[10px] text-zinc-500 font-semibold">
               {PRODUCT_BRAND.name} Admin
             </p>
           </div>
         </div>
-        <p className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 text-sm leading-relaxed text-zinc-300">
-          {message || "Your message appears here — staff see this instantly via Realtime."}
+        <p className="rounded-xl border border-white/5 bg-white/[0.02] px-3.5 py-2.5 text-xs leading-relaxed text-zinc-300 font-medium whitespace-pre-wrap break-words min-h-[60px]">
+          {message || "Compose details on the left — staff will see them immediately."}
         </p>
       </div>
     </div>
@@ -260,23 +260,29 @@ const PlatformBroadcasts: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
+      <motion.header
+        initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-2xl border border-indigo-400/25 bg-gradient-to-br from-indigo-950/60 via-violet-950/40 to-[#07070e] p-6 sm:p-8"
+        transition={{ duration: 0.4 }}
+        className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#120a2e] via-[#180f3d] to-[#0b061e] p-5 sm:p-6 shadow-[0_10px_40px_rgba(0,0,0,0.3)]"
       >
-        <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-violet-600/20 blur-3xl" />
+        <motion.div
+          aria-hidden
+          animate={{ opacity: [0.35, 0.6, 0.35] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          className="pointer-events-none absolute -top-28 -left-20 h-[360px] w-[360px] rounded-full blur-[140px] bg-indigo-500/30"
+        />
         <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-4">
             <div className="rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-600 to-cyan-500 p-3 shadow-lg shadow-indigo-500/30">
-              <Megaphone className="h-6 w-6 text-white" />
+              <Megaphone className="h-5 w-5 text-white" />
             </div>
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
+              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-200">
                 <Radio className="h-3 w-3 animate-pulse" />
                 Realtime push
               </div>
-              <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+              <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-white sm:text-3xl font-quicksand">
                 Workspace broadcasts
               </h1>
               <p className="mt-2 max-w-xl text-sm text-zinc-400">
@@ -296,7 +302,7 @@ const PlatformBroadcasts: React.FC = () => {
             </Badge>
           </div>
         </div>
-      </motion.div>
+      </motion.header>
 
       {broadcastNeedsMigration && (
         <div className="rounded-2xl border border-amber-400/35 bg-amber-500/10 px-5 py-4 text-sm text-amber-100">
@@ -314,7 +320,7 @@ const PlatformBroadcasts: React.FC = () => {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 sm:p-6"
+          className="rounded-2xl border border-white/5 bg-[#130b2c]/30 backdrop-blur-md p-5 sm:p-6 shadow-lg"
         >
           <h2 className="mb-5 flex items-center gap-2 text-lg font-bold text-white">
             <Send className="h-5 w-5 text-violet-300" />
@@ -334,8 +340,8 @@ const PlatformBroadcasts: React.FC = () => {
                       type="button"
                       onClick={() => setSeverity(opt.id)}
                       className={cn(
-                        "flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-all",
-                        active ? opt.ring : "border-white/10 bg-black/20 text-zinc-400 hover:border-white/20"
+                        "flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-semibold transition-all shadow-sm duration-200",
+                        active ? `${opt.ring} scale-102` : "border-white/10 bg-[#0b061c]/50 text-zinc-400 hover:border-white/20"
                       )}
                     >
                       <Icon className="h-4 w-4 shrink-0" />
@@ -356,7 +362,7 @@ const PlatformBroadcasts: React.FC = () => {
                 onChange={(e) => setTitle(e.target.value)}
                 maxLength={120}
                 placeholder="e.g. Scheduled maintenance tonight 11 PM–1 AM"
-                className="mt-1.5 border-white/10 bg-black/30"
+                className="mt-1.5 bg-[#0b061c]/60 border-white/10 text-sm focus:border-indigo-500/40 focus:ring-indigo-500/20"
               />
             </div>
 
@@ -371,7 +377,7 @@ const PlatformBroadcasts: React.FC = () => {
                 maxLength={2000}
                 rows={5}
                 placeholder="Full details staff should know. Keep it actionable."
-                className="mt-1.5 border-white/10 bg-black/30 resize-y min-h-[120px]"
+                className="mt-1.5 bg-[#0b061c]/60 border-white/10 resize-y min-h-[120px] text-sm focus:border-indigo-500/40 focus:ring-indigo-500/20"
               />
             </div>
 
@@ -408,7 +414,7 @@ const PlatformBroadcasts: React.FC = () => {
 
               {targetType === "organization" && (
                 <Select value={organizationId} onValueChange={setOrganizationId}>
-                  <SelectTrigger className="mt-3 border-white/10 bg-black/30">
+                  <SelectTrigger className="mt-3 bg-[#0b061c]/60 border-white/10 text-sm focus:border-indigo-500/40 focus:ring-indigo-500/20">
                     <SelectValue placeholder="Select organization…" />
                   </SelectTrigger>
                   <SelectContent>
@@ -422,10 +428,10 @@ const PlatformBroadcasts: React.FC = () => {
               )}
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/8 bg-black/25 px-4 py-3">
-              <p className="text-xs text-zinc-500">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/8 bg-[#0b061c]/50 px-4 py-3">
+              <p className="text-xs text-zinc-400 font-medium">
                 Delivers to{" "}
-                <span className="font-semibold text-zinc-300">
+                <span className="font-semibold text-zinc-200">
                   ~{estBranches} active branch{estBranches === 1 ? "" : "es"}
                 </span>{" "}
                 · visible 7 days · toast + bell
@@ -433,7 +439,7 @@ const PlatformBroadcasts: React.FC = () => {
               <Button
                 disabled={!canSend || sendMutation.isPending || broadcastNeedsMigration}
                 onClick={() => sendMutation.mutate()}
-                className="bg-gradient-to-r from-indigo-600 via-violet-600 to-cyan-600 font-bold shadow-lg shadow-indigo-600/25 hover:opacity-95"
+                className="bg-gradient-to-r from-indigo-500 to-fuchsia-500 font-bold shadow-lg shadow-indigo-500/25 hover:opacity-95 text-white transition-all text-xs"
               >
                 {sendMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -465,10 +471,10 @@ const PlatformBroadcasts: React.FC = () => {
         </motion.aside>
       </div>
 
-      <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 sm:p-6">
-        <div className="mb-4 flex items-center justify-between gap-3">
+      <section className="rounded-2xl border border-white/5 bg-[#130b2c]/30 backdrop-blur-md p-5 sm:p-6 shadow-lg">
+        <div className="mb-5 flex items-center justify-between gap-3">
           <h2 className="text-lg font-bold text-white">Recent broadcasts</h2>
-          <Badge variant="outline" className="border-white/10 text-zinc-400">
+          <Badge variant="outline" className="border-white/10 bg-white/5 text-zinc-400 text-[10px] font-bold">
             Auto-refresh 12s
           </Badge>
         </div>
@@ -493,7 +499,7 @@ const PlatformBroadcasts: React.FC = () => {
               return (
                 <div
                   key={b.id}
-                  className="flex flex-col gap-3 rounded-xl border border-white/8 bg-black/25 p-4 sm:flex-row sm:items-start sm:justify-between"
+                  className="flex flex-col gap-3 rounded-xl border border-white/5 bg-[#0b061c]/50 p-4 sm:flex-row sm:items-start sm:justify-between hover:bg-white/[0.03] transition-colors"
                 >
                   <div className="flex min-w-0 gap-3">
                     <div

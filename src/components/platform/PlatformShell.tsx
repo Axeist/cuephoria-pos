@@ -29,20 +29,20 @@ export const PlatformShell: React.FC<{ children: React.ReactNode }> = ({ childre
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#07070e] text-zinc-100 overflow-x-hidden">
+    <div className="min-h-screen bg-[#070512] text-zinc-100 overflow-x-hidden font-quicksand">
       {/* Ambient gradient (non-interactive) */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 z-0 opacity-80"
         style={{
           background:
-            "radial-gradient(1200px circle at 15% 0%, rgba(99,102,241,0.18), transparent 60%), radial-gradient(900px circle at 90% 10%, rgba(168,85,247,0.12), transparent 55%), radial-gradient(800px circle at 50% 100%, rgba(56,189,248,0.08), transparent 55%)",
+            "radial-gradient(1200px circle at 15% 0%, rgba(124,58,237,0.16), transparent 60%), radial-gradient(900px circle at 90% 10%, rgba(236,72,153,0.1), transparent 55%), radial-gradient(800px circle at 50% 100%, rgba(59,130,246,0.06), transparent 55%)",
         }}
       />
 
       <div className="relative z-10 flex min-h-screen flex-col">
-        <header className="border-b border-white/5 backdrop-blur-md bg-black/30">
-          <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 sm:px-6 py-3 sm:py-4 gap-2">
+        <header className="sticky top-0 z-50 border-b border-white/[0.06] backdrop-blur-lg bg-[#0d0a21]/50 shadow-[0_4px_30px_rgba(0,0,0,0.2)]">
+          <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 gap-2">
             {/* Mobile hamburger — opens the navigation sheet. */}
             <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
               <SheetTrigger asChild>
@@ -60,12 +60,12 @@ export const PlatformShell: React.FC<{ children: React.ReactNode }> = ({ childre
                 className="w-[78%] max-w-[280px] border-white/10 p-0"
                 style={{
                   background:
-                    'linear-gradient(180deg, rgba(7,7,14,0.98) 0%, rgba(13,13,25,0.98) 100%)',
+                    'linear-gradient(180deg, rgba(7,5,18,0.98) 0%, rgba(15,10,32,0.98) 100%)',
                   backdropFilter: 'blur(24px) saturate(140%)',
                   WebkitBackdropFilter: 'blur(24px) saturate(140%)',
                 }}
               >
-                <div className="flex h-full flex-col">
+                <div className="flex h-full flex-col font-quicksand">
                   <div className="px-4 py-4 border-b border-white/5">
                     <div className="flex items-center gap-3">
                       <div className="relative h-9 w-9 rounded-lg overflow-hidden bg-black grid place-items-center shadow-lg shadow-indigo-500/30 ring-1 ring-white/10">
@@ -140,7 +140,7 @@ export const PlatformShell: React.FC<{ children: React.ReactNode }> = ({ childre
               </div>
             </div>
 
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className="hidden md:flex items-center gap-1.5">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -150,14 +150,14 @@ export const PlatformShell: React.FC<{ children: React.ReactNode }> = ({ childre
                     end={item.end}
                     className={({ isActive }) =>
                       cn(
-                        "inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm transition-all",
+                        "inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[13px] font-medium transition-all duration-300 border",
                         isActive
-                          ? "bg-white/10 text-white shadow-inner"
-                          : "text-zinc-400 hover:text-white hover:bg-white/5",
+                          ? "bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-fuchsia-500/10 text-white border-indigo-500/30 shadow-[0_0_15px_rgba(124,58,237,0.15)]"
+                          : "text-zinc-400 border-transparent hover:text-white hover:bg-white/5",
                       )
                     }
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-3.5 w-3.5" />
                     {item.label}
                   </NavLink>
                 );
@@ -165,23 +165,28 @@ export const PlatformShell: React.FC<{ children: React.ReactNode }> = ({ childre
             </nav>
 
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              <div className="hidden md:block text-right leading-tight">
-                <div className="text-sm font-medium text-zinc-200">
-                  {admin?.displayName || admin?.email}
+              <div className="hidden md:flex items-center gap-2.5 rounded-full border border-white/5 bg-white/[0.03] px-3 py-1 text-left">
+                <div className="h-6 w-6 rounded-full bg-gradient-to-tr from-indigo-500 to-fuchsia-500 flex items-center justify-center text-[10px] font-bold text-white shadow-inner">
+                  {(admin?.displayName || admin?.email || "OP").substring(0, 2).toUpperCase()}
                 </div>
-                <div className="text-xs text-zinc-500">{admin?.email}</div>
+                <div className="leading-tight">
+                  <div className="text-xs font-semibold text-zinc-200">
+                    {admin?.displayName || "Operator"}
+                  </div>
+                  <div className="text-[10px] text-zinc-500">{admin?.email}</div>
+                </div>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-zinc-300 hover:text-white hover:bg-white/10"
+                className="text-zinc-400 hover:text-white hover:bg-white/5"
                 onClick={async () => {
                   await logout();
                   navigate("/platform/login", { replace: true });
                 }}
               >
-                <LogOut className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Sign out</span>
+                <LogOut className="h-4 w-4 sm:mr-1.5" />
+                <span className="hidden sm:inline text-xs font-semibold">Sign out</span>
               </Button>
             </div>
           </div>

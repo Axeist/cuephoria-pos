@@ -174,47 +174,47 @@ const StatCard: React.FC<{
   accent?: "indigo" | "emerald" | "amber" | "rose" | "cyan";
   loading?: boolean;
 }> = ({ label, value, numeric, formatNumeric, sub, icon: Icon, accent = "indigo", loading }) => {
-  const accentRing = {
-    indigo: "from-indigo-500/20 to-indigo-500/0",
-    emerald: "from-emerald-500/20 to-emerald-500/0",
-    amber: "from-amber-500/20 to-amber-500/0",
-    rose: "from-rose-500/20 to-rose-500/0",
-    cyan: "from-cyan-500/20 to-cyan-500/0",
+  const accentGlow = {
+    indigo: "from-indigo-500/10 via-indigo-500/5 to-transparent border-indigo-500/20 hover:border-indigo-500/40 shadow-indigo-500/5",
+    emerald: "from-emerald-500/10 via-emerald-500/5 to-transparent border-emerald-500/20 hover:border-emerald-500/40 shadow-emerald-500/5",
+    amber: "from-amber-500/10 via-amber-500/5 to-transparent border-amber-500/20 hover:border-amber-500/40 shadow-amber-500/5",
+    rose: "from-rose-500/10 via-rose-500/5 to-transparent border-rose-500/20 hover:border-rose-500/40 shadow-rose-500/5",
+    cyan: "from-cyan-500/10 via-cyan-500/5 to-transparent border-cyan-500/20 hover:border-cyan-500/40 shadow-cyan-500/5",
   }[accent];
+
   const iconColor = {
-    indigo: "text-indigo-400",
-    emerald: "text-emerald-400",
-    amber: "text-amber-400",
-    rose: "text-rose-400",
-    cyan: "text-cyan-400",
+    indigo: "text-indigo-300 bg-indigo-500/10 border-indigo-500/20",
+    emerald: "text-emerald-300 bg-emerald-500/10 border-emerald-500/20",
+    amber: "text-amber-300 bg-amber-500/10 border-amber-500/20",
+    rose: "text-rose-300 bg-rose-500/10 border-rose-500/20",
+    cyan: "text-cyan-300 bg-cyan-500/10 border-cyan-500/20",
   }[accent];
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35 }}
-      whileHover={{ y: -2 }}
+      transition={{ duration: 0.4 }}
+      whileHover={{ y: -3 }}
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] p-5",
-        "hover:border-white/20 hover:bg-white/[0.04] transition-colors",
+        "relative overflow-hidden rounded-2xl border bg-gradient-to-br p-5 backdrop-blur-md shadow-lg transition-all duration-300",
+        accentGlow
       )}
     >
-      <div className={cn("absolute -top-10 -right-10 h-32 w-32 rounded-full bg-gradient-to-br blur-2xl", accentRing)} />
       <div className="relative flex items-start justify-between">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">{label}</div>
           {loading ? (
             <Skeleton className="h-8 w-24 mt-2 bg-white/10" />
           ) : (
-            <div className="mt-1 text-3xl font-semibold tracking-tight text-zinc-100">
+            <div className="mt-1 text-3xl font-extrabold tracking-tight text-white">
               {typeof numeric === "number" ? <AnimatedNumber value={numeric} format={formatNumeric} /> : value}
             </div>
           )}
-          {sub && !loading && <div className="mt-1 text-xs text-zinc-500">{sub}</div>}
+          {sub && !loading && <div className="mt-1.5 text-xs text-zinc-400 font-medium">{sub}</div>}
         </div>
-        <div className={cn("rounded-xl bg-white/5 p-2", iconColor)}>
-          <Icon className="h-5 w-5" />
+        <div className={cn("rounded-xl border p-2.5 shadow-inner", iconColor)}>
+          <Icon className="h-4 w-4" />
         </div>
       </div>
     </motion.div>
@@ -367,19 +367,19 @@ const PlatformDashboard: React.FC = () => {
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#0b0b16] via-[#10112a] to-[#0b0b16] p-5 sm:p-7"
+        className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#120a2e] via-[#180f3d] to-[#0b061e] p-5 sm:p-7 shadow-[0_10px_40px_rgba(0,0,0,0.3)]"
       >
         <motion.div
           aria-hidden
           animate={{ opacity: [0.35, 0.6, 0.35] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="pointer-events-none absolute -top-28 -left-20 h-[360px] w-[360px] rounded-full blur-[140px] bg-indigo-500/40"
+          className="pointer-events-none absolute -top-28 -left-20 h-[360px] w-[360px] rounded-full blur-[140px] bg-indigo-500/30"
         />
         <motion.div
           aria-hidden
           animate={{ opacity: [0.25, 0.5, 0.25] }}
           transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
-          className="pointer-events-none absolute -bottom-32 -right-16 h-[340px] w-[340px] rounded-full blur-[140px] bg-fuchsia-500/40"
+          className="pointer-events-none absolute -bottom-32 -right-16 h-[340px] w-[340px] rounded-full blur-[140px] bg-fuchsia-500/30"
         />
         <div
           aria-hidden
@@ -392,11 +392,11 @@ const PlatformDashboard: React.FC = () => {
 
         <div className="relative flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-semibold tracking-wider uppercase bg-white/5 border border-white/10 text-zinc-300">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-white/5 border border-white/10 text-zinc-300">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Cuetronix · Platform Console
             </div>
-            <h1 className="mt-3 text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-50">
+            <h1 className="mt-3 text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-50 font-quicksand">
               Hello — here's the{" "}
               <span className="bg-gradient-to-r from-indigo-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-transparent">
                 fleet
@@ -411,22 +411,22 @@ const PlatformDashboard: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              className="border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"
+              className="border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10 transition-all text-xs font-semibold"
               onClick={() => {
                 statsQuery.refetch();
                 orgsQuery.refetch();
                 backdoorQuery.refetch();
               }}
             >
-              <Activity className="h-4 w-4 mr-2" />
+              <Activity className="h-3.5 w-3.5 mr-2" />
               Refresh
             </Button>
             <Button
               size="sm"
-              className="bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white hover:opacity-90 shadow-lg shadow-indigo-500/30"
+              className="bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white hover:opacity-90 shadow-lg shadow-indigo-500/30 transition-all text-xs font-semibold"
               onClick={() => setCreateOpen(true)}
             >
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-4 w-4 mr-1.5" />
               New tenant
             </Button>
           </div>
@@ -482,27 +482,27 @@ const PlatformDashboard: React.FC = () => {
         />
       </section>
 
-      <section className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-4">
+      <section className="rounded-2xl border border-white/5 bg-[#130b2c]/30 backdrop-blur-md px-5 py-4 shadow-lg shadow-black/10">
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <div className="rounded-lg bg-cyan-500/10 p-2 text-cyan-300">
+              <div className="rounded-lg bg-cyan-500/10 p-2 text-cyan-300 border border-cyan-500/20">
                 <Clock className="h-4 w-4" />
               </div>
               <div>
                 <div className="text-sm font-semibold text-zinc-100">Fleet billing grace</div>
-                <p className="mt-1 text-xs text-zinc-500 max-w-xl">
+                <p className="mt-1 text-xs text-zinc-400 max-w-xl">
                   How long tenant workspaces stay usable after a Razorpay billing suspend, or after they close
                   checkout while the mandate is still uncompleted (
-                  <code className="text-[11px] px-1 rounded bg-white/10">created</code>
+                  <code className="text-[11px] px-1.5 py-0.5 rounded bg-white/10 font-mono">created</code>
                   ). Shown as a countdown on the tenant Subscription page and the app gate.
                 </p>
               </div>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/35 px-3 py-2">
-              <label htmlFor="fleet-grace-min" className="text-[11px] uppercase tracking-wider text-zinc-500">
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#0b061c]/50 px-3 py-1.5">
+              <label htmlFor="fleet-grace-min" className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
                 Minutes
               </label>
               <Input
@@ -513,13 +513,13 @@ const PlatformDashboard: React.FC = () => {
                 value={graceDraft}
                 disabled={billingSettingsQuery.isLoading || saveBillingGrace.isPending}
                 onChange={(e) => setGraceDraft(e.target.value)}
-                className="h-9 w-28 bg-transparent border-white/15 text-zinc-100 font-mono text-sm"
+                className="h-8 w-28 bg-transparent border-transparent text-zinc-100 font-mono text-sm focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
               />
             </div>
             <Button
               size="sm"
               variant="outline"
-              className="border-white/15 bg-white/5 hover:bg-white/10"
+              className="border-white/15 bg-white/5 hover:bg-white/10 transition-all text-xs font-semibold"
               disabled={
                 billingSettingsQuery.isLoading ||
                 saveBillingGrace.isPending ||
@@ -597,18 +597,18 @@ const PlatformDashboard: React.FC = () => {
         );
       })()}
 
-      <section className="rounded-2xl border border-indigo-500/25 bg-indigo-500/[0.04] overflow-hidden">
+      <section className="rounded-2xl border border-indigo-500/20 bg-[#130b2c]/30 backdrop-blur-md overflow-hidden shadow-xl shadow-indigo-950/20">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-5 py-4 border-b border-white/5">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
               <KeyRound className="h-4 w-4 text-indigo-400" />
               Workspace backdoor access
             </div>
-            <p className="mt-1 text-xs text-zinc-500 max-w-2xl">
+            <p className="mt-1 text-xs text-zinc-400 max-w-2xl">
               Hidden super-admin login per tenant for Cuetronix testing. Use the login email on the sign-in
               page (not the old cuephoria-slug username). Not shown in tenant staff lists.
               {backdoorQuery.data?.provisioned ? (
-                <span className="text-indigo-300/90">
+                <span className="text-indigo-300/90 font-medium">
                   {" "}
                   Provisioned {backdoorQuery.data.provisioned} missing account
                   {backdoorQuery.data.provisioned === 1 ? "" : "s"} on this load.
@@ -621,13 +621,13 @@ const PlatformDashboard: React.FC = () => {
               type="button"
               variant="outline"
               size="sm"
-              className="border-white/10 bg-white/5 text-zinc-200"
+              className="border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10 transition-all text-xs font-semibold"
               onClick={() => setShowBackdoorPasswords((v) => !v)}
             >
               {showBackdoorPasswords ? (
-                <EyeOff className="h-4 w-4 mr-1.5" />
+                <EyeOff className="h-3.5 w-3.5 mr-1.5" />
               ) : (
-                <Eye className="h-4 w-4 mr-1.5" />
+                <Eye className="h-3.5 w-3.5 mr-1.5" />
               )}
               {showBackdoorPasswords ? "Hide passwords" : "Show passwords"}
             </Button>
@@ -635,24 +635,24 @@ const PlatformDashboard: React.FC = () => {
               type="button"
               variant="outline"
               size="sm"
-              className="border-white/10 bg-white/5 text-zinc-200"
+              className="border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10 transition-all text-xs font-semibold"
               onClick={() => backdoorQuery.refetch()}
               disabled={backdoorQuery.isFetching}
             >
-              <ShieldCheck className="h-4 w-4 mr-1.5" />
+              <ShieldCheck className="h-3.5 w-3.5 mr-1.5" />
               Refresh
             </Button>
           </div>
         </div>
 
-        <div className="px-5 py-3 border-b border-white/5">
+        <div className="px-5 py-3 border-b border-white/5 bg-white/[0.01]">
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
             <Input
               value={backdoorFilter}
               onChange={(e) => setBackdoorFilter(e.target.value)}
               placeholder="Filter workspace, slug, or login email"
-              className="pl-8 h-9 bg-black/40 border-white/10 text-sm"
+              className="pl-8 h-9 bg-[#0b061c]/60 border-white/10 text-sm focus:border-indigo-500/40 focus:ring-indigo-500/20"
             />
           </div>
         </div>
@@ -700,7 +700,7 @@ const PlatformDashboard: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
-                <tr className="text-left text-[11px] uppercase tracking-wider text-zinc-500 border-b border-white/5">
+                <tr className="text-left text-[11px] uppercase tracking-wider text-zinc-500 border-b border-white/5 bg-white/[0.01]">
                   <th className="px-5 py-3 font-medium">Workspace</th>
                   <th className="px-3 py-3 font-medium">Login email</th>
                   <th className="px-3 py-3 font-medium">Password</th>
@@ -709,10 +709,10 @@ const PlatformDashboard: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {filteredBackdoor.map((w) => (
-                  <tr key={w.organizationId} className="hover:bg-white/[0.02]">
+                  <tr key={w.organizationId} className="hover:bg-white/[0.03] transition-colors">
                     <td className="px-5 py-3">
-                      <div className="font-medium text-zinc-100">{w.orgName}</div>
-                      <div className="text-xs text-zinc-500">/app/t/{w.orgSlug}</div>
+                      <div className="font-semibold text-zinc-100">{w.orgName}</div>
+                      <div className="text-xs text-zinc-500 font-mono">/app/t/{w.orgSlug}</div>
                     </td>
                     <td className="px-3 py-3 font-mono text-xs text-zinc-300 break-all">
                       {w.loginEmail || w.username}
@@ -726,27 +726,27 @@ const PlatformDashboard: React.FC = () => {
                           type="button"
                           size="sm"
                           variant="ghost"
-                          className="h-8 text-zinc-400 hover:text-zinc-100"
+                          className="h-8 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-all text-xs font-semibold"
                           onClick={() => void copyText("Login email", w.loginEmail || w.username || "")}
                         >
-                          <Copy className="h-3.5 w-3.5 mr-1" />
+                          <Copy className="h-3 w-3 mr-1" />
                           Email
                         </Button>
                         <Button
                           type="button"
                           size="sm"
                           variant="ghost"
-                          className="h-8 text-zinc-400 hover:text-zinc-100"
+                          className="h-8 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-all text-xs font-semibold"
                           onClick={() => void copyText("Password", w.password)}
                         >
-                          <Copy className="h-3.5 w-3.5 mr-1" />
+                          <Copy className="h-3 w-3 mr-1" />
                           Pass
                         </Button>
                         <Button
                           type="button"
                           size="sm"
                           variant="ghost"
-                          className="h-8 text-zinc-400 hover:text-zinc-100"
+                          className="h-8 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-all text-xs font-semibold"
                           onClick={() =>
                             void copyText(
                               "Login",
@@ -754,7 +754,7 @@ const PlatformDashboard: React.FC = () => {
                             )
                           }
                         >
-                          <KeyRound className="h-3.5 w-3.5 mr-1" />
+                          <KeyRound className="h-3 w-3 mr-1" />
                           All
                         </Button>
                       </div>
@@ -792,11 +792,11 @@ const PlatformDashboard: React.FC = () => {
         </motion.div>
       )}
 
-      <section className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
+      <section className="rounded-2xl border border-white/5 bg-[#130b2c]/30 backdrop-blur-md overflow-hidden shadow-xl">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-5 py-4 border-b border-white/5">
           <div>
             <div className="text-sm font-semibold text-zinc-100">Organizations</div>
-            <div className="text-xs text-zinc-500">
+            <div className="text-xs text-zinc-400">
               {orgsQuery.isLoading
                 ? "Loading…"
                 : `${filteredOrgs.length} of ${orgsQuery.data?.organizations.length ?? 0}`}
@@ -809,7 +809,7 @@ const PlatformDashboard: React.FC = () => {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search name or slug"
-                className="pl-8 h-9 w-64 bg-black/40 border-white/10 text-sm"
+                className="pl-8 h-9 w-64 bg-[#0b061c]/60 border-white/10 text-sm focus:border-indigo-500/40 focus:ring-indigo-500/20"
               />
             </div>
             <div className="relative">
@@ -817,7 +817,7 @@ const PlatformDashboard: React.FC = () => {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-9 pl-8 pr-3 rounded-md bg-black/40 border border-white/10 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="h-9 pl-8 pr-8 rounded-md bg-[#0b061c]/60 border border-white/10 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/40 transition-all cursor-pointer appearance-none"
               >
                 <option value="all">All statuses</option>
                 <option value="active">Active</option>
@@ -857,44 +857,44 @@ const PlatformDashboard: React.FC = () => {
                   type="button"
                   key={org.id}
                   onClick={() => navigate(`/platform/organizations/${org.id}`)}
-                  className="group w-full text-left grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1fr)_minmax(0,2fr)] items-center gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors focus:outline-none focus:bg-white/[0.03]"
+                  className="group w-full text-left grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1fr)_minmax(0,2fr)] items-center gap-4 px-5 py-4 hover:bg-white/[0.04] transition-all duration-200 border-b border-white/[0.02] last:border-b-0 focus:outline-none focus:bg-white/[0.05]"
                 >
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500/40 to-fuchsia-500/40 grid place-items-center text-[11px] font-bold text-white/90">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500/35 to-fuchsia-500/35 border border-indigo-500/20 grid place-items-center text-xs font-bold text-white shadow-md shadow-indigo-500/5 group-hover:scale-105 transition-transform">
                         {org.name.substring(0, 2).toUpperCase()}
                       </div>
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-zinc-100 flex items-center gap-2">
+                        <div className="truncate text-sm font-semibold text-zinc-100 flex items-center gap-2">
                           {org.name}
                           {org.is_internal && (
-                            <span className="text-[10px] uppercase tracking-wider rounded-sm border border-zinc-500/30 bg-zinc-500/10 text-zinc-400 px-1.5 py-0.5">
+                            <span className="text-[10px] uppercase font-bold tracking-wider rounded border border-zinc-500/30 bg-zinc-500/10 text-zinc-400 px-1.5 py-0.5">
                               internal
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-zinc-500 truncate">
-                          /app/t/{org.slug} · {org.country}
+                        <div className="text-xs text-zinc-400 truncate font-medium">
+                          /app/t/{org.slug} · <span className="text-zinc-500">{org.country}</span>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="outline" className={cn("border", planStyle)}>
+                    <Badge variant="outline" className={cn("border text-[11px] font-medium tracking-wide", planStyle)}>
                       {org.subscription?.planName || "No plan"}
                     </Badge>
-                    <Badge variant="outline" className={cn("border", statusStyle)}>
+                    <Badge variant="outline" className={cn("border text-[11px] font-medium tracking-wide", statusStyle)}>
                       {org.status.replace("_", " ")}
                     </Badge>
                   </div>
 
                   <div className="hidden md:flex flex-col text-xs text-zinc-400">
-                    <span className="inline-flex items-center gap-1">
+                    <span className="inline-flex items-center gap-1.5">
                       <MapPin className="h-3 w-3 text-zinc-500" />
                       {org.locationCount} branch{org.locationCount === 1 ? "" : "es"}
                     </span>
-                    <span className="inline-flex items-center gap-1 mt-0.5">
+                    <span className="inline-flex items-center gap-1.5 mt-0.5">
                       <UserRound className="h-3 w-3 text-zinc-500" />
                       {org.memberCount} member{org.memberCount === 1 ? "" : "s"}
                     </span>
@@ -907,7 +907,7 @@ const PlatformDashboard: React.FC = () => {
                         {relative(org.created_at)}
                       </span>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-zinc-500 group-hover:text-zinc-200 transition-colors" />
+                    <ChevronRight className="h-4 w-4 text-zinc-500 group-hover:text-zinc-200 group-hover:translate-x-0.5 transition-all" />
                   </div>
                 </button>
               );

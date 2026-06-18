@@ -252,51 +252,57 @@ const PlatformOrgDetail: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: -6 }}
+      <motion.header
+        initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-start justify-between gap-4 flex-wrap"
+        transition={{ duration: 0.4 }}
+        className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#120a2e] via-[#180f3d] to-[#0b061e] p-5 sm:p-6 shadow-[0_10px_40px_rgba(0,0,0,0.3)]"
       >
-        <div>
-          <button
-            onClick={() => navigate("/platform/organizations")}
-            className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-200"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            All organizations
-          </button>
-          <div className="mt-2 flex items-center gap-3">
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-indigo-500/40 via-fuchsia-500/40 to-cyan-500/40 grid place-items-center text-sm font-bold text-white/90">
-              {org.name.substring(0, 2).toUpperCase()}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-semibold text-zinc-50 tracking-tight">{org.name}</h1>
-                {org.is_internal && (
-                  <Badge variant="outline" className="border-zinc-500/30 bg-zinc-500/10 text-zinc-400 text-[10px] uppercase tracking-wider">
-                    internal
-                  </Badge>
-                )}
+        <div className="relative flex flex-col gap-4 font-quicksand">
+          <div>
+            <button
+              onClick={() => navigate("/platform/organizations")}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-400 hover:text-zinc-200 transition-all mb-3"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              All organizations
+            </button>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4.5">
+                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-600 to-fuchsia-500 border border-indigo-400/20 grid place-items-center text-base font-extrabold text-white shadow-lg">
+                  {org.name.substring(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <h1 className="text-2xl font-extrabold tracking-tight text-white font-quicksand">{org.name}</h1>
+                    {org.is_internal && (
+                      <Badge variant="outline" className="border-zinc-500/30 bg-zinc-500/10 text-zinc-400 text-[10px] font-bold uppercase tracking-wider">
+                        internal
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="mt-1 text-xs text-zinc-400 font-semibold flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1">
+                      <Globe className="h-3.5 w-3.5 text-indigo-400" />
+                      <span className="font-mono bg-[#0b061c]/40 border border-white/5 px-1.5 py-0.5 rounded">/app/t/{org.slug}</span>
+                    </span>
+                    <span>·</span>
+                    <span>{org.country}</span>
+                    <span>·</span>
+                    <span>{org.timezone}</span>
+                  </div>
+                </div>
               </div>
-              <div className="mt-0.5 text-xs text-zinc-500 flex items-center gap-2">
-                <Globe className="h-3 w-3" />
-                <span className="font-mono">/app/t/{org.slug}</span>
-                <span>·</span>
-                <span>{org.country}</span>
-                <span>·</span>
-                <span>{org.timezone}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <Badge variant="outline" className={cn("border text-xs font-bold px-3 py-1 uppercase tracking-wider", statusStyles[org.status])}>
+                  {org.status.replace("_", " ")}
+                </Badge>
+                <ActionBar org={org} subscription={subscription} onDone={invalidateAll} />
               </div>
             </div>
           </div>
         </div>
-
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className={cn("border text-xs", statusStyles[org.status])}>
-            {org.status.replace("_", " ")}
-          </Badge>
-          <ActionBar org={org} subscription={subscription} onDone={invalidateAll} />
-        </div>
-      </motion.div>
+      </motion.header>
 
       {/* At-a-glance tiles */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -307,21 +313,21 @@ const PlatformOrgDetail: React.FC = () => {
       </section>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="bg-white/5 border border-white/10">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-white/10 data-[state=active]:text-white">
+      <Tabs defaultValue="overview" className="space-y-6 font-quicksand">
+        <TabsList className="bg-[#130b2c]/30 backdrop-blur-md border border-white/5 shadow-inner p-1.5 rounded-xl h-auto flex flex-wrap gap-1">
+          <TabsTrigger value="overview" className="rounded-lg px-4 py-2 text-xs font-bold transition-all data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500/20 data-[state=active]:to-fuchsia-500/20 data-[state=active]:text-white data-[state=active]:border data-[state=active]:border-indigo-500/30">
             Overview
           </TabsTrigger>
-          <TabsTrigger value="plan" className="data-[state=active]:bg-white/10 data-[state=active]:text-white">
+          <TabsTrigger value="plan" className="rounded-lg px-4 py-2 text-xs font-bold transition-all data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500/20 data-[state=active]:to-fuchsia-500/20 data-[state=active]:text-white data-[state=active]:border data-[state=active]:border-indigo-500/30">
             Plan
           </TabsTrigger>
-          <TabsTrigger value="members" className="data-[state=active]:bg-white/10 data-[state=active]:text-white">
+          <TabsTrigger value="members" className="rounded-lg px-4 py-2 text-xs font-bold transition-all data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500/20 data-[state=active]:to-fuchsia-500/20 data-[state=active]:text-white data-[state=active]:border data-[state=active]:border-indigo-500/30">
             Members
           </TabsTrigger>
-          <TabsTrigger value="branding" className="data-[state=active]:bg-white/10 data-[state=active]:text-white">
+          <TabsTrigger value="branding" className="rounded-lg px-4 py-2 text-xs font-bold transition-all data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500/20 data-[state=active]:to-fuchsia-500/20 data-[state=active]:text-white data-[state=active]:border data-[state=active]:border-indigo-500/30">
             Branding
           </TabsTrigger>
-          <TabsTrigger value="activity" className="data-[state=active]:bg-white/10 data-[state=active]:text-white">
+          <TabsTrigger value="activity" className="rounded-lg px-4 py-2 text-xs font-bold transition-all data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500/20 data-[state=active]:to-fuchsia-500/20 data-[state=active]:text-white data-[state=active]:border data-[state=active]:border-indigo-500/30">
             Activity
           </TabsTrigger>
         </TabsList>
@@ -416,21 +422,32 @@ const GlanceTile: React.FC<{
   sub?: React.ReactNode;
   accent: "indigo" | "emerald" | "amber" | "rose" | "cyan";
 }> = ({ icon: Icon, label, value, sub, accent }) => {
-  const tone = {
-    indigo: "text-indigo-300",
-    emerald: "text-emerald-300",
-    amber: "text-amber-300",
-    rose: "text-rose-300",
-    cyan: "text-cyan-300",
+  const accentGlow = {
+    indigo: "from-indigo-500/10 via-indigo-500/5 to-transparent border-indigo-500/20 shadow-indigo-500/5",
+    emerald: "from-emerald-500/10 via-emerald-500/5 to-transparent border-emerald-500/20 shadow-emerald-500/5",
+    amber: "from-amber-500/10 via-amber-500/5 to-transparent border-amber-500/20 shadow-amber-500/5",
+    rose: "from-rose-500/10 via-rose-500/5 to-transparent border-rose-500/20 shadow-rose-500/5",
+    cyan: "from-cyan-500/10 via-cyan-500/5 to-transparent border-cyan-500/20 shadow-cyan-500/5",
   }[accent];
+
+  const tone = {
+    indigo: "text-indigo-300 bg-indigo-500/10 border-indigo-500/20",
+    emerald: "text-emerald-300 bg-emerald-500/10 border-emerald-500/20",
+    amber: "text-amber-300 bg-amber-500/10 border-amber-500/20",
+    rose: "text-rose-300 bg-rose-500/10 border-rose-500/20",
+    cyan: "text-cyan-300 bg-cyan-500/10 border-cyan-500/20",
+  }[accent];
+
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+    <div className={cn("rounded-xl border bg-gradient-to-br p-4 backdrop-blur-md shadow-md transition-all duration-300 hover:y-[-2]", accentGlow)}>
       <div className="flex items-center justify-between">
-        <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</span>
-        <Icon className={cn("h-4 w-4", tone)} />
+        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">{label}</span>
+        <div className={cn("rounded-lg border p-1.5 shadow-inner", tone)}>
+          <Icon className="h-4 w-4" />
+        </div>
       </div>
-      <div className="mt-2 text-xl font-semibold text-zinc-100">{value}</div>
-      {sub && <div className="text-xs text-zinc-500">{sub}</div>}
+      <div className="mt-2 text-xl font-extrabold tracking-tight text-white">{value}</div>
+      {sub && <div className="text-xs text-zinc-400 font-medium">{sub}</div>}
     </div>
   );
 };

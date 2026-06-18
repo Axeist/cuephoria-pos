@@ -182,28 +182,29 @@ const PlatformAdmins: React.FC = () => {
   return (
     <div className="space-y-6">
       <motion.header
-        initial={{ opacity: 0, y: -6 }}
+        initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#0c0d18] to-[#101227] p-6"
+        transition={{ duration: 0.4 }}
+        className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#120a2e] via-[#180f3d] to-[#0b061e] p-5 sm:p-6 shadow-[0_10px_40px_rgba(0,0,0,0.3)]"
       >
-        <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div className="relative flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-zinc-400">
-              <Shield className="h-3.5 w-3.5 text-indigo-300" />
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase font-bold tracking-[0.18em] text-zinc-300">
+              <Shield className="h-3.5 w-3.5 text-indigo-300 animate-pulse" />
               Platform Admin Access
             </div>
-            <h1 className="mt-3 text-2xl font-semibold tracking-tight text-zinc-50">Platform admins</h1>
-            <p className="mt-1 text-sm text-zinc-400 max-w-2xl">
+            <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-zinc-50 font-quicksand">Platform admins</h1>
+            <p className="mt-1.5 text-sm text-zinc-400 max-w-2xl">
               Manage operator accounts, rotate credentials, and keep privileged access controlled.
             </p>
           </div>
           <Button
             variant="outline"
             size="sm"
-            className="border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"
+            className="border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10 transition-all text-xs font-semibold"
             onClick={() => adminsQuery.refetch()}
           >
-            <RefreshCw className={cn("h-4 w-4 mr-2", adminsQuery.isFetching && "animate-spin")} />
+            <RefreshCw className={cn("h-3.5 w-3.5 mr-2", adminsQuery.isFetching && "animate-spin")} />
             Refresh
           </Button>
         </div>
@@ -216,36 +217,36 @@ const PlatformAdmins: React.FC = () => {
       </section>
 
       <section className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="xl:col-span-1 rounded-xl border border-white/10 bg-white/[0.02] p-5">
+        <div className="xl:col-span-1 rounded-xl border border-white/5 bg-[#130b2c]/30 backdrop-blur-md p-5 shadow-lg">
           <div className="text-sm font-semibold text-zinc-100">Create platform admin</div>
-          <div className="mt-1 text-xs text-zinc-500">Use a unique email and temporary strong password.</div>
+          <div className="mt-1 text-xs text-zinc-400">Use a unique email and temporary strong password.</div>
           <div className="mt-4 space-y-3">
             <div>
-              <Label className="text-xs text-zinc-500">Email</Label>
+              <Label className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Email</Label>
               <Input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 bg-black/30 border-white/10"
+                className="mt-1 bg-[#0b061c]/60 border-white/10 focus:border-indigo-500/40 focus:ring-indigo-500/20"
                 placeholder="admin@company.com"
                 autoComplete="off"
               />
             </div>
             <div>
-              <Label className="text-xs text-zinc-500">Display name (optional)</Label>
+              <Label className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Display name (optional)</Label>
               <Input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="mt-1 bg-black/30 border-white/10"
+                className="mt-1 bg-[#0b061c]/60 border-white/10 focus:border-indigo-500/40 focus:ring-indigo-500/20"
                 placeholder="Ops team"
                 autoComplete="off"
               />
             </div>
             <div>
               <div className="flex items-center justify-between">
-                <Label className="text-xs text-zinc-500">Temporary password</Label>
+                <Label className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Temporary password</Label>
                 <button
                   type="button"
-                  className="text-[11px] text-indigo-300 hover:text-indigo-200"
+                  className="text-[11px] font-bold text-indigo-300 hover:text-indigo-200"
                   onClick={() => setPassword(randomPassword())}
                 >
                   Generate
@@ -254,13 +255,13 @@ const PlatformAdmins: React.FC = () => {
               <Input
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 bg-black/30 border-white/10 font-mono text-sm"
+                className="mt-1 bg-[#0b061c]/60 border-white/10 font-mono text-sm focus:border-indigo-500/40 focus:ring-indigo-500/20"
                 placeholder="Minimum 12 characters"
                 autoComplete="new-password"
               />
             </div>
             <Button
-              className="w-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white hover:opacity-90"
+              className="w-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white hover:opacity-90 shadow-lg shadow-indigo-500/20 transition-all font-semibold"
               disabled={createMutation.isPending || !email.trim() || password.length < 12}
               onClick={() => createMutation.mutate()}
             >
@@ -276,11 +277,11 @@ const PlatformAdmins: React.FC = () => {
           </div>
         </div>
 
-        <div className="xl:col-span-2 rounded-xl border border-white/10 bg-white/[0.02] overflow-hidden">
-          <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-white/5">
+        <div className="xl:col-span-2 rounded-xl border border-white/5 bg-[#130b2c]/30 backdrop-blur-md overflow-hidden shadow-lg">
+          <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-white/5 bg-white/[0.01]">
             <div>
               <div className="text-sm font-semibold text-zinc-100">Operator roster</div>
-              <div className="text-xs text-zinc-500">
+              <div className="text-xs text-zinc-400 font-medium">
                 {adminsQuery.isLoading ? "Loading…" : `${filtered.length} of ${allAdmins.length}`}
               </div>
             </div>
@@ -288,7 +289,7 @@ const PlatformAdmins: React.FC = () => {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search email or name"
-              className="h-9 w-64 bg-black/30 border-white/10"
+              className="h-9 w-64 bg-[#0b061c]/60 border-white/10 focus:border-indigo-500/40 focus:ring-indigo-500/20"
             />
           </div>
 
@@ -310,19 +311,19 @@ const PlatformAdmins: React.FC = () => {
               {filtered.map((row) => {
                 const isSelf = row.id === admin?.id;
                 return (
-                  <div key={row.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                  <div key={row.id} className="px-5 py-3.5 flex items-center justify-between gap-3 hover:bg-white/[0.03] transition-colors border-b border-white/[0.02] last:border-b-0">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <div className="text-sm text-zinc-100 truncate">{row.display_name || row.email}</div>
+                        <div className="text-sm font-semibold text-zinc-100 truncate">{row.display_name || row.email}</div>
                         {isSelf && (
-                          <Badge variant="outline" className="border-indigo-500/30 bg-indigo-500/10 text-indigo-300 text-[10px]">
+                          <Badge variant="outline" className="border-indigo-500/30 bg-indigo-500/10 text-indigo-300 text-[10px] font-bold">
                             You
                           </Badge>
                         )}
                         <Badge
                           variant="outline"
                           className={cn(
-                            "text-[10px] border",
+                            "text-[10px] border font-bold",
                             row.is_active
                               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
                               : "border-zinc-500/30 bg-zinc-500/10 text-zinc-400",
@@ -331,17 +332,17 @@ const PlatformAdmins: React.FC = () => {
                           {row.is_active ? "active" : "inactive"}
                         </Badge>
                       </div>
-                      <div className="text-xs text-zinc-500 truncate">{row.email}</div>
-                      <div className="mt-0.5 text-[11px] text-zinc-600">
+                      <div className="text-xs text-zinc-400 truncate font-mono mt-0.5">{row.email}</div>
+                      <div className="mt-1 text-[11px] text-zinc-500 font-medium">
                         Last login {relative(row.last_login_at)} · created {fmtDateTime(row.created_at)}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-zinc-300 hover:text-white hover:bg-white/10"
+                        className="text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-all text-xs font-semibold h-8 rounded-lg"
                         onClick={() => {
                           setResetTarget(row);
                           setResetPassword(randomPassword());
@@ -354,9 +355,10 @@ const PlatformAdmins: React.FC = () => {
                         size="sm"
                         variant="ghost"
                         className={cn(
+                          "transition-all text-xs font-semibold h-8 rounded-lg",
                           row.is_active
-                            ? "text-rose-300 hover:text-rose-200 hover:bg-rose-500/10"
-                            : "text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10",
+                            ? "text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                            : "text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10",
                         )}
                         disabled={activeMutation.isPending}
                         onClick={() => activeMutation.mutate({ adminId: row.id, isActive: !row.is_active })}
@@ -437,22 +439,28 @@ const StatTile: React.FC<{
   accent: "indigo" | "emerald" | "cyan";
   sub?: string;
 }> = ({ label, value, icon: Icon, accent, sub }) => {
+  const accentGlow = {
+    indigo: "from-indigo-500/10 via-indigo-500/5 to-transparent border-indigo-500/20 shadow-indigo-500/5",
+    emerald: "from-emerald-500/10 via-emerald-500/5 to-transparent border-emerald-500/20 shadow-emerald-500/5",
+    cyan: "from-cyan-500/10 via-cyan-500/5 to-transparent border-cyan-500/20 shadow-cyan-500/5",
+  }[accent];
+
   const tone = {
-    indigo: "text-indigo-300 bg-indigo-500/10",
-    emerald: "text-emerald-300 bg-emerald-500/10",
-    cyan: "text-cyan-300 bg-cyan-500/10",
+    indigo: "text-indigo-300 bg-indigo-500/10 border-indigo-500/20",
+    emerald: "text-emerald-300 bg-emerald-500/10 border-emerald-500/20",
+    cyan: "text-cyan-300 bg-cyan-500/10 border-cyan-500/20",
   }[accent];
 
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+    <div className={cn("rounded-xl border bg-gradient-to-br p-4 backdrop-blur-md shadow-md transition-all duration-300 hover:y-[-2]", accentGlow)}>
       <div className="flex items-center justify-between">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-        <div className={cn("rounded-lg p-2", tone)}>
+        <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">{label}</div>
+        <div className={cn("rounded-lg border p-2 shadow-inner", tone)}>
           <Icon className="h-4 w-4" />
         </div>
       </div>
-      <div className="mt-2 text-2xl font-semibold text-zinc-100">{value.toLocaleString()}</div>
-      {sub && <div className="text-xs text-zinc-500">{sub}</div>}
+      <div className="mt-2 text-2xl font-extrabold tracking-tight text-white">{value.toLocaleString()}</div>
+      {sub && <div className="text-xs text-zinc-400 font-medium">{sub}</div>}
     </div>
   );
 };
