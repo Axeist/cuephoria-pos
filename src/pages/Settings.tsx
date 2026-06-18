@@ -643,8 +643,9 @@ const Settings = () => {
 
   return (
     <MobilePageShell>
-      <div className="w-full sm:py-2">
+      <div className="w-full sm:py-4">
         <MobilePageHeader
+          className="mb-6 sm:mb-8"
           title="Settings"
           subtitle="Everything for your venue, team, and online checkout — organized by what you need to do."
           badge={
