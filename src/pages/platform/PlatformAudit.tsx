@@ -7,14 +7,39 @@
 
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { motion } from "framer-motion";
-import { Activity, Search, SlidersHorizontal, RefreshCw, Building2, ChevronDown, AlertCircle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Activity,
+  Search,
+  SlidersHorizontal,
+  RefreshCw,
+  Building2,
+  ChevronDown,
+  AlertCircle,
+  Copy,
+  ExternalLink,
+  Globe,
+  Laptop,
+  Cpu,
+  FileText,
+  Check,
+  Eye,
+  Info,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 
 type AuditEntry = {
   id: string;
@@ -35,11 +60,17 @@ type AuditEntry = {
 
 type AuditResponse = { ok: true; entries: AuditEntry[]; nextBefore: string | null };
 
-const fetcher = async (url: string): Promise<AuditResponse> => {
+type OrgRow = {
+  id: string;
+  name: string;
+  slug: string;
+};
+
+const fetcherGeneric = async <T,>(url: string): Promise<T> => {
   const res = await fetch(url, { credentials: "same-origin" });
   const json = await res.json();
   if (!res.ok || !json?.ok) throw new Error(json?.error || `Request failed (${res.status})`);
-  return json as AuditResponse;
+  return json as T;
 };
 
 const relative = (iso: string) => {
@@ -55,42 +86,150 @@ const relative = (iso: string) => {
   return `${Math.floor(d / 30)}mo`;
 };
 
+const TRANSLATIONS: Record<string, string> = {
+  "organization.created": "registered a new gaming lounge workspace on the platform",
+  "organization.deleted": "permanently deleted a venue workspace and all branch links",
+  "organization.branding.updated": "updated the customer-facing brand styles, accent colors, or logos",
+  "subscription.created": "initiated subscription setup",
+  "subscription.activated": "completed payment and fully activated their subscription tier",
+  "subscription.suspended": "had their POS access suspended due to a payment failure",
+  "subscription.past_due": "failed subscription renewal payment (grace period countdown active)",
+  "subscription.canceled": "canceled their workspace premium features subscription",
+  "auth.login": "logged into the administrator portal",
+  "auth.login_success": "logged into their admin account",
+  "auth.logout": "securely logged out of the console session",
+  "auth.password_reset_request": "requested a password recovery email link",
+  "auth.password_reset_success": "successfully reset and updated their account password",
+  "auth.totp_enabled": "activated two-factor authentication (MFA/TOTP) for high security",
+  "auth.totp_disabled": "disabled two-factor authentication (MFA/TOTP)",
+  "sandbox.created": "provisioned a 7-day Pro demo sandbox with sample gaming data",
+  "sandbox.revoked": "terminated a sandbox workspace early",
+  "broadcast.created": "broadcasted a platform-wide system notification banner to all active venues",
+  "broadcast.dismissed": "closed a platform alert message in their console",
+  "operator.invite_sent": "sent an invitation link to onboard a new operator admin",
+  "operator.invite_revoked": "withdrew a pending operator console invitation",
+  "staff.create": "hired a new staff member for their lounge branch",
+  "staff.delete": "removed an employee profile from their roster",
+  "station.create": "registered a new gaming computer, console, or virtual turf",
+  "station.delete": "removed a gaming station from their branches list",
+  "station.maintenance.started": "placed a gaming station under maintenance mode",
+  "station.maintenance.ended": "restored a station to service from maintenance",
+  "booking.create": "completed a gaming booking or slot reservation",
+  "booking.cancel": "canceled a gaming slot reservation",
+  "payment.mandate_created": "linked a Razorpay autopay mandate for recurring billing",
+};
+
+const getRunbook = (action: string): string => {
+  if (action.startsWith("auth.")) {
+    return "Verify the operator IP and User Agent match standard operating locations. In case of anomaly, trigger a forced logout / password reset.";
+  }
+  if (action.startsWith("subscription.") || action.startsWith("billing.")) {
+    return "View Razorpay mandates dashboard to check the webhook logs. Contact customer support if user has been charged but status shows past due.";
+  }
+  if (action.startsWith("organization.")) {
+    return "Review billing plan entitlements and verify multi-location setup is active. Ensure database RLS limits apply correctly.";
+  }
+  if (action.startsWith("sandbox.")) {
+    return "Check expiration timestamp. If client requests a trial extension, convert the organization status to 'trialing' in the dashboard.";
+  }
+  return "Standard event. Confirm user action corresponds with customer support request tickets.";
+};
+
+function parseUA(ua: string | null) {
+  if (!ua) return { os: "Unknown OS", browser: "Unknown Browser", device: "Desktop" };
+  let os = "Unknown OS";
+  if (/mac/i.test(ua)) os = "macOS";
+  else if (/win/i.test(ua)) os = "Windows";
+  else if (/linux/i.test(ua)) os = "Linux";
+  else if (/iphone|ipad|ipod/i.test(ua)) os = "iOS";
+  else if (/android/i.test(ua)) os = "Android";
+
+  let browser = "Unknown Browser";
+  if (/chrome|crios/i.test(ua)) browser = "Chrome";
+  else if (/safari/i.test(ua) && !/chrome|crios/i.test(ua)) browser = "Safari";
+  else if (/firefox|fxios/i.test(ua)) browser = "Firefox";
+  else if (/edge|edg/i.test(ua)) browser = "Edge";
+
+  let device = "Desktop";
+  if (/mobile|iphone|android/i.test(ua)) device = "Mobile";
+  else if (/ipad|tablet/i.test(ua)) device = "Tablet";
+
+  return { os, browser, device };
+}
+
+const translateToLayperson = (action: string, actorLabel: string, orgName: string | null) => {
+  const explanation = TRANSLATIONS[action];
+  const targetText = orgName ? ` for ${orgName}` : "";
+  if (explanation) {
+    return `${actorLabel} ${explanation}${targetText}.`;
+  }
+  const cleanAction = action.split(".").join(" ").replace(/_/g, " ");
+  return `${actorLabel} performed: "${cleanAction}"${targetText}.`;
+};
+
 const PlatformAudit: React.FC = () => {
   const [actorFilter, setActorFilter] = React.useState<string>("all");
   const [actionPrefix, setActionPrefix] = React.useState<string>("all");
+  const [orgFilter, setOrgFilter] = React.useState<string>("all");
   const [q, setQ] = React.useState("");
   const [cursor, setCursor] = React.useState<string | null>(null);
   const [extras, setExtras] = React.useState<AuditEntry[]>([]);
+  const [laypersonMode, setLaypersonMode] = React.useState<boolean>(false);
+  const [selectedEntry, setSelectedEntry] = React.useState<AuditEntry | null>(null);
+  const { toast } = useToast();
 
   const params = new URLSearchParams();
   if (actorFilter !== "all") params.set("actor", actorFilter);
   if (actionPrefix !== "all") params.set("actionPrefix", actionPrefix);
+  if (orgFilter !== "all") params.set("org", orgFilter);
   if (q.trim()) params.set("q", q.trim());
   params.set("limit", "50");
 
   const query = useQuery({
-    queryKey: ["platform", "audit", "feed", actorFilter, actionPrefix, q],
-    queryFn: () => fetcher(`/api/platform/audit?${params.toString()}`),
+    queryKey: ["platform", "audit", "feed", actorFilter, actionPrefix, q, orgFilter],
+    queryFn: () => fetcherGeneric<AuditResponse>(`/api/platform/audit?${params.toString()}`),
     staleTime: 15_000,
+  });
+
+  // Query organizations list for the filter
+  const orgsQuery = useQuery({
+    queryKey: ["platform", "audit-orgs-filter"],
+    queryFn: async () => {
+      const res = await fetch("/api/platform/organizations", { credentials: "same-origin" });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "Failed to load orgs");
+      return json.organizations as OrgRow[];
+    },
+    staleTime: 5 * 60_000,
   });
 
   React.useEffect(() => {
     setCursor(null);
     setExtras([]);
-  }, [actorFilter, actionPrefix, q]);
+  }, [actorFilter, actionPrefix, q, orgFilter]);
 
   const loadMore = async () => {
     const next = cursor ?? query.data?.nextBefore;
     if (!next) return;
     const p = new URLSearchParams(params);
     p.set("before", next);
-    const json = await fetcher(`/api/platform/audit?${p.toString()}`);
+    const json = await fetcherGeneric<AuditResponse>(`/api/platform/audit?${p.toString()}`);
     setExtras((prev) => [...prev, ...json.entries]);
     setCursor(json.nextBefore);
   };
 
+  const copyToClipboard = async (label: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "Copied to clipboard", description: label });
+    } catch {
+      toast({ variant: "destructive", title: "Copy failed", description: label });
+    }
+  };
+
   const entries = [...(query.data?.entries ?? []), ...extras];
   const nextBefore = cursor ?? query.data?.nextBefore ?? null;
+  const orgs = orgsQuery.data ?? [];
 
   return (
     <div className="space-y-5">
@@ -111,26 +250,64 @@ const PlatformAudit: React.FC = () => {
               Every operator action and sensitive tenant event, in one stream.
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => query.refetch()}
-            className="border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10 transition-all text-xs font-semibold"
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5 mr-2", query.isFetching && "animate-spin")} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Layperson mode toggle switch */}
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 h-9 shrink-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-300">Plain English</span>
+              <button
+                onClick={() => setLaypersonMode((v) => !v)}
+                className={cn(
+                  "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-0",
+                  laypersonMode ? "bg-indigo-500" : "bg-zinc-700"
+                )}
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out mt-0.5",
+                    laypersonMode ? "translate-x-4" : "translate-x-0"
+                  )}
+                />
+              </button>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => query.refetch()}
+              className="border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10 transition-all text-xs font-semibold h-9"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5 mr-2", query.isFetching && "animate-spin")} />
+              Refresh
+            </Button>
+          </div>
         </div>
       </motion.header>
 
       <div className="rounded-2xl border border-white/5 bg-[#130b2c]/30 backdrop-blur-md overflow-hidden shadow-xl">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-5 py-4 border-b border-white/5 bg-white/[0.01]">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 px-5 py-4 border-b border-white/5 bg-white/[0.01]">
+          <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
             <FilterSelect value={actorFilter} onChange={setActorFilter} options={ACTOR_OPTIONS} icon={<SlidersHorizontal className="h-3.5 w-3.5" />} />
             <FilterSelect value={actionPrefix} onChange={setActionPrefix} options={ACTION_OPTIONS} icon={<Activity className="h-3.5 w-3.5" />} />
+            
+            {/* Organization filter dropdown */}
+            <div className="relative">
+              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500 pointer-events-none" />
+              <select
+                value={orgFilter}
+                onChange={(e) => setOrgFilter(e.target.value)}
+                className="h-9 pl-8 pr-8 rounded-md bg-[#0b061c]/60 border border-white/10 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/40 transition-all cursor-pointer appearance-none min-w-[150px]"
+              >
+                <option value="all">All Organizations</option>
+                {orgs.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div className="relative flex-1 sm:flex-initial sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
+          <div className="relative flex-1 xl:flex-initial xl:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500 pointer-events-none" />
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -161,38 +338,53 @@ const PlatformAudit: React.FC = () => {
         ) : (
           <ol className="divide-y divide-white/5 bg-[#0b061c]/10">
             {entries.map((e) => (
-              <li key={e.id} className="px-5 py-3.5 flex items-start gap-3.5 hover:bg-white/[0.03] transition-colors border-b border-white/[0.02] last:border-b-0">
-                <div className={cn("mt-1.5 h-2 w-2 rounded-full shrink-0", actorDot(e.actor_type))} />
+              <li
+                key={e.id}
+                onClick={() => setSelectedEntry(e)}
+                className="px-5 py-4 flex items-start gap-3.5 hover:bg-white/[0.03] transition-colors border-b border-white/[0.02] last:border-b-0 cursor-pointer"
+              >
+                <div className={cn("mt-2 h-2.5 w-2.5 rounded-full shrink-0 shadow-sm", actorDot(e.actor_type))} />
                 <div className="flex-1 min-w-0 font-quicksand">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-[13px] font-semibold text-zinc-100 bg-[#0b061c]/60 border border-white/5 px-1.5 py-0.5 rounded">{e.action}</span>
-                    <Badge variant="outline" className="border-white/10 bg-white/5 text-zinc-400 text-[9px] font-bold uppercase tracking-wider">
-                      {e.actor_type.replace("_", " ")}
-                    </Badge>
-                    <span className="text-xs text-zinc-300 font-medium">{e.actor_label}</span>
-                    {e.organization_id && e.organizationName && (
-                      <Link
-                        to={`/platform/organizations/${e.organization_id}`}
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-300 hover:text-indigo-200"
-                      >
-                        <Building2 className="h-3 w-3 text-indigo-400" />
-                        {e.organizationName}
-                      </Link>
-                    )}
-                  </div>
-                  {e.meta && Object.keys(e.meta).length > 0 && (
+                  {laypersonMode ? (
+                    // Plain English view
+                    <div className="text-zinc-100 text-sm font-medium leading-relaxed">
+                      {translateToLayperson(e.action, e.actor_label, e.organizationName)}
+                    </div>
+                  ) : (
+                    // Technical view
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-[13px] font-semibold text-zinc-100 bg-[#0b061c]/60 border border-white/5 px-1.5 py-0.5 rounded">
+                        {e.action}
+                      </span>
+                      <Badge variant="outline" className="border-white/10 bg-white/5 text-zinc-400 text-[9px] font-bold uppercase tracking-wider">
+                        {e.actor_type.replace("_", " ")}
+                      </Badge>
+                      <span className="text-xs text-zinc-300 font-medium">{e.actor_label}</span>
+                      {e.organization_id && e.organizationName && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-300">
+                          <Building2 className="h-3 w-3 text-indigo-400" />
+                          {e.organizationName}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {!laypersonMode && e.meta && Object.keys(e.meta).length > 0 && (
                     <div className="mt-2 rounded-lg bg-[#0b061c]/40 border border-white/5 p-2 max-w-2xl">
-                      <pre className="text-[10.5px] text-zinc-400 font-mono whitespace-pre-wrap break-words leading-relaxed">
+                      <pre className="text-[10.5px] text-zinc-400 font-mono whitespace-pre-wrap break-words leading-relaxed max-h-24 overflow-y-auto">
                         {JSON.stringify(e.meta, null, 2)}
                       </pre>
                     </div>
                   )}
                 </div>
-                <div
-                  className="text-[11px] text-zinc-500 font-medium whitespace-nowrap mt-1"
-                  title={new Date(e.created_at).toLocaleString()}
-                >
-                  {relative(e.created_at)} ago
+                <div className="flex items-center gap-3 shrink-0 self-start mt-0.5">
+                  <div
+                    className="text-[11px] text-zinc-500 font-medium whitespace-nowrap"
+                    title={new Date(e.created_at).toLocaleString()}
+                  >
+                    {relative(e.created_at)} ago
+                  </div>
+                  <Eye className="h-3.5 w-3.5 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
                 </div>
               </li>
             ))}
@@ -204,7 +396,10 @@ const PlatformAudit: React.FC = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={loadMore}
+              onClick={(e) => {
+                e.stopPropagation();
+                loadMore();
+              }}
               className="text-zinc-300 hover:text-white hover:bg-white/5"
             >
               <ChevronDown className="h-3.5 w-3.5 mr-1.5" />
@@ -213,6 +408,204 @@ const PlatformAudit: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Telemetry log inspector side drawer */}
+      <Sheet open={selectedEntry !== null} onOpenChange={(open) => !open && setSelectedEntry(null)}>
+        {selectedEntry && (() => {
+          const uaData = parseUA(selectedEntry.user_agent);
+          return (
+            <SheetContent
+              side="right"
+              className="w-full sm:max-w-lg border-white/10 text-zinc-100 overflow-y-auto"
+              style={{
+                background: "linear-gradient(180deg, #0d0a21 0%, #070512 100%)",
+                backdropFilter: "blur(20px)",
+              }}
+            >
+              <SheetHeader className="border-b border-white/5 pb-4 mb-6">
+                <SheetTitle className="text-zinc-50 flex items-center gap-2.5 font-quicksand font-extrabold text-xl">
+                  <Activity className="h-5 w-5 text-indigo-400" />
+                  Event Telemetry Details
+                </SheetTitle>
+                <SheetDescription className="text-zinc-400 text-xs">
+                  Inspect the execution context, parsed client metadata, and runbooks.
+                </SheetDescription>
+              </SheetHeader>
+
+              <div className="space-y-6 font-quicksand">
+                {/* Layman Friendly Summary */}
+                <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 space-y-2">
+                  <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-widest flex items-center gap-1.5">
+                    <Info className="h-3.5 w-3.5" />
+                    Plain English Translation
+                  </h3>
+                  <p className="text-sm text-zinc-100 leading-relaxed font-semibold">
+                    {translateToLayperson(
+                      selectedEntry.action,
+                      selectedEntry.actor_label,
+                      selectedEntry.organizationName
+                    )}
+                  </p>
+                </div>
+
+                {/* Event attributes */}
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                    <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
+                      Event Action
+                    </div>
+                    <div className="font-mono text-xs font-semibold text-zinc-200 break-all bg-[#0b061c]/60 px-1.5 py-0.5 rounded border border-white/5 inline-block">
+                      {selectedEntry.action}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                    <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
+                      Timestamp
+                    </div>
+                    <div className="text-xs text-zinc-300 font-medium">
+                      {new Date(selectedEntry.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                    <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
+                      Actor
+                    </div>
+                    <div className="text-xs text-zinc-300 font-semibold flex items-center gap-1.5">
+                      <span className={cn("h-2 w-2 rounded-full", actorDot(selectedEntry.actor_type))} />
+                      {selectedEntry.actor_label}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                    <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
+                      Organization
+                    </div>
+                    {selectedEntry.organization_id ? (
+                      <Link
+                        to={`/platform/organizations/${selectedEntry.organization_id}`}
+                        onClick={() => setSelectedEntry(null)}
+                        className="text-xs text-indigo-400 font-semibold hover:underline flex items-center gap-1"
+                      >
+                        <Building2 className="h-3.5 w-3.5 shrink-0" />
+                        {selectedEntry.organizationName || "View details"}
+                      </Link>
+                    ) : (
+                      <div className="text-xs text-zinc-500 font-medium">—</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Parsed User Agent */}
+                <div className="rounded-2xl border border-white/5 bg-white/[0.01] p-4 space-y-3">
+                  <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <Laptop className="h-4 w-4 text-zinc-500" />
+                    Device & Environment
+                  </h3>
+                  <div className="grid grid-cols-3 gap-3 text-xs">
+                    <div className="bg-[#0b061c]/40 border border-white/5 p-2.5 rounded-xl text-center">
+                      <div className="text-zinc-500 text-[10px] font-medium uppercase tracking-wider mb-0.5">
+                        Operating System
+                      </div>
+                      <div className="font-semibold text-zinc-200">{uaData.os}</div>
+                    </div>
+                    <div className="bg-[#0b061c]/40 border border-white/5 p-2.5 rounded-xl text-center">
+                      <div className="text-zinc-500 text-[10px] font-medium uppercase tracking-wider mb-0.5">
+                        Browser
+                      </div>
+                      <div className="font-semibold text-zinc-200">{uaData.browser}</div>
+                    </div>
+                    <div className="bg-[#0b061c]/40 border border-white/5 p-2.5 rounded-xl text-center">
+                      <div className="text-zinc-500 text-[10px] font-medium uppercase tracking-wider mb-0.5">
+                        Device Type
+                      </div>
+                      <div className="font-semibold text-zinc-200">{uaData.device}</div>
+                    </div>
+                  </div>
+                  {selectedEntry.user_agent && (
+                    <div className="text-[10px] text-zinc-500 font-mono break-all bg-black/20 p-2 rounded border border-white/5">
+                      {selectedEntry.user_agent}
+                    </div>
+                  )}
+                </div>
+
+                {/* Geolocation IP Section */}
+                {selectedEntry.ip && (
+                  <div className="rounded-2xl border border-white/5 bg-white/[0.01] p-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <Globe className="h-5 w-5 text-indigo-400" />
+                      <div>
+                        <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                          IP Address
+                        </div>
+                        <div className="font-mono text-xs font-semibold text-zinc-200">
+                          {selectedEntry.ip}
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      asChild
+                      className="border-white/10 bg-white/5 hover:bg-white/10 text-xs rounded-xl"
+                    >
+                      <a
+                        href={`https://ipinfo.io/${selectedEntry.ip}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5"
+                      >
+                        Lookup geolocation
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </Button>
+                  </div>
+                )}
+
+                {/* Operational Runbooks */}
+                <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-2">
+                  <h3 className="text-xs font-bold text-amber-300 uppercase tracking-widest flex items-center gap-1.5">
+                    <Cpu className="h-3.5 w-3.5" />
+                    Operator Diagnostic Runbook
+                  </h3>
+                  <p className="text-xs text-amber-200/90 leading-relaxed font-medium">
+                    {getRunbook(selectedEntry.action)}
+                  </p>
+                </div>
+
+                {/* Raw Metadata JSON */}
+                {selectedEntry.meta && Object.keys(selectedEntry.meta).length > 0 && (
+                  <div className="rounded-2xl border border-white/5 bg-white/[0.01] overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 bg-white/[0.02] border-b border-white/5">
+                      <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <FileText className="h-3.5 w-3.5 text-zinc-500" />
+                        Event Metadata
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-[10px] font-semibold text-zinc-400 hover:text-zinc-200"
+                        onClick={() =>
+                          copyToClipboard(
+                            "Event Metadata JSON",
+                            JSON.stringify(selectedEntry.meta, null, 2)
+                          )
+                        }
+                      >
+                        <Copy className="h-3 w-3 mr-1" />
+                        Copy JSON
+                      </Button>
+                    </div>
+                    <div className="p-4 bg-black/40">
+                      <pre className="text-[10px] text-zinc-400 font-mono whitespace-pre-wrap break-words leading-relaxed max-h-48 overflow-y-auto">
+                        {JSON.stringify(selectedEntry.meta, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </SheetContent>
+          );
+        })()}
+      </Sheet>
     </div>
   );
 };

@@ -28,6 +28,7 @@ import {
   Copy,
   Eye,
   EyeOff,
+  Cpu,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { PlatformCreateOrgDialog } from "@/components/platform/PlatformCreateOrgDialog";
 import { useToast } from "@/hooks/use-toast";
+import { flags } from "@/config/featureFlags";
 
 type PlatformStats = {
   totalOrgs: number;
@@ -245,6 +247,61 @@ const PlatformDashboard: React.FC = () => {
   const { toast } = useToast();
   const qc = useQueryClient();
 
+  const [mockMaintenance, setMockMaintenance] = React.useState(() => {
+    return localStorage.getItem("cuetronix_platform_mock_maintenance") === "true";
+  });
+  const [smsSandbox, setSmsSandbox] = React.useState(() => {
+    return localStorage.getItem("cuetronix_platform_sms_sandbox") !== "false";
+  });
+  const [whatsappDispatcher, setWhatsappDispatcher] = React.useState(() => {
+    return localStorage.getItem("cuetronix_platform_whatsapp_dispatcher") === "true";
+  });
+
+  const toggleMaintenanceBanner = () => {
+    const next = !mockMaintenance;
+    setMockMaintenance(next);
+    localStorage.setItem("cuetronix_platform_mock_maintenance", String(next));
+    toast({
+      title: next ? "Maintenance warning active" : "Maintenance warning inactive",
+      description: next ? "A mock banner will simulate maintenance modes." : "Mock maintenance mode deactivated.",
+    });
+    window.dispatchEvent(new CustomEvent("platform-maintenance-updated", { detail: next }));
+  };
+
+  const toggleSmsSandbox = () => {
+    const next = !smsSandbox;
+    setSmsSandbox(next);
+    localStorage.setItem("cuetronix_platform_sms_sandbox", String(next));
+    toast({
+      title: next ? "SMS Sandbox Active" : "SMS Sandbox Inactive",
+      description: next ? "All outgoing SMS requests will bypass gateways." : "SMS requests will route to live providers in test/live mode.",
+    });
+  };
+
+  const toggleWhatsAppDispatcher = () => {
+    const next = !whatsappDispatcher;
+    setWhatsappDispatcher(next);
+    localStorage.setItem("cuetronix_platform_whatsapp_dispatcher", String(next));
+    toast({
+      title: next ? "WhatsApp Dispatcher Active" : "WhatsApp Dispatcher Inactive",
+      description: next ? "POS alert hooks will run background WhatsApp loops." : "WhatsApp loop dispatcher is disabled.",
+    });
+  };
+
+  const resetOverrides = () => {
+    setMockMaintenance(false);
+    setSmsSandbox(true);
+    setWhatsappDispatcher(false);
+    localStorage.removeItem("cuetronix_platform_mock_maintenance");
+    localStorage.removeItem("cuetronix_platform_sms_sandbox");
+    localStorage.removeItem("cuetronix_platform_whatsapp_dispatcher");
+    window.dispatchEvent(new CustomEvent("platform-maintenance-updated", { detail: false }));
+    toast({
+      title: "Overrides reset",
+      description: "Console overrides restored to developer defaults.",
+    });
+  };
+
   const statsQuery = useQuery({
     queryKey: ["platform", "stats"],
     queryFn: () => fetcher<{ ok: true; stats: PlatformStats }>("/api/platform/stats"),
@@ -259,7 +316,6 @@ const PlatformDashboard: React.FC = () => {
       ),
     staleTime: 5 * 60_000,
   });
-
   const billingSettingsQuery = useQuery({
     queryKey: ["platform", "billing-settings"],
     queryFn: () =>
@@ -539,6 +595,159 @@ const PlatformDashboard: React.FC = () => {
               }}
             >
               {saveBillingGrace.isPending ? "Saving…" : "Save grace window"}
+            </Button>
+          </div>
+        </div>
+      </section>
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* System Feature Flags */}
+        <div className="rounded-2xl border border-white/5 bg-[#130b2c]/30 backdrop-blur-md p-5 shadow-lg flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="rounded-lg bg-indigo-500/10 p-2 text-indigo-300 border border-indigo-500/20">
+                <Cpu className="h-4 w-4 animate-pulse" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-zinc-100 font-quicksand">System Feature Flags</div>
+                <p className="text-xs text-zinc-400">Environment resolved flags from config/featureFlags.ts</p>
+              </div>
+            </div>
+            
+            <div className="mt-4 space-y-3 font-quicksand">
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] border border-white/5">
+                <div className="min-w-0 pr-2">
+                  <div className="text-xs font-semibold text-zinc-200">Multi-Tenancy resolution</div>
+                  <div className="text-[10px] text-zinc-500">Resolves org from subdomain/headers in server handlers</div>
+                </div>
+                <Badge variant="outline" className={cn("text-[10px] font-bold uppercase tracking-wider shrink-0", flags.multiTenantEnabled ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20 shadow-emerald-500/5" : "bg-zinc-800 text-zinc-400 border-zinc-700")}>
+                  {flags.multiTenantEnabled ? "Enabled" : "Disabled"}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] border border-white/5">
+                <div className="min-w-0 pr-2">
+                  <div className="text-xs font-semibold text-zinc-200">Tenant branding resolution</div>
+                  <div className="text-[10px] text-zinc-500">Applies custom CSS variables theme on page boot</div>
+                </div>
+                <Badge variant="outline" className={cn("text-[10px] font-bold uppercase tracking-wider shrink-0", flags.tenantThemingEnabled ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20" : "bg-zinc-800 text-zinc-400 border-zinc-700")}>
+                  {flags.tenantThemingEnabled ? "Enabled" : "Disabled"}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] border border-white/5">
+                <div className="min-w-0 pr-2">
+                  <div className="text-xs font-semibold text-zinc-200">Enforce subscription gate</div>
+                  <div className="text-[10px] text-zinc-500">Requires valid subscription for tenant admin access</div>
+                </div>
+                <Badge variant="outline" className={cn("text-[10px] font-bold uppercase tracking-wider shrink-0", flags.enforceSubscriptionGate ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20" : "bg-zinc-800 text-zinc-400 border-zinc-700")}>
+                  {flags.enforceSubscriptionGate ? "Enabled" : "Disabled"}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] border border-white/5">
+                <div className="min-w-0 pr-2">
+                  <div className="text-xs font-semibold text-zinc-200">Public pricing visible</div>
+                  <div className="text-[10px] text-zinc-500">Exposes marketing and pricing grids to public visitors</div>
+                </div>
+                <Badge variant="outline" className={cn("text-[10px] font-bold uppercase tracking-wider shrink-0", flags.publicPricingVisible ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20" : "bg-zinc-800 text-zinc-400 border-zinc-700")}>
+                  {flags.publicPricingVisible ? "Enabled" : "Disabled"}
+                </Badge>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 text-[10px] text-zinc-500 leading-relaxed bg-[#0b061c]/40 p-2.5 border border-white/5 rounded-xl font-medium font-quicksand">
+            ⚠️ Environmental feature flags are loaded on server bootstrap and cannot be changed from the browser directly. Update variables in .env file to override in local development.
+          </div>
+        </div>
+
+        {/* Local Console overrides */}
+        <div className="rounded-2xl border border-white/5 bg-[#130b2c]/30 backdrop-blur-md p-5 shadow-lg flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-300 border border-emerald-500/20">
+                <SlidersHorizontal className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-zinc-100 font-quicksand">Console Overrides (Sandbox)</div>
+                <p className="text-xs text-zinc-400">Client-side simulator and feature overrides</p>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3 font-quicksand">
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] border border-white/5">
+                <div>
+                  <div className="text-xs font-semibold text-zinc-200">Maintenance Warning Banner</div>
+                  <div className="text-[10px] text-zinc-500">Inject mockup maintenance bar in operator console</div>
+                </div>
+                <button
+                  onClick={toggleMaintenanceBanner}
+                  className={cn(
+                    "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-0",
+                    mockMaintenance ? "bg-indigo-500" : "bg-zinc-700"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out mt-0.5",
+                      mockMaintenance ? "translate-x-4" : "translate-x-0"
+                    )}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] border border-white/5">
+                <div>
+                  <div className="text-xs font-semibold text-zinc-200">SMS Gateway Sandbox Mode</div>
+                  <div className="text-[10px] text-zinc-500">Simulate dispatch outputs instead of querying real APIs</div>
+                </div>
+                <button
+                  onClick={toggleSmsSandbox}
+                  className={cn(
+                    "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-0",
+                    smsSandbox ? "bg-indigo-500" : "bg-zinc-700"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out mt-0.5",
+                      smsSandbox ? "translate-x-4" : "translate-x-0"
+                    )}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] border border-white/5">
+                <div>
+                  <div className="text-xs font-semibold text-zinc-200">WhatsApp Notification dispatcher</div>
+                  <div className="text-[10px] text-zinc-500">Toggle simulated dispatcher loops in POS pages</div>
+                </div>
+                <button
+                  onClick={toggleWhatsAppDispatcher}
+                  className={cn(
+                    "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-0",
+                    whatsappDispatcher ? "bg-indigo-500" : "bg-zinc-700"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out mt-0.5",
+                      whatsappDispatcher ? "translate-x-4" : "translate-x-0"
+                    )}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between gap-3 pt-3 border-t border-white/5">
+            <span className="text-[10px] text-zinc-500 font-medium font-quicksand">Overrides are saved to localStorage.</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={resetOverrides}
+              className="border-white/10 hover:border-white/15 text-[11px] h-7 bg-white/5 rounded-xl text-zinc-300 hover:text-white font-semibold"
+            >
+              Reset Overrides
             </Button>
           </div>
         </div>
