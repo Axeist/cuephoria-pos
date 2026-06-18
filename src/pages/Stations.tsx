@@ -274,101 +274,67 @@ const Stations = () => {
         className="border border-white/10 bg-gradient-to-br from-[#0f0a1a] via-[#120818] to-[#0a0612] shadow-[0_8px_40px_rgba(139,92,246,0.12)]"
         noPadding
       >
-        <div className="p-4 sm:p-5 flex flex-col gap-4">
-          <MobilePageHeader
-            title={
-              <span className="flex items-center gap-2">
-                <Radio className="h-5 w-5 text-cuephoria-purple animate-pulse-soft" />
-                Station Command
-              </span>
-            }
-            subtitle={
-              activeLocation ? (
-                <span className="flex items-center gap-1.5">
-                  <MapPin className="h-3.5 w-3.5" />
+        <div className="p-4 sm:p-5">
+          {/* ── Desktop: single-row header ── */}
+          <div className="hidden lg:flex lg:items-center lg:justify-between lg:gap-6">
+            {/* Title + location */}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Radio className="h-5 w-5 shrink-0 text-cuephoria-purple animate-pulse-soft" />
+                <span className="text-base font-bold text-white">Station Command</span>
+              </div>
+              {activeLocation && (
+                <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <MapPin className="h-3 w-3 shrink-0" />
                   {activeLocation.name}
-                </span>
-              ) : undefined
-            }
-            actions={
-              canConfigureStations ? (
-                <Button
-                  size="sm"
-                  className="w-full bg-cuephoria-purple hover:bg-cuephoria-purple/80 sm:w-auto"
-                  onClick={() =>
-                    requestPinVerification(() => setOpenAddDialog(true), { requireForAdmin: true })
-                  }
-                >
-                  <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  Add Station
-                </Button>
-              ) : undefined
-            }
-          />
-
-          <div className="grid w-full grid-cols-3 gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={toggleLiveFilter}
-              className={cn(
-                'rounded-xl border px-2 py-2.5 sm:px-4 sm:py-3 text-center transition-all',
-                occupancyFilter === 'live'
-                  ? 'border-orange-400 bg-orange-500/25 ring-2 ring-orange-400/40'
-                  : 'border-orange-500/30 bg-orange-950/30 hover:border-orange-400/50'
+                </p>
               )}
-              title="Show live stations only"
-            >
-              <div className="flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-orange-300/80">
-                <Zap className="h-3 w-3" />
-                Live
-              </div>
-              <p className="mt-0.5 font-mono text-2xl font-bold tabular-nums text-orange-200">
-                {totalActive}
-              </p>
-            </button>
-            <button
-              type="button"
-              onClick={toggleOpenFilter}
-              className={cn(
-                'rounded-xl border px-2 py-2.5 sm:px-4 sm:py-3 text-center transition-all',
-                occupancyFilter === 'open'
-                  ? 'border-emerald-400 bg-emerald-500/20 ring-2 ring-emerald-400/35'
-                  : 'border-emerald-500/30 bg-emerald-950/30 hover:border-emerald-400/45'
-              )}
-              title="Show open stations only"
-            >
-              <div className="flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-emerald-300/80">
-                <CircleDot className="h-3 w-3" />
-                Open
-              </div>
-              <p className="mt-0.5 font-mono text-2xl font-bold tabular-nums text-emerald-200">
-                {totalAvailable}
-              </p>
-            </button>
-            <div className="rounded-xl border border-violet-500/30 bg-violet-950/30 px-2 py-2.5 sm:px-4 sm:py-3 text-center">
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-violet-300/80">
-                Total
-              </div>
-              <p className="mt-0.5 font-mono text-2xl font-bold tabular-nums text-violet-200">
-                {visibleStations.length}
-              </p>
             </div>
-          </div>
 
-          {(canMultiStart || canConfigureStations) && (
-            <div
-              className={cn(
-                'flex flex-wrap items-center gap-x-3 gap-y-2',
-                canMultiStart && canConfigureStations ? 'justify-between' : 'justify-end'
-              )}
-            >
+            {/* Compact stat chips */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={toggleLiveFilter}
+                title="Show live stations only"
+                className={cn(
+                  'flex items-center gap-2 rounded-xl border px-4 py-2 transition-all',
+                  occupancyFilter === 'live'
+                    ? 'border-orange-400 bg-orange-500/25 ring-2 ring-orange-400/40'
+                    : 'border-orange-500/30 bg-orange-950/30 hover:border-orange-400/50'
+                )}
+              >
+                <Zap className="h-4 w-4 text-orange-300" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-orange-300/80">Live</span>
+                <span className="font-mono text-xl font-bold tabular-nums leading-none text-orange-200">{totalActive}</span>
+              </button>
+              <button
+                type="button"
+                onClick={toggleOpenFilter}
+                title="Show open stations only"
+                className={cn(
+                  'flex items-center gap-2 rounded-xl border px-4 py-2 transition-all',
+                  occupancyFilter === 'open'
+                    ? 'border-emerald-400 bg-emerald-500/20 ring-2 ring-emerald-400/35'
+                    : 'border-emerald-500/30 bg-emerald-950/30 hover:border-emerald-400/45'
+                )}
+              >
+                <CircleDot className="h-4 w-4 text-emerald-300" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-emerald-300/80">Open</span>
+                <span className="font-mono text-xl font-bold tabular-nums leading-none text-emerald-200">{totalAvailable}</span>
+              </button>
+              <div className="flex items-center gap-2 rounded-xl border border-violet-500/30 bg-violet-950/30 px-4 py-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-violet-300/80">Total</span>
+                <span className="font-mono text-xl font-bold tabular-nums leading-none text-violet-200">{visibleStations.length}</span>
+              </div>
+            </div>
+
+            {/* All action buttons grouped on the right */}
+            <div className="flex shrink-0 items-center gap-2">
               {canMultiStart && (
-                <MobileActionBar className="min-w-0 flex-1" maxVisible={isMobile ? 2 : undefined}>
+                <>
                   {selectionMode && selectedStations.length > 0 && (
                     <>
-                      <span className="hidden text-xs text-muted-foreground sm:inline">
-                        {selectedStations.length} selected
-                      </span>
                       <Button
                         size="sm"
                         className="bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:opacity-90"
@@ -399,22 +365,182 @@ const Stations = () => {
                     <Users className="mr-1.5 h-3.5 w-3.5" />
                     {selectionMode ? 'Cancel select' : 'Group start'}
                   </Button>
-                </MobileActionBar>
+                </>
               )}
               {canConfigureStations && (
-                <MobileActionBar className="shrink-0 justify-end">
-                  <Button size="sm" variant="outline" onClick={() => setOpenReplaceDialog(true)}>
-                    <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
-                    Legacy
-                  </Button>
+                <>
                   <Button size="sm" variant="outline" onClick={() => setOpenTypesDialog(true)}>
                     <Layers className="mr-1.5 h-3.5 w-3.5" />
                     Types
                   </Button>
-                </MobileActionBar>
+                  <Button size="sm" variant="outline" onClick={() => setOpenReplaceDialog(true)}>
+                    <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
+                    Legacy
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
+                    onClick={() => requestPinVerification(() => setOpenAddDialog(true), { requireForAdmin: true })}
+                  >
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+                    Add Station
+                  </Button>
+                </>
               )}
             </div>
+          </div>
+
+          {selectionMode && (
+            <p className="mt-2 hidden text-xs text-cuephoria-lightpurple lg:block">
+              {selectedStations.length > 0
+                ? `${selectedStations.length} station${selectedStations.length === 1 ? '' : 's'} selected`
+                : 'Click open stations to select them'}
+            </p>
           )}
+
+          {/* ── Mobile: stacked layout ── */}
+          <div className="flex flex-col gap-4 lg:hidden">
+            <MobilePageHeader
+              title={
+                <span className="flex items-center gap-2">
+                  <Radio className="h-5 w-5 text-cuephoria-purple animate-pulse-soft" />
+                  Station Command
+                </span>
+              }
+              subtitle={
+                activeLocation ? (
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {activeLocation.name}
+                  </span>
+                ) : undefined
+              }
+              actions={
+                canConfigureStations ? (
+                  <Button
+                    size="sm"
+                    className="w-full bg-cuephoria-purple hover:bg-cuephoria-purple/80 sm:w-auto"
+                    onClick={() =>
+                      requestPinVerification(() => setOpenAddDialog(true), { requireForAdmin: true })
+                    }
+                  >
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+                    Add Station
+                  </Button>
+                ) : undefined
+              }
+            />
+
+            <div className="grid w-full grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={toggleLiveFilter}
+                className={cn(
+                  'rounded-xl border px-2 py-2.5 text-center transition-all',
+                  occupancyFilter === 'live'
+                    ? 'border-orange-400 bg-orange-500/25 ring-2 ring-orange-400/40'
+                    : 'border-orange-500/30 bg-orange-950/30 hover:border-orange-400/50'
+                )}
+                title="Show live stations only"
+              >
+                <div className="flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-orange-300/80">
+                  <Zap className="h-3 w-3" />
+                  Live
+                </div>
+                <p className="mt-0.5 font-mono text-2xl font-bold tabular-nums text-orange-200">
+                  {totalActive}
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={toggleOpenFilter}
+                className={cn(
+                  'rounded-xl border px-2 py-2.5 text-center transition-all',
+                  occupancyFilter === 'open'
+                    ? 'border-emerald-400 bg-emerald-500/20 ring-2 ring-emerald-400/35'
+                    : 'border-emerald-500/30 bg-emerald-950/30 hover:border-emerald-400/45'
+                )}
+                title="Show open stations only"
+              >
+                <div className="flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-emerald-300/80">
+                  <CircleDot className="h-3 w-3" />
+                  Open
+                </div>
+                <p className="mt-0.5 font-mono text-2xl font-bold tabular-nums text-emerald-200">
+                  {totalAvailable}
+                </p>
+              </button>
+              <div className="rounded-xl border border-violet-500/30 bg-violet-950/30 px-2 py-2.5 text-center">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-violet-300/80">
+                  Total
+                </div>
+                <p className="mt-0.5 font-mono text-2xl font-bold tabular-nums text-violet-200">
+                  {visibleStations.length}
+                </p>
+              </div>
+            </div>
+
+            {(canMultiStart || canConfigureStations) && (
+              <div
+                className={cn(
+                  'flex flex-wrap items-center gap-x-3 gap-y-2',
+                  canMultiStart && canConfigureStations ? 'justify-between' : 'justify-end'
+                )}
+              >
+                {canMultiStart && (
+                  <MobileActionBar className="min-w-0 flex-1" maxVisible={isMobile ? 2 : undefined}>
+                    {selectionMode && selectedStations.length > 0 && (
+                      <>
+                        <span className="hidden text-xs text-muted-foreground sm:inline">
+                          {selectedStations.length} selected
+                        </span>
+                        <Button
+                          size="sm"
+                          className="bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:opacity-90"
+                          onClick={() => setOpenMultiStartDialog(true)}
+                        >
+                          Start together ({selectedStations.length})
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="px-2"
+                          onClick={() => setSelectedStationIds(new Set())}
+                          title="Clear selection"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      size="sm"
+                      variant={selectionMode ? 'default' : 'outline'}
+                      className={selectionMode ? 'bg-cuephoria-purple hover:bg-cuephoria-purple/80' : ''}
+                      onClick={() => {
+                        if (selectionMode) exitSelectionMode();
+                        else setSelectionMode(true);
+                      }}
+                    >
+                      <Users className="mr-1.5 h-3.5 w-3.5" />
+                      {selectionMode ? 'Cancel select' : 'Group start'}
+                    </Button>
+                  </MobileActionBar>
+                )}
+                {canConfigureStations && (
+                  <MobileActionBar className="shrink-0 justify-end">
+                    <Button size="sm" variant="outline" onClick={() => setOpenReplaceDialog(true)}>
+                      <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
+                      Legacy
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setOpenTypesDialog(true)}>
+                      <Layers className="mr-1.5 h-3.5 w-3.5" />
+                      Types
+                    </Button>
+                  </MobileActionBar>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="border-t border-white/8 px-4 pb-4 pt-4 sm:px-5 sm:pb-5">
@@ -519,7 +645,7 @@ const Stations = () => {
         )}
 
         {selectionMode && (
-          <p className="mt-3 border-t border-white/8 pt-3 text-center text-xs leading-relaxed text-cuephoria-lightpurple">
+          <p className="mt-3 border-t border-white/8 pt-3 text-center text-xs leading-relaxed text-cuephoria-lightpurple lg:hidden">
             Tap open stations to select · use <strong className="font-semibold">Start together</strong> in the header when ready
           </p>
         )}
