@@ -14,11 +14,13 @@ declare const __APP_BUILD_ID__: string | undefined;
 export const CHUNK_RECOVERY_GUARD_KEY = "__cuephoria_chunk_recovery_v2";
 
 const MAX_RELOAD_ATTEMPTS = 3;
+const MAX_FORCE_RELOAD_ATTEMPTS = 1;
 const RELOAD_WINDOW_MS = 60_000;
 const MIN_RELOAD_INTERVAL_MS = 4_000;
 
 type RecoveryGuard = {
   attempts: number;
+  forceAttempts: number;
   windowStart: number;
   lastReloadAt?: number;
 };
@@ -26,14 +28,16 @@ type RecoveryGuard = {
 function readGuard(): RecoveryGuard {
   try {
     const raw = sessionStorage.getItem(CHUNK_RECOVERY_GUARD_KEY);
-    if (!raw) return { attempts: 0, windowStart: 0 };
+    if (!raw) return { attempts: 0, forceAttempts: 0, windowStart: 0 };
     const parsed = JSON.parse(raw) as Partial<RecoveryGuard>;
     return {
       attempts: typeof parsed.attempts === "number" ? parsed.attempts : 0,
+      forceAttempts: typeof parsed.forceAttempts === "number" ? parsed.forceAttempts : 0,
       windowStart: typeof parsed.windowStart === "number" ? parsed.windowStart : 0,
+      lastReloadAt: typeof parsed.lastReloadAt === "number" ? parsed.lastReloadAt : undefined,
     };
   } catch {
-    return { attempts: 0, windowStart: 0 };
+    return { attempts: 0, forceAttempts: 0, windowStart: 0 };
   }
 }
 
@@ -123,6 +127,18 @@ function isAssetChunkUrl(url: string): boolean {
   }
 }
 
+export function isChunkRecoveryExhausted(): boolean {
+  const now = Date.now();
+  const guard = readGuard();
+  if (guard.windowStart && now - guard.windowStart > RELOAD_WINDOW_MS) {
+    return false;
+  }
+  return (
+    guard.attempts >= MAX_RELOAD_ATTEMPTS &&
+    guard.forceAttempts >= MAX_FORCE_RELOAD_ATTEMPTS
+  );
+}
+
 /**
  * Hard-reload with cache bust on the HTML document.
  * Returns true if a reload was initiated.
@@ -135,10 +151,18 @@ export function tryChunkRecoveryReload(
   let guard = readGuard();
 
   if (now - guard.windowStart > RELOAD_WINDOW_MS) {
-    guard = { attempts: 0, windowStart: now };
+    guard = { attempts: 0, forceAttempts: 0, windowStart: now };
   }
 
-  if (!options?.force && guard.attempts >= MAX_RELOAD_ATTEMPTS) {
+  if (options?.force) {
+    if (guard.forceAttempts >= MAX_FORCE_RELOAD_ATTEMPTS) {
+      console.warn(
+        `[chunk-recover] max force reload attempts (${MAX_FORCE_RELOAD_ATTEMPTS}) reached; ${reason}`,
+      );
+      return false;
+    }
+    guard.forceAttempts += 1;
+  } else if (guard.attempts >= MAX_RELOAD_ATTEMPTS) {
     console.warn(
       `[chunk-recover] max reload attempts (${MAX_RELOAD_ATTEMPTS}) reached; ${reason}`,
     );
@@ -156,7 +180,9 @@ export function tryChunkRecoveryReload(
     return false;
   }
 
-  guard.attempts += 1;
+  if (!options?.force) {
+    guard.attempts += 1;
+  }
   guard.lastReloadAt = now;
   guard.windowStart = guard.windowStart || now;
   writeGuard(guard);
@@ -167,6 +193,7 @@ export function tryChunkRecoveryReload(
 
   const url = new URL(window.location.href);
   url.searchParams.set("_v", String(now));
+  url.searchParams.set("_cb", getAppBuildId());
   window.location.replace(url.toString());
   return true;
 }
@@ -184,12 +211,16 @@ export function setupChunkRecoveryListeners(): void {
               ? target.href
               : "";
         if (src && isAssetChunkUrl(src)) {
-          tryChunkRecoveryReload(`asset load error: ${src}`);
+          if (!isChunkRecoveryExhausted()) {
+            tryChunkRecoveryReload(`asset load error: ${src}`);
+          }
           return;
         }
       }
       if (event.message && isChunkLoadError(event.message)) {
-        tryChunkRecoveryReload(`window error: ${event.message}`);
+        if (!isChunkRecoveryExhausted()) {
+          tryChunkRecoveryReload(`window error: ${event.message}`);
+        }
       }
     },
     true,
@@ -198,9 +229,11 @@ export function setupChunkRecoveryListeners(): void {
   window.addEventListener("unhandledrejection", (event) => {
     const reason = event.reason;
     if (isChunkLoadError(reason)) {
-      tryChunkRecoveryReload(`unhandled rejection: ${String(
-        reason instanceof Error ? reason.message : reason,
-      )}`);
+      if (!isChunkRecoveryExhausted()) {
+        tryChunkRecoveryReload(`unhandled rejection: ${String(
+          reason instanceof Error ? reason.message : reason,
+        )}`);
+      }
     }
   });
 }

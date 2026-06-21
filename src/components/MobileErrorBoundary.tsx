@@ -6,6 +6,7 @@ import { AlertCircle, RefreshCw, Home } from 'lucide-react';
 import {
   clearChunkRecoveryGuard,
   isChunkLoadError,
+  isChunkRecoveryExhausted,
   tryChunkRecoveryReload,
 } from '@/utils/chunkRecovery';
 
@@ -23,6 +24,7 @@ interface State {
 
 class MobileErrorBoundary extends Component<Props, State> {
   private recoverTimer: ReturnType<typeof setTimeout> | null = null;
+  private recoverEscapeTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(props: Props) {
     super(props);
@@ -37,10 +39,30 @@ class MobileErrorBoundary extends Component<Props, State> {
 
   componentWillUnmount() {
     if (this.recoverTimer) clearTimeout(this.recoverTimer);
+    if (this.recoverEscapeTimer) clearTimeout(this.recoverEscapeTimer);
+  }
+
+  private showStaleDeployError(error: Error, errorInfo: ErrorInfo | null = null) {
+    this.setState({
+      hasError: true,
+      error,
+      errorInfo,
+      isStaleDeploy: true,
+      isRecovering: false,
+    });
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> | null {
     if (isChunkLoadError(error)) {
+      if (isChunkRecoveryExhausted()) {
+        return {
+          hasError: true,
+          error,
+          errorInfo: null,
+          isStaleDeploy: true,
+          isRecovering: false,
+        };
+      }
       // Avoid flashing the generic crash screen while we reload for a new build.
       return { isRecovering: true, hasError: false, error: null, errorInfo: null };
     }
@@ -57,22 +79,25 @@ class MobileErrorBoundary extends Component<Props, State> {
     console.error('Error caught by boundary:', error, errorInfo);
 
     if (isChunkLoadError(error)) {
+      if (isChunkRecoveryExhausted()) {
+        this.showStaleDeployError(error, errorInfo);
+        return;
+      }
+
       const reloaded = tryChunkRecoveryReload(error.message || 'chunk load failure');
       if (reloaded) return;
 
-      // Cooldown exhausted — retry once after a short delay (CDN/index may lag).
+      // Cooldown exhausted — one delayed force retry (CDN/index may lag).
       this.recoverTimer = setTimeout(() => {
+        if (isChunkRecoveryExhausted()) {
+          this.showStaleDeployError(error, errorInfo);
+          return;
+        }
         const forced = tryChunkRecoveryReload('chunk load failure (retry)', {
           force: true,
         });
         if (!forced) {
-          this.setState({
-            hasError: true,
-            error,
-            errorInfo,
-            isStaleDeploy: true,
-            isRecovering: false,
-          });
+          this.showStaleDeployError(error, errorInfo);
         }
       }, 1200);
       return;
@@ -84,6 +109,23 @@ class MobileErrorBoundary extends Component<Props, State> {
       isStaleDeploy: false,
       isRecovering: false,
     });
+  }
+
+  componentDidUpdate(_prevProps: Props, prevState: State) {
+    if (this.state.isRecovering && !prevState.isRecovering) {
+      if (this.recoverEscapeTimer) clearTimeout(this.recoverEscapeTimer);
+      this.recoverEscapeTimer = setTimeout(() => {
+        if (this.state.isRecovering) {
+          this.showStaleDeployError(
+            new Error('Failed to load application files after update'),
+          );
+        }
+      }, 10_000);
+    }
+    if (!this.state.isRecovering && prevState.isRecovering && this.recoverEscapeTimer) {
+      clearTimeout(this.recoverEscapeTimer);
+      this.recoverEscapeTimer = null;
+    }
   }
 
   handleReload = () => {
@@ -102,14 +144,21 @@ class MobileErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.isRecovering) {
+      const showManual = isChunkRecoveryExhausted();
       return (
         <div className="min-h-screen bg-cuephoria-dark flex items-center justify-center p-4">
-          <div className="text-center space-y-3" role="status" aria-live="polite">
+          <div className="text-center space-y-4 max-w-sm" role="status" aria-live="polite">
             <RefreshCw className="h-10 w-10 text-cuephoria-lightpurple animate-spin mx-auto" />
             <p className="text-lg font-medium text-white">Updating application…</p>
-            <p className="text-sm text-muted-foreground max-w-sm">
+            <p className="text-sm text-muted-foreground">
               A new version was deployed. Reloading to load the latest files.
             </p>
+            {showManual && (
+              <Button onClick={this.handleReload} className="btn-gradient w-full mt-2">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Load latest version
+              </Button>
+            )}
           </div>
         </div>
       );
