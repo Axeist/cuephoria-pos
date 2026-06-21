@@ -30,10 +30,80 @@ const CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutes cache (aligned with data
 const DUPLICATE_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // Run cleanup once per day
 const LAST_DUPLICATE_CLEANUP_KEY = 'cuephoria_last_duplicate_cleanup';
 
+/** Shared tail — membership platform columns are optional until migration runs. */
+const CUSTOMER_CORE_FIELDS =
+  'membership_expiry_date,membership_start_date,membership_plan,membership_hours_left,membership_duration,loyalty_points,total_spent,total_play_time,created_at';
+
+const CUSTOMER_SELECT_ATTEMPTS = [
+  `id,customer_id,custom_id,name,phone,email,is_member,membership_tier_id,card_balance,${CUSTOMER_CORE_FIELDS}`,
+  `id,customer_id,custom_id,name,phone,email,is_member,${CUSTOMER_CORE_FIELDS}`,
+  `id,customer_id,custom_id,name,phone,email,membership_tier_id,card_balance,${CUSTOMER_CORE_FIELDS}`,
+] as const;
+
+let resolvedCustomerSelectFields: string | null = null;
+
+function isMissingColumnError(error: { code?: string; message?: string }): boolean {
+  const code = String(error.code ?? '');
+  const msg = (error.message ?? '').toLowerCase();
+  return (
+    code === '42703' ||
+    code === 'PGRST204' ||
+    msg.includes('does not exist') ||
+    msg.includes('could not find')
+  );
+}
+
+async function resolveCustomerSelectFields(locationId: string): Promise<string> {
+  if (resolvedCustomerSelectFields) return resolvedCustomerSelectFields;
+
+  for (const fields of CUSTOMER_SELECT_ATTEMPTS) {
+    const { error } = await supabase
+      .from('customers')
+      .select(fields)
+      .eq('location_id', locationId)
+      .limit(1);
+    if (!error) {
+      resolvedCustomerSelectFields = fields;
+      return fields;
+    }
+    if (!isMissingColumnError(error)) break;
+  }
+
+  resolvedCustomerSelectFields = CUSTOMER_SELECT_ATTEMPTS[1];
+  return resolvedCustomerSelectFields;
+}
+
+function mapCustomerRow(item: Record<string, unknown>): Customer {
+  return {
+    id: item.id as string,
+    customerId: (item.customer_id as string) || generateCustomerID(item.phone as string),
+    name: item.name as string,
+    phone: item.phone as string,
+    email: (item.email as string) || undefined,
+    isMember: Boolean(item.membership_tier_id) || Boolean(item.is_member),
+    membershipTierId: (item.membership_tier_id as string) || undefined,
+    cardBalance: Number(item.card_balance ?? 0),
+    membershipExpiryDate: item.membership_expiry_date
+      ? new Date(item.membership_expiry_date as string)
+      : undefined,
+    membershipStartDate: item.membership_start_date
+      ? new Date(item.membership_start_date as string)
+      : undefined,
+    membershipPlan: (item.membership_plan as string) || undefined,
+    membershipHoursLeft: (item.membership_hours_left as number) || undefined,
+    membershipDuration: item.membership_duration as 'weekly' | 'monthly' | undefined,
+    loyaltyPoints: item.loyalty_points as number,
+    totalSpent: item.total_spent as number,
+    totalPlayTime: item.total_play_time as number,
+    createdAt: new Date(item.created_at as string),
+  };
+}
+
 // ✅ MEMORY CACHE (per-location for current session)
 const memoryCacheByLocation: Record<string, { customers: Customer[]; timestamp: number }> = {};
 
 registerCustomerMemoryCacheClear(() => {
+  resolvedCustomerSelectFields = null;
   for (const key of Object.keys(memoryCacheByLocation)) {
     delete memoryCacheByLocation[key];
   }
@@ -151,28 +221,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           return;
         }
         
-        // ✅ OPTIMIZED: Select only needed columns (reduces data transfer)
-        const selectFields = 'id,customer_id,custom_id,name,phone,email,is_member,membership_tier_id,card_balance,membership_expiry_date,membership_start_date,membership_plan,membership_hours_left,membership_duration,loyalty_points,total_spent,total_play_time,created_at';
-
-        const mapRowToCustomer = (item: any): Customer => ({
-          id: item.id,
-          customerId: (item as any).customer_id || generateCustomerID(item.phone),
-          name: item.name,
-          phone: item.phone,
-          email: item.email || undefined,
-          isMember: Boolean(item.membership_tier_id) || Boolean(item.is_member),
-          membershipTierId: item.membership_tier_id || undefined,
-          cardBalance: Number(item.card_balance ?? 0),
-          membershipExpiryDate: item.membership_expiry_date ? new Date(item.membership_expiry_date) : undefined,
-          membershipStartDate: item.membership_start_date ? new Date(item.membership_start_date) : undefined,
-          membershipPlan: item.membership_plan || undefined,
-          membershipHoursLeft: item.membership_hours_left || undefined,
-          membershipDuration: item.membership_duration as 'weekly' | 'monthly' | undefined,
-          loyaltyPoints: item.loyalty_points,
-          totalSpent: item.total_spent,
-          totalPlayTime: item.total_play_time,
-          createdAt: new Date(item.created_at)
-        });
+        // Resolve columns once — tolerates membership migration not yet applied.
+        const selectFields = await resolveCustomerSelectFields(activeLocationId);
 
         const fetchCustomersPage = async (page: number, pageSize: number) => {
           return supabase
@@ -236,10 +286,10 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           if (!firstBatchPainted) {
             firstBatchPainted = true;
             if (activeBranchRef.current !== activeLocationId) return;
-            setCustomers(batchRows.map(mapRowToCustomer));
+            setCustomers(batchRows.map(mapCustomerRow));
             if (!silent) setIsLoading(false);
           } else if (activeBranchRef.current === activeLocationId) {
-            setCustomers(allCustomersData.map(mapRowToCustomer));
+            setCustomers(allCustomersData.map(mapCustomerRow));
           }
 
           page += pagesToFetch.length;
@@ -247,7 +297,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         
         if (allCustomersData.length > 0) {
           if (activeBranchRef.current !== activeLocationId) return;
-          const transformedCustomers = allCustomersData.map(mapRowToCustomer);
+          const transformedCustomers = allCustomersData.map(mapCustomerRow);
 
           setCustomers(transformedCustomers);
           saveToCache(transformedCustomers);
@@ -300,25 +350,9 @@ export const useCustomers = (initialCustomers: Customer[]) => {
                   }
                 }
 
-                const cleanedCustomers = refetchRows.map(item => ({
-                  id: item.id,
-                  customerId: (item as any).customer_id || generateCustomerID(item.phone),
-                  name: item.name,
-                  phone: item.phone,
-                  email: item.email || undefined,
-                  isMember: Boolean(item.membership_tier_id) || Boolean(item.is_member),
-          membershipTierId: item.membership_tier_id || undefined,
-          cardBalance: Number(item.card_balance ?? 0),
-                  membershipExpiryDate: item.membership_expiry_date ? new Date(item.membership_expiry_date) : undefined,
-                  membershipStartDate: item.membership_start_date ? new Date(item.membership_start_date) : undefined,
-                  membershipPlan: item.membership_plan || undefined,
-                  membershipHoursLeft: item.membership_hours_left || undefined,
-                  membershipDuration: item.membership_duration as 'weekly' | 'monthly' | undefined,
-                  loyaltyPoints: item.loyalty_points,
-                  totalSpent: item.total_spent,
-                  totalPlayTime: item.total_play_time,
-                  createdAt: new Date(item.created_at)
-                }));
+                const cleanedCustomers = refetchRows.map((item) =>
+                  mapCustomerRow(item as Record<string, unknown>),
+                );
 
                 if (branchWhenCleanupStarted !== activeBranchRef.current) return;
 
