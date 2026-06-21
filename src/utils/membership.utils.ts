@@ -1,4 +1,11 @@
-import { Customer } from '@/types/pos.types';
+import { Customer, Product } from '@/types/pos.types';
+
+/** POS membership products are created only from the Memberships hub (tier sync). */
+export function isMembershipCatalogProduct(
+  product: Pick<Product, 'category' | 'membershipTierId'>,
+): boolean {
+  return product.category === 'membership';
+}
 
 /**
  * Determines if a customer's membership is currently active (tier-based).

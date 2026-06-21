@@ -286,7 +286,7 @@ export const useProducts = () => {
       }
       
       // ✅ OPTIMIZED: Select only needed columns
-      const selectFields = 'id,name,category,price,buying_price,selling_price,profit,stock,image,original_price,offer_price,student_price,duration,membership_hours,created_at';
+      const selectFields = 'id,name,category,price,buying_price,selling_price,profit,stock,image,original_price,offer_price,student_price,duration,membership_hours,membership_tier_id,created_at';
       
       // Fetch all products using parallel page batches
       let page = 0;

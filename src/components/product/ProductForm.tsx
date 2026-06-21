@@ -8,7 +8,6 @@ import { Product } from '@/types/pos.types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { usePOS } from '@/context/POSContext';
-import { useMembershipTiers } from '@/hooks/useMembershipTiers';
 
 interface ProductFormProps {
   isEditMode: boolean;
@@ -46,7 +45,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
   const {
     categories
   } = usePOS();
-  const { tiers: membershipTiers } = useMembershipTiers();
+  const selectableCategories = categories.filter((category) => category !== 'membership');
   
   const [formState, setFormState] = useState<ProductFormState>({
     name: '',
@@ -246,18 +245,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
       errors.stock = 'Stock cannot be negative';
     }
 
-    // Membership specific validations
-    if (formState.category === 'membership') {
-      if (formState.duration === '') {
-        errors.duration = 'Duration is required for membership products';
-      }
-      if (!formState.membershipHours) {
-        errors.membershipHours = 'Membership hours are required';
-      } else if (parseInt(formState.membershipHours) <= 0) {
-        errors.membershipHours = 'Membership hours must be greater than 0';
-      }
-    }
-    
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -295,7 +282,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
               <SelectValue placeholder="Select category" />
             </SelectTrigger>
             <SelectContent>
-              {categories.map(category => <SelectItem key={category} value={category}>
+              {selectableCategories.map(category => <SelectItem key={category} value={category}>
                   {category.charAt(0).toUpperCase() + category.slice(1)}
                 </SelectItem>)}
             </SelectContent>
@@ -418,71 +405,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
           )}
           {validationErrors.stock && <p className="text-xs text-destructive mt-1">{validationErrors.stock}</p>}
         </div>
-
-        {formState.category === 'membership' && (
-          <>
-            <div className="grid gap-2">
-              <Label htmlFor="originalPrice">Original Price (₹)</Label>
-              <Input id="originalPrice" name="originalPrice" type="number" value={formState.originalPrice} onChange={handleChange} placeholder="Enter original price" min="0" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="offerPrice">Offer Price (₹)</Label>
-              <Input id="offerPrice" name="offerPrice" type="number" value={formState.offerPrice} onChange={handleChange} placeholder="Enter offer price" min="0" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="studentPrice">Student Price (₹)</Label>
-              <Input id="studentPrice" name="studentPrice" type="number" value={formState.studentPrice} onChange={handleChange} placeholder="Enter student price" min="0" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="duration" className={validationErrors.duration ? 'text-destructive' : ''}>
-                Duration*
-              </Label>
-              <Select value={formState.duration} onValueChange={value => handleSelectChange('duration', value)}>
-                <SelectTrigger className={validationErrors.duration ? 'border-destructive' : ''}>
-                  <SelectValue placeholder="Select duration" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                </SelectContent>
-              </Select>
-              {validationErrors.duration && <p className="text-xs text-destructive mt-1">{validationErrors.duration}</p>}
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="membershipTierId">Membership tier</Label>
-              <Select
-                value={formState.membershipTierId || 'none'}
-                onValueChange={(value) =>
-                  handleSelectChange('membershipTierId', value === 'none' ? '' : value)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Link to a tier (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No tier link</SelectItem>
-                  {membershipTiers
-                    .filter((t) => t.isActive)
-                    .map((tier) => (
-                      <SelectItem key={tier.id} value={tier.id}>
-                        {tier.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                When sold at POS, assigns this tier to the customer.
-              </p>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="membershipHours" className={validationErrors.membershipHours ? 'text-destructive' : ''}>
-                Membership Hours*
-              </Label>
-              <Input id="membershipHours" name="membershipHours" type="number" value={formState.membershipHours} onChange={handleChange} placeholder="Enter membership hours" className={validationErrors.membershipHours ? 'border-destructive' : ''} min="0" />
-              {validationErrors.membershipHours && <p className="text-xs text-destructive mt-1">{validationErrors.membershipHours}</p>}
-            </div>
-          </>
-        )}
       </div>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>

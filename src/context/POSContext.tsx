@@ -348,6 +348,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
   /** When set, the next saved-cart restore for this customer may load session-only drafts (checkout handoff). */
   const forceLoadSavedCartCustomerIdRef = useRef<string | null>(null);
+  /** Session-only lines from the customer's saved cart — captured once on select, not re-fetched each edit. */
+  const sessionDraftLinesRef = useRef<CartItem[]>([]);
 
   const addToCartWithStock = useCallback(
     (item: Omit<CartItem, 'total'>) => {
@@ -489,7 +491,13 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLoyaltyPointsUsedAmount(0);
 
     void loadSavedCartForCustomer(selectedCustomer.id).then((savedCartData) => {
-      if (cancelled || !savedCartData?.items.length) return;
+      if (cancelled) return;
+
+      sessionDraftLinesRef.current = (savedCartData?.items ?? []).filter(
+        (item) => item.type === 'session',
+      );
+
+      if (!savedCartData?.items.length) return;
 
       const forceLoad =
         forceLoadSavedCartCustomerIdRef.current === selectedCustomer.id;
@@ -515,6 +523,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return () => {
       cancelled = true;
+      sessionDraftLinesRef.current = [];
     };
   }, [selectedCustomer?.id, activeLocationId, loadSavedCartForCustomer, products, setCart, setDiscountAmount, setDiscountType, setLoyaltyPointsUsedAmount, toast]);
 
@@ -545,36 +554,28 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!selectedCustomer || !activeLocationId || cart.length === 0) return;
 
-    let cancelled = false;
-
     const timer = window.setTimeout(() => {
-      void (async () => {
-        const saved = await loadSavedCartForCustomer(selectedCustomer.id);
-        if (cancelled) return;
+      const liveLines = cart.filter((item) => item.type !== 'session');
+      const sessionDraftLines = sessionDraftLinesRef.current;
+      const merged =
+        sessionDraftLines.length > 0
+          ? mergeSessionCartItems(sessionDraftLines, liveLines, [])
+          : cart;
 
-        const sessionDraftLines = (saved?.items ?? []).filter((item) => item.type === 'session');
-        const liveLines = cart.filter((item) => item.type !== 'session');
-        const merged =
-          sessionDraftLines.length > 0
-            ? mergeSessionCartItems(sessionDraftLines, liveLines, [])
-            : cart;
-
-        schedulePersistSavedCart(
-          selectedCustomer.id,
-          selectedCustomer.name,
-          merged,
-          discount,
-          discountType,
-          loyaltyPointsUsed
-        );
-      })();
-    }, 800);
+      schedulePersistSavedCart(
+        selectedCustomer.id,
+        selectedCustomer.name,
+        merged,
+        discount,
+        discountType,
+        loyaltyPointsUsed,
+      );
+    }, 1200);
 
     return () => {
-      cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [cart, discount, discountType, loyaltyPointsUsed, selectedCustomer?.id, selectedCustomer?.name, activeLocationId, loadSavedCartForCustomer, schedulePersistSavedCart]);
+  }, [cart, discount, discountType, loyaltyPointsUsed, selectedCustomer?.id, selectedCustomer?.name, activeLocationId, schedulePersistSavedCart]);
 
   const moveCartToSaved = useCallback(async () => {
     if (!selectedCustomer) {

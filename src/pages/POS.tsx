@@ -2,7 +2,9 @@ import { MobilePageShell } from '@/components/mobile/MobilePageShell';
 import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
 import { MobileTabSelect } from '@/components/mobile/MobileTabSelect';
 import { MobileProductGrid } from '@/components/pos/MobileProductGrid';
-import React, { useState, useEffect, useMemo } from 'react';
+import PosCustomerPickerRow from '@/components/pos/PosCustomerPickerRow';
+import PosProductCard from '@/components/pos/PosProductCard';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,8 +21,6 @@ import { ShoppingCart, X, User, Plus, Search, ArrowRight, Trash2, ReceiptIcon, D
 import { useToast } from '@/hooks/use-toast';
 import { usePOS, Customer, Product, Bill } from '@/context/POSContext';
 import { CurrencyDisplay, formatCurrency } from '@/components/ui/currency';
-import CustomerCard from '@/components/CustomerCard';
-import ProductCard from '@/components/ProductCard';
 import Receipt from '@/components/Receipt';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -41,7 +41,6 @@ import {
   getCartItemPrimaryLabel,
   getCartItemSecondaryLabel,
   groupCartItemsByBillType,
-  totalProductQuantityInCart,
 } from '@/utils/cartItem.utils';
 import type { CartItem } from '@/types/pos.types';
 import { useAuth } from '@/context/AuthContext';
@@ -58,7 +57,6 @@ const POS = () => {
   const {
     products,
     customers,
-    stations,
     cart,
     selectedCustomer,
     discount,
@@ -85,12 +83,14 @@ const POS = () => {
     completeSale,
     pendingMembershipFollowUp,
     clearPendingMembershipFollowUp,
+    getCategoryAccentColor,
   } = usePOS();
   const { toast } = useToast();
   const { isMobile } = useViewMode();
 
   const [activeTab, setActiveTab] = useState('all');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [debouncedCustomerQuery, setDebouncedCustomerQuery] = useState('');
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
   const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
@@ -105,35 +105,91 @@ const POS = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [isCompletingSale, setIsCompletingSale] = useState(false);
   const [isSavingCart, setIsSavingCart] = useState(false);
-
-  const getSavedCartInfo = (customerId: string) => {
-    const saved = savedCarts.find((c) => c.customerId === customerId);
-    return {
-      hasCart: Boolean(saved && saved.itemCount > 0),
-      itemCount: saved?.itemCount ?? 0,
-    };
-  };
-
-  // Custom Date/Time States
   const [customBillDate, setCustomBillDate] = useState('');
   const [customBillTime, setCustomBillTime] = useState('');
   const [useCustomDateTime, setUseCustomDateTime] = useState(false);
+  const [discountPinUnlocked, setDiscountPinUnlocked] = useState(false);
 
   const { user } = useAuth();
   const { canUse, isEnabled: membershipModuleEnabled } = useMembershipFeatures();
   const canApplyDiscount = usePermission('pos.discount');
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
 
-  // Late-night (post midnight) discount lock
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedCustomerQuery(customerSearchQuery.trim());
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [customerSearchQuery]);
+
+  const savedCartByCustomerId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const saved of savedCarts) {
+      map.set(saved.customerId, saved.itemCount);
+    }
+    return map;
+  }, [savedCarts]);
+
+  const getSavedCartInfo = useCallback(
+    (customerId: string) => {
+      const count = savedCartByCustomerId.get(customerId) ?? 0;
+      return { hasCart: count > 0, itemCount: count };
+    },
+    [savedCartByCustomerId],
+  );
+
+  const pickerCustomers = useMemo(() => {
+    if (!isCustomerDialogOpen) return [];
+    const q = debouncedCustomerQuery.toLowerCase();
+    const qDigits = q.replace(/\D/g, '');
+
+    if (q.length === 1) return [];
+
+    let list = customers;
+    if (q.length >= 2) {
+      list = customers.filter(
+        (customer) =>
+          customer.name.toLowerCase().includes(q) ||
+          customer.phone.replace(/\D/g, '').includes(qDigits) ||
+          (customer.customerId?.toLowerCase().includes(q) ?? false),
+      );
+    } else {
+      list = customers.slice(0, 48);
+    }
+    return list.slice(0, 60);
+  }, [customers, debouncedCustomerQuery, isCustomerDialogOpen]);
+
+  const cartQuantityByProductId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of cart) {
+      if (item.type === 'product') {
+        map.set(item.id, (map.get(item.id) ?? 0) + item.quantity);
+      }
+    }
+    return map;
+  }, [cart]);
+
+  const productsWithStock = useMemo(
+    () => products.filter((product) => product.category === 'membership' || product.stock > 0),
+    [products],
+  );
+
+  const categoryCounts = useMemo(() => {
+    const acc: Record<string, number> = {};
+    for (const product of productsWithStock) {
+      acc[product.category] = (acc[product.category] || 0) + 1;
+    }
+    acc.all = productsWithStock.length;
+    return acc;
+  }, [productsWithStock]);
+
   const isLateNight = () => new Date().getHours() < 6;
-  const [discountPinUnlocked, setDiscountPinUnlocked] = useState(false);
   const discountLocked = isLateNight() && !discountPinUnlocked && !canApplyDiscount;
 
   const handleDiscountUnlock = () => {
     requestPinVerification(() => setDiscountPinUnlocked(true));
   };
 
-  // Initialize custom date/time when dialogs open
   useEffect(() => {
     if (isCheckoutDialogOpen || isCompDialogOpen) {
       const now = new Date();
@@ -142,18 +198,6 @@ const POS = () => {
       setUseCustomDateTime(false);
     }
   }, [isCheckoutDialogOpen, isCompDialogOpen]);
-
-  const productsWithStock = products.filter(product => 
-    product.category === 'membership' || product.stock > 0
-  );
-
-  const categoryCounts = productsWithStock.reduce((acc, product) => {
-    const category = product.category;
-    acc[category] = (acc[category] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  categoryCounts.all = productsWithStock.length;
 
   const posCategoryTabs = useMemo(
     () => [
@@ -167,47 +211,44 @@ const POS = () => {
     [categoryCounts],
   );
 
-  const categoryOrder = ['food', 'drinks', 'tobacco', 'challenges', 'membership'];
+  const categoryOrder = useMemo(
+    () => ['food', 'drinks', 'tobacco', 'challenges', 'membership'],
+    [],
+  );
 
-  const getSortedProducts = (productList: Product[]) => {
+  const searchedProducts = useMemo(() => {
+    const categoryOrderLocal = categoryOrder;
+    let list =
+      activeTab === 'all'
+        ? productsWithStock
+        : productsWithStock.filter((product) => product.category === activeTab);
+
     if (activeTab === 'all') {
-      return productList.sort((a, b) => {
-        const aIndex = categoryOrder.indexOf(a.category);
-        const bIndex = categoryOrder.indexOf(b.category);
-        
+      list = [...list].sort((a, b) => {
+        const aIndex = categoryOrderLocal.indexOf(a.category);
+        const bIndex = categoryOrderLocal.indexOf(b.category);
         if (aIndex === bIndex) {
           return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
         }
-        
         return aIndex - bIndex;
       });
     }
-    return productList;
-  };
 
-  const filteredProducts = activeTab === 'all'
-    ? getSortedProducts(productsWithStock)
-    : productsWithStock.filter(product => product.category === activeTab);
+    const q = productSearchQuery.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((product) => product.name.toLowerCase().includes(q));
+  }, [activeTab, categoryOrder, productSearchQuery, productsWithStock]);
 
-  const searchedProducts = productSearchQuery.trim() === ''
-    ? filteredProducts
-    : filteredProducts.filter(product =>
-        product.name.toLowerCase().includes(productSearchQuery.toLowerCase())
-      );
-
-  const filteredCustomers = customerSearchQuery.trim() === ''
-    ? customers
-    : customers.filter(customer =>
-        customer.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
-        customer.phone.includes(customerSearchQuery)
-      );
-
-  const canIncreaseCartQuantity = (item: CartItem) => {
-    const product = products.find((p) => p.id === item.id);
-    const limit = getProductStockLimit(product);
-    if (limit === null) return true;
-    return totalProductQuantityInCart(cart, item.id) < limit;
-  };
+  const canIncreaseCartQuantity = useCallback(
+    (item: CartItem) => {
+      const qty = cartQuantityByProductId.get(item.id) ?? 0;
+      const product = products.find((p) => p.id === item.id);
+      const limit = getProductStockLimit(product);
+      if (limit === null) return true;
+      return qty < limit;
+    },
+    [cartQuantityByProductId, products],
+  );
 
   const handleUpdateQuantity = (item: CartItem, newQuantity: number) => {
     if (newQuantity < 1) return;
@@ -230,34 +271,60 @@ const POS = () => {
     }
   };
 
-  const handleSelectCustomer = (customer: Customer) => {
-    selectCustomer(customer.id);
-    setIsCustomerDialogOpen(false);
+  const handleSelectCustomer = useCallback(
+    (customer: Customer) => {
+      selectCustomer(customer.id);
+      setIsCustomerDialogOpen(false);
 
-    const cartInfo = getSavedCartInfo(customer.id);
-    if (!cartInfo.hasCart) {
-      toast({
-        title: 'Customer Selected',
-        description: `${customer.name} has been selected for this transaction.`,
-        variant: 'default',
-      });
-    }
-  };
+      const cartInfo = getSavedCartInfo(customer.id);
+      if (!cartInfo.hasCart) {
+        toast({
+          title: 'Customer Selected',
+          description: `${customer.name} has been selected for this transaction.`,
+          variant: 'default',
+        });
+      }
+    },
+    [getSavedCartInfo, selectCustomer, toast],
+  );
 
-  const handleNfcMemberResolved = (result: MembershipCardLookupResult) => {
-    const existing = customers.find((c) => c.id === result.customer.id);
-    if (!existing) {
-      toast({
-        title: 'Customer not found',
-        description: 'This card is linked to a customer not loaded in this branch.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    const merged = mergeNfcLookupWithCustomer(result, existing);
-    updateCustomer(merged);
-    handleSelectCustomer(merged);
-  };
+  const handleNfcMemberResolved = useCallback(
+    (result: MembershipCardLookupResult) => {
+      const existing = customers.find((c) => c.id === result.customer.id);
+      if (!existing) {
+        toast({
+          title: 'Customer not found',
+          description: 'This card is linked to a customer not loaded in this branch.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      const merged = mergeNfcLookupWithCustomer(result, existing);
+      updateCustomer(merged);
+      handleSelectCustomer(merged);
+    },
+    [customers, handleSelectCustomer, toast, updateCustomer],
+  );
+
+  const handlePosAddProduct = useCallback(
+    (product: Product) => {
+      const inCartQty = cartQuantityByProductId.get(product.id) ?? 0;
+      if (product.category !== 'membership' && inCartQty >= product.stock) return;
+
+      addToCart(
+        {
+          id: product.id,
+          type: 'product',
+          name: product.name,
+          price: product.price,
+          quantity: 1,
+          category: product.category,
+        },
+        product.category !== 'membership' ? product.stock : undefined,
+      );
+    },
+    [addToCart, cartQuantityByProductId],
+  );
 
   const handleApplyDiscount = () => {
     const amount = Number(customDiscountAmount);
@@ -841,20 +908,22 @@ const POS = () => {
             <div className={cn('flex-grow min-h-0 m-0 overflow-auto', isMobile ? 'p-3' : 'p-6')}>
               {searchedProducts.length > 0 ? (
                 isMobile ? (
-                  <MobileProductGrid products={searchedProducts} />
+                  <MobileProductGrid
+                    products={searchedProducts}
+                    cartQuantityByProductId={cartQuantityByProductId}
+                    onAddProduct={handlePosAddProduct}
+                  />
                 ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-fr">
-                  {searchedProducts.map((product, index) => (
-                    <div
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 auto-rows-fr">
+                  {searchedProducts.map((product) => (
+                    <PosProductCard
                       key={product.id}
-                      className="animate-scale-in"
-                      style={{ animationDelay: `${(index % 8) * 50}ms` }}
-                    >
-                      <ProductCard 
-                        product={product} 
-                        className="h-full flex flex-col"
-                      />
-                    </div>
+                      product={product}
+                      cartQuantity={cartQuantityByProductId.get(product.id) ?? 0}
+                      categoryAccent={getCategoryAccentColor(product.category)}
+                      onAdd={handlePosAddProduct}
+                      className="h-full"
+                    />
                   ))}
                 </div>
                 )
@@ -908,39 +977,28 @@ const POS = () => {
             />
           </div>
           
-          <div className="max-h-[60vh] overflow-auto">
-            {filteredCustomers.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredCustomers.map((customer, index) => {
-                  const cartInfo = getSavedCartInfo(customer.id);
-                  
-                  return (
-                    <div 
-                      key={customer.id} 
-                      className="relative animate-scale-in"
-                      style={{animationDelay: `${(index % 6) * 100}ms`}}
-                    >
-                      {cartInfo.hasCart && (
-                        <div className="absolute -top-2 -right-2 bg-gradient-to-r from-cuephoria-orange to-cuephoria-lightpurple text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 z-10 shadow-lg animate-pulse">
-                          <ShoppingCart className="h-3.5 w-3.5" />
-                          <span className="font-bold">{cartInfo.itemCount}</span>
-                        </div>
-                      )}
-                      <CustomerCard
-                        customer={customer}
-                        isSelectable={true}
-                        onSelect={handleSelectCustomer}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
+          <div className="max-h-[60vh] overflow-auto space-y-2">
+            {debouncedCustomerQuery.length === 1 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Type at least 2 characters to search all customers.
+              </p>
+            ) : pickerCustomers.length > 0 ? (
+              pickerCustomers.map((customer) => (
+                <PosCustomerPickerRow
+                  key={customer.id}
+                  customer={customer}
+                  savedItemCount={savedCartByCustomerId.get(customer.id) ?? 0}
+                  onSelect={handleSelectCustomer}
+                />
+              ))
             ) : (
               <div className="flex flex-col items-center justify-center py-8">
                 <User className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-xl font-medium font-heading">No Customers Found</h3>
-                <p className="text-muted-foreground mt-2">
-                  Try a different search or add a new customer
+                <p className="text-muted-foreground mt-2 text-center text-sm">
+                  {debouncedCustomerQuery.length >= 2
+                    ? 'Try a different name, phone, or Customer ID'
+                    : 'Recent customers shown — search to find more'}
                 </p>
               </div>
             )}

@@ -1,41 +1,34 @@
-import React from "react";
+import React, { memo, useCallback } from "react";
 import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { CurrencyDisplay } from "@/components/ui/currency";
-import { usePOS, type Product } from "@/context/POSContext";
+import type { Product } from "@/types/pos.types";
 import { cn } from "@/lib/utils";
 
 type MobileProductGridProps = {
   products: Product[];
   className?: string;
+  cartQuantityByProductId: Map<string, number>;
+  onAddProduct: (product: Product) => void;
 };
 
 /**
  * Compact 2-column product picker for mobile POS — tap to add, minimal scroll height.
+ * Props are passed from POS parent so this grid does not subscribe to full POS context.
  */
-export function MobileProductGrid({ products, className }: MobileProductGridProps) {
-  const { addToCart, cart } = usePOS();
-
-  const handleAdd = (product: Product) => {
-    if (product.category !== "membership") {
-      const inCart = cart.find(
-        (item) => item.id === product.id && item.type === "product",
-      );
-      if ((inCart?.quantity ?? 0) >= product.stock) return;
-    }
-
-    addToCart(
-      {
-        id: product.id,
-        type: "product",
-        name: product.name,
-        price: product.price,
-        quantity: 1,
-        category: product.category,
-      },
-      product.category !== "membership" ? product.stock : undefined,
-    );
-  };
+export const MobileProductGrid = memo(function MobileProductGrid({
+  products,
+  className,
+  cartQuantityByProductId,
+  onAddProduct,
+}: MobileProductGridProps) {
+  const handleAdd = useCallback(
+    (product: Product) => {
+      const inCartQty = cartQuantityByProductId.get(product.id) ?? 0;
+      if (product.category !== "membership" && inCartQty >= product.stock) return;
+      onAddProduct(product);
+    },
+    [cartQuantityByProductId, onAddProduct],
+  );
 
   if (products.length === 0) {
     return (
@@ -48,12 +41,9 @@ export function MobileProductGrid({ products, className }: MobileProductGridProp
   return (
     <div className={cn("grid grid-cols-2 gap-2", className)}>
       {products.map((product) => {
-        const inCart = cart.find(
-          (item) => item.id === product.id && item.type === "product",
-        );
+        const inCartQty = cartQuantityByProductId.get(product.id) ?? 0;
         const atStockLimit =
-          product.category !== "membership" &&
-          (inCart?.quantity ?? 0) >= product.stock;
+          product.category !== "membership" && inCartQty >= product.stock;
 
         return (
           <button
@@ -76,7 +66,7 @@ export function MobileProductGrid({ products, className }: MobileProductGridProp
             {product.category !== "membership" ? (
               <span className="text-[10px] text-muted-foreground">
                 {product.stock} left
-                {(inCart?.quantity ?? 0) > 0 ? ` · ${inCart!.quantity} in cart` : ""}
+                {inCartQty > 0 ? ` · ${inCartQty} in cart` : ""}
               </span>
             ) : null}
             <span className="absolute bottom-2 right-2">
@@ -87,4 +77,4 @@ export function MobileProductGrid({ products, className }: MobileProductGridProp
       })}
     </div>
   );
-}
+});

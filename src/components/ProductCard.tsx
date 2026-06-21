@@ -8,6 +8,7 @@ import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { getRestockHeadroom } from '@/utils/productStock.utils';
 import { getCategoryCardStyle } from '@/utils/colorTheme.utils';
+import { isMembershipCatalogProduct } from '@/utils/membership.utils';
 
 interface ProductCardProps {
   product: Product;
@@ -118,6 +119,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
   const remainingStock = getRemainingStock();
   const isOutOfStock = product.category !== 'membership' && remainingStock <= 0;
+  const isMembershipManaged = isMembershipCatalogProduct(product);
 
   // Calculate profit for display (only for applicable categories)
   const profit = shouldShowPricingFields && product.buyingPrice ? 
@@ -207,6 +209,12 @@ const ProductCard: React.FC<ProductCardProps> = ({
         <CardFooter className="mt-auto pt-2">
           {showManagementActions ? (
             <div className="flex w-full flex-col gap-2">
+              {isMembershipManaged ? (
+                <p className="text-xs text-center text-muted-foreground px-1">
+                  Synced from Memberships — edit tiers in the Memberships hub.
+                </p>
+              ) : (
+                <>
               {canRestock && product.category !== 'membership' && onRestock && getRestockHeadroom(product) !== 0 && (
                 <Button
                   variant="default"
@@ -244,6 +252,8 @@ const ProductCard: React.FC<ProductCardProps> = ({
                     </Button>
                   )}
                 </div>
+              )}
+                </>
               )}
             </div>
           ) : (

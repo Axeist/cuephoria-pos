@@ -29,6 +29,7 @@ import RestockDialog from '@/components/product/RestockDialog';
 import { FilterOptions } from '@/types/stockLog.types';
 import { createStockLog, saveStockLog } from '@/utils/stockLogger';
 import { getRestockHeadroom, isStockWithinMax } from '@/utils/productStock.utils';
+import { isMembershipCatalogProduct } from '@/utils/membership.utils';
 import {
   Sheet,
   SheetContent,
@@ -131,6 +132,13 @@ const ProductsPage: React.FC = () => {
 
   const handleEditProduct = (product: Product) => {
     if (!canEditProduct) return;
+    if (isMembershipCatalogProduct(product)) {
+      toast({
+        title: 'Managed in Memberships',
+        description: 'Membership plans are created and edited from the Memberships hub.',
+      });
+      return;
+    }
     setIsEditMode(true);
     setSelectedProduct(product);
     setFormError(null);
@@ -176,6 +184,14 @@ const ProductsPage: React.FC = () => {
 
   const handleDeleteProduct = (id: string) => {
     if (!canDeleteProduct) return;
+    const product = products.find((p) => p.id === id);
+    if (product && isMembershipCatalogProduct(product)) {
+      toast({
+        title: 'Managed in Memberships',
+        description: 'Delete the membership tier from the Memberships hub to remove this product.',
+      });
+      return;
+    }
     try {
       deleteProduct(id);
       toast({
@@ -204,8 +220,18 @@ const ProductsPage: React.FC = () => {
       
       const { 
         name, price, category, stock, maxStock, originalPrice, offerPrice, 
-        studentPrice, duration, membershipHours, membershipTierId, buyingPrice, sellingPrice 
+        studentPrice, buyingPrice, sellingPrice 
       } = formData;
+
+      if (category === 'membership') {
+        toast({
+          title: 'Use Memberships hub',
+          description: 'Create membership plans from Memberships → Tiers. They sync to POS automatically.',
+          variant: 'destructive',
+        });
+        setIsSubmitting(false);
+        return;
+      }
       
       if (!name || !price || !category || stock === undefined) {
         toast({
@@ -260,12 +286,6 @@ const ProductsPage: React.FC = () => {
       if (originalPrice) productData.originalPrice = Number(originalPrice);
       if (offerPrice) productData.offerPrice = Number(offerPrice);
       if (studentPrice) productData.studentPrice = Number(studentPrice);
-      
-      if (category === 'membership') {
-        if (duration) productData.duration = duration as 'weekly' | 'monthly';
-        if (membershipHours) productData.membershipHours = Number(membershipHours);
-        if (membershipTierId) productData.membershipTierId = membershipTierId;
-      }
       
       console.log('Submitting product data:', productData);
       

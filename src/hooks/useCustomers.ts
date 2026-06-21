@@ -283,8 +283,6 @@ export const useCustomers = (initialCustomers: Customer[]) => {
             if (activeBranchRef.current !== activeLocationId) return;
             setCustomers(batchRows.map(mapCustomerRow));
             if (!silent) setIsLoading(false);
-          } else if (activeBranchRef.current === activeLocationId) {
-            setCustomers(allCustomersData.map(mapCustomerRow));
           }
 
           page += pagesToFetch.length;

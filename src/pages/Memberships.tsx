@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useProducts } from '@/hooks/useProducts';
 import {
   CreditCard,
   Gift,
@@ -193,6 +193,7 @@ const emptyCouponForm = (): Partial<MembershipCoupon> & { code: string } => ({
 export default function MembershipsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { refreshFromDB } = useProducts();
   const { can } = usePermissions();
   const { activeLocationId, activeLocation } = useLocation();
   const { isMobile } = useViewMode();
@@ -360,6 +361,7 @@ export default function MembershipsPage() {
       });
       setTierDialogOpen(false);
       await queryClient.invalidateQueries({ queryKey: ['products'] });
+      await refreshFromDB(true);
       toast({
         title: editingTierId ? 'Tier updated' : 'Tier created',
         description: 'Membership product synced to POS catalog.',
@@ -378,6 +380,8 @@ export default function MembershipsPage() {
     try {
       await deleteMembershipTier(tierId, activeLocationId);
       setTiers((prev) => prev.filter((t) => t.id !== tierId));
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      await refreshFromDB(true);
       toast({ title: 'Tier deleted' });
     } catch (err) {
       toast({

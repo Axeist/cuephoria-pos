@@ -69,7 +69,8 @@ export function useSavedCarts(locationId: string | null) {
       items: CartItem[],
       discount: number,
       discountType: 'percentage' | 'fixed',
-      loyaltyPointsUsed: number
+      loyaltyPointsUsed: number,
+      options?: { quiet?: boolean },
     ) => {
       if (!locationId || items.length === 0) return null;
 
@@ -83,7 +84,20 @@ export function useSavedCarts(locationId: string | null) {
         loyaltyPointsUsed,
       });
 
-      await refreshSavedCarts();
+      if (options?.quiet) {
+        const summary = toSavedCartSummary(record);
+        setSavedCarts((prev) => {
+          const idx = prev.findIndex((c) => c.customerId === customerId);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = summary;
+            return next;
+          }
+          return [...prev, summary];
+        });
+      } else {
+        await refreshSavedCarts();
+      }
       return record;
     },
     [locationId, refreshSavedCarts]
@@ -96,7 +110,7 @@ export function useSavedCarts(locationId: string | null) {
       items: CartItem[],
       discount: number,
       discountType: 'percentage' | 'fixed',
-      loyaltyPointsUsed: number
+      loyaltyPointsUsed: number,
     ) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
 
@@ -107,9 +121,10 @@ export function useSavedCarts(locationId: string | null) {
           items,
           discount,
           discountType,
-          loyaltyPointsUsed
+          loyaltyPointsUsed,
+          { quiet: true },
         );
-      }, 800);
+      }, 1200);
     },
     [persistSavedCart]
   );

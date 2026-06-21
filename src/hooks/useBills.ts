@@ -494,35 +494,36 @@ export const useBills = (
         console.log('Customer updated successfully');
       }
 
-      for (const item of cart) {
-        if (item.type === 'product') {
-          const product = products.find(p => p.id === item.id);
-          if (product && product.category !== 'membership') {
-            const newStock = Math.max(0, product.stock - item.quantity);
-            
-            const { error: productError } = await scopedTable('products', activeLocationId!)
-              .update({ stock: newStock }, {
-                filters: [f.eq('id', product.id)],
-              });
+      const stockUpdates = cart
+        .filter((item) => item.type === 'product')
+        .map(async (item) => {
+          const product = products.find((p) => p.id === item.id);
+          if (!product || product.category === 'membership') return;
 
-            if (productError) {
-              console.error('Error updating product stock:', productError);
-            } else {
-              updateProduct({ ...product, stock: newStock });
-              const stockLog = createStockLog(
-                product,
-                product.stock,
-                newStock,
-                'deduction',
-                performedByLabel,
-                `POS sale (bill ${billRow.id.slice(0, 8)})`
-              );
-              saveStockLog(stockLog);
-              console.log(`Updated stock for ${product.name}: ${newStock}`);
-            }
+          const newStock = Math.max(0, product.stock - item.quantity);
+          const { error: productError } = await scopedTable('products', activeLocationId!)
+            .update({ stock: newStock }, {
+              filters: [f.eq('id', product.id)],
+            });
+
+          if (productError) {
+            console.error('Error updating product stock:', productError);
+            return;
           }
-        }
-      }
+
+          updateProduct({ ...product, stock: newStock });
+          const stockLog = createStockLog(
+            product,
+            product.stock,
+            newStock,
+            'deduction',
+            performedByLabel,
+            `POS sale (bill ${billRow.id.slice(0, 8)})`,
+          );
+          saveStockLog(stockLog);
+        });
+
+      await Promise.all(stockUpdates);
 
       // ✅ UPDATED: Use billTimestamp instead of new Date()
       const completeBill: Bill = {

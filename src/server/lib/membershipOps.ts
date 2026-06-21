@@ -288,12 +288,29 @@ async function syncTierProduct(
 }
 
 export async function deleteTier(supabase: SupabaseClient, organizationId: string, tierId: string) {
+  const { data: tier } = await supabase
+    .from('membership_tiers')
+    .select('product_id')
+    .eq('id', tierId)
+    .eq('organization_id', organizationId)
+    .maybeSingle();
+
   const { error } = await supabase
     .from('membership_tiers')
     .delete()
     .eq('id', tierId)
     .eq('organization_id', organizationId);
   if (error) throw new Error(error.message);
+
+  const productId = tier?.product_id ? String(tier.product_id) : null;
+  if (productId) {
+    const { error: productErr } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', productId)
+      .eq('organization_id', organizationId);
+    if (productErr) throw new Error(productErr.message);
+  }
 }
 
 export async function fetchRechargeTiers(supabase: SupabaseClient, organizationId: string) {
