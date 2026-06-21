@@ -8,6 +8,7 @@ import {
   clearAllCustomerCaches,
   registerCustomerMemoryCacheClear,
 } from '@/utils/tenantIsolation';
+import { scopedTable } from '@/services/coreOpsClient';
 
 // ✅ HELPER FUNCTIONS FOR PHONE NORMALIZATION AND ID GENERATION
 const normalizePhoneNumber = (phone: string): string => {
@@ -30,50 +31,48 @@ const CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutes cache (aligned with data
 const DUPLICATE_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // Run cleanup once per day
 const LAST_DUPLICATE_CLEANUP_KEY = 'cuephoria_last_duplicate_cleanup';
 
-/** Shared tail — membership platform columns are optional until migration runs. */
-const CUSTOMER_CORE_FIELDS =
-  'membership_expiry_date,membership_start_date,membership_plan,membership_hours_left,membership_duration,loyalty_points,total_spent,total_play_time,created_at';
+type CustomerPageResult = {
+  data: Record<string, unknown>[] | null;
+  error: { message?: string; code?: string } | null;
+};
 
-const CUSTOMER_SELECT_ATTEMPTS = [
-  `id,customer_id,custom_id,name,phone,email,is_member,membership_tier_id,card_balance,${CUSTOMER_CORE_FIELDS}`,
-  `id,custom_id,name,phone,email,is_member,membership_tier_id,card_balance,${CUSTOMER_CORE_FIELDS}`,
-  `id,name,phone,email,is_member,membership_tier_id,card_balance,${CUSTOMER_CORE_FIELDS}`,
-  `id,name,phone,email,is_member,${CUSTOMER_CORE_FIELDS}`,
-  `id,name,phone,email,membership_tier_id,card_balance,${CUSTOMER_CORE_FIELDS}`,
-  '*',
-] as const;
+/** Server proxy first (service role + RBAC), Supabase anon fallback during soak. */
+async function fetchCustomerPage(
+  locationId: string,
+  page: number,
+  pageSize: number,
+): Promise<CustomerPageResult> {
+  const opts = {
+    order: { column: 'created_at', ascending: false },
+    range: [page * pageSize, (page + 1) * pageSize - 1] as [number, number],
+  };
 
-let resolvedCustomerSelectFields: string | null = null;
-
-function isMissingColumnError(error: { code?: string; message?: string }): boolean {
-  const code = String(error.code ?? '');
-  const msg = (error.message ?? '').toLowerCase();
-  return (
-    code === '42703' ||
-    code === 'PGRST204' ||
-    msg.includes('does not exist') ||
-    msg.includes('could not find')
-  );
-}
-
-async function resolveCustomerSelectFields(locationId: string): Promise<string> {
-  if (resolvedCustomerSelectFields) return resolvedCustomerSelectFields;
-
-  for (const fields of CUSTOMER_SELECT_ATTEMPTS) {
-    const { error } = await supabase
-      .from('customers')
-      .select(fields)
-      .eq('location_id', locationId)
-      .limit(1);
-    if (!error) {
-      resolvedCustomerSelectFields = fields;
-      return fields;
-    }
-    if (!isMissingColumnError(error)) break;
+  const viaOps = await scopedTable('customers', locationId).select('*', opts);
+  if (!viaOps.error) {
+    const rows = viaOps.data;
+    if (rows == null) return { data: [], error: null };
+    return {
+      data: (Array.isArray(rows) ? rows : [rows]) as Record<string, unknown>[],
+      error: null,
+    };
   }
 
-  resolvedCustomerSelectFields = '*';
-  return resolvedCustomerSelectFields;
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('location_id', locationId)
+    .order('created_at', { ascending: false })
+    .range(page * pageSize, (page + 1) * pageSize - 1);
+
+  if (error) {
+    console.warn(
+      '[customers] fetch failed (coreOps + supabase):',
+      viaOps.error?.message,
+      error.message,
+    );
+  }
+
+  return { data: (data ?? null) as Record<string, unknown>[] | null, error };
 }
 
 function mapCustomerRow(item: Record<string, unknown>): Customer {
@@ -109,7 +108,6 @@ function mapCustomerRow(item: Record<string, unknown>): Customer {
 const memoryCacheByLocation: Record<string, { customers: Customer[]; timestamp: number }> = {};
 
 registerCustomerMemoryCacheClear(() => {
-  resolvedCustomerSelectFields = null;
   for (const key of Object.keys(memoryCacheByLocation)) {
     delete memoryCacheByLocation[key];
   }
@@ -227,17 +225,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           return;
         }
         
-        // Resolve columns once — tolerates membership migration not yet applied.
-        const selectFields = await resolveCustomerSelectFields(activeLocationId);
-
-        const fetchCustomersPage = async (page: number, pageSize: number) => {
-          return supabase
-            .from('customers')
-            .select(selectFields)
-            .eq('location_id', activeLocationId)
-            .order('created_at', { ascending: false })
-            .range(page * pageSize, (page + 1) * pageSize - 1);
-        };
+        const fetchCustomersPage = (page: number, pageSize: number) =>
+          fetchCustomerPage(activeLocationId, page, pageSize);
 
         // Fetch all customers using parallel page batches
         let page = 0;
@@ -256,10 +245,6 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           const results = await Promise.all(pagesToFetch.map(p => fetchCustomersPage(p, pageSize)));
           const batchError = results.find(r => r.error)?.error;
           if (batchError) {
-            if (isMissingColumnError(batchError) && selectFields !== '*') {
-              resolvedCustomerSelectFields = null;
-              return fetchCustomersFromDB(silent);
-            }
             console.error('Error fetching customers:', batchError);
             if (!silent) {
               toast({
@@ -336,12 +321,11 @@ export const useCustomers = (initialCustomers: Customer[]) => {
                 let refetchRows: any[] = [];
                 let done = false;
                 while (!done) {
-                  const { data, error } = await supabase
-                    .from('customers')
-                    .select(selectFields)
-                    .eq('location_id', branchWhenCleanupStarted)
-                    .order('created_at', { ascending: false })
-                    .range(p * pageSize, (p + 1) * pageSize - 1);
+                  const { data, error } = await fetchCustomerPage(
+                    branchWhenCleanupStarted,
+                    p,
+                    pageSize,
+                  );
 
                   if (error) {
                     console.error('Error re-fetching customers after cleanup:', error);
@@ -1295,34 +1279,12 @@ export const useCustomers = (initialCustomers: Customer[]) => {
       setTimeout(() => {
         const fetchLatest = async () => {
           if (!activeLocationId) return;
-          const { data } = await supabase
-            .from('customers')
-            .select('id,customer_id,custom_id,name,phone,email,is_member,membership_expiry_date,membership_start_date,membership_plan,membership_hours_left,membership_duration,loyalty_points,total_spent,total_play_time,created_at')
-            .eq('location_id', activeLocationId)
-            .order('created_at', { ascending: false })
-            .limit(1);
-          
-          if (data && data.length > 0) {
-            const newCustomer = {
-              id: data[0].id,
-              customerId: (data[0] as any).customer_id || generateCustomerID(data[0].phone),
-              name: data[0].name,
-              phone: data[0].phone,
-              email: data[0].email || undefined,
-              isMember: data[0].is_member,
-              membershipExpiryDate: data[0].membership_expiry_date ? new Date(data[0].membership_expiry_date) : undefined,
-              membershipStartDate: data[0].membership_start_date ? new Date(data[0].membership_start_date) : undefined,
-              membershipPlan: data[0].membership_plan || undefined,
-              membershipHoursLeft: data[0].membership_hours_left || undefined,
-              membershipDuration: data[0].membership_duration as 'weekly' | 'monthly' | undefined,
-              loyaltyPoints: data[0].loyalty_points,
-              totalSpent: data[0].total_spent,
-              totalPlayTime: data[0].total_play_time,
-              createdAt: new Date(data[0].created_at)
-            };
-            setCustomers(prev => [newCustomer, ...prev]);
-            saveToCache([newCustomer, ...customers]);
-          }
+          const { data, error } = await fetchCustomerPage(activeLocationId, 0, 1);
+          if (error || !data?.length) return;
+
+          const newCustomer = mapCustomerRow(data[0]);
+          setCustomers(prev => [newCustomer, ...prev]);
+          saveToCache([newCustomer, ...customers]);
         };
         fetchLatest();
       }, 500);
