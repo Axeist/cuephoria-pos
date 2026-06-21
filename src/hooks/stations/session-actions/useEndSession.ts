@@ -25,6 +25,7 @@ import {
   getPrepaidOvertimeMs,
   markPrepaidBookingCompleted,
 } from '@/utils/prepaidBooking.utils';
+import { generateId } from '@/utils/pos.utils';
 
 export type EarlyEndBillingMode = 'actual' | 'fullBlock';
 
