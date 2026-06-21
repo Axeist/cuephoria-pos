@@ -85,13 +85,25 @@ const StationCustomerPanel: React.FC<StationCustomerPanelProps> = ({
           <div className={statBoxClass}>
             <Gamepad2 className={rateIconStat.className} style={rateIconStat.style} />
             <p className={statLabelMuted.className} style={statLabelMuted.style}>Rate</p>
-            <div className="mt-0.5 flex max-w-full flex-col items-center leading-none">
-              <span className={rateValue.className} style={rateValue.style}>
-                {rateCompact.amount}
-              </span>
-              <span className={rateSuffix.className} style={rateSuffix.style}>
-                {rateCompact.suffix}
-              </span>
+            <div className="mt-0.5 flex max-w-full flex-col items-center leading-none gap-0.5">
+              <div className="flex items-baseline gap-0.5">
+                <span className={rateValue.className} style={rateValue.style}>
+                  {rateCompact.amount}
+                </span>
+                <span className={rateSuffix.className} style={rateSuffix.style}>
+                  {rateCompact.suffix}
+                </span>
+              </div>
+              {rateCompact.amount2 && (
+                <div className="flex items-baseline gap-0.5">
+                  <span className={rateValue.className} style={rateValue.style}>
+                    {rateCompact.amount2}
+                  </span>
+                  <span className={rateSuffix.className} style={rateSuffix.style}>
+                    {rateCompact.suffix2}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -187,7 +187,18 @@ export function getRateSuffix(station: Pick<Station, 'type' | 'slotDuration' | '
 /** Compact rate for tight stat boxes (amount + suffix on separate lines). */
 export function formatStationRateCompact(
   station: Pick<Station, 'hourlyRate' | 'type' | 'slotDuration' | 'category'>
-): { amount: string; suffix: string } {
+): { amount: string; suffix: string; amount2?: string; suffix2?: string } {
+  // For slot-duration stations show both the slot price and the hourly price
+  if (station.slotDuration && station.slotDuration < 60 && station.slotDuration > 0) {
+    const slotMins = station.slotDuration;
+    const slotPrice = Math.ceil(station.hourlyRate * slotMins / 60);
+    return {
+      amount: `₹${slotPrice}`,
+      suffix: `/${slotMins}m`,
+      amount2: `₹${station.hourlyRate}`,
+      suffix2: `/1hr`,
+    };
+  }
   return {
     amount: `₹${station.hourlyRate}`,
     suffix: getRateSuffix(station),

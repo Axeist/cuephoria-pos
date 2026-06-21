@@ -8,9 +8,16 @@ import { flags } from './config/featureFlags';
 import { applyTenantTheme } from './branding/applyTenantTheme';
 import { DEFAULT_TENANT_BRAND } from './branding/brand';
 import { setupChunkRecoveryListeners } from '@/utils/chunkRecovery';
+import { sweepCorruptedCacheEntries } from '@/utils/dataCache';
 
 // Stale-deploy auto-recovery — see src/utils/chunkRecovery.ts
 setupChunkRecoveryListeners();
+
+// Evict any half-written / corrupted localStorage cache entries before React
+// mounts. This is the permanent fix for "Database Error" toasts that
+// previously required clearing all browser cookies and cache to resolve.
+// Safe to call every boot — it's a no-op when storage is clean.
+sweepCorruptedCacheEntries();
 
 // Apply the default tenant theme synchronously before React mounts.
 // Default theme values mirror index.css exactly, so this is a no-op visually

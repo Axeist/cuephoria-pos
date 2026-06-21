@@ -18,7 +18,53 @@ const CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutes — Pro plan has ample e
 const STALE_CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes (background refresh window)
 
 /**
- * Get cached data from memory or localStorage
+ * Runs once on app boot to evict any cache entries whose JSON is unparseable
+ * or whose timestamp is missing/malformed. Half-written entries (data present
+ * but no timestamp, or vice-versa) are the main source of "Database Error"
+ * toasts that previously required clearing all browser storage to resolve.
+ */
+export function sweepCorruptedCacheEntries(): void {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith('cuephoria_')) continue;
+      if (key.endsWith('_timestamp') || key.endsWith('_ts_')) continue;
+
+      // Every cuephoria_ data key must have a sibling timestamp and valid JSON.
+      const tsKey = `${key}_timestamp`;
+      const raw = localStorage.getItem(key);
+      const ts = localStorage.getItem(tsKey);
+
+      const tsMissing = !ts || isNaN(parseInt(ts, 10));
+      let jsonBad = false;
+      if (raw) {
+        try { JSON.parse(raw); } catch { jsonBad = true; }
+      }
+
+      if (tsMissing || jsonBad) {
+        keysToRemove.push(key, tsKey);
+      }
+    }
+    if (keysToRemove.length > 0) {
+      keysToRemove.forEach(k => {
+        localStorage.removeItem(k);
+        delete memoryCache[k];
+      });
+      console.warn(
+        `[cache-sweep] Evicted ${Math.ceil(keysToRemove.length / 2)} corrupted cache entry/entries. ` +
+        'This prevents stale-cache database errors without requiring a manual cache clear.'
+      );
+    }
+  } catch {
+    /* ignore — private mode or storage disabled */
+  }
+}
+
+/**
+ * Get cached data from memory or localStorage.
+ * Auto-evicts the entry if JSON is malformed (prevents database errors from
+ * corrupted cache being served to Supabase queries).
  */
 export function getCachedData<T>(key: string): T | null {
   try {
@@ -35,10 +81,23 @@ export function getCachedData<T>(key: string): T | null {
       const cacheAge = Date.now() - parseInt(cachedTimestamp, 10);
 
       if (cacheAge < CACHE_DURATION_MS) {
-        const parsed = JSON.parse(cachedData);
+        let parsed: T;
+        try {
+          parsed = JSON.parse(cachedData) as T;
+        } catch (parseErr) {
+          // Corrupted JSON — evict immediately so the app falls through to a
+          // fresh DB fetch instead of crashing with a "Database Error" toast.
+          console.warn(`[cache] Evicting corrupted entry for key "${key}"`  , parseErr);
+          try {
+            localStorage.removeItem(key);
+            localStorage.removeItem(`${key}_timestamp`);
+            delete memoryCache[key];
+          } catch { /* ignore */ }
+          return null;
+        }
         // Update memory cache
         memoryCache[key] = { data: parsed, timestamp: Date.now() };
-        return parsed as T;
+        return parsed;
       }
     }
 
@@ -50,28 +109,47 @@ export function getCachedData<T>(key: string): T | null {
 }
 
 /**
- * Save data to both memory and localStorage cache
+ * Save data to both memory and localStorage cache.
+ * Uses atomic-style writes: if either localStorage.setItem throws, both the
+ * data key and the timestamp key are removed to avoid half-written state that
+ * would later be served as corrupted data.
  */
 export function saveToCache<T>(key: string, data: T): void {
-  try {
-    // Save to memory cache
-    memoryCache[key] = { data, timestamp: Date.now() };
+  // Always update memory cache — it never throws QuotaExceededError
+  memoryCache[key] = { data, timestamp: Date.now() };
 
-    // Save to localStorage cache
-    localStorage.setItem(key, JSON.stringify(data));
-    localStorage.setItem(`${key}_timestamp`, Date.now().toString());
+  const tsKey = `${key}_timestamp`;
+  const serialized = JSON.stringify(data);
+  const nowStr = Date.now().toString();
+
+  const writeToLocalStorage = () => {
+    localStorage.setItem(key, serialized);
+    localStorage.setItem(tsKey, nowStr);
+  };
+
+  const rollbackLocalStorage = () => {
+    try { localStorage.removeItem(key); } catch { /* ignore */ }
+    try { localStorage.removeItem(tsKey); } catch { /* ignore */ }
+  };
+
+  try {
+    writeToLocalStorage();
   } catch (error) {
-    console.error(`Error saving to cache for ${key}:`, error);
-    // If localStorage is full, clear old cache entries
     if (error instanceof Error && error.name === 'QuotaExceededError') {
+      // Roll back any partial write before clearing space
+      rollbackLocalStorage();
       clearOldCacheEntries();
-      // Retry once
       try {
-        localStorage.setItem(key, JSON.stringify(data));
-        localStorage.setItem(`${key}_timestamp`, Date.now().toString());
+        writeToLocalStorage();
       } catch (retryError) {
-        console.error('Failed to save to cache after cleanup:', retryError);
+        // Quota still full after cleanup — roll back and give up on localStorage.
+        // Memory cache still has the data so the current session is unaffected.
+        rollbackLocalStorage();
+        console.warn('[cache] localStorage still full after cleanup — cache will be memory-only for this key:', key);
       }
+    } else {
+      rollbackLocalStorage();
+      console.error(`Error saving to cache for ${key}:`, error);
     }
   }
 }

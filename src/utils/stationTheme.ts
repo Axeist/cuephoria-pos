@@ -227,12 +227,20 @@ export function getStationTheme(
 }
 
 export function stationPricingBadge(station: Station): string {
-  const suffix = getRateSuffix(station);
   const mode = isPerPlayerPricing(station) ? 'Per player' : 'Flat rate';
   const players =
     isPerPlayerPricing(station) && (station.maxPlayers ?? 1) > 1
       ? ` · up to ${station.maxPlayers}p`
       : '';
+
+  // For slot-duration stations show both the slot price and the hourly price
+  if (station.slotDuration && station.slotDuration < 60 && station.slotDuration > 0) {
+    const slotMins = station.slotDuration;
+    const slotPrice = Math.ceil(station.hourlyRate * slotMins / 60);
+    return `₹${slotPrice}/${slotMins}m · ₹${station.hourlyRate}/hr · ${mode}${players}`;
+  }
+
+  const suffix = getRateSuffix(station);
   return `₹${station.hourlyRate}${suffix} · ${mode}${players}`;
 }
 

@@ -16,7 +16,13 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     persistSession: true,
-    autoRefreshToken: true
+    autoRefreshToken: true,
+    // Explicitly namespace the Supabase auth token so it is isolated from the
+    // app's own cuephoria_* localStorage cache keys. This prevents:
+    //   1. The boot-time cache sweep from accidentally touching the auth token.
+    //   2. Supabase's token writes from contributing to quota pressure that
+    //      triggers the QuotaExceededError → corrupted cache → database errors.
+    storageKey: 'sb_cuephoria_auth',
   },
   realtime: {
     params: {
