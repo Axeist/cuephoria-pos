@@ -58,7 +58,8 @@ export function mapTierRow(row: Record<string, unknown>): MembershipTier {
     retailPrice: Number(row.retail_price ?? 0),
     walletCreditOnPurchase: Number(row.wallet_credit_on_purchase ?? 0),
     defaultDuration: (row.default_duration as 'weekly' | 'monthly') ?? 'monthly',
-    defaultMembershipHours: Number(row.default_membership_hours ?? 4),
+    defaultMembershipHours:
+      row.default_membership_hours != null ? Number(row.default_membership_hours) : null,
     productId: row.product_id ? String(row.product_id) : null,
     description: row.description != null ? String(row.description) : '',
     tagline: row.tagline != null ? String(row.tagline) : '',

@@ -181,7 +181,7 @@ export async function upsertTier(
     retail_price: input.retailPrice ?? 0,
     wallet_credit_on_purchase: input.walletCreditOnPurchase ?? 0,
     default_duration: input.defaultDuration ?? 'monthly',
-    default_membership_hours: input.defaultMembershipHours ?? 4,
+    default_membership_hours: input.defaultMembershipHours ?? null,
     description: input.description ?? '',
     tagline: input.tagline ?? '',
     accent_color: input.accentColor ?? 'violet',
@@ -248,8 +248,7 @@ async function syncTierProduct(
     stock: 999,
     membership_tier_id: tier.id,
     duration: tier.defaultDuration ?? 'monthly',
-    membership_hours: tier.defaultMembershipHours ?? 4,
-    updated_at: now,
+    membership_hours: tier.defaultMembershipHours ?? null,
   };
   if (compareAt != null && compareAt > retail) {
     productPayload.original_price = compareAt;

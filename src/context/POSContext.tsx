@@ -1409,7 +1409,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const product = products.find(p => p.id === item.id);
             
             if (product) {
-              const membershipHours = product.membershipHours || 4;
+              const membershipHours = product.membershipHours;
               let membershipDuration: 'weekly' | 'monthly' = 'weekly';
               
               if (product.duration) {
@@ -1423,7 +1423,9 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               updateCustomerMembership(selectedCustomer.id, {
                 membershipPlan: product.name,
                 membershipDuration: membershipDuration,
-                membershipHoursLeft: membershipHours,
+                ...(membershipHours != null && membershipHours > 0
+                  ? { membershipHoursLeft: membershipHours }
+                  : {}),
                 membershipTierId: product.membershipTierId,
               });
               

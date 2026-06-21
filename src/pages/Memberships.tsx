@@ -162,7 +162,7 @@ const emptyTierForm = (): Partial<MembershipTier> & { name: string } => ({
   retailPrice: 0,
   walletCreditOnPurchase: 0,
   defaultDuration: 'monthly',
-  defaultMembershipHours: 4,
+  defaultMembershipHours: null,
   description: '',
   tagline: '',
   accentColor: 'violet',
@@ -359,6 +359,7 @@ export default function MembershipsPage() {
         return [...prev, res.tier].sort((a, b) => a.sortOrder - b.sortOrder);
       });
       setTierDialogOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
       toast({
         title: editingTierId ? 'Tier updated' : 'Tier created',
         description: 'Membership product synced to POS catalog.',
@@ -1088,29 +1089,52 @@ export default function MembershipsPage() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label>Wallet credit on purchase (₹)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={tierForm.walletCreditOnPurchase ?? 0}
-                      onChange={(e) =>
-                        setTierForm((f) => ({ ...f, walletCreditOnPurchase: Number(e.target.value) }))
+                <div className="space-y-1.5">
+                  <Label>Wallet credit on purchase (₹)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={tierForm.walletCreditOnPurchase ?? 0}
+                    onChange={(e) =>
+                      setTierForm((f) => ({ ...f, walletCreditOnPurchase: Number(e.target.value) }))
+                    }
+                  />
+                </div>
+                <div className="space-y-3 rounded-xl border border-white/8 bg-white/[0.02] p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <Label>Included playtime hours</Label>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Optional — only enable for tiers that grant free playtime.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={tierForm.defaultMembershipHours != null}
+                      onCheckedChange={(checked) =>
+                        setTierForm((f) => ({
+                          ...f,
+                          defaultMembershipHours: checked ? (f.defaultMembershipHours ?? 4) : null,
+                        }))
                       }
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label>Membership hours</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={tierForm.defaultMembershipHours ?? 4}
-                      onChange={(e) =>
-                        setTierForm((f) => ({ ...f, defaultMembershipHours: Number(e.target.value) }))
-                      }
-                    />
-                  </div>
+                  {tierForm.defaultMembershipHours != null && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="tier-membership-hours">Hours on purchase</Label>
+                      <Input
+                        id="tier-membership-hours"
+                        type="number"
+                        min={1}
+                        value={tierForm.defaultMembershipHours}
+                        onChange={(e) =>
+                          setTierForm((f) => ({
+                            ...f,
+                            defaultMembershipHours: Number(e.target.value) || null,
+                          }))
+                        }
+                      />
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label>Default duration</Label>
@@ -1154,7 +1178,7 @@ export default function MembershipsPage() {
                     retailPrice: tierForm.retailPrice ?? 0,
                     walletCreditOnPurchase: tierForm.walletCreditOnPurchase ?? 0,
                     defaultDuration: tierForm.defaultDuration ?? 'monthly',
-                    defaultMembershipHours: tierForm.defaultMembershipHours ?? 4,
+                    defaultMembershipHours: tierForm.defaultMembershipHours ?? null,
                     description: tierForm.description ?? '',
                     tagline: tierForm.tagline ?? '',
                     accentColor: tierForm.accentColor ?? 'violet',

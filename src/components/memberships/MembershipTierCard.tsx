@@ -84,10 +84,12 @@ export default function MembershipTierCard({ tier, className, compact }: Members
             <Calendar className="h-3 w-3" />
             {tier.defaultDuration === 'weekly' ? 'Weekly' : 'Monthly'}
           </span>
-          <span className={cn('inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px]', style.chip)}>
-            <Clock className="h-3 w-3" />
-            {tier.defaultMembershipHours ?? 4}h included
-          </span>
+          {tier.defaultMembershipHours != null && tier.defaultMembershipHours > 0 && (
+            <span className={cn('inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px]', style.chip)}>
+              <Clock className="h-3 w-3" />
+              {tier.defaultMembershipHours}h included
+            </span>
+          )}
         </div>
 
         <div className="flex items-end justify-between gap-2 pt-1 border-t border-white/8">

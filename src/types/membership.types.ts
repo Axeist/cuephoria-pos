@@ -53,7 +53,7 @@ export interface MembershipTier {
   retailPrice?: number;
   walletCreditOnPurchase?: number;
   defaultDuration?: 'weekly' | 'monthly';
-  defaultMembershipHours?: number;
+  defaultMembershipHours?: number | null;
   productId?: string | null;
   description?: string;
   tagline?: string;
