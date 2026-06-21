@@ -254,13 +254,6 @@ export default function BookingManagement() {
     return count;
   }, [filters]);
 
-  const enabledBranchesCount = useMemo(() => {
-    return locations.filter((loc) => {
-      const acc = branchAccessByLocation[loc.id] || { publicBooking: true };
-      return acc.publicBooking;
-    }).length;
-  }, [locations, branchAccessByLocation]);
-
   const [couponOptions, setCouponOptions] = useState<string[]>([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -336,6 +329,13 @@ export default function BookingManagement() {
   >({});
   const [branchAccessLoading, setBranchAccessLoading] = useState(false);
   const [savingAccessKey, setSavingAccessKey] = useState<string | null>(null);
+
+  const enabledBranchesCount = useMemo(() => {
+    return locations.filter((loc) => {
+      const acc = branchAccessByLocation[loc.id] || { publicBooking: true };
+      return acc.publicBooking;
+    }).length;
+  }, [locations, branchAccessByLocation]);
 
   useEffect(() => {
     if (!locations.length) return;
