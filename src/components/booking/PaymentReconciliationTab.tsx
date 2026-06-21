@@ -62,7 +62,7 @@ const fromHeartbeat = () => fromTable("reconciler_heartbeat");
 // 5s gives near-real-time recovery while staying well under Razorpay's
 // orders.fetchPayments rate limits (we cap parallelism + skip rows
 // younger than MIN_AGE_FOR_AUTO_MS).
-const AUTO_TICK_MS = 5_000;
+const AUTO_TICK_MS = 30_000;
 const MIN_AGE_FOR_AUTO_MS = 5_000;
 const MAX_PARALLEL_RECHECKS = 4;
 const HEARTBEAT_FRESH_MS = 60_000;
@@ -209,7 +209,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState<string>("");
   const [recheckInProgress, setRecheckInProgress] = useState<Set<string>>(new Set());
-  const [autoOn, setAutoOn] = useState<boolean>(true);
+  const [autoOn, setAutoOn] = useState<boolean>(false);
   const [autoLastTickAt, setAutoLastTickAt] = useState<number | null>(null);
   const [autoLastResult, setAutoLastResult] = useState<{ checked: number; flipped: number } | null>(null);
   const [heartbeat, setHeartbeat] = useState<Heartbeat | null>(null);

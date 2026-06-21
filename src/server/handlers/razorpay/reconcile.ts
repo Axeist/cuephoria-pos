@@ -347,7 +347,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { data: claimed, error: claimErr } = await supabase.rpc(
       "claim_payment_orders_for_reconcile",
-      { p_limit: 25 },
+      { p_limit: 10 },
     );
     if (claimErr) {
       console.error("[reconcile] claim RPC error:", claimErr);

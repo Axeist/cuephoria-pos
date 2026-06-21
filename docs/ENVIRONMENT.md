@@ -36,6 +36,22 @@ Production values go in **Vercel → Project → Settings → Environment Variab
 | `RAZORPAY_KEY_SECRET_TEST` / `_LIVE` | API secrets |
 | `RAZORPAY_WEBHOOK_SECRET_TEST` / `_LIVE` | Webhook HMAC |
 
+## Payments (Razorpay)
+
+| Variable | Description |
+|----------|-------------|
+| `RECONCILE_CRON_SECRET` | Shared secret for pg_cron → reconcile HTTP (header `x-cron-secret`) |
+
+**Supabase GUCs** (SQL editor, once per project):
+
+```sql
+-- Vercel (default) or Supabase Edge Function on Pro:
+ALTER DATABASE postgres SET app.reconcile_url    = 'https://<host>/api/razorpay/reconcile';
+ALTER DATABASE postgres SET app.reconcile_secret = '<RECONCILE_CRON_SECRET>';
+```
+
+Migration `20260621170000_reconcile_cron_60s.sql` runs pg_cron on Supabase every 60s and **only** calls `app.reconcile_url` when pending `payment_orders` exist — idle venues use zero reconcile HTTP/CPU.
+
 ## Security flags
 
 | Variable | Default | Description |

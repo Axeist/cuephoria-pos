@@ -23,6 +23,7 @@ import React, {
 } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { setAdminCsrfToken } from "@/services/adminFetch";
+import { fetchAdminMe } from "@/services/adminMeClient";
 import { type WorkspaceMembershipBrief, parseWorkspaceMembershipsPayload } from "@/lib/tenantPortalLabels";
 import { isInternalOrganization } from "@/types/tenancy";
 
@@ -109,8 +110,10 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [status, setStatus] = useState<OrganizationStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef<Promise<void> | null>(null);
+  const lastFocusLoadAt = useRef(0);
+  const FOCUS_REFETCH_MIN_MS = 5 * 60 * 1000;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { force?: boolean }) => {
     if (!user) {
       setOrganization(null);
       setSubscription(null);
@@ -128,8 +131,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setStatus((prev) => (prev === "ready" ? prev : "loading"));
       setError(null);
       try {
-        const res = await fetch("/api/admin/me", { credentials: "same-origin" });
-        const json = await res.json().catch(() => ({}));
+        const { res, json } = await fetchAdminMe({ force: options?.force });
         if (typeof json?.csrfToken === "string") setAdminCsrfToken(json.csrfToken);
         if (!res.ok || !json?.ok) {
           throw new Error(json?.error || `Failed to load org (${res.status})`);
@@ -258,7 +260,10 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     const onFocus = () => {
       if (!user) return;
-      void load();
+      const now = Date.now();
+      if (now - lastFocusLoadAt.current < FOCUS_REFETCH_MIN_MS) return;
+      lastFocusLoadAt.current = now;
+      void load({ force: true });
     };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
@@ -273,7 +278,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       workspaceMemberships,
       status,
       error,
-      refresh: load,
+      refresh: () => load({ force: true }),
     }),
     [organization, subscription, entitlements, billingAccessGraceMinutes, workspaceMemberships, status, error, load],
   );

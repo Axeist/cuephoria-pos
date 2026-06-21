@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { type WorkspaceMembershipBrief, parseWorkspaceMembershipsPayload } from '@/lib/tenantPortalLabels';
 import { clearAllCustomerCaches, removeLegacyGlobalLocationKey } from '@/utils/tenantIsolation';
 import { adminFetch, setAdminCsrfToken } from '@/services/adminFetch';
+import { fetchAdminMe, clearAdminMeCache } from '@/services/adminMeClient';
 
 interface AdminUser {
   id: string;
@@ -207,8 +208,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const checkExistingUser = async () => {
       try {
         // Do NOT trust localStorage for auth. We validate the session server-side.
-        const res = await fetch('/api/admin/me', { method: 'GET', credentials: 'same-origin' });
-        const json = await res.json();
+        const { json } = await fetchAdminMe();
         const u = json?.user;
         if (u?.id && u?.username) {
           if (typeof json?.csrfToken === 'string') setAdminCsrfToken(json.csrfToken);
@@ -366,6 +366,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     fetch('/api/admin/logout', { method: 'POST' }).catch(() => {});
     setAdminCsrfToken(null);
+    clearAdminMeCache();
     clearAllCustomerCaches();
     removeLegacyGlobalLocationKey();
     setUser(null);
@@ -638,8 +639,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (id === user?.id) {
         try {
-          const mr = await fetch('/api/admin/me', { method: 'GET', credentials: 'same-origin' });
-          const mj = await mr.json();
+          const { json: mj } = await fetchAdminMe({ force: true });
           const u = mj?.user;
           if (u?.id && u?.username) {
             setUser({

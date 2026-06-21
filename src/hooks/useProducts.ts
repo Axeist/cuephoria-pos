@@ -291,16 +291,32 @@ export const useProducts = () => {
       // Fetch all products using parallel page batches
       let page = 0;
       const pageSize = 1000;
-      const PARALLEL_PAGES = 4;
+      const PARALLEL_PAGES = 1;
       let allProductsData: any[] = [];
       let finished = false;
       let firstBatchPainted = false;
 
-      const fetchProductsPage = (p: number) =>
-        scopedTable('products', activeLocationId).select(selectFields, {
-          order: { column: 'created_at', ascending: false },
-          range: [p * pageSize, (p + 1) * pageSize - 1],
-        });
+      const fetchProductsPage = async (p: number) => {
+        const rangeFrom = p * pageSize;
+        const rangeTo = (p + 1) * pageSize - 1;
+        const orderOpts = {
+          order: { column: 'created_at', ascending: false } as const,
+          range: [rangeFrom, rangeTo] as [number, number],
+        };
+
+        const { data, error } = await supabase
+          .from('products')
+          .select(selectFields)
+          .eq('location_id', activeLocationId)
+          .order('created_at', { ascending: false })
+          .range(rangeFrom, rangeTo);
+
+        if (!error) {
+          return { data, error: null };
+        }
+
+        return scopedTable('products', activeLocationId).select(selectFields, orderOpts);
+      };
 
       while (!finished) {
         const pagesToFetch = Array.from({ length: PARALLEL_PAGES }, (_, i) => page + i);

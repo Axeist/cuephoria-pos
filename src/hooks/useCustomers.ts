@@ -36,15 +36,29 @@ type CustomerPageResult = {
   error: { message?: string; code?: string } | null;
 };
 
-/** Server proxy first (service role + RBAC), Supabase anon fallback during soak. */
+/** Supabase read first (no Vercel CPU); server ops proxy as fallback. */
 async function fetchCustomerPage(
   locationId: string,
   page: number,
   pageSize: number,
 ): Promise<CustomerPageResult> {
+  const rangeFrom = page * pageSize;
+  const rangeTo = (page + 1) * pageSize - 1;
+
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('location_id', locationId)
+    .order('created_at', { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (!error) {
+    return { data: (data ?? null) as Record<string, unknown>[] | null, error: null };
+  }
+
   const opts = {
     order: { column: 'created_at', ascending: false },
-    range: [page * pageSize, (page + 1) * pageSize - 1] as [number, number],
+    range: [rangeFrom, rangeTo] as [number, number],
   };
 
   const viaOps = await scopedTable('customers', locationId).select('*', opts);
@@ -57,22 +71,13 @@ async function fetchCustomerPage(
     };
   }
 
-  const { data, error } = await supabase
-    .from('customers')
-    .select('*')
-    .eq('location_id', locationId)
-    .order('created_at', { ascending: false })
-    .range(page * pageSize, (page + 1) * pageSize - 1);
+  console.warn(
+    '[customers] fetch failed (supabase + coreOps):',
+    error.message,
+    viaOps.error?.message,
+  );
 
-  if (error) {
-    console.warn(
-      '[customers] fetch failed (coreOps + supabase):',
-      viaOps.error?.message,
-      error.message,
-    );
-  }
-
-  return { data: (data ?? null) as Record<string, unknown>[] | null, error };
+  return { data: null, error: { message: error.message } };
 }
 
 function mapCustomerRow(item: Record<string, unknown>): Customer {
@@ -231,7 +236,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         // Fetch all customers using parallel page batches
         let page = 0;
         const pageSize = 1000;
-        const PARALLEL_PAGES = 4;
+        const PARALLEL_PAGES = 1;
         let allCustomersData: any[] = [];
         let finished = false;
         let firstBatchPainted = false;
@@ -434,7 +439,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
             localStorage.removeItem(customersCacheKey(locKey));
             localStorage.removeItem(customersTimestampKey(locKey));
             fetchFromDBRef.current?.(true);
-          }, 300);
+          }, 2000);
         }
       )
       .subscribe();
