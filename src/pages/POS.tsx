@@ -50,6 +50,7 @@ import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { useViewMode } from '@/context/ViewModeContext';
 import { computeBillTaxFromCart } from '@/utils/tax.utils';
+import { usePosCustomerPickerSearch } from '@/hooks/usePosCustomerPickerSearch';
 
 const POS = () => {
   const location = useLocation();
@@ -89,8 +90,6 @@ const POS = () => {
   const { isMobile } = useViewMode();
 
   const [activeTab, setActiveTab] = useState('all');
-  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
-  const [debouncedCustomerQuery, setDebouncedCustomerQuery] = useState('');
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
   const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
@@ -115,12 +114,13 @@ const POS = () => {
   const canApplyDiscount = usePermission('pos.discount');
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedCustomerQuery(customerSearchQuery.trim());
-    }, 200);
-    return () => window.clearTimeout(timer);
-  }, [customerSearchQuery]);
+  const {
+    customerSearchQuery,
+    setCustomerSearchQuery,
+    trimmedCustomerQuery,
+    pickerCustomers,
+    isSearchingCustomers,
+  } = usePosCustomerPickerSearch(customers, isCustomerDialogOpen);
 
   const savedCartByCustomerId = useMemo(() => {
     const map = new Map<string, number>();
@@ -137,27 +137,6 @@ const POS = () => {
     },
     [savedCartByCustomerId],
   );
-
-  const pickerCustomers = useMemo(() => {
-    if (!isCustomerDialogOpen) return [];
-    const q = debouncedCustomerQuery.toLowerCase();
-    const qDigits = q.replace(/\D/g, '');
-
-    if (q.length === 1) return [];
-
-    let list = customers;
-    if (q.length >= 2) {
-      list = customers.filter(
-        (customer) =>
-          customer.name.toLowerCase().includes(q) ||
-          customer.phone.replace(/\D/g, '').includes(qDigits) ||
-          (customer.customerId?.toLowerCase().includes(q) ?? false),
-      );
-    } else {
-      list = customers.slice(0, 48);
-    }
-    return list.slice(0, 60);
-  }, [customers, debouncedCustomerQuery, isCustomerDialogOpen]);
 
   const cartQuantityByProductId = useMemo(() => {
     const map = new Map<string, number>();
@@ -978,9 +957,13 @@ const POS = () => {
           </div>
           
           <div className="max-h-[60vh] overflow-auto space-y-2">
-            {debouncedCustomerQuery.length === 1 ? (
+            {trimmedCustomerQuery.length === 1 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
                 Type at least 2 characters to search all customers.
+              </p>
+            ) : isSearchingCustomers && pickerCustomers.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Searching customers…
               </p>
             ) : pickerCustomers.length > 0 ? (
               pickerCustomers.map((customer) => (
@@ -996,7 +979,7 @@ const POS = () => {
                 <User className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-xl font-medium font-heading">No Customers Found</h3>
                 <p className="text-muted-foreground mt-2 text-center text-sm">
-                  {debouncedCustomerQuery.length >= 2
+                  {trimmedCustomerQuery.length >= 2
                     ? 'Try a different name, phone, or Customer ID'
                     : 'Recent customers shown — search to find more'}
                 </p>
