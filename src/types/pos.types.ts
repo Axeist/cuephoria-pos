@@ -1,5 +1,6 @@
 import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
 import type { DurationTier } from '@/utils/timeBasedPricing.utils';
+import type { EarlyEndBillingMode } from '@/hooks/stations/session-actions/useEndSession';
 
 export type { PrepaidBookingLink };
 export interface Product {
@@ -237,7 +238,7 @@ export interface POSContextType {
   moveSession: (fromStationId: string, toStationId: string) => Promise<void>;
   startMaintenance: (stationId: string, durationMinutes: number, startedByName: string) => Promise<boolean>;
   endMaintenance: (stationId: string) => Promise<void>;
-  endSession: (stationId: string) => Promise<SessionEndCheckoutMode | void>;
+  endSession: (stationId: string, billingMode?: EarlyEndBillingMode) => Promise<SessionEndCheckoutMode | void>;
   endSessionGroup: (stationId: string) => Promise<SessionEndCheckoutMode | void>;
   pauseSession: (stationId: string) => Promise<void>;
   resumeSession: (stationId: string) => Promise<void>;

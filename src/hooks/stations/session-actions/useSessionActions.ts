@@ -9,6 +9,7 @@ import { Customer } from '@/types/pos.types';
 import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
 import { useToast } from '@/hooks/use-toast';
 import type { SessionResult, SessionGroupResult } from '@/types/pos.types';
+import type { EarlyEndBillingMode } from './useEndSession';
 
 export const useSessionActions = (props: SessionActionsProps) => {
   const { stations, setStations, sessions, setSessions, updateCustomer } = props;
@@ -76,7 +77,7 @@ export const useSessionActions = (props: SessionActionsProps) => {
     }
   };
   
-  const endSession = async (stationId: string, customersList?: Customer[]): Promise<SessionResult | undefined> => {
+  const endSession = async (stationId: string, customersList?: Customer[], billingMode?: EarlyEndBillingMode): Promise<SessionResult | undefined> => {
     try {
       setIsLoading(true);
       console.log('Ending session for station:', stationId);
@@ -92,7 +93,7 @@ export const useSessionActions = (props: SessionActionsProps) => {
         throw new Error('No active session found');
       }
       
-      const result = await endSessionHook.endSession(stationId, customersList);
+      const result = await endSessionHook.endSession(stationId, customersList, { billingMode });
       console.log("Session ended successfully, result:", result);
       
       return result;

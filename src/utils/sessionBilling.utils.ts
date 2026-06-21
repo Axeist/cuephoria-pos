@@ -73,3 +73,118 @@ export function calculatePresetSessionCheckoutCost(
   }
   return { cost, actualMinutes, billedMinutes };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Early-end billing prompt utilities
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Minutes before the planned end below which we skip showing the early-end prompt.
+ * If the customer ends with less than this much time remaining the session is
+ * essentially finished, so no prompt is needed.
+ */
+export const EARLY_END_THRESHOLD_MINUTES = 20;
+
+type EarlyEndSession = Pick<
+  Session,
+  'plannedDurationMinutes' | 'startTime' | 'isPaused' | 'pausedAt' | 'totalPausedMs' | 'prepaidBooking'
+>;
+
+/**
+ * Returns true when the early-end billing prompt should be offered to staff.
+ *
+ * Conditions:
+ * - Session has a planned duration (i.e. was booked for a block, not open billing)
+ * - Session is not a pre-paid online booking (handled separately)
+ * - The customer ends MORE than EARLY_END_THRESHOLD_MINUTES before the planned end
+ *   → they left early enough that rounding to the full block is worth asking about
+ */
+export function shouldShowEarlyEndPrompt(
+  session: EarlyEndSession,
+  now = new Date(),
+): boolean {
+  const planned = session.plannedDurationMinutes ?? 0;
+  if (planned <= 0) return false;
+  if (session.prepaidBooking) return false;
+
+  const billableMs = getBillableMs(session, now);
+  const playedMinutes = Math.ceil(billableMs / (1000 * 60));
+
+  // Only relevant when customer ends BEFORE the planned block expires
+  if (playedMinutes >= planned) return false;
+
+  const minutesRemaining = planned - playedMinutes;
+  return minutesRemaining > EARLY_END_THRESHOLD_MINUTES;
+}
+
+/**
+ * Calculates the "bill full block" cost for a standard hourly-rate session.
+ * Charges the full planned-duration package price (e.g. 2 hr at ₹300/hr = ₹600).
+ */
+export function calculateFullBlockCost(
+  hourlyRate: number,
+  plannedDurationMinutes: number,
+  isMember = false,
+): number {
+  let cost = Math.ceil((plannedDurationMinutes / 60) * hourlyRate);
+  if (isMember) cost = Math.ceil(cost * 0.5);
+  return cost;
+}
+
+/**
+ * Calculates the "bill full block" cost for a time-based tier-pricing session.
+ * Uses the tier price for the full planned duration.
+ */
+export function calculateFullBlockTierCost(
+  plannedDurationMinutes: number,
+  tiers: { minutes: number; price: number }[],
+  isMember = false,
+): number {
+  const sorted = [...tiers].sort((a, b) => a.minutes - b.minutes);
+  const match = sorted.find((t) => plannedDurationMinutes <= t.minutes) ?? sorted[sorted.length - 1];
+  let cost = match?.price ?? 0;
+  if (isMember) cost = Math.ceil(cost * 0.5);
+  return cost;
+}
+
+export interface EarlyEndDetails {
+  playedMinutes: number;
+  plannedMinutes: number;
+  minutesRemaining: number;
+  /** Actual per-minute / hourly cost (what would be billed today without the prompt). */
+  actualCost: number;
+  /** Full block package cost. */
+  fullBlockCost: number;
+}
+
+/**
+ * Gather all the numbers needed to render the early-end prompt dialog.
+ * Returns null if the prompt should not be shown.
+ */
+export function getEarlyEndDetails(
+  session: EarlyEndSession,
+  hourlyRate: number,
+  isMember: boolean,
+  billableMs: number,
+  tiers?: { minutes: number; price: number }[],
+): EarlyEndDetails | null {
+  const planned = session.plannedDurationMinutes ?? 0;
+  if (planned <= 0 || session.prepaidBooking) return null;
+
+  const playedMinutes = Math.ceil(billableMs / (1000 * 60));
+  if (playedMinutes >= planned) return null;
+
+  const minutesRemaining = planned - playedMinutes;
+  if (minutesRemaining <= EARLY_END_THRESHOLD_MINUTES) return null;
+
+  // Actual cost — uses existing preset billing logic (≤60 min applies tier rounding)
+  const { cost: actualCost } = calculatePresetSessionCheckoutCost(hourlyRate, billableMs, isMember);
+
+  // Full-block cost
+  const fullBlockCost =
+    tiers && tiers.length > 0
+      ? calculateFullBlockTierCost(planned, tiers, isMember)
+      : calculateFullBlockCost(hourlyRate, planned, isMember);
+
+  return { playedMinutes, plannedMinutes: planned, minutesRemaining, actualCost, fullBlockCost };
+}

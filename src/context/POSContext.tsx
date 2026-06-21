@@ -35,6 +35,7 @@ import {
   prepaidCheckoutHasExtraCharges,
 } from '@/utils/prepaidBooking.utils';
 import { getBillableMs, resolveSessionForBilling } from '@/utils/sessionTimer.utils';
+import type { EarlyEndBillingMode } from '@/hooks/stations/session-actions/useEndSession';
 
 const CATEGORY_APPEARANCE_STORAGE_KEY = 'cuephoria_category_appearance_columns';
 
@@ -1046,7 +1047,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ],
   );
   
-  const endSession = async (stationId: string): Promise<SessionEndCheckoutMode | void> => {
+  const endSession = async (stationId: string, billingMode?: EarlyEndBillingMode): Promise<SessionEndCheckoutMode | void> => {
     try {
       const station = stations.find(s => s.id === stationId);
       if (!station || !station.isOccupied || !station.currentSession) {
@@ -1070,7 +1071,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const stationQuickShopItems = getStationQuickShopItems(sessionId);
       
-      const result = await endSessionBase(stationId, customers);
+      const result = await endSessionBase(stationId, customers, billingMode);
       
       if (result) {
         const { sessionCartItem, customer, updatedSession } = result;

@@ -8,6 +8,8 @@ import { Pause, Play, Square, ShoppingBag, Loader2, Plus, Users, ArrowRightLeft,
 import StartSessionDialog from '@/components/StartSessionDialog';
 import StationMaintenanceDialog from '@/components/station/StationMaintenanceDialog';
 import MoveSessionDialog from '@/components/station/MoveSessionDialog';
+import EarlyEndBillingDialog from '@/components/station/EarlyEndBillingDialog';
+import type { EarlyEndBillingChoice } from '@/components/station/EarlyEndBillingDialog';
 import type { SessionEndCheckoutMode } from '@/types/pos.types';
 import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
 import { getRateForPlayerCount, isTimeBasedPricing } from '@/utils/stationPricing';
@@ -20,6 +22,10 @@ import type { StationTheme, StationPhase } from '@/utils/stationTheme';
 import { prefetchPOS, navigateToPOS, sleep, SESSION_TRANSITION } from '@/utils/viewTransition';
 import { useAuth } from '@/context/AuthContext';
 import { isStationInMaintenance } from '@/utils/stationMaintenance.utils';
+import { getEarlyEndDetails } from '@/utils/sessionBilling.utils';
+import { getBillableMs } from '@/utils/sessionTimer.utils';
+import type { EarlyEndBillingMode } from '@/hooks/stations/session-actions/useEndSession';
+import type { EarlyEndDetails } from '@/utils/sessionBilling.utils';
 
 const EMPTY_OCCUPANCY_RATES: Record<string, number> = {};
 const EMPTY_DURATION_TIERS: { minutes: number; price: number }[] = [];
@@ -40,7 +46,7 @@ interface StationActionsProps {
     prepaidBooking?: PrepaidBookingLink,
     customStartTime?: Date
   ) => Promise<void>;
-  onEndSession: (stationId: string) => Promise<SessionEndCheckoutMode | void>;
+  onEndSession: (stationId: string, billingMode?: EarlyEndBillingMode) => Promise<SessionEndCheckoutMode | void>;
   onEndSessionGroup?: (stationId: string) => Promise<SessionEndCheckoutMode | void>;
   groupSize?: number;
   onPauseSession: (stationId: string) => Promise<void>;
@@ -74,6 +80,9 @@ const StationActions: React.FC<StationActionsProps> = ({
   const [isStartDialogOpen, setIsStartDialogOpen] = useState(false);
   const [isMaintenanceDialogOpen, setIsMaintenanceDialogOpen] = useState(false);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+  const [earlyEndDialogOpen, setEarlyEndDialogOpen] = useState(false);
+  const [earlyEndDetails, setEarlyEndDetails] = useState<EarlyEndDetails | null>(null);
+  const [earlyEndCustomerName, setEarlyEndCustomerName] = useState('');
   const inMaintenance = isStationInMaintenance(station);
   const defaultStartedBy = user?.displayName || user?.username || '';
 
@@ -139,12 +148,11 @@ const StationActions: React.FC<StationActionsProps> = ({
     }
   };
 
-  const handleEndSession = async () => {
-    if (!station.isOccupied || !station.currentSession) return;
-    const customerId = station.currentSession.customerId;
+  const doEndSession = async (billingMode?: EarlyEndBillingMode) => {
+    const customerId = station.currentSession?.customerId;
     try {
       setIsLoading(true);
-      const mode = await onEndSession(station.id);
+      const mode = await onEndSession(station.id, billingMode);
       if (mode === 'pos') {
         if (customerId) selectCustomer(customerId);
         await sleep(SESSION_TRANSITION.posHandoffMs);
@@ -155,6 +163,32 @@ const StationActions: React.FC<StationActionsProps> = ({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleEndSession = async () => {
+    if (!station.isOccupied || !station.currentSession) return;
+
+    const session = station.currentSession;
+    const now = new Date();
+    const billableMs = getBillableMs(session, now);
+    const stationRate = session.hourlyRate ?? station.hourlyRate;
+    const isMember = customers.find((c) => c.id === session.customerId)?.isMember ?? false;
+    const tiers = isTimeBasedPricing(station)
+      ? (station.durationTiers?.length ? station.durationTiers : getDefaultDurationTiers())
+      : undefined;
+
+    const details = getEarlyEndDetails(session, stationRate, isMember, billableMs, tiers);
+
+    if (details) {
+      const customerName =
+        customers.find((c) => c.id === session.customerId)?.name ?? 'Customer';
+      setEarlyEndDetails(details);
+      setEarlyEndCustomerName(customerName);
+      setEarlyEndDialogOpen(true);
+      return; // wait for dialog choice
+    }
+
+    void doEndSession();
   };
 
   const handleEndSessionGroup = async () => {
@@ -328,6 +362,21 @@ const StationActions: React.FC<StationActionsProps> = ({
         stations={stations}
         onMove={moveSession}
       />
+      {earlyEndDetails && (
+        <EarlyEndBillingDialog
+          open={earlyEndDialogOpen}
+          onOpenChange={(open) => {
+            setEarlyEndDialogOpen(open);
+            if (!open) setEarlyEndDetails(null);
+          }}
+          stationName={station.name}
+          customerName={earlyEndCustomerName}
+          details={earlyEndDetails}
+          onChoice={(choice: EarlyEndBillingChoice) => {
+            void doEndSession(choice === 'fullBlock' ? 'fullBlock' : 'actual');
+          }}
+        />
+      )}
       </>
     );
   }

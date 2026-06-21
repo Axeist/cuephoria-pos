@@ -34,6 +34,7 @@ import type { SessionEndCheckoutMode } from '@/types/pos.types';
 import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
 import { isPrepaidSession } from '@/utils/prepaidBooking.utils';
 import type { CustomerRecentSession } from '@/hooks/stations/useStationCustomerIntel';
+import type { EarlyEndBillingMode } from '@/hooks/stations/session-actions/useEndSession';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -198,12 +199,12 @@ const StationCard: React.FC<StationCardProps> = ({
   );
 
   const wrappedEndSession = useCallback(
-    async (stationId: string): Promise<SessionEndCheckoutMode | void> => {
+    async (stationId: string, billingMode?: EarlyEndBillingMode): Promise<SessionEndCheckoutMode | void> => {
       setPhase('ending');
       void hapticImpact('heavy');
       try {
         const mode = await runWithMinDuration(
-          endSession(stationId),
+          endSession(stationId, billingMode),
           SESSION_TRANSITION.endMinMs
         );
         setPhase('idle');

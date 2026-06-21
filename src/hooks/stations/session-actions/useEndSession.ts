@@ -15,14 +15,18 @@ import {
 import {
   calculatePresetSessionCheckoutCost,
   usesPresetSessionBilling,
+  getEarlyEndDetails,
 } from '@/utils/sessionBilling.utils';
-import { calculateTimeBasedLiveCost, isTimeBasedSession } from '@/utils/timeBasedPricing.utils';
+import { calculateTimeBasedLiveCost, isTimeBasedSession, getDefaultDurationTiers } from '@/utils/timeBasedPricing.utils';
+import { isTimeBasedPricing } from '@/utils/stationPricing';
 import {
   buildPrepaidOvertimeCartItem,
   calculatePrepaidOvertimeCost,
   getPrepaidOvertimeMs,
   markPrepaidBookingCompleted,
 } from '@/utils/prepaidBooking.utils';
+
+export type EarlyEndBillingMode = 'actual' | 'fullBlock';
 
 /**
  * Hook to provide session end functionality
@@ -43,7 +47,7 @@ export const useEndSession = ({
   const endSession = async (
     stationId: string,
     customersList?: Customer[],
-    options?: { silent?: boolean }
+    options?: { silent?: boolean; billingMode?: EarlyEndBillingMode }
   ): Promise<SessionResult | undefined> => {
     try {
       console.log("Ending session for station:", stationId);
@@ -206,6 +210,25 @@ export const useEndSession = ({
           const checkout = calculatePresetSessionCheckoutCost(stationRate, billableMs, isMember);
           sessionCost = checkout.cost;
           billedMinutes = checkout.billedMinutes;
+
+          // ── Early-end full-block override ──────────────────────────────────
+          if (options?.billingMode === 'fullBlock') {
+            const tiers = isTimeBasedPricing(station)
+              ? (station.durationTiers?.length ? station.durationTiers : getDefaultDurationTiers())
+              : undefined;
+            const earlyEndDetails = getEarlyEndDetails(
+              session,
+              stationRate,
+              isMember,
+              billableMs,
+              tiers,
+            );
+            if (earlyEndDetails) {
+              sessionCost = earlyEndDetails.fullBlockCost;
+              billedMinutes = earlyEndDetails.plannedMinutes;
+            }
+          }
+          // ──────────────────────────────────────────────────────────────────
         } else {
           sessionCost = calculateSessionCost(station, stationRate, billableMs, isMember);
         }
@@ -222,12 +245,15 @@ export const useEndSession = ({
           usesPresetSessionBilling(session.plannedDurationMinutes) &&
           station.category !== 'nit_event' &&
           station.type !== 'vr';
+        const isFullBlock = options?.billingMode === 'fullBlock';
         const durationInfo =
-          usesPresetBilling && billedMinutes !== durationMinutes
-            ? ` · ${billedMinutes} min billed`
-            : usesPresetBilling
-              ? ` · ${billedMinutes} min`
-              : '';
+          isFullBlock
+            ? ` · ${billedMinutes} min block`
+            : usesPresetBilling && billedMinutes !== durationMinutes
+              ? ` · ${billedMinutes} min billed`
+              : usesPresetBilling
+                ? ` · ${billedMinutes} min`
+                : '';
 
         sessionCartItem = {
           id: cartItemId,
