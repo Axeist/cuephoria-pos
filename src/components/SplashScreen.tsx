@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { CUETRONIX_ASSETS } from "@/branding/assets";
 import CuephoriaTechAttribution from "@/components/branding/CuephoriaTechAttribution";
+import SiteAmbientBackground from "@/components/landing/SiteAmbientBackground";
 
 export type SplashVariant = "boot" | "login_success";
 
@@ -41,12 +42,6 @@ const LOGIN_STATUS = [
   "Hydrating workspace state",
   "Opening command surface",
 ] as const;
-
-const GRADIENT_FALLBACK =
-  "radial-gradient(1200px 800px at 15% 0%, rgba(124,58,237,0.35), transparent 60%)," +
-  "radial-gradient(900px 700px at 85% 15%, rgba(236,72,153,0.22), transparent 60%)," +
-  "radial-gradient(1200px 900px at 50% 100%, rgba(59,130,246,0.18), transparent 60%)," +
-  "linear-gradient(180deg, #07030f 0%, #0a0414 55%, #07030f 100%)";
 
 const SEGMENTS = 12;
 
@@ -148,7 +143,7 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
   return (
     <div
       className={[
-        "fixed inset-0 z-[99999] flex items-center justify-center overflow-hidden bg-[#05040a] px-5 sm:px-6",
+        "fixed inset-0 z-[99999] flex items-center justify-center overflow-hidden bg-[#05060b] px-5 sm:px-6",
         "transition-opacity ease-out",
         exiting ? "opacity-0" : "opacity-100",
       ].join(" ")}
@@ -156,70 +151,8 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
       aria-live="polite"
       aria-label={isSuccess ? "Loading workspace" : "Starting application"}
     >
-      {/* Galaxy */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 z-0"
-        style={{ background: GRADIENT_FALLBACK }}
-      />
-
-      {/* Perspective grid floor */}
-      <div
-        aria-hidden
-        className={["pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-[62%]", motion ? "splash-floor-grid" : ""].join(" ")}
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(139,92,246,0.18) 1px, transparent 1px)," +
-            "linear-gradient(90deg, rgba(34,211,238,0.12) 1px, transparent 1px)",
-          backgroundSize: "64px 64px",
-          transform: "perspective(600px) rotateX(72deg)",
-          transformOrigin: "50% 100%",
-          maskImage: "linear-gradient(to top, black 8%, black 40%, transparent 95%)",
-          WebkitMaskImage: "linear-gradient(to top, black 8%, black 40%, transparent 95%)",
-          opacity: 0.7,
-        }}
-      />
-
-      {/* Hex dot field */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 z-[1] opacity-[0.14]"
-        style={{
-          backgroundImage: "radial-gradient(circle, rgba(167,139,250,0.9) 1px, transparent 1px)",
-          backgroundSize: "28px 28px",
-          maskImage: "radial-gradient(ellipse 80% 70% at 50% 45%, black 15%, transparent 75%)",
-          WebkitMaskImage: "radial-gradient(ellipse 80% 70% at 50% 45%, black 15%, transparent 75%)",
-        }}
-      />
-
-      {/* Glow orbs */}
-      <div
-        aria-hidden
-        className={["pointer-events-none absolute -left-28 top-[14%] z-[1] h-[460px] w-[460px] rounded-full blur-[130px]", motion ? "splash-glow-a" : ""].join(" ")}
-        style={{ background: "rgba(124,58,237,0.32)" }}
-      />
-      <div
-        aria-hidden
-        className={["pointer-events-none absolute -right-24 bottom-[8%] z-[1] h-[400px] w-[400px] rounded-full blur-[120px]", motion ? "splash-glow-b" : ""].join(" ")}
-        style={{ background: "rgba(34,211,238,0.16)" }}
-      />
-      <div
-        aria-hidden
-        className={["pointer-events-none absolute left-1/2 top-[42%] z-[1] h-[560px] w-[560px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-[110px]", motion ? "splash-glow-c" : ""].join(" ")}
-        style={{ background: isSuccess ? "rgba(52,211,153,0.12)" : "rgba(192,132,252,0.2)" }}
-      />
-
-      {/* Horizontal energy beam */}
-      {motion ? (
-        <div
-          aria-hidden
-          className="splash-energy-beam pointer-events-none absolute left-0 right-0 top-[46%] z-[1] h-px"
-          style={{
-            background: `linear-gradient(90deg, transparent 0%, ${accent.line}44 35%, ${accent.to}66 50%, ${accent.line}44 65%, transparent 100%)`,
-            boxShadow: `0 0 40px ${accent.from}33, 0 0 80px ${accent.to}22`,
-          }}
-        />
-      ) : null}
+      {/* Same animated galaxy field as login / signup (SiteAmbientBackground) */}
+      <SiteAmbientBackground />
 
       {/* Corner HUD */}
       <div aria-hidden className="pointer-events-none absolute left-5 top-5 z-[2] hidden font-mono text-[9px] uppercase tracking-[0.24em] text-violet-300/35 sm:block">
@@ -230,25 +163,6 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
         <div>Mesh · online</div>
         <div className="mt-1 text-cyan-300/30">RLS · enforced</div>
       </div>
-
-      {/* Film grain */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 z-[2] opacity-[0.04] mix-blend-overlay"
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
-          backgroundSize: "220px",
-        }}
-      />
-
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 z-[2]"
-        style={{
-          background: "radial-gradient(ellipse 90% 82% at 50% 46%, transparent 32%, rgba(5,4,10,0.78) 100%)",
-        }}
-      />
 
       {/* Panel */}
       <div
