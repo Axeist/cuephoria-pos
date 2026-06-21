@@ -138,10 +138,12 @@ const SidebarTourOverlay: React.FC = () => {
     if (!organization?.onboardingCompletedAt) return;
     if (isMobile) return;
     const key = keyForOrg(organization.id);
-    const seen = localStorage.getItem(key) === "1";
-    if (!seen) {
+    const seenPermanently = localStorage.getItem(key) === "1";
+    const seenThisSession = sessionStorage.getItem(key) === "1";
+    if (!seenPermanently && !seenThisSession) {
       setOpen(true);
       setOverlayOpen(true);
+      sessionStorage.setItem(key, "1");
     }
   }, [isMobile, organization?.id, organization?.onboardingCompletedAt, setOpen]);
 
@@ -159,10 +161,12 @@ const SidebarTourOverlay: React.FC = () => {
   }, [items, location.pathname, open]);
 
   React.useEffect(() => {
-    if (!open) return;
+    if (!open || !organization?.id) return;
+    const key = keyForOrg(organization.id);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        localStorage.setItem(keyForOrg(organization?.id || ""), "1");
+        localStorage.setItem(key, "1");
+        sessionStorage.setItem(key, "1");
         setOverlayOpen(false);
         setOpen(false);
       }
@@ -240,7 +244,9 @@ const SidebarTourOverlay: React.FC = () => {
 
   const item = items[index];
   const done = () => {
-    localStorage.setItem(keyForOrg(organization.id), "1");
+    const key = keyForOrg(organization.id);
+    localStorage.setItem(key, "1");
+    sessionStorage.setItem(key, "1");
     setOverlayOpen(false);
     setOpen(false);
   };
