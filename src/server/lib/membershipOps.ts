@@ -182,6 +182,10 @@ export async function upsertTier(
     wallet_credit_on_purchase: input.walletCreditOnPurchase ?? 0,
     default_duration: input.defaultDuration ?? 'monthly',
     default_membership_hours: input.defaultMembershipHours ?? 4,
+    description: input.description ?? '',
+    tagline: input.tagline ?? '',
+    accent_color: input.accentColor ?? 'violet',
+    compare_at_price: input.compareAtPrice ?? null,
     updated_at: new Date().toISOString(),
   };
 
@@ -233,18 +237,27 @@ async function syncTierProduct(
   }
 
   const now = new Date().toISOString();
-  const productPayload = {
+  const retail = tier.retailPrice ?? 0;
+  const compareAt = tier.compareAtPrice ?? null;
+  const productPayload: Record<string, unknown> = {
     organization_id: organizationId,
     location_id: locationId,
-    name: `${tier.name} Membership`,
+    name: tier.name,
     category: 'membership',
-    price: tier.retailPrice ?? 0,
+    price: retail,
     stock: 999,
     membership_tier_id: tier.id,
     duration: tier.defaultDuration ?? 'monthly',
     membership_hours: tier.defaultMembershipHours ?? 4,
     updated_at: now,
   };
+  if (compareAt != null && compareAt > retail) {
+    productPayload.original_price = compareAt;
+    productPayload.offer_price = retail;
+  } else {
+    productPayload.original_price = null;
+    productPayload.offer_price = null;
+  }
 
   if (tier.productId) {
     const { error } = await supabase

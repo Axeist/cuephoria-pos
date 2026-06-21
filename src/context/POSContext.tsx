@@ -38,7 +38,7 @@ import { getBillableMs, resolveSessionForBilling } from '@/utils/sessionTimer.ut
 import type { EarlyEndBillingMode } from '@/hooks/stations/session-actions/useEndSession';
 import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
 import { useMembershipTiers } from '@/hooks/useMembershipTiers';
-import type { WalletTopUpOffer } from '@/types/membership.types';
+import type { MembershipPurchaseFollowUp } from '@/types/membership.types';
 import { resolveMemberFnbUnitPrice } from '@/utils/membershipBenefits.utils';
 
 const CATEGORY_APPEARANCE_STORAGE_KEY = 'cuephoria_category_appearance_columns';
@@ -134,8 +134,8 @@ const POSContext = createContext<POSContextType>({
   setLoyaltyPointsUsed: () => {},
   calculateTotal: () => 0,
   completeSale: () => undefined,
-  pendingWalletTopUp: null,
-  clearPendingWalletTopUp: () => {},
+  pendingMembershipFollowUp: null,
+  clearPendingMembershipFollowUp: () => {},
   updateBill: async () => null,
   realiseCreditPayment: async () => null,
   deleteBill: async () => false,
@@ -152,8 +152,12 @@ const POSContext = createContext<POSContextType>({
 export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   
   const [isStudentDiscount, setIsStudentDiscount] = useState<boolean>(false);
-  const [pendingWalletTopUp, setPendingWalletTopUp] = useState<WalletTopUpOffer | null>(null);
-  const clearPendingWalletTopUp = useCallback(() => setPendingWalletTopUp(null), []);
+  const [pendingMembershipFollowUp, setPendingMembershipFollowUp] =
+    useState<MembershipPurchaseFollowUp | null>(null);
+  const clearPendingMembershipFollowUp = useCallback(
+    () => setPendingMembershipFollowUp(null),
+    [],
+  );
   
   const [categories, setCategories] = useState<string[]>(['uncategorized']);
   const [categoryMeta, setCategoryMeta] = useState<Record<string, ProductCategoryMeta>>({});
@@ -1398,7 +1402,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         console.log(`Cleared saved cart for ${selectedCustomer.name}`);
         
-        let walletTopUpOffer: WalletTopUpOffer | null = null;
+        let membershipFollowUp: MembershipPurchaseFollowUp | null = null;
 
         if (membershipItems.length > 0) {
           for (const item of membershipItems) {
@@ -1427,36 +1431,32 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           }
 
-          if (
-            paymentMethod !== 'card' &&
-            status === 'completed' &&
-            membershipFlags.card_balance_enabled
-          ) {
+          if (status === 'completed' && membershipModuleEnabled) {
             const membershipTotal = membershipItems.reduce((sum, item) => sum + item.total, 0);
             const tierProduct = products.find((p) => p.id === membershipItems[0]?.id);
             const tierMeta = tierProduct?.membershipTierId
               ? membershipTiers.find((t) => t.id === tierProduct.membershipTierId)
               : null;
-            const suggested =
-              (tierMeta?.walletCreditOnPurchase ?? 0) > 0
-                ? tierMeta!.walletCreditOnPurchase!
-                : membershipTotal;
+            const includedCredit = tierMeta?.walletCreditOnPurchase ?? 0;
+            const suggested = includedCredit > 0 ? includedCredit : membershipTotal;
 
-            if (suggested > 0) {
-              walletTopUpOffer = {
-                customerId: selectedCustomer.id,
-                customerName: selectedCustomer.name,
-                billId: bill.id,
-                suggestedAmount: suggested,
-                tierName: tierProduct?.name,
-              };
-              setPendingWalletTopUp(walletTopUpOffer);
-            }
+            membershipFollowUp = {
+              customerId: selectedCustomer.id,
+              customerName: selectedCustomer.name,
+              customerDisplayId: selectedCustomer.customerId,
+              billId: bill.id,
+              tierId: tierMeta?.id ?? tierProduct?.membershipTierId,
+              tierName: tierMeta?.name ?? tierProduct?.name,
+              tierAccentColor: tierMeta?.accentColor,
+              suggestedWalletAmount: suggested,
+              walletCreditOnPurchase: includedCredit,
+            };
+            setPendingMembershipFollowUp(membershipFollowUp);
           }
         }
         
         clearCart();
-        if (!walletTopUpOffer) {
+        if (!membershipFollowUp) {
           setSelectedCustomer(null);
         }
         setIsStudentDiscount(false);
@@ -1635,8 +1635,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLoyaltyPointsUsed,
     calculateTotal,
     completeSale,
-    pendingWalletTopUp,
-    clearPendingWalletTopUp,
+    pendingMembershipFollowUp,
+    clearPendingMembershipFollowUp,
     updateBill,
     realiseCreditPayment,
     deleteBill,
@@ -1664,7 +1664,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     getStationQuickShopItems, addToStationQuickShop,
     updateStationQuickShopQuantity, removeFromStationQuickShop,
     setDiscount, setLoyaltyPointsUsed, calculateTotal,
-    completeSale, pendingWalletTopUp, clearPendingWalletTopUp, updateBill, realiseCreditPayment, deleteBill,
+    completeSale, pendingMembershipFollowUp, clearPendingMembershipFollowUp, updateBill, realiseCreditPayment, deleteBill,
     exportBills, exportCustomers,
     handleResetToSampleData, handleAddSampleIndianData
   ]);

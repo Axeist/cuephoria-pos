@@ -60,6 +60,10 @@ export function mapTierRow(row: Record<string, unknown>): MembershipTier {
     defaultDuration: (row.default_duration as 'weekly' | 'monthly') ?? 'monthly',
     defaultMembershipHours: Number(row.default_membership_hours ?? 4),
     productId: row.product_id ? String(row.product_id) : null,
+    description: row.description != null ? String(row.description) : '',
+    tagline: row.tagline != null ? String(row.tagline) : '',
+    accentColor: row.accent_color != null ? String(row.accent_color) : 'violet',
+    compareAtPrice: row.compare_at_price != null ? Number(row.compare_at_price) : null,
     createdAt: row.created_at ? String(row.created_at) : undefined,
     updatedAt: row.updated_at ? String(row.updated_at) : undefined,
   };

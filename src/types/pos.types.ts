@@ -1,7 +1,7 @@
 import type { PrepaidBookingLink } from '@/types/prepaidBooking.types';
 import type { DurationTier } from '@/utils/timeBasedPricing.utils';
 import type { EarlyEndBillingMode } from '@/hooks/stations/session-actions/useEndSession';
-import type { WalletTopUpOffer } from './membership.types';
+import type { MembershipPurchaseFollowUp } from './membership.types';
 
 export type { PrepaidBookingLink };
 export interface Product {
@@ -306,8 +306,8 @@ export interface POSContextType {
   setDiscount: (amount: number, type: 'percentage' | 'fixed') => void;
   setLoyaltyPointsUsed: (points: number) => void;
   calculateTotal: () => number;
-  pendingWalletTopUp: WalletTopUpOffer | null;
-  clearPendingWalletTopUp: () => void;
+  pendingMembershipFollowUp: MembershipPurchaseFollowUp | null;
+  clearPendingMembershipFollowUp: () => void;
   completeSale: (
     paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'razorpay',
     status?: 'completed' | 'complimentary',

@@ -18,13 +18,18 @@ import { MobileTabSelect } from '@/components/mobile/MobileTabSelect';
 import { MobileTabBar } from '@/components/mobile/MobileTabBar';
 import MembershipHubStats from '@/components/memberships/MembershipHubStats';
 import MemberLookupPanel from '@/components/memberships/MemberLookupPanel';
+import AddMemberCardDialog from '@/components/memberships/AddMemberCardDialog';
 import AssignMemberCardPanel from '@/components/memberships/AssignMemberCardPanel';
 import MemberCardRegistry from '@/components/memberships/MemberCardRegistry';
 import MembershipPanelShell from '@/components/memberships/MembershipPanelShell';
+import MembershipTierCard from '@/components/memberships/MembershipTierCard';
 import NfcCardLookupPanel from '@/components/memberships/NfcCardLookupPanel';
+import { TIER_ACCENT_OPTIONS } from '@/components/memberships/membershipTierTheme';
+import type { MembershipTierAccent } from '@/components/memberships/membershipTierTheme';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -42,7 +47,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 import { usePermissions } from '@/context/PermissionsContext';
 import { useLocation } from '@/context/LocationContext';
 import { usePOS } from '@/context/POSContext';
@@ -157,6 +162,10 @@ const emptyTierForm = (): Partial<MembershipTier> & { name: string } => ({
   walletCreditOnPurchase: 0,
   defaultDuration: 'monthly',
   defaultMembershipHours: 4,
+  description: '',
+  tagline: '',
+  accentColor: 'violet',
+  compareAtPrice: null,
 });
 
 const emptyRechargeForm = (): Partial<MembershipRechargeTier> & {
@@ -220,6 +229,7 @@ export default function MembershipsPage() {
   const [editingCouponId, setEditingCouponId] = useState<string | null>(null);
 
   const [resolvedMember, setResolvedMember] = useState<MembershipCardLookupResult | null>(null);
+  const [addCardDialogOpen, setAddCardDialogOpen] = useState(false);
   const [rechargeAmount, setRechargeAmount] = useState('');
   const [recharging, setRecharging] = useState(false);
 
@@ -647,26 +657,12 @@ export default function MembershipsPage() {
                   No tiers yet. Create your first membership plan.
                 </div>
               ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   {tiers.map((tier) => (
-                    <div
-                      key={tier.id}
-                      className="glass-card border-white/10 p-4 flex flex-col gap-3"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h3 className="font-semibold">{tier.name}</h3>
-                          <p className="text-xs text-muted-foreground">{tier.slug}</p>
-                        </div>
-                        <Badge variant={tier.isActive ? 'default' : 'secondary'}>
-                          {tier.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Playtime {tier.playtimeDiscountPct}% off · F&B {tier.fnbDiscountPct}% off
-                      </p>
+                    <div key={tier.id} className="space-y-2">
+                      <MembershipTierCard tier={tier} />
                       {canEditTiers && (
-                        <div className="flex gap-2 mt-auto">
+                        <div className="flex gap-2 justify-end">
                           <Button
                             size="sm"
                             variant="outline"
@@ -847,6 +843,18 @@ export default function MembershipsPage() {
 
           {activeTab === 'cards' && (
             <div className="space-y-5">
+              {canUse('nfc_cards_enabled') && canManageCards && (
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    className="btn-gradient gap-1.5"
+                    onClick={() => setAddCardDialogOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add card
+                  </Button>
+                </div>
+              )}
               {!canUse('nfc_cards_enabled') ? (
                 <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-6 text-center">
                   <CreditCard className="h-10 w-10 mx-auto mb-3 text-amber-300/60" />
@@ -879,6 +887,14 @@ export default function MembershipsPage() {
                   />
 
                   <MemberCardRegistry cards={cards} />
+
+                  <AddMemberCardDialog
+                    open={addCardDialogOpen}
+                    onOpenChange={setAddCardDialogOpen}
+                    customers={customers}
+                    initialMember={resolvedMember}
+                    onAdded={() => handleCardAssigned()}
+                  />
                 </>
               )}
             </div>
@@ -958,109 +974,196 @@ export default function MembershipsPage() {
       )}
 
       <Dialog open={tierDialogOpen} onOpenChange={setTierDialogOpen}>
-        <DialogContent className="glass-card border-white/10 max-w-md">
+        <DialogContent className="glass-card border-white/10 max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingTierId ? 'Edit tier' : 'New tier'}</DialogTitle>
-            <DialogDescription>Configure discounts and tier behaviour.</DialogDescription>
+            <DialogTitle>{editingTierId ? 'Edit membership tier' : 'New membership tier'}</DialogTitle>
+            <DialogDescription>
+              Design your membership type — saved tiers sync as POS products automatically.
+            </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSaveTier} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Name</Label>
-              <Input
-                value={tierForm.name}
-                onChange={(e) => setTierForm((f) => ({ ...f, name: e.target.value }))}
-                required
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Playtime discount %</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={tierForm.playtimeDiscountPct}
-                  onChange={(e) =>
-                    setTierForm((f) => ({ ...f, playtimeDiscountPct: Number(e.target.value) }))
-                  }
+          <form onSubmit={handleSaveTier} className="space-y-5">
+            <div className="grid gap-5 lg:grid-cols-2">
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label>Tier name</Label>
+                  <Input
+                    value={tierForm.name}
+                    onChange={(e) => setTierForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. Gold Elite"
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Tagline</Label>
+                  <Input
+                    value={tierForm.tagline ?? ''}
+                    onChange={(e) => setTierForm((f) => ({ ...f, tagline: e.target.value }))}
+                    placeholder="Short subtitle for cards"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Description & benefits</Label>
+                  <Textarea
+                    value={tierForm.description ?? ''}
+                    onChange={(e) => setTierForm((f) => ({ ...f, description: e.target.value }))}
+                    placeholder="Unlimited weekday play, 15% F&B, priority booking…"
+                    rows={3}
+                    className="resize-none bg-black/20"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Accent theme</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {TIER_ACCENT_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={cn(
+                          'h-8 w-8 rounded-full border-2 transition ring-offset-2 ring-offset-background',
+                          tierForm.accentColor === opt.id
+                            ? 'border-white ring-2 ring-white/50 scale-110'
+                            : 'border-transparent hover:scale-105',
+                        )}
+                        style={{ backgroundColor: opt.hex }}
+                        title={opt.label}
+                        onClick={() =>
+                          setTierForm((f) => ({ ...f, accentColor: opt.id as MembershipTierAccent }))
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Playtime discount %</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={tierForm.playtimeDiscountPct}
+                      onChange={(e) =>
+                        setTierForm((f) => ({ ...f, playtimeDiscountPct: Number(e.target.value) }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>F&B discount %</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={tierForm.fnbDiscountPct}
+                      onChange={(e) =>
+                        setTierForm((f) => ({ ...f, fnbDiscountPct: Number(e.target.value) }))
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>POS price (₹)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={tierForm.retailPrice ?? 0}
+                      onChange={(e) =>
+                        setTierForm((f) => ({ ...f, retailPrice: Number(e.target.value) }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Compare-at price (₹)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={tierForm.compareAtPrice ?? ''}
+                      onChange={(e) =>
+                        setTierForm((f) => ({
+                          ...f,
+                          compareAtPrice: e.target.value ? Number(e.target.value) : null,
+                        }))
+                      }
+                      placeholder="Strikethrough on POS"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Wallet credit on purchase (₹)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={tierForm.walletCreditOnPurchase ?? 0}
+                      onChange={(e) =>
+                        setTierForm((f) => ({ ...f, walletCreditOnPurchase: Number(e.target.value) }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Membership hours</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={tierForm.defaultMembershipHours ?? 4}
+                      onChange={(e) =>
+                        setTierForm((f) => ({ ...f, defaultMembershipHours: Number(e.target.value) }))
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Default duration</Label>
+                  <Select
+                    value={tierForm.defaultDuration ?? 'monthly'}
+                    onValueChange={(v: 'weekly' | 'monthly') =>
+                      setTierForm((f) => ({ ...f, defaultDuration: v }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label>Active in POS</Label>
+                  <Switch
+                    checked={tierForm.isActive ?? true}
+                    onCheckedChange={(checked) => setTierForm((f) => ({ ...f, isActive: checked }))}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Live preview</Label>
+                <MembershipTierCard
+                  tier={{
+                    id: editingTierId ?? 'preview',
+                    organizationId: '',
+                    name: tierForm.name || 'Tier name',
+                    slug: tierForm.slug || 'tier',
+                    sortOrder: tierForm.sortOrder ?? 0,
+                    isActive: tierForm.isActive ?? true,
+                    playtimeDiscountPct: tierForm.playtimeDiscountPct ?? 0,
+                    fnbDiscountPct: tierForm.fnbDiscountPct ?? 0,
+                    cardPaymentFnbEnabled: tierForm.cardPaymentFnbEnabled ?? false,
+                    bookingPayAtVenueEnabled: tierForm.bookingPayAtVenueEnabled ?? false,
+                    retailPrice: tierForm.retailPrice ?? 0,
+                    walletCreditOnPurchase: tierForm.walletCreditOnPurchase ?? 0,
+                    defaultDuration: tierForm.defaultDuration ?? 'monthly',
+                    defaultMembershipHours: tierForm.defaultMembershipHours ?? 4,
+                    description: tierForm.description ?? '',
+                    tagline: tierForm.tagline ?? '',
+                    accentColor: tierForm.accentColor ?? 'violet',
+                    compareAtPrice: tierForm.compareAtPrice ?? null,
+                  }}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Saving creates or updates a matching product in your POS catalog.
+                </p>
               </div>
-              <div className="space-y-1.5">
-                <Label>F&B discount %</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={tierForm.fnbDiscountPct}
-                  onChange={(e) =>
-                    setTierForm((f) => ({ ...f, fnbDiscountPct: Number(e.target.value) }))
-                  }
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>POS price (₹)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={tierForm.retailPrice ?? 0}
-                  onChange={(e) =>
-                    setTierForm((f) => ({ ...f, retailPrice: Number(e.target.value) }))
-                  }
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Wallet credit on purchase (₹)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={tierForm.walletCreditOnPurchase ?? 0}
-                  onChange={(e) =>
-                    setTierForm((f) => ({ ...f, walletCreditOnPurchase: Number(e.target.value) }))
-                  }
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Default duration</Label>
-                <Select
-                  value={tierForm.defaultDuration ?? 'monthly'}
-                  onValueChange={(v: 'weekly' | 'monthly') =>
-                    setTierForm((f) => ({ ...f, defaultDuration: v }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Membership hours</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={tierForm.defaultMembershipHours ?? 4}
-                  onChange={(e) =>
-                    setTierForm((f) => ({ ...f, defaultMembershipHours: Number(e.target.value) }))
-                  }
-                />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Saving creates or updates a membership product in your POS catalog for this tier.
-            </p>
-            <div className="flex items-center justify-between">
-              <Label>Active</Label>
-              <Switch
-                checked={tierForm.isActive ?? true}
-                onCheckedChange={(checked) => setTierForm((f) => ({ ...f, isActive: checked }))}
-              />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setTierDialogOpen(false)}>

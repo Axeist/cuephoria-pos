@@ -147,7 +147,7 @@ export default function AssignMemberCardPanel({
                 ) : (
                   <Link2 className="h-4 w-4" />
                 )}
-                Link card
+                Add card
               </Button>
             </div>
           </div>

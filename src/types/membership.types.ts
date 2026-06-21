@@ -55,6 +55,10 @@ export interface MembershipTier {
   defaultDuration?: 'weekly' | 'monthly';
   defaultMembershipHours?: number;
   productId?: string | null;
+  description?: string;
+  tagline?: string;
+  accentColor?: string;
+  compareAtPrice?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -148,10 +152,18 @@ export interface MembershipCardLookupResult {
   tier?: MembershipTier | null;
 }
 
-export interface WalletTopUpOffer {
+/** POS post-purchase wizard: wallet recharge then NFC card assign. */
+export interface MembershipPurchaseFollowUp {
   customerId: string;
   customerName: string;
+  customerDisplayId?: string | null;
   billId: string;
-  suggestedAmount: number;
+  tierId?: string | null;
   tierName?: string;
+  tierAccentColor?: string;
+  suggestedWalletAmount: number;
+  walletCreditOnPurchase?: number;
 }
+
+/** @deprecated Use MembershipPurchaseFollowUp */
+export type WalletTopUpOffer = MembershipPurchaseFollowUp;

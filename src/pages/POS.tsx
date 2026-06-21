@@ -28,7 +28,7 @@ import SplitPaymentForm from '@/components/checkout/SplitPaymentForm';
 import SavedCartsManager from '@/components/SavedCartsManager';
 import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
 import NfcCardLookupPanel from '@/components/memberships/NfcCardLookupPanel';
-import MembershipWalletTopUpDialog from '@/components/memberships/MembershipWalletTopUpDialog';
+import MembershipPurchaseOnboardingDialog from '@/components/memberships/MembershipPurchaseOnboardingDialog';
 import type { MembershipCardLookupResult } from '@/types/membership.types';
 import { mergeNfcLookupWithCustomer } from '@/utils/nfcCustomer.utils';
 import { cn } from '@/lib/utils';
@@ -83,8 +83,8 @@ const POS = () => {
     setLoyaltyPointsUsed,
     calculateTotal,
     completeSale,
-    pendingWalletTopUp,
-    clearPendingWalletTopUp,
+    pendingMembershipFollowUp,
+    clearPendingMembershipFollowUp,
   } = usePOS();
   const { toast } = useToast();
   const { isMobile } = useViewMode();
@@ -1492,14 +1492,14 @@ const POS = () => {
         ) : null}
       </StickyMobileActionBar>
 
-      <MembershipWalletTopUpDialog
-        offer={pendingWalletTopUp}
+      <MembershipPurchaseOnboardingDialog
+        followUp={pendingMembershipFollowUp}
         onClose={() => {
-          clearPendingWalletTopUp();
+          clearPendingMembershipFollowUp();
           selectCustomer(null);
         }}
-        onCredited={(balance) => {
-          if (pendingWalletTopUp && selectedCustomer) {
+        onWalletCredited={(balance) => {
+          if (pendingMembershipFollowUp && selectedCustomer) {
             updateCustomer({
               ...selectedCustomer,
               cardBalance: balance ?? selectedCustomer.cardBalance,

@@ -38,7 +38,7 @@ export default function MemberCardRegistry({ cards }: MemberCardRegistryProps) {
           <CreditCard className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />
           <p className="text-sm text-muted-foreground">No cards linked yet.</p>
           <p className="text-xs text-muted-foreground/80 mt-1">
-            Select a member and tap Link card to register their NFC tag.
+            Use Add card to register an NFC tag — tap or enter the UID.
           </p>
         </div>
       ) : (
