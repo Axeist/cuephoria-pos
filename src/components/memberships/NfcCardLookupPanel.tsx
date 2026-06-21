@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useLocation } from '@/context/LocationContext';
 import { useToast } from '@/hooks/use-toast';
 import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
 import { useNfcWedgeListener } from '@/hooks/useNfcWedgeListener';
@@ -39,6 +40,7 @@ export default function NfcCardLookupPanel({
   wedgeEnabled = true,
 }: NfcCardLookupPanelProps) {
   const { toast } = useToast();
+  const { activeLocationId } = useLocation();
   const { canUse } = useMembershipFeatures();
   const [uid, setUid] = useState('');
   const [loading, setLoading] = useState(false);
@@ -62,8 +64,11 @@ export default function NfcCardLookupPanel({
       setUid(normalized);
       setLoading(true);
       try {
-        const res = await lookupMembershipCard(normalized);
+        const res = await lookupMembershipCard(normalized, activeLocationId);
         const result = res.result as MembershipCardLookupResult;
+        if (!result?.customer) {
+          throw new Error('Card is not linked to a member');
+        }
         setLastResult(result);
         onMemberResolved(result);
         toast({
@@ -81,7 +86,7 @@ export default function NfcCardLookupPanel({
         setLoading(false);
       }
     },
-    [onMemberResolved, toast],
+    [activeLocationId, onMemberResolved, toast],
   );
 
   useNfcWedgeListener({
@@ -170,11 +175,11 @@ export default function NfcCardLookupPanel({
       {lastResult && (
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm">
           <p className="font-medium text-emerald-200">{lastResult.customer.name}</p>
-          <p className="text-muted-foreground text-xs mt-0.5">
+          <p className="text-sm text-muted-foreground mt-1.5">
             {lastResult.customer.phone}
+            {lastResult.customer.customerId ? ` · ${lastResult.customer.customerId}` : ''}
             {lastResult.tier ? ` · ${lastResult.tier.name}` : ''}
-            {' · '}
-            Balance{' '}
+            {' · Balance '}
             <CurrencyDisplay amount={lastResult.customer.cardBalance ?? 0} />
           </p>
         </div>

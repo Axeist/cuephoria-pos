@@ -40,6 +40,7 @@ const OP_PERMISSIONS: Record<string, string> = {
   deleteCoupon: 'memberships.coupons.edit',
   fetchCards: 'memberships.cards.manage',
   lookupCard: 'memberships.view',
+  lookupMember: 'memberships.view',
   assignCard: 'memberships.cards.manage',
   replaceCard: 'memberships.cards.manage',
   addInventoryCard: 'memberships.cards.manage',
@@ -91,7 +92,16 @@ export default async function handler(req: Request) {
     });
 
     const url = new URL(req.url);
-    const locationId = url.searchParams.get('location_id');
+    let locationId = url.searchParams.get('location_id');
+
+    let postBody: Record<string, unknown> | null = null;
+    if (req.method === 'POST') {
+      postBody = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+      const args = (postBody.args ?? postBody) as Record<string, unknown>;
+      if (!locationId && typeof args.locationId === 'string') {
+        locationId = args.locationId;
+      }
+    }
 
     const flags = await resolveMembershipFlags(supabase, ctx.organizationId, locationId);
 
@@ -119,6 +129,23 @@ export default async function handler(req: Request) {
         if (!uid) return j({ ok: false, error: 'Missing uid' }, 400);
         const result = await ops.lookupCardByUid(supabase, ctx.organizationId, uid);
         if (!result) return j({ ok: false, error: 'Card not found' }, 404);
+        if (!result.customer) {
+          return j({ ok: false, error: 'Card is not assigned to a member' }, 404);
+        }
+        return j({ ok: true, result }, 200);
+      }
+      if (op === 'lookupMember') {
+        const ref = url.searchParams.get('ref');
+        if (!ref?.trim()) return j({ ok: false, error: 'Missing ref' }, 400);
+        const result = await ops.lookupMemberByRef(
+          supabase,
+          ctx.organizationId,
+          locationId,
+          ref,
+        );
+        if (!result?.customer) {
+          return j({ ok: false, error: 'No customer found for that ID or phone' }, 404);
+        }
         return j({ ok: true, result }, 200);
       }
       if (op === 'fetchTiers') {
@@ -141,7 +168,7 @@ export default async function handler(req: Request) {
     }
 
     if (req.method === 'POST') {
-      const body = await req.json().catch(() => ({}));
+      const body = postBody ?? {};
       const op = String(body.op || '');
       if (!op) return j({ ok: false, error: 'Missing op' }, 400);
 

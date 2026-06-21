@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   CreditCard,
   Gift,
@@ -16,6 +17,7 @@ import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
 import { MobileTabSelect } from '@/components/mobile/MobileTabSelect';
 import { MobileTabBar } from '@/components/mobile/MobileTabBar';
 import MembershipHubStats from '@/components/memberships/MembershipHubStats';
+import MemberLookupPanel from '@/components/memberships/MemberLookupPanel';
 import NfcCardLookupPanel from '@/components/memberships/NfcCardLookupPanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -181,6 +183,7 @@ const emptyCouponForm = (): Partial<MembershipCoupon> & { code: string } => ({
 
 export default function MembershipsPage() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { can } = usePermissions();
   const { activeLocationId, activeLocation } = useLocation();
   const { isMobile } = useViewMode();
@@ -248,18 +251,23 @@ export default function MembershipsPage() {
   };
 
   const loadHubData = useCallback(async () => {
+    if (!activeLocationId) return;
     setLoading(true);
     try {
       const [tiersRes, rechargeRes, couponsRes, cardsRes] = await Promise.all([
-        fetchMembershipTiers().catch(() => ({ tiers: [] as MembershipTier[] })),
+        fetchMembershipTiers(activeLocationId).catch(() => ({ tiers: [] as MembershipTier[] })),
         flags.recharge_tiers_enabled
-          ? fetchRechargeTiers().catch(() => ({ rechargeTiers: [] as MembershipRechargeTier[] }))
+          ? fetchRechargeTiers(activeLocationId).catch(() => ({
+              rechargeTiers: [] as MembershipRechargeTier[],
+            }))
           : Promise.resolve({ rechargeTiers: [] as MembershipRechargeTier[] }),
         flags.member_coupons_enabled
-          ? fetchMembershipCoupons().catch(() => ({ coupons: [] as MembershipCoupon[] }))
+          ? fetchMembershipCoupons(activeLocationId).catch(() => ({
+              coupons: [] as MembershipCoupon[],
+            }))
           : Promise.resolve({ coupons: [] as MembershipCoupon[] }),
         flags.physical_cards_inventory_enabled
-          ? fetchMembershipCards().catch(() => ({ cards: [] as MembershipCard[] }))
+          ? fetchMembershipCards(activeLocationId).catch(() => ({ cards: [] as MembershipCard[] }))
           : Promise.resolve({ cards: [] as MembershipCard[] }),
       ]);
       setTiers(tiersRes.tiers);
@@ -275,7 +283,7 @@ export default function MembershipsPage() {
     } finally {
       setLoading(false);
     }
-  }, [flags, toast]);
+  }, [activeLocationId, flags, toast]);
 
   useEffect(() => {
     setLocalFlags(flags);
@@ -286,13 +294,18 @@ export default function MembershipsPage() {
   }, [loadHubData]);
 
   const saveSettings = async () => {
-    if (!canEditSettings) return;
+    if (!canEditSettings || !activeLocationId) return;
     setSavingSettings(true);
     try {
-      await updateMembershipSettings({
-        locationId: activeLocationId,
-        featureFlags: localFlags,
-      });
+      await updateMembershipSettings(
+        {
+          locationId: activeLocationId,
+          featureFlags: localFlags,
+        },
+        activeLocationId,
+      );
+      await queryClient.invalidateQueries({ queryKey: ['membership-features', activeLocationId] });
+      await loadHubData();
       toast({ title: 'Settings saved' });
     } catch (err) {
       toast({
@@ -316,12 +329,15 @@ export default function MembershipsPage() {
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/^-|-$/g, '');
-      const res = await upsertMembershipTier({
-        ...tierForm,
-        id: editingTierId ?? undefined,
-        slug,
-        name: tierForm.name.trim(),
-      });
+      const res = await upsertMembershipTier(
+        {
+          ...tierForm,
+          id: editingTierId ?? undefined,
+          slug,
+          name: tierForm.name.trim(),
+        },
+        activeLocationId,
+      );
       setTiers((prev) => {
         const idx = prev.findIndex((t) => t.id === res.tier.id);
         if (idx >= 0) {
@@ -345,7 +361,7 @@ export default function MembershipsPage() {
   const handleDeleteTier = async (tierId: string) => {
     if (!canEditTiers) return;
     try {
-      await deleteMembershipTier(tierId);
+      await deleteMembershipTier(tierId, activeLocationId);
       setTiers((prev) => prev.filter((t) => t.id !== tierId));
       toast({ title: 'Tier deleted' });
     } catch (err) {
@@ -361,12 +377,15 @@ export default function MembershipsPage() {
     e.preventDefault();
     if (!canEditRecharge) return;
     try {
-      const res = await upsertRechargeTier({
-        ...rechargeForm,
-        id: editingRechargeId ?? undefined,
-        payAmount: Number(rechargeForm.payAmount),
-        creditAmount: Number(rechargeForm.creditAmount),
-      });
+      const res = await upsertRechargeTier(
+        {
+          ...rechargeForm,
+          id: editingRechargeId ?? undefined,
+          payAmount: Number(rechargeForm.payAmount),
+          creditAmount: Number(rechargeForm.creditAmount),
+        },
+        activeLocationId,
+      );
       setRechargeTiers((prev) => {
         const idx = prev.findIndex((t) => t.id === res.rechargeTier.id);
         if (idx >= 0) {
@@ -390,7 +409,7 @@ export default function MembershipsPage() {
   const handleDeleteRechargeTier = async (id: string) => {
     if (!canEditRecharge) return;
     try {
-      await deleteRechargeTier(id);
+      await deleteRechargeTier(id, activeLocationId);
       setRechargeTiers((prev) => prev.filter((t) => t.id !== id));
       toast({ title: 'Recharge tier deleted' });
     } catch (err) {
@@ -406,11 +425,14 @@ export default function MembershipsPage() {
     if (!canExecuteRecharge || !resolvedMember) return;
     setRecharging(true);
     try {
-      const res = await rechargeMembershipCard({
-        customerId: resolvedMember.customer.id,
-        creditAmount,
-        note: 'Staff recharge',
-      });
+      const res = await rechargeMembershipCard(
+        {
+          customerId: resolvedMember.customer.id,
+          creditAmount,
+          note: 'Staff recharge',
+        },
+        activeLocationId,
+      );
       setResolvedMember({
         ...resolvedMember,
         customer: {
@@ -550,7 +572,7 @@ export default function MembershipsPage() {
       ) : (
         <div className="space-y-4">
           {activeTab === 'settings' && (
-            <div className="glass-card border-white/10 p-4 sm:p-6 space-y-6">
+            <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.04] to-transparent p-4 sm:p-6 space-y-6">
               <div>
                 <h2 className="text-lg font-semibold">Module settings</h2>
                 <p className="text-sm text-muted-foreground mt-1">
@@ -695,22 +717,49 @@ export default function MembershipsPage() {
           )}
 
           {activeTab === 'recharge' && (
-            <div className="space-y-4">
-              <NfcCardLookupPanel
+            <div className="space-y-5">
+              <MemberLookupPanel
+                members={customers}
                 onMemberResolved={(result) => {
                   setResolvedMember(result);
                   setRechargeAmount('');
                 }}
-                disabled={!canUse('nfc_cards_enabled')}
               />
 
-              {resolvedMember && canUse('card_balance_enabled') && (
-                <div className="glass-card border-white/10 p-4 sm:p-5 space-y-4">
-                  <h3 className="font-semibold">Recharge {resolvedMember.customer.name}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Current balance:{' '}
-                    <CurrencyDisplay amount={resolvedMember.customer.cardBalance ?? 0} />
+              {canUse('nfc_cards_enabled') && (
+                <div className="space-y-2">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold px-1">
+                    Or tap NFC card
                   </p>
+                  <NfcCardLookupPanel
+                    onMemberResolved={(result) => {
+                      setResolvedMember(result);
+                      setRechargeAmount('');
+                    }}
+                  />
+                </div>
+              )}
+
+              {resolvedMember && canUse('card_balance_enabled') && (
+                <div className="rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-950/30 to-[#0a0814] p-5 sm:p-6 space-y-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">
+                        Recharge {resolvedMember.customer.name}
+                      </h3>
+                      {resolvedMember.customer.customerId && (
+                        <p className="text-sm font-mono text-cyan-200/80 mt-1">
+                          {resolvedMember.customer.customerId}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Current balance</p>
+                      <p className="text-2xl font-bold text-cyan-100 tabular-nums">
+                        <CurrencyDisplay amount={resolvedMember.customer.cardBalance ?? 0} />
+                      </p>
+                    </div>
+                  </div>
 
                   {canUse('recharge_tiers_enabled') && rechargeTiers.length > 0 && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -819,14 +868,15 @@ export default function MembershipsPage() {
           )}
 
           {activeTab === 'cards' && (
-            <div className="space-y-4">
-              <NfcCardLookupPanel
-                onMemberResolved={setResolvedMember}
-                disabled={!canUse('nfc_cards_enabled')}
-              />
+            <div className="space-y-5">
+              <MemberLookupPanel members={customers} onMemberResolved={setResolvedMember} />
+
+              {canUse('nfc_cards_enabled') && (
+                <NfcCardLookupPanel onMemberResolved={setResolvedMember} />
+              )}
 
               {canManageCards && canUse('physical_cards_inventory_enabled') && (
-                <div className="glass-card border-white/10 p-4 sm:p-5 space-y-4">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 sm:p-5 space-y-4">
                   <h3 className="font-semibold">Add to inventory</h3>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Input

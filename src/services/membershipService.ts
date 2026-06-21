@@ -14,8 +14,14 @@ export type MembershipFlags = Record<MembershipFeatureFlagKey, boolean>;
 type ApiOk<T> = { ok: true } & T;
 type ApiErr = { ok: false; error?: string };
 
-async function membershipGet<T>(query: string): Promise<T> {
-  const res = await adminFetch(`/api/admin/memberships?${query}`);
+function appendLocation(q: URLSearchParams, locationId?: string | null) {
+  if (locationId) q.set('location_id', locationId);
+  return q;
+}
+
+async function membershipGet<T>(query: URLSearchParams, locationId?: string | null): Promise<T> {
+  appendLocation(query, locationId);
+  const res = await adminFetch(`/api/admin/memberships?${query.toString()}`);
   const json = (await res.json().catch(() => ({}))) as ApiOk<T> | ApiErr;
   if (!res.ok || json.ok === false) {
     throw new Error((json as ApiErr).error || `Request failed (${res.status})`);
@@ -23,8 +29,14 @@ async function membershipGet<T>(query: string): Promise<T> {
   return json as T;
 }
 
-async function membershipPost<T>(op: string, args: Record<string, unknown> = {}): Promise<T> {
-  const res = await adminFetch('/api/admin/memberships', {
+async function membershipPost<T>(
+  op: string,
+  args: Record<string, unknown> = {},
+  locationId?: string | null,
+): Promise<T> {
+  const loc = locationId ?? (typeof args.locationId === 'string' ? args.locationId : null);
+  const qs = loc ? `?location_id=${encodeURIComponent(loc)}` : '';
+  const res = await adminFetch(`/api/admin/memberships${qs}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ op, args }),
@@ -38,87 +50,127 @@ async function membershipPost<T>(op: string, args: Record<string, unknown> = {})
 
 export async function fetchMembershipSettings(locationId?: string | null) {
   const q = new URLSearchParams({ op: 'fetchSettings' });
-  if (locationId) q.set('location_id', locationId);
   return membershipGet<{
     settings: { workspace: MembershipSettings | null; branch: MembershipSettings | null };
     flags: MembershipFlags;
-  }>(q.toString());
+  }>(q, locationId);
 }
 
-export async function fetchMembershipTiers() {
-  return membershipGet<{ tiers: MembershipTier[] }>('op=fetchTiers');
+export async function fetchMembershipTiers(locationId?: string | null) {
+  const q = new URLSearchParams({ op: 'fetchTiers' });
+  return membershipGet<{ tiers: MembershipTier[] }>(q, locationId);
 }
 
-export async function fetchRechargeTiers() {
-  return membershipGet<{ rechargeTiers: MembershipRechargeTier[] }>('op=fetchRechargeTiers');
+export async function fetchRechargeTiers(locationId?: string | null) {
+  const q = new URLSearchParams({ op: 'fetchRechargeTiers' });
+  return membershipGet<{ rechargeTiers: MembershipRechargeTier[] }>(q, locationId);
 }
 
-export async function fetchMembershipCoupons() {
-  return membershipGet<{ coupons: MembershipCoupon[] }>('op=fetchCoupons');
+export async function fetchMembershipCoupons(locationId?: string | null) {
+  const q = new URLSearchParams({ op: 'fetchCoupons' });
+  return membershipGet<{ coupons: MembershipCoupon[] }>(q, locationId);
 }
 
-export async function fetchMembershipCards() {
-  return membershipGet<{ cards: MembershipCard[] }>('op=fetchCards');
+export async function fetchMembershipCards(locationId?: string | null) {
+  const q = new URLSearchParams({ op: 'fetchCards' });
+  return membershipGet<{ cards: MembershipCard[] }>(q, locationId);
 }
 
-export async function lookupMembershipCard(uid: string) {
+export async function lookupMembershipCard(uid: string, locationId?: string | null) {
   const q = new URLSearchParams({ op: 'lookupCard', uid });
-  return membershipGet<{ result: unknown }>(q.toString());
+  return membershipGet<{ result: unknown }>(q, locationId);
 }
 
-export async function updateMembershipSettings(args: Record<string, unknown>) {
-  return membershipPost<{ settings: MembershipSettings }>('updateSettings', args);
+export async function lookupMember(ref: string, locationId?: string | null) {
+  const q = new URLSearchParams({ op: 'lookupMember', ref });
+  return membershipGet<{ result: unknown }>(q, locationId);
 }
 
-export async function upsertMembershipTier(tier: Partial<MembershipTier> & { name: string }) {
-  return membershipPost<{ tier: MembershipTier }>('upsertTier', tier as Record<string, unknown>);
+export async function updateMembershipSettings(
+  args: Record<string, unknown>,
+  locationId?: string | null,
+) {
+  return membershipPost<{ settings: MembershipSettings }>(
+    'updateSettings',
+    args,
+    locationId ?? (args.locationId as string | null | undefined),
+  );
 }
 
-export async function deleteMembershipTier(tierId: string) {
-  return membershipPost('deleteTier', { tierId });
+export async function upsertMembershipTier(
+  tier: Partial<MembershipTier> & { name: string },
+  locationId?: string | null,
+) {
+  return membershipPost<{ tier: MembershipTier }>(
+    'upsertTier',
+    tier as Record<string, unknown>,
+    locationId,
+  );
+}
+
+export async function deleteMembershipTier(tierId: string, locationId?: string | null) {
+  return membershipPost('deleteTier', { tierId }, locationId);
 }
 
 export async function upsertRechargeTier(
   tier: Partial<MembershipRechargeTier> & { payAmount: number; creditAmount: number },
+  locationId?: string | null,
 ) {
   return membershipPost<{ rechargeTier: MembershipRechargeTier }>(
     'upsertRechargeTier',
     tier as Record<string, unknown>,
+    locationId,
   );
 }
 
-export async function deleteRechargeTier(id: string) {
-  return membershipPost('deleteRechargeTier', { id });
+export async function deleteRechargeTier(id: string, locationId?: string | null) {
+  return membershipPost('deleteRechargeTier', { id }, locationId);
 }
 
 export async function upsertMembershipCoupon(
   coupon: Partial<MembershipCoupon> & { code: string },
+  locationId?: string | null,
 ) {
-  return membershipPost<{ coupon: MembershipCoupon }>('upsertCoupon', coupon as Record<string, unknown>);
+  return membershipPost<{ coupon: MembershipCoupon }>(
+    'upsertCoupon',
+    coupon as Record<string, unknown>,
+    locationId,
+  );
 }
 
-export async function deleteMembershipCoupon(id: string) {
-  return membershipPost('deleteCoupon', { id });
+export async function deleteMembershipCoupon(id: string, locationId?: string | null) {
+  return membershipPost('deleteCoupon', { id }, locationId);
 }
 
-export async function assignMembershipTier(args: Record<string, unknown>) {
-  return membershipPost('assignTier', args);
+export async function assignMembershipTier(args: Record<string, unknown>, locationId?: string | null) {
+  return membershipPost('assignTier', args, locationId);
 }
 
-export async function rechargeMembershipCard(args: Record<string, unknown>) {
-  return membershipPost<{ balanceAfter: number }>('recharge', args);
+export async function rechargeMembershipCard(
+  args: Record<string, unknown>,
+  locationId?: string | null,
+) {
+  return membershipPost<{ balanceAfter: number }>(
+    'recharge',
+    args,
+    locationId ?? (args.locationId as string | null | undefined),
+  );
 }
 
-export async function redeemMembershipCard(args: Record<string, unknown>) {
-  return membershipPost<{ balanceAfter: number }>('redeem', args);
+export async function redeemMembershipCard(args: Record<string, unknown>, locationId?: string | null) {
+  return membershipPost<{ balanceAfter: number }>('redeem', args, locationId);
 }
 
-export async function assignNfcCard(args: Record<string, unknown>) {
-  return membershipPost<{ card: MembershipCard }>('assignCard', args);
+export async function assignNfcCard(args: Record<string, unknown>, locationId?: string | null) {
+  return membershipPost<{ card: MembershipCard }>(
+    'assignCard',
+    args,
+    locationId ?? (args.locationId as string | null | undefined),
+  );
 }
 
 export async function addCardToInventory(uid: string, locationId?: string | null) {
-  return membershipPost<{ card: MembershipCard }>('addInventoryCard', { uid, locationId });
+  return membershipPost<{ card: MembershipCard }>('addInventoryCard', { uid, locationId }, locationId);
 }
 
 export function parseFlagsFromApi(raw: unknown) {

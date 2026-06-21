@@ -119,17 +119,21 @@ export interface MembershipLedgerEntry {
   createdAt: string;
 }
 
+export interface MembershipMemberCustomer {
+  id: string;
+  /** Display Customer ID (custom_id / CUE code) — primary staff reference. */
+  customerId?: string | null;
+  name: string;
+  phone: string;
+  email?: string | null;
+  membershipTierId?: string | null;
+  cardBalance: number;
+  membershipExpiryDate?: string | null;
+  membershipHoursLeft?: number | null;
+}
+
 export interface MembershipCardLookupResult {
-  card: MembershipCard;
-  customer: {
-    id: string;
-    name: string;
-    phone: string;
-    email?: string | null;
-    membershipTierId?: string | null;
-    cardBalance: number;
-    membershipExpiryDate?: string | null;
-    membershipHoursLeft?: number | null;
-  };
+  card: MembershipCard | null;
+  customer: MembershipMemberCustomer;
   tier?: MembershipTier | null;
 }

@@ -21,6 +21,7 @@ export function mergeNfcLookupWithCustomer(
 
   return {
     ...base,
+    customerId: result.customer.customerId ?? base.customerId,
     membershipTierId: tierId ?? undefined,
     membershipTierName: result.tier?.name ?? base.membershipTierName,
     cardBalance: result.customer.cardBalance ?? base.cardBalance ?? 0,

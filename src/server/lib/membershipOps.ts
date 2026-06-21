@@ -353,16 +353,34 @@ export async function lookupCardByUid(
     return { card: mapped, customer: null, tier: null };
   }
 
-  const { data: customer } = await supabase
+  return buildMemberLookupForCustomerId(supabase, organizationId, mapped.customerId, mapped);
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function displayCustomerId(row: Record<string, unknown>): string | null {
+  const custom = row.custom_id != null ? String(row.custom_id).trim() : '';
+  if (custom) return custom;
+  const legacy = row.customer_id != null ? String(row.customer_id).trim() : '';
+  if (legacy && !UUID_RE.test(legacy)) return legacy;
+  return null;
+}
+
+async function buildMemberLookupForCustomerId(
+  supabase: SupabaseClient,
+  organizationId: string,
+  customerUuid: string,
+  card: MembershipCard | null,
+) {
+  const { data: customer, error } = await supabase
     .from('customers')
-    .select(
-      'id, name, phone, email, membership_tier_id, card_balance, membership_expiry_date, membership_hours_left',
-    )
-    .eq('id', mapped.customerId)
+    .select('*')
+    .eq('id', customerUuid)
     .eq('organization_id', organizationId)
     .maybeSingle();
-
-  if (!customer) return { card: mapped, customer: null, tier: null };
+  if (error) throw new Error(error.message);
+  if (!customer) return { card, customer: null, tier: null };
 
   let tier = null;
   if (customer.membership_tier_id) {
@@ -374,20 +392,78 @@ export async function lookupCardByUid(
     if (tierRow) tier = mapTierRow(tierRow as Record<string, unknown>);
   }
 
+  let linkedCard = card;
+  if (!linkedCard && customer.active_card_id) {
+    const { data: cardRow } = await supabase
+      .from('membership_cards')
+      .select('*')
+      .eq('id', customer.active_card_id)
+      .maybeSingle();
+    if (cardRow) linkedCard = mapCard(cardRow as Record<string, unknown>);
+  }
+
+  const row = customer as Record<string, unknown>;
   return {
-    card: mapped,
+    card: linkedCard,
     customer: {
-      id: customer.id,
-      name: customer.name,
-      phone: customer.phone,
-      email: customer.email,
-      membershipTierId: customer.membership_tier_id,
+      id: String(customer.id),
+      customerId: displayCustomerId(row),
+      name: String(customer.name),
+      phone: String(customer.phone),
+      email: customer.email ? String(customer.email) : null,
+      membershipTierId: customer.membership_tier_id ? String(customer.membership_tier_id) : null,
       cardBalance: Number(customer.card_balance ?? 0),
-      membershipExpiryDate: customer.membership_expiry_date,
-      membershipHoursLeft: customer.membership_hours_left,
+      membershipExpiryDate: customer.membership_expiry_date
+        ? String(customer.membership_expiry_date)
+        : null,
+      membershipHoursLeft: customer.membership_hours_left ?? null,
     },
     tier,
   };
+}
+
+/** Find member by Customer ID (custom_id), phone, name, or internal UUID. */
+export async function lookupMemberByRef(
+  supabase: SupabaseClient,
+  organizationId: string,
+  locationId: string | null | undefined,
+  ref: string,
+) {
+  const term = ref.trim();
+  if (!term.length) return null;
+
+  const baseQuery = () => {
+    let q = supabase.from('customers').select('*').eq('organization_id', organizationId);
+    if (locationId) q = q.eq('location_id', locationId);
+    return q;
+  };
+
+  const tryOne = async (
+    build: (q: ReturnType<typeof baseQuery>) => ReturnType<typeof baseQuery>,
+  ) => {
+    const { data, error } = await build(baseQuery()).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as Record<string, unknown> | null;
+  };
+
+  let row: Record<string, unknown> | null = null;
+
+  if (UUID_RE.test(term)) {
+    row = await tryOne((q) => q.eq('id', term));
+  }
+  if (!row) row = await tryOne((q) => q.ilike('custom_id', term));
+  if (!row) row = await tryOne((q) => q.ilike('customer_id', term));
+  if (!row) {
+    const phoneDigits = term.replace(/\D/g, '');
+    if (phoneDigits.length >= 4) {
+      row = await tryOne((q) => q.ilike('phone', `%${phoneDigits}%`));
+    }
+  }
+  if (!row) row = await tryOne((q) => q.ilike('name', `%${term}%`));
+
+  if (!row) return null;
+
+  return buildMemberLookupForCustomerId(supabase, organizationId, String(row.id), null);
 }
 
 export async function assignCard(
