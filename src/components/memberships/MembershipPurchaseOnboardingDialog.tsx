@@ -49,9 +49,9 @@ export default function MembershipPurchaseOnboardingDialog({
 }: MembershipPurchaseOnboardingDialogProps) {
   const { toast } = useToast();
   const { activeLocationId } = useLocation();
-  const { isEnabled } = useMembershipFeatures();
-  const walletEnabled = isEnabled('card_balance_enabled');
-  const nfcEnabled = isEnabled('nfc_cards_enabled');
+  const { canUse } = useMembershipFeatures();
+  const walletEnabled = canUse('card_balance_enabled');
+  const nfcEnabled = canUse('nfc_cards_enabled');
 
   const [step, setStep] = useState<Step>('welcome');
   const [amount, setAmount] = useState('');
