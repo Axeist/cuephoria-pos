@@ -48,6 +48,7 @@ import { usePermission } from '@/context/PermissionsContext';
 import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { useAppSettings } from '@/hooks/useAppSettings';
+import { useViewMode } from '@/context/ViewModeContext';
 import { computeBillTaxFromCart } from '@/utils/tax.utils';
 
 const POS = () => {

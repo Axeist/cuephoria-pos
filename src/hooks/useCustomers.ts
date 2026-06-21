@@ -36,8 +36,11 @@ const CUSTOMER_CORE_FIELDS =
 
 const CUSTOMER_SELECT_ATTEMPTS = [
   `id,customer_id,custom_id,name,phone,email,is_member,membership_tier_id,card_balance,${CUSTOMER_CORE_FIELDS}`,
-  `id,customer_id,custom_id,name,phone,email,is_member,${CUSTOMER_CORE_FIELDS}`,
-  `id,customer_id,custom_id,name,phone,email,membership_tier_id,card_balance,${CUSTOMER_CORE_FIELDS}`,
+  `id,custom_id,name,phone,email,is_member,membership_tier_id,card_balance,${CUSTOMER_CORE_FIELDS}`,
+  `id,name,phone,email,is_member,membership_tier_id,card_balance,${CUSTOMER_CORE_FIELDS}`,
+  `id,name,phone,email,is_member,${CUSTOMER_CORE_FIELDS}`,
+  `id,name,phone,email,membership_tier_id,card_balance,${CUSTOMER_CORE_FIELDS}`,
+  '*',
 ] as const;
 
 let resolvedCustomerSelectFields: string | null = null;
@@ -69,14 +72,17 @@ async function resolveCustomerSelectFields(locationId: string): Promise<string> 
     if (!isMissingColumnError(error)) break;
   }
 
-  resolvedCustomerSelectFields = CUSTOMER_SELECT_ATTEMPTS[1];
+  resolvedCustomerSelectFields = '*';
   return resolvedCustomerSelectFields;
 }
 
 function mapCustomerRow(item: Record<string, unknown>): Customer {
   return {
     id: item.id as string,
-    customerId: (item.customer_id as string) || generateCustomerID(item.phone as string),
+    customerId:
+      (item.customer_id as string) ||
+      (item.custom_id as string) ||
+      generateCustomerID(item.phone as string),
     name: item.name as string,
     phone: item.phone as string,
     email: (item.email as string) || undefined,
@@ -250,6 +256,10 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           const results = await Promise.all(pagesToFetch.map(p => fetchCustomersPage(p, pageSize)));
           const batchError = results.find(r => r.error)?.error;
           if (batchError) {
+            if (isMissingColumnError(batchError) && selectFields !== '*') {
+              resolvedCustomerSelectFields = null;
+              return fetchCustomersFromDB(silent);
+            }
             console.error('Error fetching customers:', batchError);
             if (!silent) {
               toast({
