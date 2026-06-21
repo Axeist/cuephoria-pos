@@ -48,6 +48,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 import { usePermissions } from '@/context/PermissionsContext';
 import { useLocation } from '@/context/LocationContext';
 import { usePOS } from '@/context/POSContext';
