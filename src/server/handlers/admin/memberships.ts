@@ -13,7 +13,7 @@ import {
   assertMembershipFeature,
   resolveMembershipFlags,
 } from '../../lib/membershipFeatures';
-import type { MembershipFeatureFlagKey } from '../../types/membership.types';
+import type { MembershipFeatureFlagKey } from '../../../types/membership.types.js';
 import * as ops from '../../lib/membershipOps';
 
 export const config = { runtime: 'edge' };
@@ -104,10 +104,10 @@ export default async function handler(req: Request) {
       const featKey = OP_FEATURES[op];
       if (featKey) {
         const featGate = assertMembershipFeature(flags, featKey);
-        if (!featGate.ok) return j({ ok: false, error: featGate.error }, 403);
+        if (isDenied(featGate)) return j({ ok: false, error: featGate.error }, 403);
       } else if (op !== 'fetchSettings') {
         const modGate = assertMembershipFeature(flags, 'module_enabled');
-        if (!modGate.ok) return j({ ok: false, error: modGate.error }, 403);
+        if (isDenied(modGate)) return j({ ok: false, error: modGate.error }, 403);
       }
 
       if (op === 'fetchSettings') {
@@ -150,12 +150,12 @@ export default async function handler(req: Request) {
       if (isDenied(permGate)) return j({ ok: false, error: permGate.error }, 403);
 
       const modGate = assertMembershipFeature(flags, 'module_enabled');
-      if (!modGate.ok) return j({ ok: false, error: modGate.error }, 403);
+      if (isDenied(modGate)) return j({ ok: false, error: modGate.error }, 403);
 
       const featKey = OP_FEATURES[op];
       if (featKey) {
         const featGate = assertMembershipFeature(flags, featKey);
-        if (!featGate.ok) return j({ ok: false, error: featGate.error }, 403);
+        if (isDenied(featGate)) return j({ ok: false, error: featGate.error }, 403);
       }
 
       const args = (body.args ?? {}) as Record<string, unknown>;

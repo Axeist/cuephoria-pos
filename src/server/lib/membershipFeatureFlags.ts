@@ -2,9 +2,11 @@ import {
   DEFAULT_MEMBERSHIP_FEATURE_FLAGS,
   type MembershipFeatureFlagKey,
   type MembershipFeatureFlags,
-} from '../types/membership.types';
+} from '../constants/membershipCatalog.js';
 
-export function parseMembershipFeatureFlags(raw: unknown): Record<MembershipFeatureFlagKey, boolean> {
+export function parseMembershipFeatureFlags(
+  raw: unknown,
+): Record<MembershipFeatureFlagKey, boolean> {
   const base = { ...DEFAULT_MEMBERSHIP_FEATURE_FLAGS };
   if (!raw || typeof raw !== 'object') return base;
   const obj = raw as Record<string, unknown>;
@@ -17,7 +19,6 @@ export function parseMembershipFeatureFlags(raw: unknown): Record<MembershipFeat
   return base;
 }
 
-/** Merge workspace defaults with optional branch overrides (override wins when defined). */
 export function mergeMembershipFlags(
   workspace: MembershipFeatureFlags,
   branch?: MembershipFeatureFlags | null,

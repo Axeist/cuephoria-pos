@@ -2,9 +2,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   DEFAULT_MEMBERSHIP_FEATURE_FLAGS,
   type MembershipFeatureFlagKey,
-  type MembershipTier,
-} from '../../types/membership.types';
-import { mergeMembershipFlags, parseMembershipFeatureFlags } from '../../utils/membershipFeatureFlags';
+} from '../constants/membershipCatalog.js';
+import type { MembershipTier } from '../../types/membership.types.js';
+import { mergeMembershipFlags, parseMembershipFeatureFlags } from './membershipFeatureFlags.js';
 
 export type ResolvedMembershipFlags = Record<MembershipFeatureFlagKey, boolean>;
 

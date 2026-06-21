@@ -13,7 +13,7 @@ import type {
   StaffLeavePolicy,
   StaffProfile,
   StaffScope,
-} from "../../types/staff.types";
+} from "../../../types/staff.types.js";
 
 export const config = { runtime: "edge" };
 
