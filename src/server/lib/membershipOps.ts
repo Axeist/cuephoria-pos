@@ -217,9 +217,25 @@ async function syncTierProduct(
 ): Promise<MembershipTier> {
   if (!tier.isActive) return tier;
 
+  let locationId = tier.locationId ?? null;
+  if (!locationId) {
+    const { data: loc } = await supabase
+      .from('locations')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    locationId = loc?.id ? String(loc.id) : null;
+  }
+  if (!locationId) {
+    throw new Error('No branch location found — cannot sync membership product to POS catalog.');
+  }
+
   const now = new Date().toISOString();
   const productPayload = {
     organization_id: organizationId,
+    location_id: locationId,
     name: `${tier.name} Membership`,
     category: 'membership',
     price: tier.retailPrice ?? 0,
