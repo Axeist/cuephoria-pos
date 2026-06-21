@@ -8,7 +8,7 @@ import {
   Joystick,
 } from 'lucide-react';
 import type { Station } from '@/types/pos.types';
-import { getRateSuffix, isPerPlayerPricing } from '@/utils/stationPricing';
+import { getRateSuffix, isPerPlayerPricing, isTimeBasedPricing } from '@/utils/stationPricing';
 import { stationTypeLabel } from '@/utils/stationTypeUtils';
 import type { CSSProperties } from 'react';
 import {
@@ -227,11 +227,29 @@ export function getStationTheme(
 }
 
 export function stationPricingBadge(station: Station): string {
-  const mode = isPerPlayerPricing(station) ? 'Per player' : 'Flat rate';
+  const isTimeBased = isTimeBasedPricing(station);
+  const mode = isTimeBased 
+    ? 'Time-based' 
+    : isPerPlayerPricing(station) 
+      ? 'Per player' 
+      : 'Flat rate';
+  
   const players =
     isPerPlayerPricing(station) && (station.maxPlayers ?? 1) > 1
       ? ` · up to ${station.maxPlayers}p`
       : '';
+
+  if (isTimeBased) {
+    const tiers = station.durationTiers && station.durationTiers.length > 0
+      ? station.durationTiers
+      : [{ minutes: 30, price: 250 }, { minutes: 60, price: 400 }];
+    const sorted = [...tiers].sort((a, b) => a.minutes - b.minutes);
+    const tierStrings = sorted.map(t => {
+      const suffix = t.minutes >= 60 ? `${t.minutes / 60}hr` : `${t.minutes}m`;
+      return `₹${t.price}/${suffix}`;
+    });
+    return `${tierStrings.join(' · ')} · ${mode}${players}`;
+  }
 
   // For slot-duration stations show both the slot price and the hourly price
   if (station.slotDuration && station.slotDuration < 60 && station.slotDuration > 0) {

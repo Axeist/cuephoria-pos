@@ -186,8 +186,43 @@ export function getRateSuffix(station: Pick<Station, 'type' | 'slotDuration' | '
 
 /** Compact rate for tight stat boxes (amount + suffix on separate lines). */
 export function formatStationRateCompact(
-  station: Pick<Station, 'hourlyRate' | 'type' | 'slotDuration' | 'category'>
+  station: Pick<Station, 'hourlyRate' | 'type' | 'slotDuration' | 'category' | 'pricingMode' | 'durationTiers'>
 ): { amount: string; suffix: string; amount2?: string; suffix2?: string } {
+  // For time-based stations show the actual tier packages
+  if (isTimeBasedPricing(station)) {
+    const tiers = station.durationTiers && station.durationTiers.length > 0
+      ? station.durationTiers
+      : [{ minutes: 30, price: 250 }, { minutes: 60, price: 400 }];
+    const sorted = [...tiers].sort((a, b) => a.minutes - b.minutes);
+    const tier1 = sorted[0];
+    const tier2 = sorted[1];
+    
+    const formatTier = (tier: { minutes: number; price: number }) => {
+      const suffix = tier.minutes >= 60
+        ? `/${tier.minutes / 60}hr`
+        : `/${tier.minutes}m`;
+      return {
+        amount: `₹${tier.price}`,
+        suffix
+      };
+    };
+
+    const res1 = formatTier(tier1);
+    if (tier2) {
+      const res2 = formatTier(tier2);
+      return {
+        amount: res1.amount,
+        suffix: res1.suffix,
+        amount2: res2.amount,
+        suffix2: res2.suffix
+      };
+    }
+    return {
+      amount: res1.amount,
+      suffix: res1.suffix
+    };
+  }
+
   // For slot-duration stations show both the slot price and the hourly price
   if (station.slotDuration && station.slotDuration < 60 && station.slotDuration > 0) {
     const slotMins = station.slotDuration;
