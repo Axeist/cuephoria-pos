@@ -447,43 +447,48 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     };
   }, [activeLocationId, hydrateCustomers]);
 
-  // Membership expiry check
+  // Membership expiry — clear tier only for customers whose period just ended (not all non-members).
+  const expirySyncedRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
+    if (!customers.length) return;
+
     const now = new Date();
-    let customersUpdated = false;
-    
-    const checkExpirations = async () => {
-      const updatedCustomers = customers.map(customer => {
-        if (customer.isMember && customer.membershipExpiryDate) {
-          const expiryDate = new Date(customer.membershipExpiryDate);
-          
-          if (expiryDate < now) {
-            customersUpdated = true;
-            console.log(`Membership expired for ${customer.name}`);
-            return {
-              ...customer,
-              isMember: false
-            };
-          }
-        }
-        return customer;
-      });
-      
-      if (customersUpdated) {
-        setCustomers(updatedCustomers);
-        
-        for (const customer of updatedCustomers) {
-          if (!customer.isMember) {
-            await supabase
-              .from('customers')
-              .update({ is_member: false })
-              .eq('id', customer.id);
-          }
+    const toExpire: string[] = [];
+
+    for (const customer of customers) {
+      if (!customer.isMember || !customer.membershipExpiryDate) continue;
+      if (new Date(customer.membershipExpiryDate) >= now) continue;
+      if (expirySyncedRef.current.has(customer.id)) continue;
+      toExpire.push(customer.id);
+    }
+
+    if (toExpire.length === 0) return;
+
+    setCustomers((prev) =>
+      prev.map((c) =>
+        toExpire.includes(c.id)
+          ? { ...c, isMember: false, membershipTierId: undefined }
+          : c,
+      ),
+    );
+
+    void (async () => {
+      for (const id of toExpire) {
+        expirySyncedRef.current.add(id);
+        const { error } = await supabase
+          .from('customers')
+          .update({
+            membership_tier_id: null,
+            membership_expiry_date: null,
+          })
+          .eq('id', id);
+        if (error) {
+          expirySyncedRef.current.delete(id);
+          console.warn(`[customers] expiry sync failed for ${id}:`, error.message);
         }
       }
-    };
-    
-    checkExpirations();
+    })();
   }, [customers]);
   
   // ✅ UPDATED: Duplicate check with normalized phone comparison
@@ -561,6 +566,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           let mergedTotalSpent = keepCustomer.totalSpent;
           let mergedPlayTime = keepCustomer.totalPlayTime;
           let mergedIsMember = keepCustomer.isMember;
+          let mergedTierId = keepCustomer.membershipTierId;
           let mergedMembershipPlan = keepCustomer.membershipPlan;
           let mergedMembershipHoursLeft = keepCustomer.membershipHoursLeft;
           let mergedMembershipExpiryDate = keepCustomer.membershipExpiryDate;
@@ -576,6 +582,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
             // Keep membership if any has it
             if (dup.isMember && !mergedIsMember) {
               mergedIsMember = true;
+              mergedTierId = dup.membershipTierId || mergedTierId;
               mergedMembershipPlan = dup.membershipPlan || mergedMembershipPlan;
               mergedMembershipHoursLeft = dup.membershipHoursLeft || mergedMembershipHoursLeft;
               mergedMembershipExpiryDate = dup.membershipExpiryDate || mergedMembershipExpiryDate;
@@ -617,12 +624,11 @@ export const useCustomers = (initialCustomers: Customer[]) => {
               loyalty_points: mergedLoyaltyPoints,
               total_spent: mergedTotalSpent,
               total_play_time: mergedPlayTime,
-              is_member: mergedIsMember,
-              membership_plan: mergedMembershipPlan,
+              membership_tier_id: mergedTierId ?? null,
               membership_hours_left: mergedMembershipHoursLeft,
               membership_expiry_date: mergedMembershipExpiryDate?.toISOString(),
               membership_start_date: mergedMembershipStartDate?.toISOString(),
-              email: mergedEmail || null
+              email: mergedEmail || null,
             })
             .eq('id', keepCustomer.id);
           
@@ -702,23 +708,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         .maybeSingle();
       
       if (existingByPhone) {
-        const existingCustomer: Customer = {
-          id: existingByPhone.id,
-          customerId: (existingByPhone as any).customer_id || generateCustomerID(existingByPhone.phone),
-          name: existingByPhone.name,
-          phone: existingByPhone.phone,
-          email: existingByPhone.email || undefined,
-          isMember: existingByPhone.is_member,
-          membershipExpiryDate: existingByPhone.membership_expiry_date ? new Date(existingByPhone.membership_expiry_date) : undefined,
-          membershipStartDate: existingByPhone.membership_start_date ? new Date(existingByPhone.membership_start_date) : undefined,
-          membershipPlan: existingByPhone.membership_plan || undefined,
-          membershipHoursLeft: existingByPhone.membership_hours_left || undefined,
-          membershipDuration: existingByPhone.membership_duration as 'weekly' | 'monthly' | undefined,
-          loyaltyPoints: existingByPhone.loyalty_points,
-          totalSpent: existingByPhone.total_spent,
-          totalPlayTime: existingByPhone.total_play_time,
-          createdAt: new Date(existingByPhone.created_at)
-        };
+        const existingCustomer = mapCustomerRow(existingByPhone as Record<string, unknown>);
         
         toast({
           title: 'Duplicate Customer',
@@ -739,23 +729,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           .maybeSingle();
         
         if (existingByEmail) {
-          const existingCustomer: Customer = {
-            id: existingByEmail.id,
-            customerId: (existingByEmail as any).customer_id || generateCustomerID(existingByEmail.phone),
-            name: existingByEmail.name,
-            phone: existingByEmail.phone,
-            email: existingByEmail.email || undefined,
-            isMember: existingByEmail.is_member,
-            membershipExpiryDate: existingByEmail.membership_expiry_date ? new Date(existingByEmail.membership_expiry_date) : undefined,
-            membershipStartDate: existingByEmail.membership_start_date ? new Date(existingByEmail.membership_start_date) : undefined,
-            membershipPlan: existingByEmail.membership_plan || undefined,
-            membershipHoursLeft: existingByEmail.membership_hours_left || undefined,
-            membershipDuration: existingByEmail.membership_duration as 'weekly' | 'monthly' | undefined,
-            loyaltyPoints: existingByEmail.loyalty_points,
-            totalSpent: existingByEmail.total_spent,
-            totalPlayTime: existingByEmail.total_play_time,
-            createdAt: new Date(existingByEmail.created_at)
-          };
+          const existingCustomer = mapCustomerRow(existingByEmail as Record<string, unknown>);
           
           toast({
             title: 'Duplicate Customer',
@@ -785,12 +759,12 @@ export const useCustomers = (initialCustomers: Customer[]) => {
       const { data, error } = await supabase
         .from('customers')
         .insert({
-          custom_id: customerID, // ✅ Use custom_id (required field)
-          customer_id: customerID, // Also set customer_id for backward compatibility
+          custom_id: customerID,
+          customer_id: customerID,
           name: customer.name,
-          phone: normalizedPhone, // ✅ Store normalized phone
+          phone: normalizedPhone,
           email: customer.email,
-          is_member: customer.isMember,
+          membership_tier_id: customer.membershipTierId ?? null,
           membership_expiry_date: customer.membershipExpiryDate?.toISOString(),
           membership_start_date: customer.membershipStartDate?.toISOString(),
           membership_plan: customer.membershipPlan,
@@ -816,23 +790,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
             .maybeSingle();
           
           if (existing) {
-            const existingCustomer: Customer = {
-              id: existing.id,
-              customerId: (existing as any).customer_id || generateCustomerID(existing.phone),
-              name: existing.name,
-              phone: existing.phone,
-              email: existing.email || undefined,
-              isMember: existing.is_member,
-              membershipExpiryDate: existing.membership_expiry_date ? new Date(existing.membership_expiry_date) : undefined,
-              membershipStartDate: existing.membership_start_date ? new Date(existing.membership_start_date) : undefined,
-              membershipPlan: existing.membership_plan || undefined,
-              membershipHoursLeft: existing.membership_hours_left || undefined,
-              membershipDuration: existing.membership_duration as 'weekly' | 'monthly' | undefined,
-              loyaltyPoints: existing.loyalty_points,
-              totalSpent: existing.total_spent,
-              totalPlayTime: existing.total_play_time,
-              createdAt: new Date(existing.created_at)
-            };
+            const existingCustomer = mapCustomerRow(existing as Record<string, unknown>);
             
             toast({
               title: 'Duplicate Customer',
@@ -853,23 +811,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
       }
       
       if (data) {
-        const newCustomer: Customer = {
-          id: data.id,
-          customerId: (data as any).customer_id, // ✅ Map customer_id
-          name: data.name,
-          phone: data.phone,
-          email: data.email || undefined,
-          isMember: data.is_member,
-          membershipExpiryDate: data.membership_expiry_date ? new Date(data.membership_expiry_date) : undefined,
-          membershipStartDate: data.membership_start_date ? new Date(data.membership_start_date) : undefined,
-          membershipPlan: data.membership_plan || undefined,
-          membershipHoursLeft: data.membership_hours_left || undefined,
-          membershipDuration: data.membership_duration as 'weekly' | 'monthly' | undefined,
-          loyaltyPoints: data.loyalty_points,
-          totalSpent: data.total_spent,
-          totalPlayTime: data.total_play_time,
-          createdAt: new Date(data.created_at)
-        };
+        const newCustomer = mapCustomerRow(data as Record<string, unknown>);
         
         setCustomers(prev => [...prev, newCustomer]);
         
