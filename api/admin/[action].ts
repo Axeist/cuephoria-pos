@@ -46,6 +46,7 @@ import verifyEmail from "../../src/server/handlers/admin/verify-email";
 import records from "../../src/server/handlers/admin/records";
 import analytics from "../../src/server/handlers/admin/analytics";
 import ops from "../../src/server/handlers/admin/ops";
+import memberships from "../../src/server/handlers/admin/memberships";
 
 export const config = { runtime: "edge" };
 
@@ -79,6 +80,7 @@ const routes: Record<string, Handler> = {
   "records": records,
   "analytics": analytics,
   "ops": ops,
+  "memberships": memberships,
 };
 
 export default async function dispatcher(req: Request): Promise<Response> {

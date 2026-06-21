@@ -146,6 +146,7 @@ export function minPlanForFeature(key: PlanFeatureKey): string {
     key === "public_booking" ||
     key === "tournaments_enabled" ||
     key === "loyalty_enabled" ||
+    key === "memberships_enabled" ||
     key === "exports_enabled"
   ) {
     return "growth";

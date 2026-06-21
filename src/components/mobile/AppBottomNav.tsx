@@ -76,6 +76,7 @@ export function AppBottomNav() {
     "/customers",
     "/reports",
     "/tournaments",
+    "/memberships",
     "/staff",
     "/staff-portal",
     "/chat-ai",

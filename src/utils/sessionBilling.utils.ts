@@ -63,13 +63,13 @@ export function usesPresetSessionBilling(plannedDurationMinutes?: number): boole
 export function calculatePresetSessionCheckoutCost(
   hourlyRate: number,
   billableMs: number,
-  isMember = false
+  playtimeDiscountPct = 0
 ): { cost: number; actualMinutes: number; billedMinutes: number } {
   const actualMinutes = Math.max(0, Math.ceil(billableMs / (1000 * 60)));
   const billedMinutes = getPresetSessionBilledMinutes(actualMinutes);
   let cost = Math.ceil((billedMinutes / 60) * hourlyRate);
-  if (isMember) {
-    cost = Math.ceil(cost * 0.5);
+  if (playtimeDiscountPct > 0) {
+    cost = Math.ceil(cost * (1 - Math.min(100, playtimeDiscountPct) / 100));
   }
   return { cost, actualMinutes, billedMinutes };
 }
@@ -124,10 +124,12 @@ export function shouldShowEarlyEndPrompt(
 export function calculateFullBlockCost(
   hourlyRate: number,
   plannedDurationMinutes: number,
-  isMember = false,
+  playtimeDiscountPct = 0,
 ): number {
   let cost = Math.ceil((plannedDurationMinutes / 60) * hourlyRate);
-  if (isMember) cost = Math.ceil(cost * 0.5);
+  if (playtimeDiscountPct > 0) {
+    cost = Math.ceil(cost * (1 - Math.min(100, playtimeDiscountPct) / 100));
+  }
   return cost;
 }
 
@@ -138,12 +140,14 @@ export function calculateFullBlockCost(
 export function calculateFullBlockTierCost(
   plannedDurationMinutes: number,
   tiers: { minutes: number; price: number }[],
-  isMember = false,
+  playtimeDiscountPct = 0,
 ): number {
   const sorted = [...tiers].sort((a, b) => a.minutes - b.minutes);
   const match = sorted.find((t) => plannedDurationMinutes <= t.minutes) ?? sorted[sorted.length - 1];
   let cost = match?.price ?? 0;
-  if (isMember) cost = Math.ceil(cost * 0.5);
+  if (playtimeDiscountPct > 0) {
+    cost = Math.ceil(cost * (1 - Math.min(100, playtimeDiscountPct) / 100));
+  }
   return cost;
 }
 
@@ -164,7 +168,7 @@ export interface EarlyEndDetails {
 export function getEarlyEndDetails(
   session: EarlyEndSession,
   hourlyRate: number,
-  isMember: boolean,
+  playtimeDiscountPct: number,
   billableMs: number,
   tiers?: { minutes: number; price: number }[],
 ): EarlyEndDetails | null {
@@ -178,13 +182,12 @@ export function getEarlyEndDetails(
   if (minutesRemaining <= EARLY_END_THRESHOLD_MINUTES) return null;
 
   // Actual cost — uses existing preset billing logic (≤60 min applies tier rounding)
-  const { cost: actualCost } = calculatePresetSessionCheckoutCost(hourlyRate, billableMs, isMember);
+  const { cost: actualCost } = calculatePresetSessionCheckoutCost(hourlyRate, billableMs, playtimeDiscountPct);
 
-  // Full-block cost
   const fullBlockCost =
     tiers && tiers.length > 0
-      ? calculateFullBlockTierCost(planned, tiers, isMember)
-      : calculateFullBlockCost(hourlyRate, planned, isMember);
+      ? calculateFullBlockTierCost(planned, tiers, playtimeDiscountPct)
+      : calculateFullBlockCost(hourlyRate, planned, playtimeDiscountPct);
 
   return { playedMinutes, plannedMinutes: planned, minutesRemaining, actualCost, fullBlockCost };
 }

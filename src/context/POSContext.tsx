@@ -36,6 +36,9 @@ import {
 } from '@/utils/prepaidBooking.utils';
 import { getBillableMs, resolveSessionForBilling } from '@/utils/sessionTimer.utils';
 import type { EarlyEndBillingMode } from '@/hooks/stations/session-actions/useEndSession';
+import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
+import { useMembershipTiers } from '@/hooks/useMembershipTiers';
+import { resolveMemberFnbUnitPrice } from '@/utils/membershipBenefits.utils';
 
 const CATEGORY_APPEARANCE_STORAGE_KEY = 'cuephoria_category_appearance_columns';
 
@@ -244,6 +247,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const { toast } = useToast();
   const { activeLocationId } = useLocation();
+  const { isEnabled: membershipModuleEnabled, flags: membershipFlags } = useMembershipFeatures();
+  const { tiers: membershipTiers } = useMembershipTiers();
 
   const updateCategoryAppearance = useCallback(
     async (
@@ -339,10 +344,63 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (item: Omit<CartItem, 'total'>) => {
       const product = products.find((p) => p.id === item.id);
       const stockLimit = getProductStockLimit(product);
-      addToCart(item, stockLimit ?? undefined);
+      const category = item.category ?? product?.category ?? '';
+      const tier = membershipTiers.find((t) => t.id === selectedCustomer?.membershipTierId);
+      const unitPrice = resolveMemberFnbUnitPrice(
+        item.price,
+        category,
+        selectedCustomer,
+        tier,
+        membershipModuleEnabled,
+        membershipFlags.tier_plans_enabled,
+      );
+      addToCart({ ...item, price: unitPrice }, stockLimit ?? undefined);
     },
-    [products, addToCart]
+    [
+      products,
+      addToCart,
+      selectedCustomer,
+      membershipTiers,
+      membershipModuleEnabled,
+      membershipFlags.tier_plans_enabled,
+    ],
   );
+
+  // Re-apply member F&B pricing when the selected customer or tier config changes.
+  useEffect(() => {
+    if (!cart.length) return;
+    setCart((prev) => {
+      let changed = false;
+      const next = prev.map((item) => {
+        if (item.type !== 'product' || item.category === 'membership' || item.category === 'challenges') {
+          return item;
+        }
+        const product = products.find((p) => p.id === item.id);
+        const basePrice = product?.price ?? item.price;
+        const tier = membershipTiers.find((t) => t.id === selectedCustomer?.membershipTierId);
+        const unitPrice = resolveMemberFnbUnitPrice(
+          basePrice,
+          item.category ?? product?.category ?? '',
+          selectedCustomer,
+          tier,
+          membershipModuleEnabled,
+          membershipFlags.tier_plans_enabled,
+        );
+        if (unitPrice === item.price) return item;
+        changed = true;
+        return { ...item, price: unitPrice, total: unitPrice * item.quantity };
+      });
+      return changed ? next : prev;
+    });
+  }, [
+    selectedCustomer?.id,
+    selectedCustomer?.membershipTierId,
+    membershipTiers,
+    membershipModuleEnabled,
+    membershipFlags.tier_plans_enabled,
+    products,
+    setCart,
+  ]);
 
   const updateCartItemWithStock = useCallback(
     (id: string, quantity: number, stationName?: string) => {
@@ -1235,7 +1293,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // ✅ UPDATED: completeSale with custom timestamp support
   // ============================================
   const completeSale = async (
-    paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary',
+    paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'card',
     status: 'completed' | 'complimentary' = 'completed',
     compNote?: string,
     customTimestamp?: Date
@@ -1306,6 +1364,26 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       if (bill) {
         console.log("Bill created successfully:", bill);
+
+        if (paymentMethod === 'card' && !isSplitPayment) {
+          try {
+            const { redeemMembershipCard } = await import('@/services/membershipService');
+            await redeemMembershipCard({
+              customerId: selectedCustomer.id,
+              amount: bill.total,
+              referenceType: 'bill',
+              referenceId: bill.id,
+            });
+          } catch (redeemErr) {
+            console.error('Card redemption failed:', redeemErr);
+            toast({
+              title: 'Card payment failed',
+              description: redeemErr instanceof Error ? redeemErr.message : 'Could not debit card balance',
+              variant: 'destructive',
+            });
+            return undefined;
+          }
+        }
         
         // ============================================
         // CART PERSISTENCE: Clear from localStorage after successful sale
@@ -1334,7 +1412,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               updateCustomerMembership(selectedCustomer.id, {
                 membershipPlan: product.name,
                 membershipDuration: membershipDuration,
-                membershipHoursLeft: membershipHours
+                membershipHoursLeft: membershipHours,
+                membershipTierId: product.membershipTierId,
               });
               
               break;

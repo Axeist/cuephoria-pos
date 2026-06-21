@@ -69,6 +69,7 @@ export const convertFromSupabaseProduct = (item: any): any => {
     studentPrice: item.student_price || undefined,
     duration: item.duration || undefined,
     membershipHours: item.membership_hours || undefined,
+    membershipTierId: item.membership_tier_id || undefined,
     // Add the new fields
     buyingPrice: item.buying_price || undefined,
     sellingPrice: item.selling_price || undefined,
@@ -93,6 +94,7 @@ export const convertToSupabaseProduct = (product: any): any => {
     student_price: product.studentPrice,
     duration: product.duration,
     membership_hours: product.membershipHours,
+    membership_tier_id: product.membershipTierId ?? null,
     // Add the new fields
     buying_price: product.buyingPrice,
     selling_price: product.sellingPrice,

@@ -27,6 +27,7 @@ import locations from "../../src/server/handlers/tenant/locations";
 import signupGoogleIdentity from "../../src/server/handlers/tenant/signup-google-identity";
 import signupGoogle from "../../src/server/handlers/tenant/signup-google";
 import signup from "../../src/server/handlers/tenant/signup";
+import membershipCouponValidate from "../../src/server/handlers/tenant/membership-coupon-validate";
 
 export const config = { runtime: "edge" };
 
@@ -44,6 +45,7 @@ const routes: Record<string, Handler> = {
   "signup-google-identity": signupGoogleIdentity,
   "signup-google": signupGoogle,
   "signup": signup,
+  "membership-coupon-validate": membershipCouponValidate,
 };
 
 export default async function dispatcher(req: Request): Promise<Response> {

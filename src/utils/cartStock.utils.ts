@@ -2,7 +2,7 @@ import type { CartItem, Product } from '@/types/pos.types';
 
 /** Max units allowed in cart for this product; null = unlimited (e.g. membership). */
 export function getProductStockLimit(product: Product | undefined): number | null {
-  if (!product || product.category === 'membership') return null;
+  if (!product || product.category === 'membership' || product.category === 'membership_card') return null;
   return Math.max(0, Number(product.stock) || 0);
 }
 

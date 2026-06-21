@@ -465,6 +465,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
   const [appliedCoupons, setAppliedCoupons] = useState<Record<string, string>>({});
   const [couponCode, setCouponCode] = useState("");
+  const [memberVenueCouponValid, setMemberVenueCouponValid] = useState(false);
 
   const [paymentMethod, setPaymentMethod] = useState<"venue" | "razorpay">("venue");
   const [loading, setLoading] = useState(false);
@@ -480,12 +481,12 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     }
   }, [onlinePaymentEnabled, paymentMethod]);
 
-  // Discount coupons require online payment (Razorpay)
+  // Discount coupons require online payment (Razorpay) unless member venue coupon
   useEffect(() => {
-    if (hasAppliedCoupons && onlinePaymentEnabled) {
+    if (hasAppliedCoupons && onlinePaymentEnabled && !memberVenueCouponValid) {
       setPaymentMethod("razorpay");
     }
-  }, [hasAppliedCoupons, onlinePaymentEnabled]);
+  }, [hasAppliedCoupons, onlinePaymentEnabled, memberVenueCouponValid]);
 
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
@@ -1156,15 +1157,47 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       delete c[key];
       return c;
     });
+    setMemberVenueCouponValid(false);
   }
 
-  function applyCoupon(raw: string) {
+  async function tryMemberVenueCoupon(code: string): Promise<boolean> {
+    if (!publicLocationId || !customerInfo.phone?.trim()) return false;
+    try {
+      const res = await fetch("/api/tenant/membership-coupon-validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location_id: publicLocationId,
+          phone: customerInfo.phone.trim(),
+          code: code.toUpperCase().trim(),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json?.ok) {
+        setMemberVenueCouponValid(true);
+        setAppliedCoupons({ all: code.toUpperCase().trim() });
+        setPaymentMethod("venue");
+        toast.success("Member coupon applied — you can pay at the venue.");
+        return true;
+      }
+    } catch {
+      /* fall through to standard coupons */
+    }
+    return false;
+  }
+
+  async function applyCoupon(raw: string) {
+    const code = (raw || "").toUpperCase().trim();
+    if (!code) return;
+
+    if (await tryMemberVenueCoupon(code)) return;
+
     if (!onlinePaymentEnabled) {
       toast.error("Online payment is unavailable. Coupons cannot be applied — pay at venue without a coupon or call us.");
       return;
     }
 
-    const code = (raw || "").toUpperCase().trim();
+    setMemberVenueCouponValid(false);
     if (!allowedCoupons.includes(code)) {
       toast.error("🚫 Invalid coupon code. Please re-check and try again!");
       return;
@@ -2064,7 +2097,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       toast.error("Coupons require online payment, which is unavailable. Remove the coupon or call us.");
       return;
     }
-    if (hasAppliedCoupons && paymentMethod !== "razorpay") {
+    if (hasAppliedCoupons && paymentMethod !== "razorpay" && !memberVenueCouponValid) {
       toast.error("Please choose Pay Online — coupons are only valid with online payment.");
       return;
     }

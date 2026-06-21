@@ -149,15 +149,15 @@ export function getPrepaidOvertimeMs(
 export function calculatePrepaidOvertimeCost(
   hourlyRate: number,
   overtimeMs: number,
-  isMember = false
+  playtimeDiscountPct = 0
 ): { overtimeMinutes: number; cost: number } {
   if (overtimeMs <= 0) {
     return { overtimeMinutes: 0, cost: 0 };
   }
   const overtimeMinutes = Math.max(1, Math.ceil(overtimeMs / 60000));
   let cost = Math.ceil((overtimeMinutes / 60) * hourlyRate);
-  if (isMember) {
-    cost = Math.ceil(cost * 0.5);
+  if (playtimeDiscountPct > 0) {
+    cost = Math.ceil(cost * (1 - Math.min(100, playtimeDiscountPct) / 100));
   }
   return { overtimeMinutes, cost };
 }

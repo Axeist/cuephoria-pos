@@ -104,7 +104,7 @@ export function buildTimeBasedSessionPricing(
 export function calculateTimeBasedLiveCost(
   session: Pick<Session, 'plannedDurationMinutes' | 'timeTierPrice' | 'overtimePerMinute'>,
   billableMs: number,
-  isMember = false
+  playtimeDiscountPct = 0
 ): number {
   const planned = session.plannedDurationMinutes ?? 0;
   const base = session.timeTierPrice ?? 0;
@@ -114,7 +114,9 @@ export function calculateTimeBasedLiveCost(
   const playedMinutes = Math.ceil(billableMs / (1000 * 60));
   const overtimeMinutes = Math.max(0, playedMinutes - planned);
   let cost = base + overtimeMinutes * perMin;
-  if (isMember) cost = Math.ceil(cost * 0.5);
+  if (playtimeDiscountPct > 0) {
+    cost = Math.ceil(cost * (1 - Math.min(100, playtimeDiscountPct) / 100));
+  }
   return Math.ceil(cost);
 }
 

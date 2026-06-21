@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +15,7 @@ import CustomerCard from '@/components/CustomerCard';
 import CustomerInsightWidgets from '@/components/customers/CustomerInsightWidgets';
 import { useToast } from '@/hooks/use-toast';
 import { usePermissions } from '@/context/PermissionsContext';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useLocation as useLocationCtx } from '@/context/LocationContext';
 
@@ -77,9 +77,6 @@ const Customers = () => {
     name: '',
     phone: '',
     email: '',
-    isMember: false,
-    membershipExpiryDate: '',
-    membershipHoursLeft: ''
   });
   
   const { toast } = useToast();
@@ -88,7 +85,7 @@ const Customers = () => {
   const canEditCustomer = can('customers.edit');
   const canDeleteCustomer = can('customers.delete');
   const canExportCustomers = can('customers.export');
-  const canEditMembership = can('customers.membership_edit');
+  const canManageMemberships = can('memberships.customers.edit');
 
   let posContext;
   try {
@@ -252,9 +249,6 @@ const Customers = () => {
       name: '',
       phone: '',
       email: '',
-      isMember: false,
-      membershipExpiryDate: '',
-      membershipHoursLeft: ''
     });
     setPhoneError('');
     setEmailError('');
@@ -273,14 +267,10 @@ const Customers = () => {
     setIsEditMode(true);
     setSelectedCustomer(customer);
 
-    const expiryDate = customer.membershipExpiryDate ? new Date(customer.membershipExpiryDate).toISOString().split('T')[0] : '';
     setFormState({
       name: customer.name,
       phone: customer.phone,
       email: customer.email || '',
-      isMember: customer.isMember,
-      membershipExpiryDate: expiryDate,
-      membershipHoursLeft: customer.membershipHoursLeft !== undefined ? customer.membershipHoursLeft.toString() : ''
     });
     setIsDialogOpen(true);
   };
@@ -331,7 +321,7 @@ const Customers = () => {
   // ✅ FIXED: Using custom_id (not customer_id)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { name, phone, email, isMember, membershipExpiryDate, membershipHoursLeft } = formState;
+    const { name, phone, email } = formState;
     
     if (!name || !phone) {
       toast({
@@ -411,22 +401,12 @@ const Customers = () => {
     try {
       if (isEditMode && selectedCustomer) {
         // ✅ Update with correct field name: custom_id
-        const updateData: any = {
+        const updateData: Record<string, unknown> = {
           name: name.trim(),
           phone: normalizedPhone,
           email: email?.trim() || null,
-          custom_id: customerID,          // ✅ FIXED: custom_id
-          is_member: isMember
+          custom_id: customerID,
         };
-
-        if (isMember) {
-          if (membershipExpiryDate) {
-            updateData.membership_expiry_date = new Date(membershipExpiryDate).toISOString();
-          }
-          if (membershipHoursLeft) {
-            updateData.membership_hours_left = parseInt(membershipHoursLeft, 10);
-          }
-        }
 
         const { error: updateError } = await supabase
           .from('customers')
@@ -464,11 +444,7 @@ const Customers = () => {
           name: name.trim(),
           phone: normalizedPhone,
           email: email?.trim() || undefined,
-          isMember,
-          membershipExpiryDate:
-            isMember && membershipExpiryDate ? new Date(membershipExpiryDate) : undefined,
-          membershipHoursLeft:
-            isMember && membershipHoursLeft ? parseInt(membershipHoursLeft, 10) : undefined,
+          isMember: false,
           loyaltyPoints: 0,
           totalSpent: 0,
           totalPlayTime: 0,
@@ -516,13 +492,6 @@ const Customers = () => {
     if (name === 'email') setEmailError('');
   };
 
-  const handleSwitchChange = (checked: boolean) => {
-    setFormState(prev => ({
-      ...prev,
-      isMember: checked
-    }));
-  };
-
   const resolveDuplicate = (phoneGroup: { phone: string; customers: Customer[] }, keepCustomerId: string) => {
     const toDelete = phoneGroup.customers.filter(c => c.id !== keepCustomerId);
     
@@ -541,23 +510,24 @@ const Customers = () => {
   const applyFilters = useCallback(
     (customer: Customer): boolean => {
       if (filters.membershipStatus !== 'all') {
+        const hasMembership = Boolean(customer.membershipTierId) || customer.isMember;
         const isActive =
-          customer.isMember &&
-          customer.membershipExpiryDate &&
-          new Date(customer.membershipExpiryDate) > new Date();
+          hasMembership &&
+          (!customer.membershipExpiryDate ||
+            new Date(customer.membershipExpiryDate) > new Date());
 
         switch (filters.membershipStatus) {
           case 'member':
-            if (!customer.isMember) return false;
+            if (!hasMembership) return false;
             break;
           case 'non-member':
-            if (customer.isMember) return false;
+            if (hasMembership) return false;
             break;
           case 'active':
             if (!isActive) return false;
             break;
           case 'expired':
-            if (!customer.isMember || isActive) return false;
+            if (!hasMembership || isActive) return false;
             break;
         }
       }
@@ -801,58 +771,25 @@ const Customers = () => {
                 {emailError && <p className="text-sm text-red-500 font-medium">{emailError}</p>}
               </div>
               
-              <div className="flex items-center space-x-2 pt-2">
-                <Switch 
-                  id="member" 
-                  checked={formState.isMember} 
-                  onCheckedChange={handleSwitchChange}
-                  disabled={!canEditMembership}
-                />
-                <Label htmlFor="member">Is Member</Label>
+              <div className="rounded-md border border-white/10 bg-muted/30 p-4 text-sm text-muted-foreground">
+                Membership tiers, NFC cards, recharge, and coupons are managed in the{' '}
+                {canManageMemberships ? (
+                  <Link to="/memberships" className="text-cuephoria-lightpurple underline font-medium">
+                    Memberships hub
+                  </Link>
+                ) : (
+                  'Memberships hub'
+                )}
+                .
+                {isEditMode && selectedCustomer && (selectedCustomer.membershipTierName || selectedCustomer.membershipPlan) && (
+                  <p className="mt-2 text-foreground/90">
+                    Current plan:{' '}
+                    <span className="font-medium">
+                      {selectedCustomer.membershipTierName || selectedCustomer.membershipPlan}
+                    </span>
+                  </p>
+                )}
               </div>
-              
-              {formState.isMember && (
-                <div className="space-y-4 border rounded-md p-4 bg-background">
-                  {isEditMode && selectedCustomer && selectedCustomer.membershipPlan && (
-                    <div className="grid gap-2">
-                      <Label htmlFor="membershipPlan">Current Membership</Label>
-                      <Input 
-                        id="membershipPlan" 
-                        value={selectedCustomer.membershipPlan} 
-                        readOnly 
-                        className="bg-muted" 
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Membership can only be changed through purchase at checkout.
-                      </p>
-                    </div>
-                  )}
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="membershipExpiryDate">Expiry Date</Label>
-                    <Input 
-                      id="membershipExpiryDate" 
-                      name="membershipExpiryDate" 
-                      type="date" 
-                      value={formState.membershipExpiryDate} 
-                      onChange={handleChange} 
-                    />
-                  </div>
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="membershipHoursLeft">Hours Left</Label>
-                    <Input 
-                      id="membershipHoursLeft" 
-                      name="membershipHoursLeft" 
-                      type="number" 
-                      min="0" 
-                      value={formState.membershipHoursLeft} 
-                      onChange={handleChange} 
-                      placeholder="Available hours" 
-                    />
-                  </div>
-                </div>
-              )}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>

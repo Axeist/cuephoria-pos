@@ -2,7 +2,7 @@ import { Session, Station, Customer, CartItem, SessionResult, SessionGroupResult
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { SessionActionsProps } from '../session-actions/types';
-import { generateId } from '@/utils/pos.utils';
+import { resolveCustomerPlaytimeDiscountPct } from '@/utils/membership.utils';
 import React from 'react';
 import { useLocation } from '@/context/LocationContext';
 import { CACHE_KEYS, cacheKeyWithLocation, invalidateCache } from '@/utils/dataCache';
@@ -171,7 +171,7 @@ export const useEndSession = ({
       console.log("Generated cart item ID:", cartItemId);
       
       const stationRate = session.hourlyRate || station.hourlyRate;
-      const isMember = customer?.isMember || false;
+      const playtimeDiscountPct = resolveCustomerPlaytimeDiscountPct(customer);
       const prepaid = session.prepaidBooking;
 
       let sessionCartItem: CartItem | undefined;
@@ -182,7 +182,7 @@ export const useEndSession = ({
         await markPrepaidBookingCompleted(prepaid.bookingId);
         const overtimeMs = getPrepaidOvertimeMs(session, billableMs, station);
         if (overtimeMs > 0) {
-          const overtime = calculatePrepaidOvertimeCost(stationRate, overtimeMs, isMember);
+          const overtime = calculatePrepaidOvertimeCost(stationRate, overtimeMs, playtimeDiscountPct);
           sessionCost = overtime.cost;
           billedMinutes = overtime.overtimeMinutes;
           if (overtime.cost > 0) {
@@ -198,7 +198,7 @@ export const useEndSession = ({
         }
         console.log('Pre-paid session end:', { overtimeMs, sessionCost, billedMinutes });
       } else if (isTimeBasedSession(session)) {
-        sessionCost = calculateTimeBasedLiveCost(session, billableMs, isMember);
+        sessionCost = calculateTimeBasedLiveCost(session, billableMs, playtimeDiscountPct);
         billedMinutes = Math.ceil(billableMs / (1000 * 60));
       } else {
         const usesPresetBilling =
@@ -207,7 +207,7 @@ export const useEndSession = ({
           station.type !== 'vr';
 
         if (usesPresetBilling) {
-          const checkout = calculatePresetSessionCheckoutCost(stationRate, billableMs, isMember);
+          const checkout = calculatePresetSessionCheckoutCost(stationRate, billableMs, playtimeDiscountPct);
           sessionCost = checkout.cost;
           billedMinutes = checkout.billedMinutes;
 
@@ -219,7 +219,7 @@ export const useEndSession = ({
             const earlyEndDetails = getEarlyEndDetails(
               session,
               stationRate,
-              isMember,
+              playtimeDiscountPct,
               billableMs,
               tiers,
             );
@@ -230,17 +230,14 @@ export const useEndSession = ({
           }
           // ──────────────────────────────────────────────────────────────────
         } else {
-          sessionCost = calculateSessionCost(station, stationRate, billableMs, isMember);
+          sessionCost = calculateSessionCost(station, stationRate, billableMs, playtimeDiscountPct);
         }
       }
 
       if (!prepaid && !isTimeBasedSession(session)) {
-        if (isMember) {
-          console.log(`Applied 50% member discount to session cost: ${sessionCost}`);
-        }
-
         const couponInfo = session.couponCode ? ` - ${session.couponCode}` : '';
-        const memberInfo = isMember ? ' - Member 50% OFF' : '';
+        const memberInfo =
+          playtimeDiscountPct > 0 ? ` - Member ${playtimeDiscountPct}% OFF` : '';
         const usesPresetBilling =
           usesPresetSessionBilling(session.plannedDurationMinutes) &&
           station.category !== 'nit_event' &&
@@ -264,15 +261,12 @@ export const useEndSession = ({
           type: 'session',
         };
       } else if (!prepaid && isTimeBasedSession(session)) {
-        if (isMember) {
-          console.log(`Applied 50% member discount to session cost: ${sessionCost}`);
-        }
-
         const planned = session.plannedDurationMinutes ?? 0;
         const played = Math.ceil(billableMs / (1000 * 60));
         const overtimeMin = Math.max(0, played - planned);
         const couponInfo = session.couponCode ? ` - ${session.couponCode}` : '';
-        const memberInfo = isMember ? ' - Member 50% OFF' : '';
+        const memberInfo =
+          playtimeDiscountPct > 0 ? ` - Member ${playtimeDiscountPct}% OFF` : '';
         const durationInfo =
           overtimeMin > 0
             ? ` · ${planned}m + ${overtimeMin}m OT`
@@ -300,7 +294,7 @@ export const useEndSession = ({
         stationCategory: station.category,
         slotDuration: station.slotDuration,
         stationType: station.type,
-        isMember,
+        isMember: playtimeDiscountPct > 0,
         sessionCost 
       });
       

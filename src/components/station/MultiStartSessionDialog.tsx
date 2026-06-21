@@ -42,6 +42,11 @@ import {
   isHappyHour,
 } from '@/utils/sessionCoupon.utils';
 import { useBranchCoupons } from '@/hooks/useBranchCoupons';
+import { useMembershipSessionCoupons } from '@/hooks/useMembershipSessionCoupons';
+import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
+import NfcCardLookupPanel from '@/components/memberships/NfcCardLookupPanel';
+import { mergeNfcLookupWithCustomer } from '@/utils/nfcCustomer.utils';
+import type { MembershipCardLookupResult } from '@/types/membership.types';
 import { getStationTheme } from '@/utils/stationTheme';
 import type { Station } from '@/types/pos.types';
 import {
@@ -83,12 +88,14 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
   stations,
   onConfirm,
 }) => {
-  const { customers } = usePOS();
+  const { customers, updateCustomer } = usePOS();
   const { activeLocationId } = useLocation();
   const { coupons: branchCoupons, options: couponOptions, loading: couponsLoading } = useBranchCoupons(
     activeLocationId,
     open,
   );
+  const { coupons: membershipCoupons, loading: membershipCouponsLoading } = useMembershipSessionCoupons(open);
+  const { canUse } = useMembershipFeatures();
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.isAdmin || false;
@@ -210,11 +217,30 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
 
   const lateNightLocked = isLateNight() && !lateNightPinUnlocked && !isAdmin;
 
+  const sessionCouponOptions = useMemo(() => {
+    const memberOptions = membershipCoupons.map((c) => ({
+      value: c.code,
+      label:
+        c.discountType === 'percentage'
+          ? `${c.code} · Member ${c.discountValue}% off`
+          : `${c.code} · Member ₹${c.discountValue} off`,
+    }));
+    const branchOnly = couponOptions.filter((o) => o.value !== 'none');
+    return [
+      { value: 'none', label: 'No coupon (regular price)' },
+      ...branchOnly,
+      ...memberOptions,
+    ];
+  }, [couponOptions, membershipCoupons]);
+
   useEffect(() => {
-    if (selectedCoupon === 'none' || couponsLoading) return;
-    const valid = branchCoupons.some((c) => c.code === selectedCoupon) || selectedCoupon === 'HH99';
+    if (selectedCoupon === 'none' || couponsLoading || membershipCouponsLoading) return;
+    const valid =
+      branchCoupons.some((c) => c.code === selectedCoupon) ||
+      membershipCoupons.some((c) => c.code === selectedCoupon) ||
+      selectedCoupon === 'HH99';
     if (!valid) setSelectedCoupon('none');
-  }, [branchCoupons, couponsLoading, selectedCoupon]);
+  }, [branchCoupons, membershipCoupons, couponsLoading, membershipCouponsLoading, selectedCoupon]);
 
   const handleLateNightUnlock = () => {
     requestPinVerification(() => setLateNightPinUnlocked(true));
@@ -232,6 +258,8 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
         playerCount,
         branchCoupons,
         station,
+        membershipCoupons,
+        selectedCustomer,
       );
       const suffix = pricingRateSuffix({
         type: station.type ?? 'ps5',
@@ -250,7 +278,7 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
         showPlayerCount: isPerPlayerPricing(station) && (station.maxPlayers ?? 1) > 1,
       };
     });
-  }, [stations, playerCounts, couponCode, branchCoupons]);
+  }, [stations, playerCounts, couponCode, branchCoupons, membershipCoupons, selectedCustomer]);
 
   const grandTotal = stationPricing.reduce((sum, row) => sum + row.finalRate, 0);
   const undiscountedGrandTotal = stationPricing.reduce((sum, row) => sum + row.undiscountedTotal, 0);
@@ -261,6 +289,18 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
       toast({
         title: 'Invalid Timing',
         description: 'HH99 is only valid Mon-Fri, 11 AM - 4 PM',
+        variant: 'destructive',
+      });
+      setSelectedCoupon('none');
+      return;
+    }
+    const memberInvalid = stationPricing.find(
+      (r) => r.invalidCoupon && r.invalidCoupon !== 'HH99',
+    );
+    if (memberInvalid?.invalidCoupon) {
+      toast({
+        title: 'Invalid coupon',
+        description: `${memberInvalid.invalidCoupon} is not valid for this customer`,
         variant: 'destructive',
       });
       setSelectedCoupon('none');
@@ -280,6 +320,22 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
 
   const setPlayerCount = (stationId: string, count: number) => {
     setPlayerCounts((prev) => ({ ...prev, [stationId]: count }));
+  };
+
+  const handleNfcMemberResolved = (result: MembershipCardLookupResult) => {
+    const existing = customers.find((c) => c.id === result.customer.id);
+    if (!existing) {
+      toast({
+        title: 'Customer not found',
+        description: 'This card is linked to a customer not loaded in this branch.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const merged = mergeNfcLookupWithCustomer(result, existing);
+    updateCustomer(merged);
+    setSelectedCustomer(merged);
+    setCustomerSearchQuery(merged.name);
   };
 
   const customStartPreview =
@@ -466,6 +522,12 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
 
           {/* Customer */}
           <div className="space-y-3">
+            {canUse('nfc_cards_enabled') && (
+              <NfcCardLookupPanel
+                className="!p-3"
+                onMemberResolved={handleNfcMemberResolved}
+              />
+            )}
             <div className="flex items-center justify-between gap-2">
               <Label className="text-base font-medium flex items-center gap-2">
                 <UserIcon className="h-4 w-4" />
@@ -618,7 +680,7 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
           )}
 
           {/* Coupon */}
-          {selectedCustomer && stationPricing.some((row) => !prepaidByStation[row.station.id]) && (couponsLoading || branchCoupons.length > 0) && (
+          {selectedCustomer && stationPricing.some((row) => !prepaidByStation[row.station.id]) && (couponsLoading || membershipCouponsLoading || branchCoupons.length > 0 || membershipCoupons.length > 0) && (
             <div className="space-y-3">
               <Label className="text-base font-medium flex items-center gap-2">
                 <Tag className="h-4 w-4" />
@@ -635,12 +697,12 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
                   </Button>
                 </div>
               )}
-              <Select value={selectedCoupon} onValueChange={setSelectedCoupon} disabled={lateNightLocked || couponsLoading}>
+              <Select value={selectedCoupon} onValueChange={setSelectedCoupon} disabled={lateNightLocked || couponsLoading || membershipCouponsLoading}>
                 <SelectTrigger>
-                  <SelectValue placeholder={couponsLoading ? 'Loading coupons…' : 'No coupon'} />
+                  <SelectValue placeholder={couponsLoading || membershipCouponsLoading ? 'Loading coupons…' : 'No coupon'} />
                 </SelectTrigger>
                 <SelectContent className="z-[10000]">
-                  {couponOptions.map((opt) => (
+                  {sessionCouponOptions.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </SelectItem>

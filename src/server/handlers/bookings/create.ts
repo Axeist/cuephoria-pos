@@ -139,8 +139,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     let customerId = customerInfo.id;
+    const normalizedPhone = normalizePhoneNumber(customerInfo.phone);
     if (!customerId) {
-      const normalizedPhone = normalizePhoneNumber(customerInfo.phone);
       const { data: existingCustomer, error: searchError } = await supabase
         .from("customers")
         .select("id")
@@ -176,7 +176,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    const normalizedPhone = normalizePhoneNumber(customerInfo.phone);
+    if (payment_mode === "venue" && appliedCoupons && Object.keys(appliedCoupons).length > 0) {
+      const codes = Object.values(appliedCoupons)
+        .map((c) => String(c).toUpperCase().trim())
+        .filter(Boolean);
+      const { organizationId } = await resolveEntitlementsForLocation(supabase, location_id);
+      if (organizationId && featureEnabled(entitlements, "memberships_enabled")) {
+        const { resolveMembershipFlags } = await import("../../lib/membershipFeatures.js");
+        const membershipOps = await import("../../lib/membershipOps.js");
+        const flags = await resolveMembershipFlags(supabase, organizationId, location_id);
+        for (const code of codes) {
+          const memberCoupon = await membershipOps.fetchMemberCouponByCode(
+            supabase,
+            organizationId,
+            code,
+          );
+          if (!memberCoupon) continue;
+          if (!flags.module_enabled || !flags.member_coupons_enabled) {
+            return j(res, { ok: false, error: "Member coupons are not enabled" }, 403);
+          }
+          if (!flags.public_member_venue_booking_enabled) {
+            return j(res, { ok: false, error: "Member venue booking is not enabled" }, 403);
+          }
+          if (!memberCoupon.allowsVenuePayment) {
+            return j(res, { ok: false, error: "This coupon requires online payment" }, 400);
+          }
+          const validation = await membershipOps.validateMemberForCoupon(
+            supabase,
+            organizationId,
+            customerInfo.phone,
+            memberCoupon,
+          );
+          if (!validation.ok) {
+            return j(res, { ok: false, error: validation.error }, 400);
+          }
+        }
+      }
+    }
+
     const sessionId = payload.sessionId || `session_${Date.now()}_${normalizedPhone.slice(-4)}`;
 
     const { data: existingBookings, error: checkError } = await supabase

@@ -38,6 +38,11 @@ import {
   toDatetimeLocalInputValue,
 } from '@/utils/sessionStartTime.utils';
 import { useBranchCoupons } from '@/hooks/useBranchCoupons';
+import { useMembershipSessionCoupons } from '@/hooks/useMembershipSessionCoupons';
+import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
+import NfcCardLookupPanel from '@/components/memberships/NfcCardLookupPanel';
+import { mergeNfcLookupWithCustomer } from '@/utils/nfcCustomer.utils';
+import type { MembershipCardLookupResult } from '@/types/membership.types';
 import { applyCouponToRate, isHappyHour } from '@/utils/sessionCoupon.utils';
 
 const isLateNight = () => new Date().getHours() < 6;
@@ -95,12 +100,14 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     [durationTiers]
   );
   const isTimeBased = pricingMode === 'time_based';
-  const { customers } = usePOS();
+  const { customers, updateCustomer } = usePOS();
   const { activeLocationId } = useLocation();
   const { coupons: branchCoupons, options: couponOptions, loading: couponsLoading } = useBranchCoupons(
     activeLocationId,
     open,
   );
+  const { coupons: membershipCoupons, loading: membershipCouponsLoading } = useMembershipSessionCoupons(open);
+  const { canUse } = useMembershipFeatures();
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.isAdmin || false;
@@ -221,13 +228,33 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
 
   const lateNightLocked = isLateNight() && !lateNightPinUnlocked && !isAdmin;
 
-  const selectedCouponMeta = branchCoupons.find((c) => c.code === selectedCoupon);
+  const selectedCouponMeta = branchCoupons.find((c) => c.code === selectedCoupon)
+    ?? membershipCoupons.find((c) => c.code === selectedCoupon);
+
+  const sessionCouponOptions = useMemo(() => {
+    const memberOptions = membershipCoupons.map((c) => ({
+      value: c.code,
+      label:
+        c.discountType === 'percentage'
+          ? `${c.code} · Member ${c.discountValue}% off`
+          : `${c.code} · Member ₹${c.discountValue} off`,
+    }));
+    const branchOnly = couponOptions.filter((o) => o.value !== 'none');
+    return [
+      { value: 'none', label: 'No coupon (regular price)' },
+      ...branchOnly,
+      ...memberOptions,
+    ];
+  }, [couponOptions, membershipCoupons]);
 
   useEffect(() => {
-    if (selectedCoupon === 'none' || couponsLoading) return;
-    const valid = branchCoupons.some((c) => c.code === selectedCoupon) || selectedCoupon === 'HH99';
+    if (selectedCoupon === 'none' || couponsLoading || membershipCouponsLoading) return;
+    const valid =
+      branchCoupons.some((c) => c.code === selectedCoupon) ||
+      membershipCoupons.some((c) => c.code === selectedCoupon) ||
+      selectedCoupon === 'HH99';
     if (!valid) setSelectedCoupon('none');
-  }, [branchCoupons, couponsLoading, selectedCoupon]);
+  }, [branchCoupons, membershipCoupons, couponsLoading, membershipCouponsLoading, selectedCoupon]);
 
   const handleLateNightUnlock = () => {
     requestPinVerification(() => setLateNightPinUnlocked(true));
@@ -296,6 +323,8 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
       playerCount,
       branchCoupons,
       pricingStation,
+      membershipCoupons,
+      selectedCustomer,
     );
 
     if (invalidCoupon === 'HH99') {
@@ -308,12 +337,38 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
       return;
     }
 
+    if (invalidCoupon) {
+      toast({
+        title: 'Invalid coupon',
+        description: `${invalidCoupon} is not valid for this customer`,
+        variant: 'destructive',
+      });
+      setSelectedCoupon('none');
+      return;
+    }
+
     setFinalRate(nextRate);
     setPerPersonRate(nextPerPerson);
-  }, [selectedCoupon, undiscountedRate, undiscountedPerPerson, playerCount, branchCoupons, toast]);
+  }, [selectedCoupon, undiscountedRate, undiscountedPerPerson, playerCount, branchCoupons, membershipCoupons, selectedCustomer, toast]);
 
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
+  };
+
+  const handleNfcMemberResolved = (result: MembershipCardLookupResult) => {
+    const existing = customers.find((c) => c.id === result.customer.id);
+    if (!existing) {
+      toast({
+        title: 'Customer not found',
+        description: 'This card is linked to a customer not loaded in this branch.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const merged = mergeNfcLookupWithCustomer(result, existing);
+    updateCustomer(merged);
+    setSelectedCustomer(merged);
+    setCustomerSearchQuery(merged.name);
   };
 
   const handleConfirm = () => {
@@ -479,6 +534,12 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
 
           {/* Customer Selection */}
           <div className="space-y-3">
+            {canUse('nfc_cards_enabled') && (
+              <NfcCardLookupPanel
+                className="!p-3"
+                onMemberResolved={handleNfcMemberResolved}
+              />
+            )}
             <div className="flex items-center justify-between gap-2">
               <Label className="text-base font-medium flex items-center gap-2">
                 <UserIcon className="h-4 w-4" />
@@ -617,7 +678,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
           )}
 
           {/* Coupon Selection */}
-          {selectedCustomer && !prepaidLink && (couponsLoading || branchCoupons.length > 0) && (
+          {selectedCustomer && !prepaidLink && (couponsLoading || membershipCouponsLoading || branchCoupons.length > 0 || membershipCoupons.length > 0) && (
             <div className="space-y-3">
               <Label className="text-base font-medium flex items-center gap-2">
                 <Tag className="h-4 w-4" />
@@ -650,13 +711,13 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
               <Select
                 value={selectedCoupon}
                 onValueChange={setSelectedCoupon}
-                disabled={lateNightLocked || couponsLoading}
+                disabled={lateNightLocked || couponsLoading || membershipCouponsLoading}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder={couponsLoading ? 'Loading coupons…' : 'No coupon (regular price)'} />
+                  <SelectValue placeholder={couponsLoading || membershipCouponsLoading ? 'Loading coupons…' : 'No coupon (regular price)'} />
                 </SelectTrigger>
                 <SelectContent className="z-[10000]">
-                  {couponOptions.map((opt) => (
+                  {sessionCouponOptions.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </SelectItem>

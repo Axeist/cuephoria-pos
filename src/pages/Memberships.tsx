@@ -1,0 +1,1129 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Navigate, useSearchParams } from 'react-router-dom';
+import {
+  CreditCard,
+  Gift,
+  IdCard,
+  Layers,
+  Loader2,
+  Plus,
+  Settings2,
+  Trash2,
+  Wallet,
+} from 'lucide-react';
+import { MobilePageShell } from '@/components/mobile/MobilePageShell';
+import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
+import { MobileTabSelect } from '@/components/mobile/MobileTabSelect';
+import { MobileTabBar } from '@/components/mobile/MobileTabBar';
+import MembershipHubStats from '@/components/memberships/MembershipHubStats';
+import NfcCardLookupPanel from '@/components/memberships/NfcCardLookupPanel';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/context/PermissionsContext';
+import { useLocation } from '@/context/LocationContext';
+import { usePOS } from '@/context/POSContext';
+import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
+import { useViewMode } from '@/context/ViewModeContext';
+import {
+  addCardToInventory,
+  deleteMembershipCoupon,
+  deleteMembershipTier,
+  deleteRechargeTier,
+  fetchMembershipCards,
+  fetchMembershipCoupons,
+  fetchMembershipTiers,
+  fetchRechargeTiers,
+  rechargeMembershipCard,
+  updateMembershipSettings,
+  upsertMembershipCoupon,
+  upsertMembershipTier,
+  upsertRechargeTier,
+} from '@/services/membershipService';
+import type {
+  MembershipCard,
+  MembershipCardLookupResult,
+  MembershipCoupon,
+  MembershipFeatureFlagKey,
+  MembershipRechargeTier,
+  MembershipTier,
+} from '@/types/membership.types';
+import { DEFAULT_MEMBERSHIP_FEATURE_FLAGS } from '@/types/membership.types';
+import { isValidNfcUid, normalizeNfcUid } from '@/utils/nfcUid.utils';
+import { cn } from '@/lib/utils';
+import { CurrencyDisplay } from '@/components/ui/currency';
+
+type TabId = 'settings' | 'tiers' | 'recharge' | 'cards' | 'coupons';
+
+const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
+  { id: 'settings', label: 'Settings', icon: Settings2 },
+  { id: 'tiers', label: 'Tiers', icon: Layers },
+  { id: 'recharge', label: 'Recharge', icon: Wallet },
+  { id: 'cards', label: 'Cards', icon: CreditCard },
+  { id: 'coupons', label: 'Coupons', icon: Gift },
+];
+
+const FEATURE_FLAG_META: Record<
+  MembershipFeatureFlagKey,
+  { label: string; description: string; group: 'core' | 'cards' | 'booking' }
+> = {
+  module_enabled: {
+    label: 'Memberships module',
+    description: 'Master switch for all membership features at this branch.',
+    group: 'core',
+  },
+  tier_plans_enabled: {
+    label: 'Tier plans',
+    description: 'Named tiers with playtime and F&B discounts.',
+    group: 'core',
+  },
+  nfc_cards_enabled: {
+    label: 'NFC cards',
+    description: 'Assign physical cards and look up members by tap.',
+    group: 'cards',
+  },
+  nfc_simulation_enabled: {
+    label: 'NFC simulation',
+    description: 'Demo UID picker for testing without a reader.',
+    group: 'cards',
+  },
+  card_balance_enabled: {
+    label: 'Card balance',
+    description: 'Prepaid wallet balance on member cards.',
+    group: 'cards',
+  },
+  card_balance_payments_enabled: {
+    label: 'Pay with balance',
+    description: 'Allow checkout redemption from card balance.',
+    group: 'cards',
+  },
+  recharge_tiers_enabled: {
+    label: 'Recharge tiers',
+    description: 'Preset pay/credit bundles for top-ups.',
+    group: 'cards',
+  },
+  physical_cards_inventory_enabled: {
+    label: 'Card inventory',
+    description: 'Track unassigned NFC cards in stock.',
+    group: 'cards',
+  },
+  registration_deposit_enabled: {
+    label: 'Registration deposit',
+    description: 'Collect a deposit when enrolling new members.',
+    group: 'core',
+  },
+  member_coupons_enabled: {
+    label: 'Member coupons',
+    description: 'Exclusive promo codes for members.',
+    group: 'core',
+  },
+  public_member_venue_booking_enabled: {
+    label: 'Member venue booking',
+    description: 'Members book courts/stations on the public portal.',
+    group: 'booking',
+  },
+  booking_pay_at_venue_enabled: {
+    label: 'Pay at venue',
+    description: 'Members can pay at the venue for online bookings.',
+    group: 'booking',
+  },
+};
+
+const emptyTierForm = (): Partial<MembershipTier> & { name: string } => ({
+  name: '',
+  slug: '',
+  sortOrder: 0,
+  isActive: true,
+  playtimeDiscountPct: 0,
+  fnbDiscountPct: 0,
+  cardPaymentFnbEnabled: false,
+  bookingPayAtVenueEnabled: false,
+});
+
+const emptyRechargeForm = (): Partial<MembershipRechargeTier> & {
+  payAmount: number;
+  creditAmount: number;
+} => ({
+  payAmount: 0,
+  creditAmount: 0,
+  isActive: true,
+  sortOrder: 0,
+});
+
+const emptyCouponForm = (): Partial<MembershipCoupon> & { code: string } => ({
+  code: '',
+  description: '',
+  discountType: 'percentage',
+  discountValue: 0,
+  enabled: true,
+  memberOnly: true,
+  allowsVenuePayment: false,
+  usesCount: 0,
+});
+
+export default function MembershipsPage() {
+  const { toast } = useToast();
+  const { can } = usePermissions();
+  const { activeLocationId, activeLocation } = useLocation();
+  const { isMobile } = useViewMode();
+  const { loading: featuresLoading, flags, canUse, isEnabled } = useMembershipFeatures();
+  const { customers = [] } = usePOS();
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const activeTab: TabId =
+    tabParam === 'tiers' ||
+    tabParam === 'recharge' ||
+    tabParam === 'cards' ||
+    tabParam === 'coupons'
+      ? tabParam
+      : 'settings';
+
+  const [loading, setLoading] = useState(true);
+  const [tiers, setTiers] = useState<MembershipTier[]>([]);
+  const [rechargeTiers, setRechargeTiers] = useState<MembershipRechargeTier[]>([]);
+  const [coupons, setCoupons] = useState<MembershipCoupon[]>([]);
+  const [cards, setCards] = useState<MembershipCard[]>([]);
+  const [localFlags, setLocalFlags] = useState({ ...DEFAULT_MEMBERSHIP_FEATURE_FLAGS });
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  const [tierDialogOpen, setTierDialogOpen] = useState(false);
+  const [tierForm, setTierForm] = useState(emptyTierForm());
+  const [editingTierId, setEditingTierId] = useState<string | null>(null);
+
+  const [rechargeDialogOpen, setRechargeDialogOpen] = useState(false);
+  const [rechargeForm, setRechargeForm] = useState(emptyRechargeForm());
+  const [editingRechargeId, setEditingRechargeId] = useState<string | null>(null);
+
+  const [couponDialogOpen, setCouponDialogOpen] = useState(false);
+  const [couponForm, setCouponForm] = useState(emptyCouponForm());
+  const [editingCouponId, setEditingCouponId] = useState<string | null>(null);
+
+  const [resolvedMember, setResolvedMember] = useState<MembershipCardLookupResult | null>(null);
+  const [rechargeAmount, setRechargeAmount] = useState('');
+  const [recharging, setRecharging] = useState(false);
+  const [newCardUid, setNewCardUid] = useState('');
+  const [addingCard, setAddingCard] = useState(false);
+
+  const canEditSettings = can('memberships.settings.edit');
+  const canEditTiers = can('memberships.tiers.edit');
+  const canEditRecharge = can('memberships.recharge.edit');
+  const canExecuteRecharge = can('memberships.recharge.execute');
+  const canManageCards = can('memberships.cards.manage');
+  const canEditCoupons = can('memberships.coupons.edit');
+
+  const activeMembersCount = useMemo(
+    () => customers.filter((c) => c.membershipTierId || c.isMember).length,
+    [customers],
+  );
+
+  const setActiveTab = (tab: TabId) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (tab === 'settings') next.delete('tab');
+        else next.set('tab', tab);
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  const loadHubData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [tiersRes, rechargeRes, couponsRes, cardsRes] = await Promise.all([
+        fetchMembershipTiers().catch(() => ({ tiers: [] as MembershipTier[] })),
+        flags.recharge_tiers_enabled
+          ? fetchRechargeTiers().catch(() => ({ rechargeTiers: [] as MembershipRechargeTier[] }))
+          : Promise.resolve({ rechargeTiers: [] as MembershipRechargeTier[] }),
+        flags.member_coupons_enabled
+          ? fetchMembershipCoupons().catch(() => ({ coupons: [] as MembershipCoupon[] }))
+          : Promise.resolve({ coupons: [] as MembershipCoupon[] }),
+        flags.physical_cards_inventory_enabled
+          ? fetchMembershipCards().catch(() => ({ cards: [] as MembershipCard[] }))
+          : Promise.resolve({ cards: [] as MembershipCard[] }),
+      ]);
+      setTiers(tiersRes.tiers);
+      setRechargeTiers(rechargeRes.rechargeTiers);
+      setCoupons(couponsRes.coupons);
+      setCards(cardsRes.cards);
+    } catch (err) {
+      toast({
+        title: 'Failed to load memberships',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [flags, toast]);
+
+  useEffect(() => {
+    setLocalFlags(flags);
+  }, [flags]);
+
+  useEffect(() => {
+    void loadHubData();
+  }, [loadHubData]);
+
+  const saveSettings = async () => {
+    if (!canEditSettings) return;
+    setSavingSettings(true);
+    try {
+      await updateMembershipSettings({
+        locationId: activeLocationId,
+        featureFlags: localFlags,
+      });
+      toast({ title: 'Settings saved' });
+    } catch (err) {
+      toast({
+        title: 'Save failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleSaveTier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canEditTiers || !tierForm.name.trim()) return;
+    try {
+      const slug =
+        tierForm.slug?.trim() ||
+        tierForm.name
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '');
+      const res = await upsertMembershipTier({
+        ...tierForm,
+        id: editingTierId ?? undefined,
+        slug,
+        name: tierForm.name.trim(),
+      });
+      setTiers((prev) => {
+        const idx = prev.findIndex((t) => t.id === res.tier.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = res.tier;
+          return next;
+        }
+        return [...prev, res.tier].sort((a, b) => a.sortOrder - b.sortOrder);
+      });
+      setTierDialogOpen(false);
+      toast({ title: editingTierId ? 'Tier updated' : 'Tier created' });
+    } catch (err) {
+      toast({
+        title: 'Tier save failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteTier = async (tierId: string) => {
+    if (!canEditTiers) return;
+    try {
+      await deleteMembershipTier(tierId);
+      setTiers((prev) => prev.filter((t) => t.id !== tierId));
+      toast({ title: 'Tier deleted' });
+    } catch (err) {
+      toast({
+        title: 'Delete failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSaveRechargeTier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canEditRecharge) return;
+    try {
+      const res = await upsertRechargeTier({
+        ...rechargeForm,
+        id: editingRechargeId ?? undefined,
+        payAmount: Number(rechargeForm.payAmount),
+        creditAmount: Number(rechargeForm.creditAmount),
+      });
+      setRechargeTiers((prev) => {
+        const idx = prev.findIndex((t) => t.id === res.rechargeTier.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = res.rechargeTier;
+          return next;
+        }
+        return [...prev, res.rechargeTier];
+      });
+      setRechargeDialogOpen(false);
+      toast({ title: editingRechargeId ? 'Recharge tier updated' : 'Recharge tier created' });
+    } catch (err) {
+      toast({
+        title: 'Save failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteRechargeTier = async (id: string) => {
+    if (!canEditRecharge) return;
+    try {
+      await deleteRechargeTier(id);
+      setRechargeTiers((prev) => prev.filter((t) => t.id !== id));
+      toast({ title: 'Recharge tier deleted' });
+    } catch (err) {
+      toast({
+        title: 'Delete failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleMemberRecharge = async (creditAmount: number) => {
+    if (!canExecuteRecharge || !resolvedMember) return;
+    setRecharging(true);
+    try {
+      const res = await rechargeMembershipCard({
+        customerId: resolvedMember.customer.id,
+        creditAmount,
+        note: 'Staff recharge',
+      });
+      setResolvedMember({
+        ...resolvedMember,
+        customer: {
+          ...resolvedMember.customer,
+          cardBalance: res.balanceAfter,
+        },
+      });
+      toast({
+        title: 'Recharge successful',
+        description: `New balance: ₹${res.balanceAfter}`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Recharge failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setRecharging(false);
+    }
+  };
+
+  const handleAddInventoryCard = async () => {
+    if (!canManageCards) return;
+    const uid = normalizeNfcUid(newCardUid);
+    if (!isValidNfcUid(uid)) {
+      toast({
+        title: 'Invalid UID',
+        description: 'Enter 4–32 hex characters.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setAddingCard(true);
+    try {
+      const res = await addCardToInventory(uid, activeLocationId);
+      setCards((prev) => [res.card, ...prev]);
+      setNewCardUid('');
+      toast({ title: 'Card added to inventory' });
+    } catch (err) {
+      toast({
+        title: 'Add failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setAddingCard(false);
+    }
+  };
+
+  const handleSaveCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canEditCoupons || !couponForm.code.trim()) return;
+    try {
+      const res = await upsertMembershipCoupon({
+        ...couponForm,
+        id: editingCouponId ?? undefined,
+        code: couponForm.code.trim().toUpperCase(),
+      });
+      setCoupons((prev) => {
+        const idx = prev.findIndex((c) => c.id === res.coupon.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = res.coupon;
+          return next;
+        }
+        return [...prev, res.coupon];
+      });
+      setCouponDialogOpen(false);
+      toast({ title: editingCouponId ? 'Coupon updated' : 'Coupon created' });
+    } catch (err) {
+      toast({
+        title: 'Save failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteCoupon = async (id: string) => {
+    if (!canEditCoupons) return;
+    try {
+      await deleteMembershipCoupon(id);
+      setCoupons((prev) => prev.filter((c) => c.id !== id));
+      toast({ title: 'Coupon deleted' });
+    } catch (err) {
+      toast({
+        title: 'Delete failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  if (!can('memberships.view')) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  const tabItems = TABS.map((t) => ({ id: t.id, label: t.label }));
+
+  return (
+    <MobilePageShell className="space-y-4 sm:space-y-6">
+      <MobilePageHeader
+        title="Memberships"
+        subtitle={
+          activeLocation
+            ? `Tier plans, NFC cards, and member perks for ${activeLocation.name}.`
+            : 'Tier plans, NFC cards, and member perks.'
+        }
+        badge={
+          !isEnabled ? (
+            <Badge variant="outline" className="border-amber-500/40 text-amber-300">
+              Module off
+            </Badge>
+          ) : null
+        }
+      />
+
+      <MembershipHubStats
+        activeMembersCount={activeMembersCount}
+        tiers={tiers}
+        cards={cards}
+        coupons={coupons}
+      />
+
+      {isMobile ? (
+        <MobileTabSelect tabs={tabItems} activeId={activeTab} onChange={(id) => setActiveTab(id as TabId)} />
+      ) : (
+        <MobileTabBar tabs={tabItems} activeId={activeTab} onChange={(id) => setActiveTab(id as TabId)} />
+      )}
+
+      {loading || featuresLoading ? (
+        <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading…
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {activeTab === 'settings' && (
+            <div className="glass-card border-white/10 p-4 sm:p-6 space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold">Module settings</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Enable features for this branch. Requires Growth plan.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                <div>
+                  <p className="font-medium">{FEATURE_FLAG_META.module_enabled.label}</p>
+                  <p className="text-xs text-muted-foreground">{FEATURE_FLAG_META.module_enabled.description}</p>
+                </div>
+                <Switch
+                  checked={localFlags.module_enabled}
+                  disabled={!canEditSettings}
+                  onCheckedChange={(checked) =>
+                    setLocalFlags((prev) => ({ ...prev, module_enabled: checked }))
+                  }
+                />
+              </div>
+
+              {(['core', 'cards', 'booking'] as const).map((group) => {
+                const items = (
+                  Object.entries(FEATURE_FLAG_META) as [
+                    MembershipFeatureFlagKey,
+                    (typeof FEATURE_FLAG_META)[MembershipFeatureFlagKey],
+                  ][]
+                ).filter(([key, meta]) => meta.group === group && key !== 'module_enabled');
+
+                return (
+                  <div key={group} className="space-y-3">
+                    <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                      {group === 'core' ? 'Core' : group === 'cards' ? 'NFC & balance' : 'Booking'}
+                    </h3>
+                    {items.map(([key, meta]) => (
+                      <div
+                        key={key}
+                        className="flex items-center justify-between gap-4 rounded-xl border border-white/5 px-4 py-3"
+                      >
+                        <div>
+                          <p className="text-sm font-medium">{meta.label}</p>
+                          <p className="text-xs text-muted-foreground">{meta.description}</p>
+                        </div>
+                        <Switch
+                          checked={localFlags[key]}
+                          disabled={!canEditSettings || !localFlags.module_enabled}
+                          onCheckedChange={(checked) =>
+                            setLocalFlags((prev) => ({ ...prev, [key]: checked }))
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+
+              {canEditSettings && (
+                <Button
+                  type="button"
+                  className="btn-gradient"
+                  disabled={savingSettings}
+                  onClick={() => void saveSettings()}
+                >
+                  {savingSettings ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Save settings
+                </Button>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'tiers' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-semibold">Membership tiers</h2>
+                {canEditTiers && (
+                  <Button
+                    size="sm"
+                    className="btn-gradient gap-1.5"
+                    onClick={() => {
+                      setEditingTierId(null);
+                      setTierForm(emptyTierForm());
+                      setTierDialogOpen(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add tier
+                  </Button>
+                )}
+              </div>
+              {tiers.length === 0 ? (
+                <div className="glass-card border-white/10 p-8 text-center text-muted-foreground">
+                  <IdCard className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                  No tiers yet. Create your first membership plan.
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {tiers.map((tier) => (
+                    <div
+                      key={tier.id}
+                      className="glass-card border-white/10 p-4 flex flex-col gap-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="font-semibold">{tier.name}</h3>
+                          <p className="text-xs text-muted-foreground">{tier.slug}</p>
+                        </div>
+                        <Badge variant={tier.isActive ? 'default' : 'secondary'}>
+                          {tier.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Playtime {tier.playtimeDiscountPct}% off · F&B {tier.fnbDiscountPct}% off
+                      </p>
+                      {canEditTiers && (
+                        <div className="flex gap-2 mt-auto">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingTierId(tier.id);
+                              setTierForm({ ...tier, name: tier.name });
+                              setTierDialogOpen(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-400 hover:text-red-300"
+                            onClick={() => void handleDeleteTier(tier.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'recharge' && (
+            <div className="space-y-4">
+              <NfcCardLookupPanel
+                onMemberResolved={(result) => {
+                  setResolvedMember(result);
+                  setRechargeAmount('');
+                }}
+                disabled={!canUse('nfc_cards_enabled')}
+              />
+
+              {resolvedMember && canUse('card_balance_enabled') && (
+                <div className="glass-card border-white/10 p-4 sm:p-5 space-y-4">
+                  <h3 className="font-semibold">Recharge {resolvedMember.customer.name}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Current balance:{' '}
+                    <CurrencyDisplay amount={resolvedMember.customer.cardBalance ?? 0} />
+                  </p>
+
+                  {canUse('recharge_tiers_enabled') && rechargeTiers.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {rechargeTiers
+                        .filter((t) => t.isActive)
+                        .map((tier) => (
+                          <Button
+                            key={tier.id}
+                            type="button"
+                            variant="outline"
+                            className="h-auto py-3 flex flex-col gap-0.5"
+                            disabled={!canExecuteRecharge || recharging}
+                            onClick={() => void handleMemberRecharge(tier.creditAmount)}
+                          >
+                            <span className="text-xs text-muted-foreground">
+                              Pay <CurrencyDisplay amount={tier.payAmount} />
+                            </span>
+                            <span className="font-semibold">
+                              +<CurrencyDisplay amount={tier.creditAmount} />
+                            </span>
+                          </Button>
+                        ))}
+                    </div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="Custom credit amount"
+                      value={rechargeAmount}
+                      onChange={(e) => setRechargeAmount(e.target.value)}
+                      disabled={!canExecuteRecharge || recharging}
+                    />
+                    <Button
+                      type="button"
+                      className="btn-gradient shrink-0"
+                      disabled={!canExecuteRecharge || recharging || !rechargeAmount}
+                      onClick={() => void handleMemberRecharge(Number(rechargeAmount))}
+                    >
+                      {recharging ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Recharge'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {canEditRecharge && canUse('recharge_tiers_enabled') && (
+                <div className="glass-card border-white/10 p-4 sm:p-5 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-semibold">Recharge tiers</h3>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => {
+                        setEditingRechargeId(null);
+                        setRechargeForm(emptyRechargeForm());
+                        setRechargeDialogOpen(true);
+                      }}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add
+                    </Button>
+                  </div>
+                  {rechargeTiers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No recharge bundles configured.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {rechargeTiers.map((tier) => (
+                        <div
+                          key={tier.id}
+                          className="flex items-center justify-between rounded-lg border border-white/5 px-3 py-2"
+                        >
+                          <span className="text-sm">
+                            Pay <CurrencyDisplay amount={tier.payAmount} /> → credit{' '}
+                            <CurrencyDisplay amount={tier.creditAmount} />
+                          </span>
+                          <div className="flex gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingRechargeId(tier.id);
+                                setRechargeForm({ ...tier });
+                                setRechargeDialogOpen(true);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-400"
+                              onClick={() => void handleDeleteRechargeTier(tier.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'cards' && (
+            <div className="space-y-4">
+              <NfcCardLookupPanel
+                onMemberResolved={setResolvedMember}
+                disabled={!canUse('nfc_cards_enabled')}
+              />
+
+              {canManageCards && canUse('physical_cards_inventory_enabled') && (
+                <div className="glass-card border-white/10 p-4 sm:p-5 space-y-4">
+                  <h3 className="font-semibold">Add to inventory</h3>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      value={newCardUid}
+                      onChange={(e) => setNewCardUid(normalizeNfcUid(e.target.value))}
+                      placeholder="UID"
+                      className="font-mono uppercase"
+                      data-nfc-wedge="true"
+                    />
+                    <Button
+                      type="button"
+                      className="btn-gradient shrink-0"
+                      disabled={addingCard || !newCardUid}
+                      onClick={() => void handleAddInventoryCard()}
+                    >
+                      {addingCard ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add card'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="glass-card border-white/10 p-4 sm:p-5 space-y-3">
+                <h3 className="font-semibold">Card inventory</h3>
+                {cards.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No cards tracked yet.</p>
+                ) : (
+                  <div className="space-y-2 max-h-[420px] overflow-y-auto">
+                    {cards.map((card) => (
+                      <div
+                        key={card.id}
+                        className="flex items-center justify-between rounded-lg border border-white/5 px-3 py-2 text-sm"
+                      >
+                        <span className="font-mono">{card.uid}</span>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            card.status === 'assigned' && 'border-emerald-500/40 text-emerald-300',
+                            card.status === 'inventory' && 'border-cyan-500/40 text-cyan-300',
+                          )}
+                        >
+                          {card.status}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'coupons' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-semibold">Member coupons</h2>
+                {canEditCoupons && (
+                  <Button
+                    size="sm"
+                    className="btn-gradient gap-1.5"
+                    onClick={() => {
+                      setEditingCouponId(null);
+                      setCouponForm(emptyCouponForm());
+                      setCouponDialogOpen(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add coupon
+                  </Button>
+                )}
+              </div>
+              {coupons.length === 0 ? (
+                <div className="glass-card border-white/10 p-8 text-center text-muted-foreground">
+                  <Gift className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                  No member coupons yet.
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {coupons.map((coupon) => (
+                    <div key={coupon.id} className="glass-card border-white/10 p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-semibold">{coupon.code}</span>
+                        <Badge variant={coupon.enabled ? 'default' : 'secondary'}>
+                          {coupon.enabled ? 'Active' : 'Off'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{coupon.description || '—'}</p>
+                      <p className="text-sm">
+                        {coupon.discountType === 'percentage'
+                          ? `${coupon.discountValue}% off`
+                          : `₹${coupon.discountValue} off`}
+                        {coupon.memberOnly ? ' · members only' : ''}
+                      </p>
+                      {canEditCoupons && (
+                        <div className="flex gap-2 pt-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingCouponId(coupon.id);
+                              setCouponForm({ ...coupon, code: coupon.code });
+                              setCouponDialogOpen(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-400"
+                            onClick={() => void handleDeleteCoupon(coupon.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      <Dialog open={tierDialogOpen} onOpenChange={setTierDialogOpen}>
+        <DialogContent className="glass-card border-white/10 max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingTierId ? 'Edit tier' : 'New tier'}</DialogTitle>
+            <DialogDescription>Configure discounts and tier behaviour.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSaveTier} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Name</Label>
+              <Input
+                value={tierForm.name}
+                onChange={(e) => setTierForm((f) => ({ ...f, name: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Playtime discount %</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={tierForm.playtimeDiscountPct}
+                  onChange={(e) =>
+                    setTierForm((f) => ({ ...f, playtimeDiscountPct: Number(e.target.value) }))
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>F&B discount %</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={tierForm.fnbDiscountPct}
+                  onChange={(e) =>
+                    setTierForm((f) => ({ ...f, fnbDiscountPct: Number(e.target.value) }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Active</Label>
+              <Switch
+                checked={tierForm.isActive ?? true}
+                onCheckedChange={(checked) => setTierForm((f) => ({ ...f, isActive: checked }))}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setTierDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" className="btn-gradient">
+                Save
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={rechargeDialogOpen} onOpenChange={setRechargeDialogOpen}>
+        <DialogContent className="glass-card border-white/10 max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingRechargeId ? 'Edit recharge tier' : 'New recharge tier'}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSaveRechargeTier} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Pay amount</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={rechargeForm.payAmount}
+                  onChange={(e) =>
+                    setRechargeForm((f) => ({ ...f, payAmount: Number(e.target.value) }))
+                  }
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Credit amount</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={rechargeForm.creditAmount}
+                  onChange={(e) =>
+                    setRechargeForm((f) => ({ ...f, creditAmount: Number(e.target.value) }))
+                  }
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setRechargeDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" className="btn-gradient">
+                Save
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={couponDialogOpen} onOpenChange={setCouponDialogOpen}>
+        <DialogContent className="glass-card border-white/10 max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingCouponId ? 'Edit coupon' : 'New coupon'}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSaveCoupon} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Code</Label>
+              <Input
+                value={couponForm.code}
+                onChange={(e) => setCouponForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
+                className="font-mono"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Input
+                value={couponForm.description}
+                onChange={(e) => setCouponForm((f) => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Type</Label>
+                <Select
+                  value={couponForm.discountType}
+                  onValueChange={(v: 'percentage' | 'fixed') =>
+                    setCouponForm((f) => ({ ...f, discountType: v }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">Percentage</SelectItem>
+                    <SelectItem value="fixed">Fixed amount</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Value</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={couponForm.discountValue}
+                  onChange={(e) =>
+                    setCouponForm((f) => ({ ...f, discountValue: Number(e.target.value) }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Enabled</Label>
+              <Switch
+                checked={couponForm.enabled ?? true}
+                onCheckedChange={(checked) => setCouponForm((f) => ({ ...f, enabled: checked }))}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCouponDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" className="btn-gradient">
+                Save
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </MobilePageShell>
+  );
+}

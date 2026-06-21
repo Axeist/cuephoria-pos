@@ -189,6 +189,16 @@ const StationCustomerPanel: React.FC<StationCustomerPanelProps> = ({
               {customer.phone}
             </p>
           )}
+          {isMember && (customer.cardBalance ?? 0) > 0 && (
+            <p
+              className={`mt-1 flex items-center gap-1.5 text-emerald-300/90 ${
+                expanded ? 'text-xs' : 'text-[11px]'
+              }`}
+            >
+              <CreditCard className="h-3.5 w-3.5 shrink-0" />
+              Card balance <CurrencyDisplay amount={customer.cardBalance ?? 0} />
+            </p>
+          )}
         </div>
       </div>
 

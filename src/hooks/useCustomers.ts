@@ -152,7 +152,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         }
         
         // ✅ OPTIMIZED: Select only needed columns (reduces data transfer)
-        const selectFields = 'id,customer_id,custom_id,name,phone,email,is_member,membership_expiry_date,membership_start_date,membership_plan,membership_hours_left,membership_duration,loyalty_points,total_spent,total_play_time,created_at';
+        const selectFields = 'id,customer_id,custom_id,name,phone,email,is_member,membership_tier_id,card_balance,membership_expiry_date,membership_start_date,membership_plan,membership_hours_left,membership_duration,loyalty_points,total_spent,total_play_time,created_at';
 
         const mapRowToCustomer = (item: any): Customer => ({
           id: item.id,
@@ -160,7 +160,9 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           name: item.name,
           phone: item.phone,
           email: item.email || undefined,
-          isMember: item.is_member,
+          isMember: Boolean(item.membership_tier_id) || Boolean(item.is_member),
+          membershipTierId: item.membership_tier_id || undefined,
+          cardBalance: Number(item.card_balance ?? 0),
           membershipExpiryDate: item.membership_expiry_date ? new Date(item.membership_expiry_date) : undefined,
           membershipStartDate: item.membership_start_date ? new Date(item.membership_start_date) : undefined,
           membershipPlan: item.membership_plan || undefined,
@@ -304,7 +306,9 @@ export const useCustomers = (initialCustomers: Customer[]) => {
                   name: item.name,
                   phone: item.phone,
                   email: item.email || undefined,
-                  isMember: item.is_member,
+                  isMember: Boolean(item.membership_tier_id) || Boolean(item.is_member),
+          membershipTierId: item.membership_tier_id || undefined,
+          cardBalance: Number(item.card_balance ?? 0),
                   membershipExpiryDate: item.membership_expiry_date ? new Date(item.membership_expiry_date) : undefined,
                   membershipStartDate: item.membership_start_date ? new Date(item.membership_start_date) : undefined,
                   membershipPlan: item.membership_plan || undefined,
@@ -860,44 +864,66 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     }
   };
   
-  const updateCustomerMembership = async (customerId: string, membershipData: {
-    membershipPlan?: string;
-    membershipDuration?: 'weekly' | 'monthly';
-    membershipHoursLeft?: number;
-  }) => {
-    const customer = customers.find(c => c.id === customerId);
+  const updateCustomerMembership = async (
+    customerId: string,
+    membershipData: {
+      membershipPlan?: string;
+      membershipDuration?: 'weekly' | 'monthly';
+      membershipHoursLeft?: number;
+      membershipTierId?: string;
+    },
+  ) => {
+    const customer = customers.find((c) => c.id === customerId);
     if (!customer) return null;
-    
+
     const now = new Date();
     const membershipStartDate = now;
     let membershipExpiryDate = new Date(now);
-    
+
     if (membershipData.membershipDuration === 'weekly') {
       membershipExpiryDate.setDate(membershipExpiryDate.getDate() + 7);
     } else if (membershipData.membershipDuration === 'monthly') {
       membershipExpiryDate.setMonth(membershipExpiryDate.getMonth() + 1);
     }
-    
-    const updatedCustomer = {
+
+    if (membershipData.membershipTierId) {
+      try {
+        const { assignMembershipTier } = await import('@/services/membershipService');
+        await assignMembershipTier({
+          customerId,
+          tierId: membershipData.membershipTierId,
+          membershipStartDate: membershipStartDate.toISOString(),
+          membershipExpiryDate: membershipExpiryDate.toISOString(),
+          membershipDuration: membershipData.membershipDuration ?? null,
+          membershipHoursLeft: membershipData.membershipHoursLeft ?? null,
+        });
+      } catch (err) {
+        console.error('assignMembershipTier failed:', err);
+      }
+    }
+
+    const updatedCustomer: Customer = {
       ...customer,
       isMember: true,
-      membershipPlan: membershipData.membershipPlan || customer.membershipPlan,
+      membershipTierId: membershipData.membershipTierId || customer.membershipTierId,
+      membershipTierName: membershipData.membershipPlan || customer.membershipTierName,
       membershipDuration: membershipData.membershipDuration || customer.membershipDuration,
-      membershipHoursLeft: membershipData.membershipHoursLeft !== undefined 
-        ? membershipData.membershipHoursLeft 
-        : customer.membershipHoursLeft,
+      membershipHoursLeft:
+        membershipData.membershipHoursLeft !== undefined
+          ? membershipData.membershipHoursLeft
+          : customer.membershipHoursLeft,
       membershipStartDate,
-      membershipExpiryDate
+      membershipExpiryDate,
     };
-    
+
     const result = await updateCustomer(updatedCustomer);
-    
+
     toast({
-      title: "Membership Updated",
+      title: 'Membership Updated',
       description: `${customer.name}'s membership has been updated successfully.`,
-      variant: "default"
+      variant: 'default',
     });
-    
+
     return result;
   };
   
@@ -957,10 +983,11 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         name: customer.name,
         phone: normalizePhoneNumber(customer.phone), // ✅ Normalize phone
         email: customer.email,
-        is_member: customer.isMember,
+        membership_tier_id: customer.membershipTierId ?? null,
+        card_balance: customer.cardBalance ?? 0,
         membership_expiry_date: customer.membershipExpiryDate?.toISOString(),
         membership_start_date: customer.membershipStartDate?.toISOString(),
-        membership_plan: customer.membershipPlan,
+        membership_plan: customer.membershipTierName || customer.membershipPlan,
         membership_hours_left: customer.membershipHoursLeft,
         membership_duration: customer.membershipDuration,
         loyalty_points: customer.loyaltyPoints,

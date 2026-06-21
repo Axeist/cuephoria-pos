@@ -1,59 +1,60 @@
-
 import { Customer } from '@/types/pos.types';
 
 /**
- * Determines if a customer's membership is currently active
+ * Determines if a customer's membership is currently active (tier-based).
  */
 export const isMembershipActive = (customer: Customer): boolean => {
-  if (!customer.isMember || !customer.membershipExpiryDate) return false;
+  const hasTier = Boolean(customer.membershipTierId) || customer.isMember;
+  if (!hasTier) return false;
+  if (!customer.membershipExpiryDate) return true;
   const expiryDate = new Date(customer.membershipExpiryDate);
   return expiryDate > new Date();
 };
 
 /**
- * Generates the text to display on a membership badge
+ * Badge label from tier name or legacy plan text.
  */
 export const getMembershipBadgeText = (customer: Customer): string => {
-  if (!customer.isMember) return 'Non-Member';
-  
-  const duration = customer.membershipDuration || 
-                   (customer.membershipPlan?.toLowerCase().includes('weekly') ? 'Weekly' : 
-                    customer.membershipPlan?.toLowerCase().includes('monthly') ? 'Monthly' : '');
-  
-  let tier = '';
-  if (customer.membershipPlan) {
-    if (customer.membershipPlan.includes('Silver')) {
-      tier = 'Silver';
-    } else if (customer.membershipPlan.includes('Gold')) {
-      tier = 'Gold';
-    } else if (customer.membershipPlan.includes('Platinum')) {
-      tier = 'Platinum';
-    }
+  if (!customer.membershipTierId && !customer.isMember) return 'Non-Member';
+
+  if (customer.membershipTierName) {
+    const duration = customer.membershipDuration
+      ? customer.membershipDuration === 'weekly'
+        ? 'Weekly'
+        : 'Monthly'
+      : '';
+    return `${customer.membershipTierName}${duration ? ` · ${duration}` : ''}`;
   }
-  
-  let type = '';
+
   if (customer.membershipPlan) {
-    if (customer.membershipPlan.includes('PS5')) {
-      type = 'PS5';
-    } else if (customer.membershipPlan.includes('8-Ball')) {
-      type = '8-Ball';
-    } else if (customer.membershipPlan.includes('Combo')) {
-      type = 'Combo';
-    } else if (customer.membershipPlan.includes('Ultimate')) {
-      type = 'Ultimate';
-    }
+    return customer.membershipPlan;
   }
-  
-  return `${tier} ${type} ${duration}`;
+
+  return 'Member';
 };
 
-/**
- * Gets the appropriate color class for hours left indicator
- */
 export const getHoursLeftColor = (hoursLeft: number | undefined): string => {
   if (hoursLeft === undefined) return '';
-  
   if (hoursLeft <= 0) return 'text-red-600';
   if (hoursLeft < 2) return 'text-orange-500';
   return 'text-green-600';
 };
+
+/** Resolve playtime discount % from customer embed or legacy member flag. */
+export function resolveCustomerPlaytimeDiscountPct(customer: Customer | null | undefined): number {
+  if (!customer) return 0;
+  if (customer.playtimeDiscountPct != null && customer.playtimeDiscountPct > 0) {
+    return isMembershipActive(customer) ? customer.playtimeDiscountPct : 0;
+  }
+  return 0;
+}
+
+/** Resolve F&B discount % from customer embed when tier discount is denormalized on the row. */
+export function resolveCustomerFnbDiscountPct(customer: Customer | null | undefined): number {
+  if (!customer) return 0;
+  const embedded = (customer as Customer & { fnbDiscountPct?: number }).fnbDiscountPct;
+  if (embedded != null && embedded > 0) {
+    return isMembershipActive(customer) ? embedded : 0;
+  }
+  return 0;
+}

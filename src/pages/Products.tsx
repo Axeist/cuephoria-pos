@@ -204,7 +204,7 @@ const ProductsPage: React.FC = () => {
       
       const { 
         name, price, category, stock, maxStock, originalPrice, offerPrice, 
-        studentPrice, duration, membershipHours, buyingPrice, sellingPrice 
+        studentPrice, duration, membershipHours, membershipTierId, buyingPrice, sellingPrice 
       } = formData;
       
       if (!name || !price || !category || stock === undefined) {
@@ -264,6 +264,7 @@ const ProductsPage: React.FC = () => {
       if (category === 'membership') {
         if (duration) productData.duration = duration as 'weekly' | 'monthly';
         if (membershipHours) productData.membershipHours = Number(membershipHours);
+        if (membershipTierId) productData.membershipTierId = membershipTierId;
       }
       
       console.log('Submitting product data:', productData);

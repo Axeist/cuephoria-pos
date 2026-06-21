@@ -62,7 +62,7 @@ export function calculateSessionCost(
   station: Pick<Station, 'category' | 'slotDuration' | 'type'>,
   sessionRate: number,
   billableMs: number,
-  isMember = false
+  playtimeDiscountPct = 0
 ): number {
   const durationMinutes = Math.ceil(billableMs / (1000 * 60));
 
@@ -78,8 +78,8 @@ export function calculateSessionCost(
     cost = Math.ceil(hoursElapsed * sessionRate);
   }
 
-  if (isMember) {
-    cost = Math.ceil(cost * 0.5);
+  if (playtimeDiscountPct > 0) {
+    cost = Math.ceil(cost * (1 - Math.min(100, playtimeDiscountPct) / 100));
   }
 
   return cost;
@@ -92,11 +92,11 @@ export function calculateLiveSessionCost(
     'hourlyRate' | 'timeTierPrice' | 'overtimePerMinute' | 'plannedDurationMinutes'
   >,
   billableMs: number,
-  isMember = false
+  playtimeDiscountPct = 0
 ): number {
   if (isTimeBasedSession(session)) {
-    return calculateTimeBasedLiveCost(session, billableMs, isMember);
+    return calculateTimeBasedLiveCost(session, billableMs, playtimeDiscountPct);
   }
   const sessionRate = session.hourlyRate ?? 0;
-  return calculateSessionCost(station, sessionRate, billableMs, isMember);
+  return calculateSessionCost(station, sessionRate, billableMs, playtimeDiscountPct);
 }

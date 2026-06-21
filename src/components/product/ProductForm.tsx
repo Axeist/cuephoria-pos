@@ -8,6 +8,7 @@ import { Product } from '@/types/pos.types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { usePOS } from '@/context/POSContext';
+import { useMembershipTiers } from '@/hooks/useMembershipTiers';
 
 interface ProductFormProps {
   isEditMode: boolean;
@@ -31,6 +32,7 @@ export interface ProductFormState {
   studentPrice: string;
   duration: string;
   membershipHours: string;
+  membershipTierId: string;
 }
 
 const ProductForm: React.FC<ProductFormProps> = ({
@@ -44,6 +46,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
   const {
     categories
   } = usePOS();
+  const { tiers: membershipTiers } = useMembershipTiers();
   
   const [formState, setFormState] = useState<ProductFormState>({
     name: '',
@@ -57,7 +60,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
     offerPrice: '',
     studentPrice: '',
     duration: '',
-    membershipHours: ''
+    membershipHours: '',
+    membershipTierId: '',
   });
   
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -82,7 +86,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
         offerPrice: selectedProduct.offerPrice?.toString() || '',
         studentPrice: selectedProduct.studentPrice?.toString() || '',
         duration: selectedProduct.duration || '',
-        membershipHours: selectedProduct.membershipHours?.toString() || ''
+        membershipHours: selectedProduct.membershipHours?.toString() || '',
+        membershipTierId: selectedProduct.membershipTierId || '',
       });
 
       // Calculate profit if both buying and selling price exist and category should show pricing fields
@@ -105,7 +110,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
         offerPrice: '',
         studentPrice: '',
         duration: '',
-        membershipHours: ''
+        membershipHours: '',
+        membershipTierId: '',
       });
       setProfit(0);
     }
@@ -441,6 +447,32 @@ const ProductForm: React.FC<ProductFormProps> = ({
                 </SelectContent>
               </Select>
               {validationErrors.duration && <p className="text-xs text-destructive mt-1">{validationErrors.duration}</p>}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="membershipTierId">Membership tier</Label>
+              <Select
+                value={formState.membershipTierId || 'none'}
+                onValueChange={(value) =>
+                  handleSelectChange('membershipTierId', value === 'none' ? '' : value)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Link to a tier (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No tier link</SelectItem>
+                  {membershipTiers
+                    .filter((t) => t.isActive)
+                    .map((tier) => (
+                      <SelectItem key={tier.id} value={tier.id}>
+                        {tier.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                When sold at POS, assigns this tier to the customer.
+              </p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="membershipHours" className={validationErrors.membershipHours ? 'text-destructive' : ''}>

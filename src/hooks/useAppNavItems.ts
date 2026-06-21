@@ -15,6 +15,7 @@ import {
   CreditCard,
   Settings,
   BookOpen,
+  IdCard,
   type LucideIcon,
 } from "lucide-react";
 import { usePermissions } from "@/context/PermissionsContext";
@@ -75,6 +76,9 @@ export function useAppNavItems() {
       : []),
     ...(canPlan("tournaments_enabled")
       ? [{ icon: Trophy, label: "Tournaments", path: "/tournaments" }]
+      : []),
+    ...(canPlan("memberships_enabled")
+      ? [{ icon: IdCard, label: "Memberships", path: "/memberships" }]
       : []),
   ]);
 

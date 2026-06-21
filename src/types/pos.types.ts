@@ -21,6 +21,7 @@ export interface Product {
   studentPrice?: number;
   duration?: 'weekly' | 'monthly';
   membershipHours?: number;
+  membershipTierId?: string;
 }
 
 export interface Customer {
@@ -29,9 +30,15 @@ export interface Customer {
   name: string;
   phone: string;
   email?: string;
+  /** @deprecated use membershipTierId — kept for DB transition */
   isMember: boolean;
+  membershipTierId?: string;
+  membershipTierName?: string;
+  playtimeDiscountPct?: number;
+  cardBalance?: number;
   membershipExpiryDate?: Date;
   membershipStartDate?: Date;
+  /** @deprecated use membershipTierName */
   membershipPlan?: string;
   membershipHoursLeft?: number;
   membershipDuration?: 'weekly' | 'monthly';
@@ -133,7 +140,7 @@ export interface Bill {
   taxAmount?: number;
   taxRate?: number;
   gstinSnapshot?: string;
-  paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'razorpay';
+  paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'razorpay' | 'card';
   status?: 'completed' | 'complimentary';
   compNote?: string;
   isSplitPayment?: boolean;

@@ -34,7 +34,13 @@ export const PlanFeatureGate: React.FC<Props> = ({ feature, children, minPlan, f
 
   if (fallback) return <>{fallback}</>;
 
-  const required = minPlan ?? (feature === "staff_hr_enabled" ? "pro" : feature === "bookings_enabled" ? "growth" : "growth");
+  const required =
+    minPlan ??
+    (feature === "staff_hr_enabled"
+      ? "pro"
+      : feature === "bookings_enabled" || feature === "memberships_enabled"
+        ? "growth"
+        : "growth");
   const label = PLAN_LABELS[required] ?? required;
 
   return (

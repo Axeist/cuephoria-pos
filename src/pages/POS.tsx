@@ -26,7 +26,10 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import SplitPaymentForm from '@/components/checkout/SplitPaymentForm';
 import SavedCartsManager from '@/components/SavedCartsManager';
-import { useViewMode } from '@/context/ViewModeContext';
+import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
+import NfcCardLookupPanel from '@/components/memberships/NfcCardLookupPanel';
+import type { MembershipCardLookupResult } from '@/types/membership.types';
+import { mergeNfcLookupWithCustomer } from '@/utils/nfcCustomer.utils';
 import { cn } from '@/lib/utils';
 import { hapticImpact } from '@/utils/capacitor';
 import { isSessionEndNavigation } from '@/utils/viewTransition';
@@ -71,6 +74,7 @@ const POS = () => {
     updateCartItem,
     clearCart,
     selectCustomer,
+    updateCustomer,
     savedCarts,
     moveCartToSaved,
     setDiscount,
@@ -88,7 +92,7 @@ const POS = () => {
   const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
   const [isCompDialogOpen, setIsCompDialogOpen] = useState(false);
   const [compNote, setCompNote] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'credit' | 'split'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'credit' | 'split' | 'card'>('cash');
   const [customDiscountAmount, setCustomDiscountAmount] = useState(discount.toString());
   const [customDiscountType, setCustomDiscountType] = useState<'percentage' | 'fixed'>(discountType);
   const [customLoyaltyPoints, setCustomLoyaltyPoints] = useState(loyaltyPointsUsed.toString());
@@ -112,6 +116,7 @@ const POS = () => {
   const [useCustomDateTime, setUseCustomDateTime] = useState(false);
 
   const { user } = useAuth();
+  const { canUse, isEnabled: membershipModuleEnabled } = useMembershipFeatures();
   const canApplyDiscount = usePermission('pos.discount');
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
 
@@ -235,6 +240,21 @@ const POS = () => {
     }
   };
 
+  const handleNfcMemberResolved = (result: MembershipCardLookupResult) => {
+    const existing = customers.find((c) => c.id === result.customer.id);
+    if (!existing) {
+      toast({
+        title: 'Customer not found',
+        description: 'This card is linked to a customer not loaded in this branch.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const merged = mergeNfcLookupWithCustomer(result, existing);
+    updateCustomer(merged);
+    handleSelectCustomer(merged);
+  };
+
   const handleApplyDiscount = () => {
     const amount = Number(customDiscountAmount);
     if (isNaN(amount) || amount < 0) {
@@ -271,7 +291,7 @@ const POS = () => {
     setLoyaltyPointsUsed(points);
   };
 
-  const handlePaymentMethodChange = (value: 'cash' | 'upi' | 'credit' | 'split') => {
+  const handlePaymentMethodChange = (value: 'cash' | 'upi' | 'credit' | 'split' | 'card') => {
     setPaymentMethod(value);
     if (value === 'split') {
       setIsSplitPayment(true);
@@ -423,6 +443,11 @@ const POS = () => {
     discountValue = discount;
   }
   const total = calculateTotal();
+  const canPayWithCard =
+    membershipModuleEnabled &&
+    canUse('card_balance_payments_enabled') &&
+    Boolean(selectedCustomer?.membershipTierId) &&
+    (selectedCustomer?.cardBalance ?? 0) >= total;
   const { settings } = useAppSettings();
   const taxPreview = useMemo(
     () =>
@@ -863,6 +888,12 @@ const POS = () => {
               Choose a customer to start or resume their transaction
             </DialogDescription>
           </DialogHeader>
+          {canUse('nfc_cards_enabled') && (
+            <NfcCardLookupPanel
+              className="mb-4"
+              onMemberResolved={handleNfcMemberResolved}
+            />
+          )}
           <div className="relative mb-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -1204,7 +1235,9 @@ const POS = () => {
               <h4 className="font-medium font-heading">Payment Method</h4>
               <RadioGroup
                 value={paymentMethod}
-                onValueChange={(value) => handlePaymentMethodChange(value as 'cash' | 'upi' | 'credit' | 'split')}
+                onValueChange={(value) =>
+                  handlePaymentMethodChange(value as 'cash' | 'upi' | 'credit' | 'split' | 'card')
+                }
                 className="flex flex-wrap gap-4"
               >
                 <div className="flex items-center space-x-2">
@@ -1223,6 +1256,35 @@ const POS = () => {
                   <RadioGroupItem value="split" id="split" />
                   <Label htmlFor="split" className="font-quicksand">Split</Label>
                 </div>
+                {canUse('card_balance_payments_enabled') && (
+                  <div
+                    className={cn(
+                      'flex items-center space-x-2',
+                      !canPayWithCard && 'opacity-40',
+                    )}
+                    title={
+                      !selectedCustomer?.membershipTierId
+                        ? 'Members only'
+                        : (selectedCustomer?.cardBalance ?? 0) < total
+                          ? 'Insufficient card balance'
+                          : 'Pay from membership card balance'
+                    }
+                  >
+                    <RadioGroupItem
+                      value="card"
+                      id="card"
+                      disabled={!canPayWithCard}
+                    />
+                    <Label htmlFor="card" className="font-quicksand">
+                      Card
+                      {selectedCustomer?.membershipTierId && (
+                        <span className="text-xs text-muted-foreground ml-1">
+                          (₹{selectedCustomer.cardBalance ?? 0})
+                        </span>
+                      )}
+                    </Label>
+                  </div>
+                )}
               </RadioGroup>
             </div>
 

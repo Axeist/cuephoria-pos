@@ -1,6 +1,9 @@
 /** Shared coupon / happy-hour helpers for start-session flows */
 
 import type { BranchBookingCoupon } from '@/types/bookingCoupon.types';
+import type { MembershipCoupon } from '@/types/membership.types';
+import type { Customer } from '@/types/pos.types';
+import { isActiveMember } from '@/utils/membershipBenefits.utils';
 import {
   hasOccupancyRates,
   isLegacyControllerStation,
@@ -46,6 +49,8 @@ export function applyCouponToRate(
   playerCount: number,
   branchCoupons: BranchBookingCoupon[] = [],
   station?: StationPricingInput,
+  membershipCoupons: MembershipCoupon[] = [],
+  customer?: Pick<Customer, 'membershipTierId' | 'membershipExpiryDate' | 'isMember'> | null,
 ): { finalRate: number; perPersonRate: number; invalidCoupon?: string } {
   const perPerson = (rate: number) =>
     playerCount > 0 ? Math.round(rate / playerCount) : rate;
@@ -79,6 +84,35 @@ export function applyCouponToRate(
 
   const coupon = branchCoupons.find((c) => c.code === code);
   if (!coupon) {
+    const memberCoupon = membershipCoupons.find((c) => c.code.toUpperCase() === code);
+    if (memberCoupon) {
+      if (!customer || !isActiveMember(customer)) {
+        return {
+          finalRate: undiscountedRate,
+          perPersonRate: perPerson(undiscountedRate),
+          invalidCoupon: code,
+        };
+      }
+      if (
+        memberCoupon.membershipTierId &&
+        memberCoupon.membershipTierId !== customer.membershipTierId
+      ) {
+        return {
+          finalRate: undiscountedRate,
+          perPersonRate: perPerson(undiscountedRate),
+          invalidCoupon: code,
+        };
+      }
+      let newRate = undiscountedRate;
+      if (memberCoupon.discountType === 'percentage') {
+        newRate = undiscountedRate * (1 - memberCoupon.discountValue / 100);
+      } else {
+        newRate = undiscountedRate - memberCoupon.discountValue;
+      }
+      const finalRate = Math.max(0, Math.round(newRate));
+      return { finalRate, perPersonRate: perPerson(finalRate) };
+    }
+
     return {
       finalRate: undiscountedRate,
       perPersonRate: perPerson(undiscountedRate),

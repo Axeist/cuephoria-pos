@@ -22,10 +22,10 @@ import type { StationTheme, StationPhase } from '@/utils/stationTheme';
 import { prefetchPOS, navigateToPOS, sleep, SESSION_TRANSITION } from '@/utils/viewTransition';
 import { useAuth } from '@/context/AuthContext';
 import { isStationInMaintenance } from '@/utils/stationMaintenance.utils';
-import { getEarlyEndDetails } from '@/utils/sessionBilling.utils';
+import { getEarlyEndDetails, shouldShowEarlyEndPrompt, type EarlyEndDetails } from '@/utils/sessionBilling.utils';
+import { resolveCustomerPlaytimeDiscountPct } from '@/utils/membership.utils';
 import { getBillableMs } from '@/utils/sessionTimer.utils';
 import type { EarlyEndBillingMode } from '@/hooks/stations/session-actions/useEndSession';
-import type { EarlyEndDetails } from '@/utils/sessionBilling.utils';
 
 const EMPTY_OCCUPANCY_RATES: Record<string, number> = {};
 const EMPTY_DURATION_TIERS: { minutes: number; price: number }[] = [];
@@ -172,12 +172,13 @@ const StationActions: React.FC<StationActionsProps> = ({
     const now = new Date();
     const billableMs = getBillableMs(session, now);
     const stationRate = session.hourlyRate ?? station.hourlyRate;
-    const isMember = customers.find((c) => c.id === session.customerId)?.isMember ?? false;
+    const customer = customers.find((c) => c.id === session.customerId);
+    const playtimeDiscountPct = resolveCustomerPlaytimeDiscountPct(customer);
     const tiers = isTimeBasedPricing(station)
       ? (station.durationTiers?.length ? station.durationTiers : getDefaultDurationTiers())
       : undefined;
 
-    const details = getEarlyEndDetails(session, stationRate, isMember, billableMs, tiers);
+    const details = getEarlyEndDetails(session, stationRate, playtimeDiscountPct, billableMs, tiers);
 
     if (details) {
       const customerName =
