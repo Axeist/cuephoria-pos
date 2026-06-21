@@ -11,7 +11,6 @@ export type MembershipFeatureFlagKey =
   | 'module_enabled'
   | 'tier_plans_enabled'
   | 'nfc_cards_enabled'
-  | 'nfc_simulation_enabled'
   | 'card_balance_enabled'
   | 'card_balance_payments_enabled'
   | 'recharge_tiers_enabled'
@@ -27,7 +26,6 @@ export const DEFAULT_MEMBERSHIP_FEATURE_FLAGS: Record<MembershipFeatureFlagKey, 
   module_enabled: false,
   tier_plans_enabled: false,
   nfc_cards_enabled: false,
-  nfc_simulation_enabled: false,
   card_balance_enabled: false,
   card_balance_payments_enabled: false,
   recharge_tiers_enabled: false,

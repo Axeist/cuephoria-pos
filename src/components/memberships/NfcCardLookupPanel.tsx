@@ -1,18 +1,10 @@
 import React, { useCallback, useState } from 'react';
-import { CreditCard, Loader2, Search, Zap } from 'lucide-react';
+import { CreditCard, Loader2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useLocation } from '@/context/LocationContext';
 import { useToast } from '@/hooks/use-toast';
-import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
 import { useNfcWedgeListener } from '@/hooks/useNfcWedgeListener';
 import { lookupMembershipCard } from '@/services/membershipService';
 import type { MembershipCardLookupResult } from '@/types/membership.types';
@@ -20,14 +12,6 @@ import { isValidNfcUid, normalizeNfcUid } from '@/utils/nfcUid.utils';
 import MembershipPanelShell from '@/components/memberships/MembershipPanelShell';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { cn } from '@/lib/utils';
-
-const SIMULATED_UIDS = [
-  { label: 'Demo Alpha (DEMOALPHA)', uid: 'SIM-UID-001' },
-  { label: 'Demo Beta (DEMOBETA)', uid: 'AABBCCDD' },
-  { label: 'Demo Gamma', uid: 'SIM-UID-002' },
-  { label: 'Demo Delta', uid: '11223344' },
-  { label: 'Demo Epsilon', uid: 'DEADBEEF' },
-];
 
 type NfcCardLookupPanelProps = {
   onMemberResolved: (result: MembershipCardLookupResult) => void;
@@ -46,12 +30,9 @@ export default function NfcCardLookupPanel({
 }: NfcCardLookupPanelProps) {
   const { toast } = useToast();
   const { activeLocationId } = useLocation();
-  const { canUse } = useMembershipFeatures();
   const [uid, setUid] = useState('');
   const [loading, setLoading] = useState(false);
   const [lastResult, setLastResult] = useState<MembershipCardLookupResult | null>(null);
-
-  const showSimulation = import.meta.env.DEV || canUse('nfc_simulation_enabled');
 
   const runLookup = useCallback(
     async (rawUid: string) => {
@@ -141,27 +122,6 @@ export default function NfcCardLookupPanel({
           </Button>
         </div>
       </div>
-
-      {showSimulation && (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2 border-t border-white/5">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
-            <Zap className="h-3.5 w-3.5 text-amber-400" />
-            Simulate tap
-          </div>
-          <Select disabled={disabled || loading} onValueChange={(v) => void runLookup(v)}>
-            <SelectTrigger className="h-9 text-sm bg-black/30 border-white/10">
-              <SelectValue placeholder="Choose demo UID…" />
-            </SelectTrigger>
-            <SelectContent>
-              {SIMULATED_UIDS.map((item) => (
-                <SelectItem key={item.uid} value={item.uid} className="font-mono">
-                  {item.label} — {item.uid}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
 
       {lastResult && (
         <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/8 px-4 py-3">

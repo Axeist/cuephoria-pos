@@ -1,30 +1,16 @@
 import React, { useCallback, useState } from 'react';
-import { CreditCard, Link2, Loader2, Zap } from 'lucide-react';
+import { CreditCard, Link2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useLocation } from '@/context/LocationContext';
 import { useToast } from '@/hooks/use-toast';
-import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
 import { useNfcWedgeListener } from '@/hooks/useNfcWedgeListener';
 import { assignNfcCard } from '@/services/membershipService';
 import type { MembershipCard, MembershipCardLookupResult } from '@/types/membership.types';
 import { isValidNfcUid, normalizeNfcUid } from '@/utils/nfcUid.utils';
 import MembershipPanelShell from '@/components/memberships/MembershipPanelShell';
 import { CurrencyDisplay } from '@/components/ui/currency';
-
-const SIMULATED_UIDS = [
-  { label: 'Demo Alpha', uid: 'SIM-UID-001' },
-  { label: 'Demo Beta', uid: 'AABBCCDD' },
-  { label: 'Demo Gamma', uid: 'SIM-UID-002' },
-];
 
 type AssignMemberCardPanelProps = {
   member: MembershipCardLookupResult | null;
@@ -39,11 +25,8 @@ export default function AssignMemberCardPanel({
 }: AssignMemberCardPanelProps) {
   const { toast } = useToast();
   const { activeLocationId } = useLocation();
-  const { canUse } = useMembershipFeatures();
   const [uid, setUid] = useState('');
   const [linking, setLinking] = useState(false);
-
-  const showSimulation = import.meta.env.DEV || canUse('nfc_simulation_enabled');
 
   const linkCard = useCallback(
     async (rawUid: string) => {
@@ -106,7 +89,7 @@ export default function AssignMemberCardPanel({
       step={2}
       accent="cyan"
       title="Link NFC card to member"
-      description="Every card must be tied to a member. Tap the tag or enter its UID — we never keep unassigned inventory cards."
+      description="Every card must be tied to a member. Tap the tag or enter its UID."
       icon={<Link2 className="h-5 w-5" />}
     >
       {!member?.customer ? (
@@ -168,30 +151,6 @@ export default function AssignMemberCardPanel({
               </Button>
             </div>
           </div>
-
-          {showSimulation && (
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2 border-t border-white/5">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
-                <Zap className="h-3.5 w-3.5 text-amber-400" />
-                Simulate tap
-              </div>
-              <Select
-                disabled={disabled || linking}
-                onValueChange={(value) => void linkCard(value)}
-              >
-                <SelectTrigger className="h-9 text-sm bg-black/30 border-white/10">
-                  <SelectValue placeholder="Demo UID…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SIMULATED_UIDS.map((item) => (
-                    <SelectItem key={item.uid} value={item.uid} className="font-mono">
-                      {item.label} — {item.uid}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
         </div>
       )}
     </MembershipPanelShell>

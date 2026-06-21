@@ -102,11 +102,6 @@ const FEATURE_FLAG_META: Record<
     description: 'Assign physical cards and look up members by tap.',
     group: 'cards',
   },
-  nfc_simulation_enabled: {
-    label: 'NFC simulation',
-    description: 'Demo UID picker for testing without a reader.',
-    group: 'cards',
-  },
   card_balance_enabled: {
     label: 'Card balance',
     description: 'Prepaid wallet balance on member cards.',
