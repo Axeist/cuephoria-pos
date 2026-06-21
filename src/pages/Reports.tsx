@@ -922,7 +922,8 @@ const ReportsPage: React.FC = () => {
 
   const handleEditBill = useCallback((bill: Bill) => {
     setEditingBill(bill);
-    setEditingPaymentMethod(bill.paymentMethod);
+    // Razorpay cannot be set manually; default to 'upi' when editing a razorpay bill
+    setEditingPaymentMethod(bill.paymentMethod === 'razorpay' ? 'upi' : bill.paymentMethod);
     setEditingSplitPayment(bill.isSplitPayment || false);
     setEditingCashAmount(bill.cashAmount || 0);
     setEditingUpiAmount(bill.upiAmount || 0);
@@ -2326,6 +2327,12 @@ const ReportsPage: React.FC = () => {
           {editingBill && (
             <div className="space-y-4 py-2">
               <div className="text-xs text-muted-foreground font-mono break-all">Bill: {editingBill.id}</div>
+              {editingBill.paymentMethod === 'razorpay' && (
+                <div className="flex items-center gap-2 rounded-md border border-blue-800/60 bg-blue-900/20 px-3 py-2 text-xs text-blue-300">
+                  <CreditCard className="h-3 w-3 shrink-0" />
+                  Originally paid via Razorpay (gateway). Select a corrected method below.
+                </div>
+              )}
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Payment Method</Label>
                 <RadioGroup
@@ -2351,12 +2358,7 @@ const ReportsPage: React.FC = () => {
                       <CreditCard className="h-4 w-4" /> Credit
                     </Label>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="razorpay" id="edit-razorpay" className="text-purple-400" />
-                    <Label htmlFor="edit-razorpay" className="flex items-center gap-1 cursor-pointer">
-                      <CreditCard className="h-4 w-4" /> Razorpay
-                    </Label>
-                  </div>
+                  {/* Razorpay is gateway-driven and cannot be set manually */}
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="split" id="edit-split" className="text-purple-400" />
                     <Label htmlFor="edit-split" className="flex items-center gap-1 cursor-pointer">
