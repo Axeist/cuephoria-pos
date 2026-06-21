@@ -3860,6 +3860,11 @@ export default function BookingManagement() {
                                                     <div>
                                                       <div className="text-sm text-muted-foreground">Booking Details</div>
                                                       <div className="space-y-1">
+                                                        {!groupByCustomer && (
+                                                          <div className="font-semibold text-foreground text-sm truncate" title={booking.customer.name}>
+                                                            {booking.customer.name}
+                                                          </div>
+                                                        )}
                                                         <div className="font-medium flex items-center gap-1 text-blue-600">
                                                           <Hash className="h-3 w-3" />
                                                           ID: {booking.id.substring(0, 8)}...
