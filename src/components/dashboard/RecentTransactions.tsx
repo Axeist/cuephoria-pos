@@ -1250,12 +1250,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="razorpay" id="razorpay" className="text-purple-400" />
-                      <Label htmlFor="razorpay" className="flex items-center gap-1 cursor-pointer">
-                        <CreditCard className="h-4 w-4" /> Razorpay
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
                       <RadioGroupItem value="split" id="split" className="text-purple-400" />
                       <Label htmlFor="split" className="flex items-center gap-1 cursor-pointer">
                         <X className="h-4 w-4" /> Split
