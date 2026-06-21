@@ -172,29 +172,76 @@ ALTER TABLE public.membership_coupons ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
 -- Data migration: existing members → Migrated tier (Growth+ orgs only)
+-- Tolerates is_member already dropped (use membership_* columns as fallback).
 -- ---------------------------------------------------------------------------
-INSERT INTO public.membership_tiers (
-  organization_id, name, slug, sort_order, playtime_discount_pct, is_active
-)
-SELECT DISTINCT c.organization_id, 'Migrated', 'migrated', 0, 50, true
-FROM public.customers c
-WHERE c.is_member = true
-  AND c.organization_id IS NOT NULL
-  AND EXISTS (
-    SELECT 1 FROM public.subscriptions s
-    JOIN public.plans p ON p.id = s.plan_id
-    WHERE s.organization_id = c.organization_id
-      AND lower(coalesce(p.code, s.plan_tier, 'starter')) IN ('growth', 'pro', 'enterprise', 'internal')
-  )
-ON CONFLICT (organization_id, slug) DO NOTHING;
+DO $$
+DECLARE
+  v_has_is_member boolean;
+BEGIN
+  SELECT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'customers'
+      AND column_name = 'is_member'
+  ) INTO v_has_is_member;
 
-UPDATE public.customers c
-SET membership_tier_id = t.id
-FROM public.membership_tiers t
-WHERE c.is_member = true
-  AND c.organization_id = t.organization_id
-  AND t.slug = 'migrated'
-  AND c.membership_tier_id IS NULL;
+  IF v_has_is_member THEN
+    INSERT INTO public.membership_tiers (
+      organization_id, name, slug, sort_order, playtime_discount_pct, is_active
+    )
+    SELECT DISTINCT c.organization_id, 'Migrated', 'migrated', 0, 50, true
+    FROM public.customers c
+    WHERE c.is_member = true
+      AND c.organization_id IS NOT NULL
+      AND EXISTS (
+        SELECT 1 FROM public.subscriptions s
+        JOIN public.plans p ON p.id = s.plan_id
+        WHERE s.organization_id = c.organization_id
+          AND lower(coalesce(p.code, s.plan_tier, 'starter')) IN ('growth', 'pro', 'enterprise', 'internal')
+      )
+    ON CONFLICT (organization_id, slug) DO NOTHING;
+
+    UPDATE public.customers c
+    SET membership_tier_id = t.id
+    FROM public.membership_tiers t
+    WHERE c.is_member = true
+      AND c.organization_id = t.organization_id
+      AND t.slug = 'migrated'
+      AND c.membership_tier_id IS NULL;
+  ELSE
+    INSERT INTO public.membership_tiers (
+      organization_id, name, slug, sort_order, playtime_discount_pct, is_active
+    )
+    SELECT DISTINCT c.organization_id, 'Migrated', 'migrated', 0, 50, true
+    FROM public.customers c
+    WHERE c.organization_id IS NOT NULL
+      AND (
+        c.membership_expiry_date IS NOT NULL
+        OR c.membership_start_date IS NOT NULL
+        OR COALESCE(c.membership_hours_left, 0) > 0
+      )
+      AND EXISTS (
+        SELECT 1 FROM public.subscriptions s
+        JOIN public.plans p ON p.id = s.plan_id
+        WHERE s.organization_id = c.organization_id
+          AND lower(coalesce(p.code, s.plan_tier, 'starter')) IN ('growth', 'pro', 'enterprise', 'internal')
+      )
+    ON CONFLICT (organization_id, slug) DO NOTHING;
+
+    UPDATE public.customers c
+    SET membership_tier_id = t.id
+    FROM public.membership_tiers t
+    WHERE c.organization_id = t.organization_id
+      AND t.slug = 'migrated'
+      AND c.membership_tier_id IS NULL
+      AND (
+        c.membership_expiry_date IS NOT NULL
+        OR c.membership_start_date IS NOT NULL
+        OR COALESCE(c.membership_hours_left, 0) > 0
+      );
+  END IF;
+END $$;
 
 UPDATE public.customers c
 SET membership_tier_id = NULL
