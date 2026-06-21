@@ -18,6 +18,9 @@ import { MobileTabSelect } from '@/components/mobile/MobileTabSelect';
 import { MobileTabBar } from '@/components/mobile/MobileTabBar';
 import MembershipHubStats from '@/components/memberships/MembershipHubStats';
 import MemberLookupPanel from '@/components/memberships/MemberLookupPanel';
+import AssignMemberCardPanel from '@/components/memberships/AssignMemberCardPanel';
+import MemberCardRegistry from '@/components/memberships/MemberCardRegistry';
+import MembershipPanelShell from '@/components/memberships/MembershipPanelShell';
 import NfcCardLookupPanel from '@/components/memberships/NfcCardLookupPanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,7 +49,6 @@ import { usePOS } from '@/context/POSContext';
 import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
 import { useViewMode } from '@/context/ViewModeContext';
 import {
-  addCardToInventory,
   deleteMembershipCoupon,
   deleteMembershipTier,
   deleteRechargeTier,
@@ -61,16 +63,14 @@ import {
   upsertRechargeTier,
 } from '@/services/membershipService';
 import type {
-  MembershipCard,
   MembershipCardLookupResult,
+  MembershipCardWithMember,
   MembershipCoupon,
   MembershipFeatureFlagKey,
   MembershipRechargeTier,
   MembershipTier,
 } from '@/types/membership.types';
 import { DEFAULT_MEMBERSHIP_FEATURE_FLAGS } from '@/types/membership.types';
-import { isValidNfcUid, normalizeNfcUid } from '@/utils/nfcUid.utils';
-import { cn } from '@/lib/utils';
 import { CurrencyDisplay } from '@/components/ui/currency';
 
 type TabId = 'settings' | 'tiers' | 'recharge' | 'cards' | 'coupons';
@@ -158,6 +158,10 @@ const emptyTierForm = (): Partial<MembershipTier> & { name: string } => ({
   fnbDiscountPct: 0,
   cardPaymentFnbEnabled: false,
   bookingPayAtVenueEnabled: false,
+  retailPrice: 0,
+  walletCreditOnPurchase: 0,
+  defaultDuration: 'monthly',
+  defaultMembershipHours: 4,
 });
 
 const emptyRechargeForm = (): Partial<MembershipRechargeTier> & {
@@ -204,7 +208,7 @@ export default function MembershipsPage() {
   const [tiers, setTiers] = useState<MembershipTier[]>([]);
   const [rechargeTiers, setRechargeTiers] = useState<MembershipRechargeTier[]>([]);
   const [coupons, setCoupons] = useState<MembershipCoupon[]>([]);
-  const [cards, setCards] = useState<MembershipCard[]>([]);
+  const [cards, setCards] = useState<MembershipCardWithMember[]>([]);
   const [localFlags, setLocalFlags] = useState({ ...DEFAULT_MEMBERSHIP_FEATURE_FLAGS });
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -223,8 +227,6 @@ export default function MembershipsPage() {
   const [resolvedMember, setResolvedMember] = useState<MembershipCardLookupResult | null>(null);
   const [rechargeAmount, setRechargeAmount] = useState('');
   const [recharging, setRecharging] = useState(false);
-  const [newCardUid, setNewCardUid] = useState('');
-  const [addingCard, setAddingCard] = useState(false);
 
   const canEditSettings = can('memberships.settings.edit');
   const canEditTiers = can('memberships.tiers.edit');
@@ -266,9 +268,11 @@ export default function MembershipsPage() {
               coupons: [] as MembershipCoupon[],
             }))
           : Promise.resolve({ coupons: [] as MembershipCoupon[] }),
-        flags.physical_cards_inventory_enabled
-          ? fetchMembershipCards(activeLocationId).catch(() => ({ cards: [] as MembershipCard[] }))
-          : Promise.resolve({ cards: [] as MembershipCard[] }),
+        flags.nfc_cards_enabled
+          ? fetchMembershipCards(activeLocationId).catch(() => ({
+              cards: [] as MembershipCardWithMember[],
+            }))
+          : Promise.resolve({ cards: [] as MembershipCardWithMember[] }),
       ]);
       setTiers(tiersRes.tiers);
       setRechargeTiers(rechargeRes.rechargeTiers);
@@ -305,6 +309,7 @@ export default function MembershipsPage() {
         activeLocationId,
       );
       await queryClient.invalidateQueries({ queryKey: ['membership-features', activeLocationId] });
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
       await loadHubData();
       toast({ title: 'Settings saved' });
     } catch (err) {
@@ -348,7 +353,10 @@ export default function MembershipsPage() {
         return [...prev, res.tier].sort((a, b) => a.sortOrder - b.sortOrder);
       });
       setTierDialogOpen(false);
-      toast({ title: editingTierId ? 'Tier updated' : 'Tier created' });
+      toast({
+        title: editingTierId ? 'Tier updated' : 'Tier created',
+        description: 'Membership product synced to POS catalog.',
+      });
     } catch (err) {
       toast({
         title: 'Tier save failed',
@@ -455,33 +463,9 @@ export default function MembershipsPage() {
     }
   };
 
-  const handleAddInventoryCard = async () => {
-    if (!canManageCards) return;
-    const uid = normalizeNfcUid(newCardUid);
-    if (!isValidNfcUid(uid)) {
-      toast({
-        title: 'Invalid UID',
-        description: 'Enter 4–32 hex characters.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    setAddingCard(true);
-    try {
-      const res = await addCardToInventory(uid, activeLocationId);
-      setCards((prev) => [res.card, ...prev]);
-      setNewCardUid('');
-      toast({ title: 'Card added to inventory' });
-    } catch (err) {
-      toast({
-        title: 'Add failed',
-        description: err instanceof Error ? err.message : 'Unknown error',
-        variant: 'destructive',
-      });
-    } finally {
-      setAddingCard(false);
-    }
-  };
+  const handleCardAssigned = useCallback(() => {
+    void loadHubData();
+  }, [loadHubData]);
 
   const handleSaveCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -720,6 +704,8 @@ export default function MembershipsPage() {
             <div className="space-y-5">
               <MemberLookupPanel
                 members={customers}
+                step={1}
+                title="Find member to recharge"
                 onMemberResolved={(result) => {
                   setResolvedMember(result);
                   setRechargeAmount('');
@@ -727,33 +713,29 @@ export default function MembershipsPage() {
               />
 
               {canUse('nfc_cards_enabled') && (
-                <div className="space-y-2">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold px-1">
-                    Or tap NFC card
-                  </p>
-                  <NfcCardLookupPanel
-                    onMemberResolved={(result) => {
-                      setResolvedMember(result);
-                      setRechargeAmount('');
-                    }}
-                  />
-                </div>
+                <NfcCardLookupPanel
+                  compact
+                  onMemberResolved={(result) => {
+                    setResolvedMember(result);
+                    setRechargeAmount('');
+                  }}
+                />
               )}
 
               {resolvedMember && canUse('card_balance_enabled') && (
-                <div className="rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-950/30 to-[#0a0814] p-5 sm:p-6 space-y-4">
+                <MembershipPanelShell
+                  accent="cyan"
+                  title={`Recharge ${resolvedMember.customer.name}`}
+                  description="Add prepaid credit to the member wallet."
+                  icon={<Wallet className="h-5 w-5" />}
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-semibold text-white">
-                        Recharge {resolvedMember.customer.name}
-                      </h3>
-                      {resolvedMember.customer.customerId && (
-                        <p className="text-sm font-mono text-cyan-200/80 mt-1">
-                          {resolvedMember.customer.customerId}
-                        </p>
-                      )}
-                    </div>
-                    <div className="text-right">
+                    {resolvedMember.customer.customerId && (
+                      <span className="rounded-md bg-black/30 px-2.5 py-1 font-mono text-xs text-cyan-200/90 border border-cyan-500/20">
+                        {resolvedMember.customer.customerId}
+                      </span>
+                    )}
+                    <div className="text-right ml-auto">
                       <p className="text-xs text-muted-foreground">Current balance</p>
                       <p className="text-2xl font-bold text-cyan-100 tabular-nums">
                         <CurrencyDisplay amount={resolvedMember.customer.cardBalance ?? 0} />
@@ -770,14 +752,14 @@ export default function MembershipsPage() {
                             key={tier.id}
                             type="button"
                             variant="outline"
-                            className="h-auto py-3 flex flex-col gap-0.5"
+                            className="h-auto py-3 flex flex-col gap-0.5 border-cyan-500/20 hover:bg-cyan-500/10 hover:border-cyan-400/40"
                             disabled={!canExecuteRecharge || recharging}
                             onClick={() => void handleMemberRecharge(tier.creditAmount)}
                           >
                             <span className="text-xs text-muted-foreground">
                               Pay <CurrencyDisplay amount={tier.payAmount} />
                             </span>
-                            <span className="font-semibold">
+                            <span className="font-semibold text-cyan-100">
                               +<CurrencyDisplay amount={tier.creditAmount} />
                             </span>
                           </Button>
@@ -793,17 +775,18 @@ export default function MembershipsPage() {
                       value={rechargeAmount}
                       onChange={(e) => setRechargeAmount(e.target.value)}
                       disabled={!canExecuteRecharge || recharging}
+                      className="bg-black/30 border-white/10 h-11"
                     />
                     <Button
                       type="button"
-                      className="btn-gradient shrink-0"
+                      className="btn-gradient shrink-0 h-11 min-w-[130px]"
                       disabled={!canExecuteRecharge || recharging || !rechargeAmount}
                       onClick={() => void handleMemberRecharge(Number(rechargeAmount))}
                     >
                       {recharging ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Recharge'}
                     </Button>
                   </div>
-                </div>
+                </MembershipPanelShell>
               )}
 
               {canEditRecharge && canUse('recharge_tiers_enabled') && (
@@ -869,61 +852,40 @@ export default function MembershipsPage() {
 
           {activeTab === 'cards' && (
             <div className="space-y-5">
-              <MemberLookupPanel members={customers} onMemberResolved={setResolvedMember} />
-
-              {canUse('nfc_cards_enabled') && (
-                <NfcCardLookupPanel onMemberResolved={setResolvedMember} />
-              )}
-
-              {canManageCards && canUse('physical_cards_inventory_enabled') && (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 sm:p-5 space-y-4">
-                  <h3 className="font-semibold">Add to inventory</h3>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Input
-                      value={newCardUid}
-                      onChange={(e) => setNewCardUid(normalizeNfcUid(e.target.value))}
-                      placeholder="UID"
-                      className="font-mono uppercase"
-                      data-nfc-wedge="true"
-                    />
-                    <Button
-                      type="button"
-                      className="btn-gradient shrink-0"
-                      disabled={addingCard || !newCardUid}
-                      onClick={() => void handleAddInventoryCard()}
-                    >
-                      {addingCard ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add card'}
-                    </Button>
-                  </div>
+              {!canUse('nfc_cards_enabled') ? (
+                <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-6 text-center">
+                  <CreditCard className="h-10 w-10 mx-auto mb-3 text-amber-300/60" />
+                  <p className="font-medium text-amber-100">NFC cards are disabled</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Turn on &quot;NFC cards&quot; in Settings to link tags to members.
+                  </p>
                 </div>
-              )}
+              ) : (
+                <>
+                  <MemberLookupPanel
+                    members={customers}
+                    step={1}
+                    title="Select member"
+                    description="Every NFC card must belong to a customer. Start by finding the member you want to link."
+                    onMemberResolved={setResolvedMember}
+                  />
 
-              <div className="glass-card border-white/10 p-4 sm:p-5 space-y-3">
-                <h3 className="font-semibold">Card inventory</h3>
-                {cards.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No cards tracked yet.</p>
-                ) : (
-                  <div className="space-y-2 max-h-[420px] overflow-y-auto">
-                    {cards.map((card) => (
-                      <div
-                        key={card.id}
-                        className="flex items-center justify-between rounded-lg border border-white/5 px-3 py-2 text-sm"
-                      >
-                        <span className="font-mono">{card.uid}</span>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            card.status === 'assigned' && 'border-emerald-500/40 text-emerald-300',
-                            card.status === 'inventory' && 'border-cyan-500/40 text-cyan-300',
-                          )}
-                        >
-                          {card.status}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                  {canManageCards && (
+                    <AssignMemberCardPanel
+                      member={resolvedMember}
+                      disabled={!canManageCards}
+                      onAssigned={() => handleCardAssigned()}
+                    />
+                  )}
+
+                  <NfcCardLookupPanel
+                    compact
+                    onMemberResolved={setResolvedMember}
+                  />
+
+                  <MemberCardRegistry cards={cards} />
+                </>
+              )}
             </div>
           )}
 
@@ -1041,6 +1003,63 @@ export default function MembershipsPage() {
                 />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>POS price (₹)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={tierForm.retailPrice ?? 0}
+                  onChange={(e) =>
+                    setTierForm((f) => ({ ...f, retailPrice: Number(e.target.value) }))
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Wallet credit on purchase (₹)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={tierForm.walletCreditOnPurchase ?? 0}
+                  onChange={(e) =>
+                    setTierForm((f) => ({ ...f, walletCreditOnPurchase: Number(e.target.value) }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Default duration</Label>
+                <Select
+                  value={tierForm.defaultDuration ?? 'monthly'}
+                  onValueChange={(v: 'weekly' | 'monthly') =>
+                    setTierForm((f) => ({ ...f, defaultDuration: v }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Membership hours</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={tierForm.defaultMembershipHours ?? 4}
+                  onChange={(e) =>
+                    setTierForm((f) => ({ ...f, defaultMembershipHours: Number(e.target.value) }))
+                  }
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Saving creates or updates a membership product in your POS catalog for this tier.
+            </p>
             <div className="flex items-center justify-between">
               <Label>Active</Label>
               <Switch

@@ -28,6 +28,7 @@ import SplitPaymentForm from '@/components/checkout/SplitPaymentForm';
 import SavedCartsManager from '@/components/SavedCartsManager';
 import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
 import NfcCardLookupPanel from '@/components/memberships/NfcCardLookupPanel';
+import MembershipWalletTopUpDialog from '@/components/memberships/MembershipWalletTopUpDialog';
 import type { MembershipCardLookupResult } from '@/types/membership.types';
 import { mergeNfcLookupWithCustomer } from '@/utils/nfcCustomer.utils';
 import { cn } from '@/lib/utils';
@@ -82,6 +83,8 @@ const POS = () => {
     setLoyaltyPointsUsed,
     calculateTotal,
     completeSale,
+    pendingWalletTopUp,
+    clearPendingWalletTopUp,
   } = usePOS();
   const { toast } = useToast();
   const { isMobile } = useViewMode();
@@ -1277,10 +1280,10 @@ const POS = () => {
                       disabled={!canPayWithCard}
                     />
                     <Label htmlFor="card" className="font-quicksand">
-                      Card
+                      Member wallet
                       {selectedCustomer?.membershipTierId && (
                         <span className="text-xs text-muted-foreground ml-1">
-                          (₹{selectedCustomer.cardBalance ?? 0})
+                          (<CurrencyDisplay amount={selectedCustomer.cardBalance ?? 0} />)
                         </span>
                       )}
                     </Label>
@@ -1488,6 +1491,22 @@ const POS = () => {
           </button>
         ) : null}
       </StickyMobileActionBar>
+
+      <MembershipWalletTopUpDialog
+        offer={pendingWalletTopUp}
+        onClose={() => {
+          clearPendingWalletTopUp();
+          selectCustomer(null);
+        }}
+        onCredited={(balance) => {
+          if (pendingWalletTopUp && selectedCustomer) {
+            updateCustomer({
+              ...selectedCustomer,
+              cardBalance: balance ?? selectedCustomer.cardBalance,
+            });
+          }
+        }}
+      />
 
       <PinVerificationDialog
         open={showPinDialog}

@@ -52,6 +52,11 @@ export interface MembershipTier {
   bookingPayAtVenueEnabled: boolean;
   minRechargeAmount?: number | null;
   maxCardBalance?: number | null;
+  retailPrice?: number;
+  walletCreditOnPurchase?: number;
+  defaultDuration?: 'weekly' | 'monthly';
+  defaultMembershipHours?: number;
+  productId?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -86,6 +91,13 @@ export interface MembershipCard {
   customerId?: string | null;
   assignedAt?: string | null;
   retiredAt?: string | null;
+}
+
+/** Card row enriched with member display fields for the hub registry. */
+export interface MembershipCardWithMember extends MembershipCard {
+  customerName?: string | null;
+  customerDisplayId?: string | null;
+  customerPhone?: string | null;
 }
 
 export interface MembershipCoupon {
@@ -136,4 +148,12 @@ export interface MembershipCardLookupResult {
   card: MembershipCard | null;
   customer: MembershipMemberCustomer;
   tier?: MembershipTier | null;
+}
+
+export interface WalletTopUpOffer {
+  customerId: string;
+  customerName: string;
+  billId: string;
+  suggestedAmount: number;
+  tierName?: string;
 }

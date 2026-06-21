@@ -2,12 +2,12 @@ import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { CreditCard, IdCard, Layers, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { MembershipCard, MembershipCoupon, MembershipTier } from '@/types/membership.types';
+import type { MembershipCardWithMember, MembershipCoupon, MembershipTier } from '@/types/membership.types';
 
 interface MembershipHubStatsProps {
   activeMembersCount: number;
   tiers: MembershipTier[];
-  cards: MembershipCard[];
+  cards: MembershipCardWithMember[];
   coupons: MembershipCoupon[];
 }
 
@@ -19,10 +19,9 @@ export default function MembershipHubStats({
 }: MembershipHubStatsProps) {
   const stats = useMemo(() => {
     const activeTiers = tiers.filter((t) => t.isActive).length;
-    const inventoryCards = cards.filter((c) => c.status === 'inventory').length;
-    const assignedCards = cards.filter((c) => c.status === 'assigned').length;
+    const linkedCards = cards.filter((c) => c.customerId && c.status === 'assigned').length;
     const activeCoupons = coupons.filter((c) => c.enabled).length;
-    return { activeTiers, inventoryCards, assignedCards, activeCoupons };
+    return { activeTiers, linkedCards, activeCoupons };
   }, [tiers, cards, coupons]);
 
   const widgets = [
@@ -41,9 +40,9 @@ export default function MembershipHubStats({
       accent: 'from-blue-500/20 to-indigo-600/10 border-blue-400/30 text-blue-200',
     },
     {
-      label: 'Card inventory',
-      value: stats.inventoryCards,
-      sub: `${stats.assignedCards} assigned`,
+      label: 'Linked cards',
+      value: stats.linkedCards,
+      sub: `${cards.length} total`,
       icon: CreditCard,
       accent: 'from-cyan-500/20 to-teal-600/10 border-cyan-400/30 text-cyan-200',
     },

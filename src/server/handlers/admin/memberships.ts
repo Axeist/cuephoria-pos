@@ -54,8 +54,8 @@ const OP_FEATURES: Partial<Record<string, MembershipFeatureFlagKey>> = {
   lookupCard: 'nfc_cards_enabled',
   assignCard: 'nfc_cards_enabled',
   replaceCard: 'nfc_cards_enabled',
-  addInventoryCard: 'physical_cards_inventory_enabled',
-  fetchCards: 'physical_cards_inventory_enabled',
+  addInventoryCard: 'nfc_cards_enabled',
+  fetchCards: 'nfc_cards_enabled',
   fetchRechargeTiers: 'recharge_tiers_enabled',
   upsertRechargeTier: 'recharge_tiers_enabled',
   deleteRechargeTier: 'recharge_tiers_enabled',
@@ -271,7 +271,11 @@ export default async function handler(req: Request) {
             },
             200,
           );
-        case 'addInventoryCard':
+        case 'addInventoryCard': {
+          const customerId = String(args.customerId ?? '');
+          if (!customerId.trim()) {
+            return j({ ok: false, error: 'customerId is required to link a card to a member' }, 400);
+          }
           return j(
             {
               ok: true,
@@ -280,10 +284,12 @@ export default async function handler(req: Request) {
                 orgId,
                 String(args.uid),
                 args.locationId as string | null | undefined,
+                customerId,
               ),
             },
             200,
           );
+        }
         case 'assignTier':
           await ops.assignTier(supabase, orgId, {
             customerId: String(args.customerId),

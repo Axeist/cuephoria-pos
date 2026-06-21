@@ -1,7 +1,7 @@
 import { MobilePageShell } from '@/components/mobile/MobilePageShell';
 import { MobilePageHeader } from '@/components/mobile/MobilePageHeader';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Plus, User, Search, Download, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Filter, X } from 'lucide-react';
+import { Plus, User, Search, Download, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Filter, X, IdCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
@@ -18,6 +18,10 @@ import { usePermissions } from '@/context/PermissionsContext';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useLocation as useLocationCtx } from '@/context/LocationContext';
+import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
+import { useMembershipTiers } from '@/hooks/useMembershipTiers';
+import { fetchMembershipCards } from '@/services/membershipService';
+import { cn } from '@/lib/utils';
 
 type SortField = 'joinDate' | 'totalSpent' | 'loyaltyPoints' | 'playTime';
 type SortDirection = 'asc' | 'desc';
@@ -47,6 +51,9 @@ const Customers = () => {
   const [error, setError] = useState<string | null>(null);
   const [customersData, setCustomersData] = useState<Customer[]>([]);
   const { activeLocationId } = useLocationCtx();
+  const { isEnabled: membershipsOn } = useMembershipFeatures();
+  const { tiers: membershipTiers } = useMembershipTiers();
+  const [cardUidByCustomerId, setCardUidByCustomerId] = useState<Record<string, string>>({});
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -86,6 +93,43 @@ const Customers = () => {
   const canDeleteCustomer = can('customers.delete');
   const canExportCustomers = can('customers.export');
   const canManageMemberships = can('memberships.customers.edit');
+
+  useEffect(() => {
+    if (!membershipsOn || !activeLocationId) {
+      setCardUidByCustomerId({});
+      return;
+    }
+    void fetchMembershipCards(activeLocationId)
+      .then((res) => {
+        const map: Record<string, string> = {};
+        for (const card of res.cards) {
+          if (card.customerId && card.status === 'assigned') {
+            map[card.customerId] = card.uid;
+          }
+        }
+        setCardUidByCustomerId(map);
+      })
+      .catch(() => setCardUidByCustomerId({}));
+  }, [membershipsOn, activeLocationId]);
+
+  const tierNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    membershipTiers.forEach((t) => {
+      map[t.id] = t.name;
+    });
+    return map;
+  }, [membershipTiers]);
+
+  const enrichCustomer = useCallback(
+    (customer: Customer): Customer => ({
+      ...customer,
+      membershipTierName: customer.membershipTierId
+        ? tierNameById[customer.membershipTierId] ?? customer.membershipTierName
+        : customer.membershipTierName,
+      activeCardUid: cardUidByCustomerId[customer.id],
+    }),
+    [tierNameById, cardUidByCustomerId],
+  );
 
   let posContext;
   try {
@@ -203,8 +247,10 @@ const Customers = () => {
             name: customer.name,
             phone: customer.phone,
             email: customer.email || '',
-            customerId: customer.custom_id || generateCustomerID(customer.phone),
-            isMember: customer.is_member || false,
+            customerId: customer.customer_id || customer.custom_id || generateCustomerID(customer.phone),
+            isMember: Boolean(customer.membership_tier_id) || Boolean(customer.is_member),
+            membershipTierId: customer.membership_tier_id || undefined,
+            cardBalance: Number(customer.card_balance ?? 0),
             loyaltyPoints: customer.loyalty_points || 0,
             totalSpent: customer.total_spent || 0,
             totalPlayTime: customer.total_play_time || 0,
@@ -892,6 +938,37 @@ const Customers = () => {
           </Button>
         </div>
 
+        {membershipsOn && (
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                { id: 'all', label: 'All customers' },
+                { id: 'member', label: 'Members', icon: IdCard },
+                { id: 'non-member', label: 'Non-members' },
+              ] as const
+            ).map((chip) => (
+              <Button
+                key={chip.id}
+                type="button"
+                size="sm"
+                variant={filters.membershipStatus === chip.id ? 'default' : 'outline'}
+                className={cn(
+                  'h-8 text-xs',
+                  filters.membershipStatus === chip.id &&
+                    chip.id === 'member' &&
+                    'bg-violet-600 hover:bg-violet-700',
+                )}
+                onClick={() =>
+                  setFilters((prev) => ({ ...prev, membershipStatus: chip.id }))
+                }
+              >
+                {chip.icon && <chip.icon className="h-3.5 w-3.5 mr-1.5" />}
+                {chip.label}
+              </Button>
+            ))}
+          </div>
+        )}
+
         {showFilters && (
           <div className="border rounded-lg p-3 sm:p-4 bg-muted/50 space-y-3 sm:space-y-4">
             <div className="flex items-center justify-between">
@@ -1039,7 +1116,7 @@ const Customers = () => {
             {visibleCustomers.map((customer) => (
               <CustomerCard
                 key={customer.id}
-                customer={customer}
+                customer={enrichCustomer(customer)}
                 onEdit={canEditCustomer ? handleEditCustomer : undefined}
                 onDelete={canDeleteCustomer ? handleDeleteCustomer : undefined}
               />

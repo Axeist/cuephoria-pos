@@ -9,6 +9,7 @@ import { CurrencyDisplay } from '@/components/ui/currency';
 import { User, Edit, Trash, Clock, CreditCard, Star, Award, CalendarCheck, Calendar, Phone, Mail, MessageSquare, Hash, Copy } from 'lucide-react';
 import { isMembershipActive, getMembershipBadgeText } from '@/utils/membership.utils';
 import WhatsAppMessageDialog from '@/components/customers/WhatsAppMessageDialog';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
 interface CustomerCardProps {
@@ -73,13 +74,24 @@ const CustomerCardInner: React.FC<CustomerCardProps> = ({
     }
   };
 
+  const isMember = Boolean(customer.membershipTierId) || customer.isMember;
   const isActive = isMembershipActive(customer);
-  const membershipStatus = customer.isMember ? (isActive ? 'Active Member' : 'Expired Member') : 'Non-Member';
-  const membershipStatusColor = customer.isMember ? (isActive ? 'text-green-400' : 'text-orange-400') : 'text-gray-400';
+  const membershipStatus = isMember ? (isActive ? 'Active Member' : 'Expired Member') : 'Non-Member';
+  const membershipStatusColor = isMember ? (isActive ? 'text-emerald-400' : 'text-orange-400') : 'text-gray-400';
 
   return (
     <>
-      <Card className="group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-purple-500/20 hover:-translate-y-1 bg-gradient-to-br from-gray-900/50 to-gray-800/50 border-gray-700/50 backdrop-blur-sm">
+      <Card
+        className={cn(
+          'group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 backdrop-blur-sm',
+          isMember && isActive
+            ? 'bg-gradient-to-br from-violet-950/60 via-gray-900/50 to-cyan-950/40 border-violet-500/40 ring-1 ring-violet-500/20 hover:shadow-violet-500/25'
+            : 'bg-gradient-to-br from-gray-900/50 to-gray-800/50 border-gray-700/50 hover:shadow-purple-500/20',
+        )}
+      >
+        {isMember && isActive && (
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 via-cyan-400 to-emerald-400" />
+        )}
         {isActive && (
           <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         )}
@@ -121,10 +133,15 @@ const CustomerCardInner: React.FC<CustomerCardProps> = ({
                   {formatPhoneNumber(customer.phone)}
                 </span>
               </div>
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className={`text-sm font-medium ${membershipStatusColor}`}>
                   {membershipStatus}
                 </span>
+                {isMember && customer.membershipTierName && (
+                  <Badge className="bg-violet-500/20 text-violet-200 border-violet-400/30 text-[10px]">
+                    {customer.membershipTierName}
+                  </Badge>
+                )}
               </div>
             </div>
           </div>
@@ -138,15 +155,36 @@ const CustomerCardInner: React.FC<CustomerCardProps> = ({
             </div>
           )}
           
-          {customer.isMember && (
-            <div className="space-y-2 p-3 bg-gradient-to-r from-purple-900/20 to-pink-900/20 rounded-lg border border-purple-500/20">
-              {customer.membershipPlan && (
+          {isMember && (
+            <div className="space-y-2 p-3 bg-gradient-to-r from-violet-900/25 to-cyan-900/15 rounded-lg border border-violet-500/25">
+              {(customer.membershipTierName || customer.membershipPlan) && (
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Award className="h-4 w-4 text-purple-400" />
-                    <span className="text-sm text-purple-300">Plan</span>
+                    <Award className="h-4 w-4 text-violet-400" />
+                    <span className="text-sm text-violet-300">Tier</span>
                   </div>
-                  <span className="text-sm font-medium text-white">{customer.membershipPlan}</span>
+                  <span className="text-sm font-medium text-white">
+                    {customer.membershipTierName || customer.membershipPlan}
+                  </span>
+                </div>
+              )}
+
+              {(customer.cardBalance ?? 0) > 0 && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-cyan-400" />
+                    <span className="text-sm text-cyan-300">Wallet</span>
+                  </div>
+                  <span className="text-sm font-semibold text-cyan-100">
+                    <CurrencyDisplay amount={customer.cardBalance ?? 0} />
+                  </span>
+                </div>
+              )}
+
+              {customer.activeCardUid && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">NFC UID</span>
+                  <span className="text-xs font-mono text-emerald-300/90">{customer.activeCardUid}</span>
                 </div>
               )}
               

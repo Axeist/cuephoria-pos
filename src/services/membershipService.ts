@@ -1,6 +1,7 @@
 import { adminFetch } from '@/services/adminFetch';
 import type {
   MembershipCard,
+  MembershipCardWithMember,
   MembershipCoupon,
   MembershipFeatureFlagKey,
   MembershipRechargeTier,
@@ -73,7 +74,7 @@ export async function fetchMembershipCoupons(locationId?: string | null) {
 
 export async function fetchMembershipCards(locationId?: string | null) {
   const q = new URLSearchParams({ op: 'fetchCards' });
-  return membershipGet<{ cards: MembershipCard[] }>(q, locationId);
+  return membershipGet<{ cards: MembershipCardWithMember[] }>(q, locationId);
 }
 
 export async function lookupMembershipCard(uid: string, locationId?: string | null) {
@@ -169,8 +170,16 @@ export async function assignNfcCard(args: Record<string, unknown>, locationId?: 
   );
 }
 
-export async function addCardToInventory(uid: string, locationId?: string | null) {
-  return membershipPost<{ card: MembershipCard }>('addInventoryCard', { uid, locationId }, locationId);
+export async function addCardToInventory(
+  uid: string,
+  customerId: string,
+  locationId?: string | null,
+) {
+  return membershipPost<{ card: MembershipCard }>(
+    'addInventoryCard',
+    { uid, customerId, locationId },
+    locationId,
+  );
 }
 
 export function parseFlagsFromApi(raw: unknown) {

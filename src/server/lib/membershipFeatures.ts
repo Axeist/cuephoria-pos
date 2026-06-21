@@ -55,6 +55,11 @@ export function mapTierRow(row: Record<string, unknown>): MembershipTier {
     bookingPayAtVenueEnabled: Boolean(row.booking_pay_at_venue_enabled),
     minRechargeAmount: row.min_recharge_amount != null ? Number(row.min_recharge_amount) : null,
     maxCardBalance: row.max_card_balance != null ? Number(row.max_card_balance) : null,
+    retailPrice: Number(row.retail_price ?? 0),
+    walletCreditOnPurchase: Number(row.wallet_credit_on_purchase ?? 0),
+    defaultDuration: (row.default_duration as 'weekly' | 'monthly') ?? 'monthly',
+    defaultMembershipHours: Number(row.default_membership_hours ?? 4),
+    productId: row.product_id ? String(row.product_id) : null,
     createdAt: row.created_at ? String(row.created_at) : undefined,
     updatedAt: row.updated_at ? String(row.updated_at) : undefined,
   };

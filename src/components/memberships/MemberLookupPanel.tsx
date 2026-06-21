@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { BadgeCheck, Loader2, Search, User } from 'lucide-react';
+import { BadgeCheck, CreditCard, Loader2, Search, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,18 +9,25 @@ import { lookupMember } from '@/services/membershipService';
 import type { Customer } from '@/types/pos.types';
 import type { MembershipCardLookupResult } from '@/types/membership.types';
 import { CurrencyDisplay } from '@/components/ui/currency';
+import MembershipPanelShell from '@/components/memberships/MembershipPanelShell';
 import { cn } from '@/lib/utils';
 
 type MemberLookupPanelProps = {
   members: Customer[];
   onMemberResolved: (result: MembershipCardLookupResult) => void;
   className?: string;
+  step?: number;
+  title?: string;
+  description?: string;
 };
 
 export default function MemberLookupPanel({
   members,
   onMemberResolved,
   className,
+  step = 1,
+  title = 'Find member',
+  description = 'Search by Customer ID, phone, or name — the same reference used on POS, stations, and receipts.',
 }: MemberLookupPanelProps) {
   const { toast } = useToast();
   const { activeLocationId } = useLocation();
@@ -29,8 +36,7 @@ export default function MemberLookupPanel({
   const [lastResult, setLastResult] = useState<MembershipCardLookupResult | null>(null);
 
   const activeMembers = useMemo(
-    () =>
-      members.filter((c) => c.membershipTierId || c.isMember).slice(0, 48),
+    () => members.filter((c) => c.membershipTierId || c.isMember).slice(0, 48),
     [members],
   );
 
@@ -90,19 +96,14 @@ export default function MemberLookupPanel({
   };
 
   return (
-    <div className={cn('rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-950/40 via-[#0c0a14] to-[#08060f] p-4 sm:p-6 space-y-5 shadow-lg shadow-violet-950/30', className)}>
-      <div className="flex items-start gap-3">
-        <div className="rounded-xl bg-violet-500/15 border border-violet-400/25 p-2.5">
-          <BadgeCheck className="h-5 w-5 text-violet-300" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-white text-lg">Find member</h3>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Search by <span className="text-violet-200/90">Customer ID</span>, phone, or name — the same ID used across POS and stations.
-          </p>
-        </div>
-      </div>
-
+    <MembershipPanelShell
+      step={step}
+      accent="violet"
+      title={title}
+      description={description}
+      icon={<BadgeCheck className="h-5 w-5" />}
+      className={className}
+    >
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="flex-1 space-y-1.5">
           <Label htmlFor="member-ref" className="text-xs text-muted-foreground">
@@ -139,7 +140,7 @@ export default function MemberLookupPanel({
       {suggestions.length > 0 && (
         <div className="space-y-2">
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
-            {query.trim() ? 'Matches' : 'Active members — quick pick'}
+            {query.trim() ? 'Matches' : 'Active members'}
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {suggestions.map((m) => (
@@ -148,14 +149,17 @@ export default function MemberLookupPanel({
                 type="button"
                 disabled={loading}
                 onClick={() => pickLocal(m)}
-                className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 text-left transition hover:border-violet-400/30 hover:bg-violet-500/10"
+                className={cn(
+                  'flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 text-left',
+                  'transition hover:border-violet-400/35 hover:bg-violet-500/10 hover:shadow-md hover:shadow-violet-900/20',
+                )}
               >
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 border border-violet-400/20">
                   <User className="h-4 w-4 text-violet-300" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-white truncate">{m.name}</p>
-                  <p className="text-xs text-muted-foreground font-mono truncate">
+                  <p className="text-xs text-violet-200/70 font-mono truncate">
                     {m.customerId || m.phone}
                   </p>
                 </div>
@@ -166,7 +170,7 @@ export default function MemberLookupPanel({
       )}
 
       {lastResult && (
-        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/8 px-4 py-3.5">
+        <div className="rounded-xl border border-emerald-500/25 bg-gradient-to-r from-emerald-500/10 to-transparent px-4 py-3.5 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-semibold text-emerald-100">{lastResult.customer.name}</p>
             {lastResult.customer.customerId && (
@@ -175,7 +179,13 @@ export default function MemberLookupPanel({
               </span>
             )}
           </div>
-          <p className="text-sm text-muted-foreground mt-1.5">
+          {lastResult.card?.uid && (
+            <p className="text-xs font-mono text-cyan-200/90 flex items-center gap-1.5">
+              <CreditCard className="h-3.5 w-3.5" />
+              Card UID: {lastResult.card.uid}
+            </p>
+          )}
+          <p className="text-sm text-muted-foreground">
             {lastResult.customer.phone}
             {lastResult.tier ? ` · ${lastResult.tier.name}` : ''}
             {' · Balance '}
@@ -183,6 +193,6 @@ export default function MemberLookupPanel({
           </p>
         </div>
       )}
-    </div>
+    </MembershipPanelShell>
   );
 }

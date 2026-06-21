@@ -178,8 +178,14 @@ export async function upsertTier(
     booking_pay_at_venue_enabled: input.bookingPayAtVenueEnabled ?? false,
     min_recharge_amount: input.minRechargeAmount ?? null,
     max_card_balance: input.maxCardBalance ?? null,
+    retail_price: input.retailPrice ?? 0,
+    wallet_credit_on_purchase: input.walletCreditOnPurchase ?? 0,
+    default_duration: input.defaultDuration ?? 'monthly',
+    default_membership_hours: input.defaultMembershipHours ?? 4,
     updated_at: new Date().toISOString(),
   };
+
+  let tier: MembershipTier;
 
   if (input.id) {
     const { data, error } = await supabase
@@ -190,16 +196,67 @@ export async function upsertTier(
       .select('*')
       .single();
     if (error) throw new Error(error.message);
-    return mapTierRow(data as Record<string, unknown>);
+    tier = mapTierRow(data as Record<string, unknown>);
+  } else {
+    const { data, error } = await supabase
+      .from('membership_tiers')
+      .insert(row)
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message);
+    tier = mapTierRow(data as Record<string, unknown>);
   }
 
-  const { data, error } = await supabase
+  return syncTierProduct(supabase, organizationId, tier);
+}
+
+async function syncTierProduct(
+  supabase: SupabaseClient,
+  organizationId: string,
+  tier: MembershipTier,
+): Promise<MembershipTier> {
+  if (!tier.isActive) return tier;
+
+  const now = new Date().toISOString();
+  const productPayload = {
+    organization_id: organizationId,
+    name: `${tier.name} Membership`,
+    category: 'membership',
+    price: tier.retailPrice ?? 0,
+    stock: 999,
+    membership_tier_id: tier.id,
+    duration: tier.defaultDuration ?? 'monthly',
+    membership_hours: tier.defaultMembershipHours ?? 4,
+    updated_at: now,
+  };
+
+  if (tier.productId) {
+    const { error } = await supabase
+      .from('products')
+      .update(productPayload)
+      .eq('id', tier.productId)
+      .eq('organization_id', organizationId);
+    if (error) throw new Error(error.message);
+    return tier;
+  }
+
+  const { data: product, error: insertErr } = await supabase
+    .from('products')
+    .insert({ ...productPayload, created_at: now })
+    .select('id')
+    .single();
+  if (insertErr) throw new Error(insertErr.message);
+
+  const productId = String(product.id);
+  const { data: updated, error: linkErr } = await supabase
     .from('membership_tiers')
-    .insert(row)
+    .update({ product_id: productId, updated_at: now })
+    .eq('id', tier.id)
+    .eq('organization_id', organizationId)
     .select('*')
     .single();
-  if (error) throw new Error(error.message);
-  return mapTierRow(data as Record<string, unknown>);
+  if (linkErr) throw new Error(linkErr.message);
+  return mapTierRow(updated as Record<string, unknown>);
 }
 
 export async function deleteTier(supabase: SupabaseClient, organizationId: string, tierId: string) {
@@ -323,14 +380,47 @@ export async function deleteCoupon(supabase: SupabaseClient, organizationId: str
   if (error) throw new Error(error.message);
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function displayCustomerId(row: Record<string, unknown>): string | null {
+  const custom = row.custom_id != null ? String(row.custom_id).trim() : '';
+  if (custom) return custom;
+  const legacy = row.customer_id != null ? String(row.customer_id).trim() : '';
+  if (legacy && !UUID_RE.test(legacy)) return legacy;
+  return null;
+}
+
 export async function fetchCards(supabase: SupabaseClient, organizationId: string) {
   const { data, error } = await supabase
     .from('membership_cards')
-    .select('*')
+    .select(
+      `
+      *,
+      customers:customer_id (
+        id,
+        name,
+        phone,
+        custom_id,
+        customer_id
+      )
+    `,
+    )
     .eq('organization_id', organizationId)
     .order('created_at', { ascending: false });
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => mapCard(r as Record<string, unknown>));
+
+  return (data ?? []).map((row) => {
+    const card = mapCard(row as Record<string, unknown>);
+    const cust = (row as { customers?: Record<string, unknown> | null }).customers;
+    const displayId = cust ? displayCustomerId(cust) : null;
+    return {
+      ...card,
+      customerName: cust?.name ? String(cust.name) : null,
+      customerDisplayId: displayId,
+      customerPhone: cust?.phone ? String(cust.phone) : null,
+    };
+  });
 }
 
 export async function lookupCardByUid(
@@ -354,17 +444,6 @@ export async function lookupCardByUid(
   }
 
   return buildMemberLookupForCustomerId(supabase, organizationId, mapped.customerId, mapped);
-}
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function displayCustomerId(row: Record<string, unknown>): string | null {
-  const custom = row.custom_id != null ? String(row.custom_id).trim() : '';
-  if (custom) return custom;
-  const legacy = row.customer_id != null ? String(row.customer_id).trim() : '';
-  if (legacy && !UUID_RE.test(legacy)) return legacy;
-  return null;
 }
 
 async function buildMemberLookupForCustomerId(
@@ -474,6 +553,13 @@ export async function assignCard(
   const normalized = normalizeNfcUid(args.uid);
   const now = new Date().toISOString();
 
+  await supabase
+    .from('membership_cards')
+    .update({ status: 'retired', retired_at: now, updated_at: now })
+    .eq('organization_id', organizationId)
+    .eq('customer_id', args.customerId)
+    .eq('status', 'assigned');
+
   const { data: card, error: cardErr } = await supabase
     .from('membership_cards')
     .upsert(
@@ -494,7 +580,7 @@ export async function assignCard(
 
   const { error: custErr } = await supabase
     .from('customers')
-    .update({ active_card_id: card.id, updated_at: now })
+    .update({ active_card_id: card.id })
     .eq('id', args.customerId)
     .eq('organization_id', organizationId);
   if (custErr) throw new Error(custErr.message);
@@ -522,7 +608,6 @@ export async function assignTier(
       membership_expiry_date: args.membershipExpiryDate ?? null,
       membership_duration: args.membershipDuration ?? null,
       membership_hours_left: args.membershipHoursLeft ?? null,
-      updated_at: new Date().toISOString(),
     })
     .eq('id', args.customerId)
     .eq('organization_id', organizationId);
@@ -553,7 +638,7 @@ export async function rechargeCard(
 
   const { error: updErr } = await supabase
     .from('customers')
-    .update({ card_balance: balanceAfter, updated_at: new Date().toISOString() })
+    .update({ card_balance: balanceAfter })
     .eq('id', args.customerId)
     .eq('organization_id', organizationId);
   if (updErr) throw new Error(updErr.message);
@@ -601,7 +686,7 @@ export async function redeemCardBalance(
 
   const { error: updErr } = await supabase
     .from('customers')
-    .update({ card_balance: balanceAfter, updated_at: new Date().toISOString() })
+    .update({ card_balance: balanceAfter })
     .eq('id', args.customerId)
     .eq('organization_id', organizationId);
   if (updErr) throw new Error(updErr.message);
@@ -645,20 +730,16 @@ export async function addInventoryCard(
   organizationId: string,
   uid: string,
   locationId?: string | null,
+  customerId?: string | null,
 ) {
-  const normalized = normalizeNfcUid(uid);
-  const { data, error } = await supabase
-    .from('membership_cards')
-    .insert({
-      organization_id: organizationId,
-      uid: normalized,
-      status: 'inventory',
-      location_id: locationId ?? null,
-    })
-    .select('*')
-    .single();
-  if (error) throw new Error(error.message);
-  return mapCard(data as Record<string, unknown>);
+  if (!customerId?.trim()) {
+    throw new Error('A member (customerId) is required — cards cannot be created without a customer link.');
+  }
+  return assignCard(supabase, organizationId, {
+    uid,
+    customerId: customerId.trim(),
+    locationId,
+  });
 }
 
 export async function fetchMemberCouponByCode(
