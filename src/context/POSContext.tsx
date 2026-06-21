@@ -39,6 +39,7 @@ import type { EarlyEndBillingMode } from '@/hooks/stations/session-actions/useEn
 import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
 import { useMembershipTiers } from '@/hooks/useMembershipTiers';
 import type { WalletTopUpOffer } from '@/types/membership.types';
+import { resolveMemberFnbUnitPrice } from '@/utils/membershipBenefits.utils';
 
 const CATEGORY_APPEARANCE_STORAGE_KEY = 'cuephoria_category_appearance_columns';
 
