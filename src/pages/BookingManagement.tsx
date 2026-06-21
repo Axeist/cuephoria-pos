@@ -216,6 +216,8 @@ const getDateRangeFromPreset = (preset: string) => {
 
 export default function BookingManagement() {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isPublicBookingExpanded, setIsPublicBookingExpanded] = useState(false);
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   const [allBookings, setAllBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
@@ -237,6 +239,27 @@ export default function BookingManagement() {
     paymentStatus: 'all'
   };
   });
+
+  const activeAdvancedFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filters.status !== 'all') count++;
+    if (filters.bookingType !== 'all') count++;
+    if (filters.stationType !== 'all') count++;
+    if (filters.coupon !== 'all') count++;
+    if (filters.priceRange !== 'all') count++;
+    if (filters.customerType !== 'all') count++;
+    if (filters.paymentStatus !== 'all') count++;
+    if (filters.duration !== 'all') count++;
+    if (filters.accessCode !== '') count++;
+    return count;
+  }, [filters]);
+
+  const enabledBranchesCount = useMemo(() => {
+    return locations.filter((loc) => {
+      const acc = branchAccessByLocation[loc.id] || { publicBooking: true };
+      return acc.publicBooking;
+    }).length;
+  }, [locations, branchAccessByLocation]);
 
   const [couponOptions, setCouponOptions] = useState<string[]>([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -2067,112 +2090,140 @@ export default function BookingManagement() {
       />
 
       <Card className="border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-            <Globe className="h-5 w-5 text-cuephoria-purple" />
-            Public booking &amp; online payment
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Control each branch separately (main vs lite). When public booking is off, customers only see a message
-            asking them to call. When online payment is off, only pay-at-venue is available.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {branchAccessLoading ? (
-            <p className="text-sm text-muted-foreground">Loading branch controls…</p>
-          ) : (
-            locations
-              .slice()
-              .sort((a, b) => a.sort_order - b.sort_order)
-              .map((loc) => {
-                const acc = branchAccessByLocation[loc.id] || {
-                  publicBooking: true,
-                  onlinePayment: true,
-                };
-                const customerBookingUrl = buildPublicBookingUrl({
-                  branchSlug: loc.slug,
-                  locationId: loc.id,
-                });
-                return (
-                  <div
-                    key={loc.id}
-                    className="rounded-xl border border-border/50 bg-muted/20 p-4 space-y-4"
-                  >
-                    <div>
-                      <p className="font-semibold text-foreground">{loc.name}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5 break-all">
-                        Customer URL:{' '}
-                        <a
-                          href={customerBookingUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-mono text-cuephoria-purple/90 hover:underline"
-                        >
-                          {customerBookingUrl}
-                        </a>
-                      </p>
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <div className="space-y-0.5">
-                        <Label htmlFor={`pub-${loc.id}`} className="text-sm font-medium">
-                          Public booking page
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          When off, the page shows “booking unavailable — please call”.
-                        </p>
+        <div 
+          className="flex items-center justify-between p-6 pb-4 cursor-pointer select-none"
+          onClick={() => setIsPublicBookingExpanded(!isPublicBookingExpanded)}
+        >
+          <div className="space-y-1.5">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+              <Globe className="h-5 w-5 text-cuephoria-purple" />
+              Public booking &amp; online payment
+            </CardTitle>
+            {!isPublicBookingExpanded && locations.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/40 backdrop-blur px-2.5 py-1 rounded-full w-fit border border-border/40">
+                <span className={cn("h-2 w-2 rounded-full animate-pulse", enabledBranchesCount > 0 ? "bg-emerald-500" : "bg-amber-500")} />
+                <span>Public Booking: {enabledBranchesCount} of {locations.length} branches active</span>
+              </div>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 hover:bg-muted/50 rounded-full"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsPublicBookingExpanded(!isPublicBookingExpanded);
+            }}
+          >
+            <ChevronDown className={cn("h-5 w-5 transition-transform duration-200 text-muted-foreground", isPublicBookingExpanded && "transform rotate-180")} />
+          </Button>
+        </div>
+        {isPublicBookingExpanded && (
+          <>
+            <div className="px-6 pb-4">
+              <p className="text-sm text-muted-foreground">
+                Control each branch separately (main vs lite). When public booking is off, customers only see a message
+                asking them to call. When online payment is off, only pay-at-venue is available.
+              </p>
+            </div>
+            <CardContent className="space-y-4">
+              {branchAccessLoading ? (
+                <p className="text-sm text-muted-foreground">Loading branch controls…</p>
+              ) : (
+                locations
+                  .slice()
+                  .sort((a, b) => a.sort_order - b.sort_order)
+                  .map((loc) => {
+                    const acc = branchAccessByLocation[loc.id] || {
+                      publicBooking: true,
+                      onlinePayment: true,
+                    };
+                    const customerBookingUrl = buildPublicBookingUrl({
+                      branchSlug: loc.slug,
+                      locationId: loc.id,
+                    });
+                    return (
+                      <div
+                        key={loc.id}
+                        className="rounded-xl border border-border/50 bg-muted/20 p-4 space-y-4"
+                      >
+                        <div>
+                          <p className="font-semibold text-foreground">{loc.name}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 break-all">
+                            Customer URL:{' '}
+                            <a
+                              href={customerBookingUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-cuephoria-purple/90 hover:underline"
+                            >
+                              {customerBookingUrl}
+                            </a>
+                          </p>
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div className="space-y-0.5">
+                            <Label htmlFor={`pub-${loc.id}`} className="text-sm font-medium">
+                              Public booking page
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              When off, the page shows “booking unavailable — please call”.
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span
+                              className={`text-xs font-medium ${acc.publicBooking ? 'text-emerald-600' : 'text-amber-600'}`}
+                            >
+                              {acc.publicBooking ? 'Enabled' : 'Disabled'}
+                            </span>
+                            <Switch
+                              id={`pub-${loc.id}`}
+                              checked={acc.publicBooking}
+                              disabled={
+                                !permConfigureSlots ||
+                                savingAccessKey === `${loc.id}:${BOOKING_ACCESS_KEYS.publicBooking}`
+                              }
+                              onCheckedChange={(c) =>
+                                saveBranchAccess(loc.id, BOOKING_ACCESS_KEYS.publicBooking, c)
+                              }
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div className="space-y-0.5">
+                            <Label htmlFor={`pay-${loc.id}`} className="text-sm font-medium">
+                              Online payment (Razorpay)
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              When off, customers can only choose pay at venue.
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span
+                              className={`text-xs font-medium ${acc.onlinePayment ? 'text-emerald-600' : 'text-amber-600'}`}
+                            >
+                              {acc.onlinePayment ? 'Enabled' : 'Disabled'}
+                            </span>
+                            <Switch
+                              id={`pay-${loc.id}`}
+                              checked={acc.onlinePayment}
+                              disabled={
+                                !permConfigureSlots ||
+                                savingAccessKey === `${loc.id}:${BOOKING_ACCESS_KEYS.onlinePayment}`
+                              }
+                              onCheckedChange={(c) =>
+                                saveBranchAccess(loc.id, BOOKING_ACCESS_KEYS.onlinePayment, c)
+                              }
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span
-                          className={`text-xs font-medium ${acc.publicBooking ? 'text-emerald-600' : 'text-amber-600'}`}
-                        >
-                          {acc.publicBooking ? 'Enabled' : 'Disabled'}
-                        </span>
-                        <Switch
-                          id={`pub-${loc.id}`}
-                          checked={acc.publicBooking}
-                          disabled={
-                            !permConfigureSlots ||
-                            savingAccessKey === `${loc.id}:${BOOKING_ACCESS_KEYS.publicBooking}`
-                          }
-                          onCheckedChange={(c) =>
-                            saveBranchAccess(loc.id, BOOKING_ACCESS_KEYS.publicBooking, c)
-                          }
-                        />
-                      </div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <div className="space-y-0.5">
-                        <Label htmlFor={`pay-${loc.id}`} className="text-sm font-medium">
-                          Online payment (Razorpay)
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          When off, customers can only choose pay at venue.
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span
-                          className={`text-xs font-medium ${acc.onlinePayment ? 'text-emerald-600' : 'text-amber-600'}`}
-                        >
-                          {acc.onlinePayment ? 'Enabled' : 'Disabled'}
-                        </span>
-                        <Switch
-                          id={`pay-${loc.id}`}
-                          checked={acc.onlinePayment}
-                          disabled={
-                            !permConfigureSlots ||
-                            savingAccessKey === `${loc.id}:${BOOKING_ACCESS_KEYS.onlinePayment}`
-                          }
-                          onCheckedChange={(c) =>
-                            saveBranchAccess(loc.id, BOOKING_ACCESS_KEYS.onlinePayment, c)
-                          }
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-          )}
-        </CardContent>
+                    );
+                  })
+              )}
+            </CardContent>
+          </>
+        )}
       </Card>
 
       {/* Calendar View Toggle */}
@@ -2199,223 +2250,246 @@ export default function BookingManagement() {
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-xl font-semibold">
                   <Filter className="h-5 w-5 text-blue-600" />
-                  Advanced Filters
+                  Filters
                 </CardTitle>
                 <Button variant="outline" size="sm" onClick={resetFilters} className="hover:bg-red-950/30 hover:border-red-500/40 hover:text-red-400">
                   Reset All
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Date Range Section */}
-              <div>
-                <Label className="text-sm font-semibold text-foreground mb-3 block">Date Range</Label>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  <div>
-                    <Select value={filters.datePreset} onValueChange={handleDatePresetChange}>
-                      <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
-                        <SelectValue placeholder="Select date range" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="today">🌅 Today</SelectItem>
-                        <SelectItem value="yesterday">🌄 Yesterday</SelectItem>
-                        <SelectItem value="last7days">📅 Last 7 Days</SelectItem>
-                        <SelectItem value="last30days">📊 Last 30 Days</SelectItem>
-                        <SelectItem value="thismonth">🗓️ This Month</SelectItem>
-                        <SelectItem value="lastmonth">📋 Last Month</SelectItem>
-                        <SelectItem value="last3months">📈 Last 3 Months</SelectItem>
-                        <SelectItem value="thisyear">🎯 This Year</SelectItem>
-                        <SelectItem value="lastyear">📜 Last Year</SelectItem>
-                        <SelectItem value="alltime">🌍 All Time</SelectItem>
-                        <SelectItem value="custom">🎛️ Custom Range</SelectItem>
-                      </SelectContent>
-                    </Select>
+            <CardContent className="space-y-4">
+              {/* Always Visible Row: Date Range & General Search */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
+                {/* Date Range Section */}
+                <div className="lg:col-span-8 space-y-2">
+                  <Label className="text-sm font-semibold text-foreground">Date Range</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                    <div className="sm:col-span-4">
+                      <Select value={filters.datePreset} onValueChange={handleDatePresetChange}>
+                        <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
+                          <SelectValue placeholder="Select date range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="today">🌅 Today</SelectItem>
+                          <SelectItem value="yesterday">🌄 Yesterday</SelectItem>
+                          <SelectItem value="last7days">📅 Last 7 Days</SelectItem>
+                          <SelectItem value="last30days">📊 Last 30 Days</SelectItem>
+                          <SelectItem value="thismonth">🗓️ This Month</SelectItem>
+                          <SelectItem value="lastmonth">📋 Last Month</SelectItem>
+                          <SelectItem value="last3months">📈 Last 3 Months</SelectItem>
+                          <SelectItem value="thisyear">🎯 This Year</SelectItem>
+                          <SelectItem value="lastyear">📜 Last Year</SelectItem>
+                          <SelectItem value="alltime">🌍 All Time</SelectItem>
+                          <SelectItem value="custom">🎛️ Custom Range</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="sm:col-span-5 grid grid-cols-2 gap-2">
+                      <Input
+                        type="date"
+                        value={filters.dateFrom}
+                        onChange={(e) => handleManualDateChange('dateFrom', e.target.value)}
+                        className="h-11 border-2 transition-colors border-border focus:border-blue-400"
+                      />
+                      <Input
+                        type="date"
+                        value={filters.dateTo}
+                        onChange={(e) => handleManualDateChange('dateTo', e.target.value)}
+                        className="h-11 border-2 transition-colors border-border focus:border-blue-400"
+                      />
+                    </div>
+                    
+                    <div className="sm:col-span-3 bg-blue-950/40 border border-blue-500/30 rounded-lg px-3 py-1 flex items-center justify-center h-11">
+                      <Calendar className="h-4 w-4 text-blue-400 mr-2 shrink-0" />
+                      <span className="text-xs font-medium text-blue-200 truncate">
+                        {getDateRangeLabel()}
+                      </span>
+                    </div>
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-2">
+                </div>
+
+                {/* General Search Section */}
+                <div className="lg:col-span-4 space-y-2">
+                  <Label className="text-sm font-semibold text-foreground">General Search</Label>
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                     <Input
-                      type="date"
-                      value={filters.dateFrom}
-                      onChange={(e) => handleManualDateChange('dateFrom', e.target.value)}
-                      className="h-11 border-2 transition-colors border-border focus:border-blue-400"
+                      placeholder="Search by Customer Name, Phone, Email, Station, or Booking ID..."
+                      value={filters.search}
+                      onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                      className="h-11 pl-12 border-2 border-border focus:border-blue-400 transition-colors text-sm"
                     />
-                    <Input
-                      type="date"
-                      value={filters.dateTo}
-                      onChange={(e) => handleManualDateChange('dateTo', e.target.value)}
-                      className="h-11 border-2 transition-colors border-border focus:border-blue-400"
-                    />
-                  </div>
-                  
-                  <div className="bg-blue-950/40 border border-blue-500/30 rounded-lg px-4 py-2 flex items-center">
-                    <Calendar className="h-4 w-4 text-blue-400 mr-2" />
-                    <span className="text-sm font-medium text-blue-200">
-                      {getDateRangeLabel()}
-                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* Filter Controls Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Status</Label>
-                  <Select value={filters.status} onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}>
-                    <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="confirmed">✅ Confirmed</SelectItem>
-                      <SelectItem value="in-progress">⏳ In Progress</SelectItem>
-                      <SelectItem value="completed">✅ Completed</SelectItem>
-                      <SelectItem value="cancelled">❌ Cancelled</SelectItem>
-                      <SelectItem value="no-show">⚠️ No Show</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Collapsible Portion: Other filters */}
+              {isFiltersExpanded && (
+                <div className="space-y-4 pt-4 border-t border-border/40 animate-in fade-in duration-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Status</Label>
+                      <Select value={filters.status} onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}>
+                        <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Status</SelectItem>
+                          <SelectItem value="confirmed">✅ Confirmed</SelectItem>
+                          <SelectItem value="in-progress">⏳ In Progress</SelectItem>
+                          <SelectItem value="completed">✅ Completed</SelectItem>
+                          <SelectItem value="cancelled">❌ Cancelled</SelectItem>
+                          <SelectItem value="no-show">⚠️ No Show</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Booking Type</Label>
-                  <Select value={filters.bookingType} onValueChange={(value) => setFilters(prev => ({ ...prev, bookingType: value }))}>
-                    <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Bookings</SelectItem>
-                      <SelectItem value="regular">🎮 Regular</SelectItem>
-                      <SelectItem value="nit_event">🎯 IIM EVENT</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Booking Type</Label>
+                      <Select value={filters.bookingType} onValueChange={(value) => setFilters(prev => ({ ...prev, bookingType: value }))}>
+                        <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Bookings</SelectItem>
+                          <SelectItem value="regular">🎮 Regular</SelectItem>
+                          <SelectItem value="nit_event">🎯 IIM EVENT</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Station Type</Label>
-                  <Select value={filters.stationType} onValueChange={(value) => setFilters(prev => ({ ...prev, stationType: value }))}>
-                    <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="ps5">🎮 PlayStation 5</SelectItem>
-                      <SelectItem value="8ball">🎱 8-Ball Pool</SelectItem>
-                      <SelectItem value="vr">🥽 VR Gaming</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Station Type</Label>
+                      <Select value={filters.stationType} onValueChange={(value) => setFilters(prev => ({ ...prev, stationType: value }))}>
+                        <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Types</SelectItem>
+                          <SelectItem value="ps5">🎮 PlayStation 5</SelectItem>
+                          <SelectItem value="8ball">🎱 8-Ball Pool</SelectItem>
+                          <SelectItem value="vr">🥽 VR Gaming</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Coupon Code</Label>
-                  <Select value={filters.coupon} onValueChange={(value) => setFilters(prev => ({ ...prev, coupon: value }))}>
-                    <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Coupons</SelectItem>
-                      <SelectItem value="none">🚫 No Coupon Used</SelectItem>
-                      {couponOptions.map(code => (
-                        <SelectItem key={code} value={code}>
-                          <div className="flex items-center gap-2">
-                            <Gift className="h-3 w-3 text-purple-500" />
-                            {code}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Coupon Code</Label>
+                      <Select value={filters.coupon} onValueChange={(value) => setFilters(prev => ({ ...prev, coupon: value }))}>
+                        <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Coupons</SelectItem>
+                          <SelectItem value="none">🚫 No Coupon Used</SelectItem>
+                          {couponOptions.map(code => (
+                            <SelectItem key={code} value={code}>
+                              <div className="flex items-center gap-2">
+                                <Gift className="h-3 w-3 text-purple-500" />
+                                {code}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Price Range</Label>
-                  <Select value={filters.priceRange} onValueChange={(value) => setFilters(prev => ({ ...prev, priceRange: value }))}>
-                    <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Prices</SelectItem>
-                      <SelectItem value="0-100">💰 ₹0 - ₹100</SelectItem>
-                      <SelectItem value="101-300">💰 ₹101 - ₹300</SelectItem>
-                      <SelectItem value="301-500">💰 ₹301 - ₹500</SelectItem>
-                      <SelectItem value="500">💰 ₹500+</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Price Range</Label>
+                      <Select value={filters.priceRange} onValueChange={(value) => setFilters(prev => ({ ...prev, priceRange: value }))}>
+                        <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Prices</SelectItem>
+                          <SelectItem value="0-100">💰 ₹0 - ₹100</SelectItem>
+                          <SelectItem value="101-300">💰 ₹101 - ₹300</SelectItem>
+                          <SelectItem value="301-500">💰 ₹301 - ₹500</SelectItem>
+                          <SelectItem value="500">💰 ₹500+</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Customer Type</Label>
-                  <Select value={filters.customerType} onValueChange={(value) => setFilters(prev => ({ ...prev, customerType: value }))}>
-                    <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Customers</SelectItem>
-                      <SelectItem value="new">🆕 New Customers</SelectItem>
-                      <SelectItem value="returning">🔄 Returning</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Customer Type</Label>
+                      <Select value={filters.customerType} onValueChange={(value) => setFilters(prev => ({ ...prev, customerType: value }))}>
+                        <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Customers</SelectItem>
+                          <SelectItem value="new">🆕 New Customers</SelectItem>
+                          <SelectItem value="returning">🔄 Returning</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Payment Status</Label>
-                  <Select value={filters.paymentStatus} onValueChange={(value) => setFilters(prev => ({ ...prev, paymentStatus: value }))}>
-                    <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Payments</SelectItem>
-                      <SelectItem value="paid">💳 Paid Online</SelectItem>
-                      <SelectItem value="unpaid">💰 Pay at Venue</SelectItem>
-                      <SelectItem value="razorpay">🔷 Razorpay</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Payment Status</Label>
+                      <Select value={filters.paymentStatus} onValueChange={(value) => setFilters(prev => ({ ...prev, paymentStatus: value }))}>
+                        <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Payments</SelectItem>
+                          <SelectItem value="paid">💳 Paid Online</SelectItem>
+                          <SelectItem value="unpaid">💰 Pay at Venue</SelectItem>
+                          <SelectItem value="razorpay">🔷 Razorpay</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Duration</Label>
-                  <Select value={filters.duration} onValueChange={(value) => setFilters(prev => ({ ...prev, duration: value }))}>
-                    <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Duration</SelectItem>
-                      <SelectItem value="0-60">⏱️ 0-60 mins</SelectItem>
-                      <SelectItem value="61-120">⏱️ 61-120 mins</SelectItem>
-                      <SelectItem value="121-180">⏱️ 121-180 mins</SelectItem>
-                      <SelectItem value="180">⏱️ 180+ mins</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Search Section */}
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-foreground">General Search</Label>
-                    <div className="relative">
-                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                      <Input
-                        placeholder="Search by Customer Name, Phone, Email, Station, or Booking ID..."
-                        value={filters.search}
-                        onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                        className="h-12 pl-12 border-2 border-border focus:border-blue-400 transition-colors text-base"
-                      />
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Duration</Label>
+                      <Select value={filters.duration} onValueChange={(value) => setFilters(prev => ({ ...prev, duration: value }))}>
+                        <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Duration</SelectItem>
+                          <SelectItem value="0-60">⏱️ 0-60 mins</SelectItem>
+                          <SelectItem value="61-120">⏱️ 61-120 mins</SelectItem>
+                          <SelectItem value="121-180">⏱️ 121-180 mins</SelectItem>
+                          <SelectItem value="180">⏱️ 180+ mins</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-foreground">Access Code Search</Label>
-                    <div className="relative">
-                      <Eye className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                      <Input
-                        placeholder="Enter Access Code from booking views..."
-                        value={filters.accessCode}
-                        onChange={(e) => setFilters(prev => ({ ...prev, accessCode: e.target.value }))}
-                        className="h-12 pl-12 border-2 border-border focus:border-blue-400 transition-colors text-base"
-                      />
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Access Code Search</Label>
+                      <div className="relative">
+                        <Eye className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input
+                          placeholder="Enter Access Code from booking views..."
+                          value={filters.accessCode}
+                          onChange={(e) => setFilters(prev => ({ ...prev, accessCode: e.target.value }))}
+                          className="h-11 pl-12 border-2 border-border focus:border-blue-400 transition-colors text-base"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
+              )}
+
+              {/* Toggle expand/collapse button */}
+              <div className="flex justify-center pt-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
+                  className="flex items-center gap-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 px-4 py-1.5 rounded-full text-xs font-semibold border border-border/40 transition-colors"
+                >
+                  <span>{isFiltersExpanded ? "Show Less Filters" : "Show Advanced Filters"}</span>
+                  {!isFiltersExpanded && activeAdvancedFiltersCount > 0 && (
+                    <Badge variant="secondary" className="bg-blue-900/50 text-blue-300 border border-blue-500/30 px-1.5 py-0 text-[10px]">
+                      {activeAdvancedFiltersCount}
+                    </Badge>
+                  )}
+                  <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isFiltersExpanded && "transform rotate-180")} />
+                </Button>
               </div>
             </CardContent>
           </Card>
