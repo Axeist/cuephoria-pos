@@ -28,6 +28,7 @@ import { BookingEditDialog } from '@/components/booking/BookingEditDialog';
 import { BookingDeleteDialog } from '@/components/booking/BookingDeleteDialog';
 import { BookingDeleteAllDialog } from '@/components/booking/BookingDeleteAllDialog';
 import PaymentReconciliationTab from '@/components/booking/PaymentReconciliationTab';
+import { usePaymentOrderAutoReconcile } from '@/hooks/usePaymentOrderAutoReconcile';
 import { BookingCalendarDayView } from '@/components/booking/calendar/BookingCalendarDayView';
 import BookingAddonsDisplay from '@/components/booking/BookingAddonsDisplay';
 import { Switch } from '@/components/ui/switch';
@@ -446,6 +447,14 @@ export default function BookingManagement() {
   useEffect(() => { activeLocationIdRef.current = activeLocationId; }, [activeLocationId]);
 
   const fetchBookingsRef = useRef<() => Promise<void>>(async () => {});
+
+  const paymentAutoReconcileStatus = usePaymentOrderAutoReconcile({
+    activeLocationId,
+    enabled: permReconciliation,
+    onResolved: () => {
+      void fetchBookingsRef.current();
+    },
+  });
 
   useEffect(() => {
     // Real-time subscription: invalidate cache on any change and also auto
@@ -3595,7 +3604,10 @@ export default function BookingManagement() {
             </TabsContent>
 
             <TabsContent value="reconciliation" className="space-y-6">
-              <PaymentReconciliationTab activeLocationId={activeLocationId} />
+              <PaymentReconciliationTab
+                activeLocationId={activeLocationId}
+                autoReconcileStatus={paymentAutoReconcileStatus}
+              />
             </TabsContent>
           </Tabs>
 

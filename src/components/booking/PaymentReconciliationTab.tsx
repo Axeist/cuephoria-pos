@@ -32,9 +32,12 @@ import {
   Trash2,
   XCircle,
   Activity,
-  Pause,
-  Play,
 } from "lucide-react";
+import {
+  PAYMENT_AUTO_RECONCILE_TICK_MS,
+  usePaymentOrderAutoReconcile,
+  type AutoReconcileStatus,
+} from "@/hooks/usePaymentOrderAutoReconcile";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,13 +61,6 @@ const fromTable = (table: string): any => (supabase as unknown as { from: (t: st
 const fromPaymentOrders = () => fromTable("payment_orders");
 const fromHeartbeat = () => fromTable("reconciler_heartbeat");
 
-// How often the client-side auto-reconciler runs and which rows it picks up.
-// 5s gives near-real-time recovery while staying well under Razorpay's
-// orders.fetchPayments rate limits (we cap parallelism + skip rows
-// younger than MIN_AGE_FOR_AUTO_MS).
-const AUTO_TICK_MS = 30_000;
-const MIN_AGE_FOR_AUTO_MS = 5_000;
-const MAX_PARALLEL_RECHECKS = 4;
 const HEARTBEAT_FRESH_MS = 60_000;
 const HEARTBEAT_STALE_MS = 5 * 60_000;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
@@ -151,6 +147,8 @@ type Heartbeat = {
 
 type Props = {
   activeLocationId: string | null | undefined;
+  /** When provided (Booking Management page), parent runs the always-on reconciler. */
+  autoReconcileStatus?: AutoReconcileStatus;
 };
 
 const STATUS_TO_BADGE: Record<
@@ -203,15 +201,15 @@ function formatCountdown(ms: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) => {
+export const PaymentReconciliationTab: React.FC<Props> = ({
+  activeLocationId,
+  autoReconcileStatus: externalAutoStatus,
+}) => {
   const [rows, setRows] = useState<PaymentOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState<string>("");
   const [recheckInProgress, setRecheckInProgress] = useState<Set<string>>(new Set());
-  const [autoOn, setAutoOn] = useState<boolean>(false);
-  const [autoLastTickAt, setAutoLastTickAt] = useState<number | null>(null);
-  const [autoLastResult, setAutoLastResult] = useState<{ checked: number; flipped: number } | null>(null);
   const [heartbeat, setHeartbeat] = useState<Heartbeat | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [pendingDelete, setPendingDelete] = useState<PaymentOrder | null>(null);
@@ -265,6 +263,14 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
       setLoading(false);
     }
   }, [activeLocationId]);
+
+  const internalAutoStatus = usePaymentOrderAutoReconcile({
+    activeLocationId,
+    enabled: externalAutoStatus == null,
+    onResolved: fetchRows,
+  });
+  const autoLastTickAt = externalAutoStatus?.lastTickAt ?? internalAutoStatus.lastTickAt;
+  const autoLastResult = externalAutoStatus?.lastResult ?? internalAutoStatus.lastResult;
 
   useEffect(() => {
     fetchRows();
@@ -521,66 +527,6 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
     }
   }, [pendingDelete]);
 
-  // Client-side auto-reconciler.
-  //
-  // Every AUTO_TICK_MS while this tab is open and `autoOn` is true, we
-  // pick up rows that are still pending/created and at least
-  // MIN_AGE_FOR_AUTO_MS old, then call recheckOne in parallel batches.
-  // This is a complementary safety net to the server-side pg_cron job —
-  // it works even if pg_cron / GUCs / RECONCILE_CRON_SECRET aren't set.
-  const rowsRef = React.useRef(rows);
-  rowsRef.current = rows;
-
-  useEffect(() => {
-    if (!autoOn) return;
-    let cancelled = false;
-    let inFlight = false;
-
-    async function tick() {
-      if (cancelled || inFlight) return;
-      inFlight = true;
-      try {
-        const now = Date.now();
-        const candidates = rowsRef.current.filter((r) => {
-          if (r.status !== "created" && r.status !== "pending") return false;
-          const age = now - new Date(r.created_at).getTime();
-          if (age < MIN_AGE_FOR_AUTO_MS) return false;
-          return true;
-        });
-
-        let checked = 0;
-        let flipped = 0;
-        // Process in chunks to bound parallelism.
-        for (let i = 0; i < candidates.length; i += MAX_PARALLEL_RECHECKS) {
-          if (cancelled) break;
-          const chunk = candidates.slice(i, i + MAX_PARALLEL_RECHECKS);
-          const results = await Promise.all(
-            chunk.map((r) => recheckOne(r.provider_order_id)),
-          );
-          checked += chunk.length;
-          for (const status of results) {
-            if (status === "paid" || status === "reconciled" || status === "expired" || status === "failed") {
-              flipped += 1;
-            }
-          }
-        }
-
-        setAutoLastTickAt(Date.now());
-        setAutoLastResult({ checked, flipped });
-        if (flipped > 0) await fetchRows();
-      } finally {
-        inFlight = false;
-      }
-    }
-
-    tick();
-    const interval = setInterval(tick, AUTO_TICK_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [autoOn, recheckOne, fetchRows]);
-
   // Heartbeat freshness for the pg_cron badge.
   const hbAgeMs = heartbeat ? Date.now() - new Date(heartbeat.last_run_at).getTime() : null;
   const hbColor =
@@ -621,32 +567,20 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
-                <Activity
-                  className={`h-4 w-4 ${autoOn ? "text-green-500 animate-pulse" : "text-muted-foreground"}`}
-                />
-                <span className="text-sm font-medium">
-                  Auto-reconcile {autoOn ? "ON" : "OFF"}
-                </span>
+                <Activity className="h-4 w-4 text-green-500 animate-pulse" />
+                <span className="text-sm font-medium">Auto-reconcile ON</span>
               </div>
               <span className="text-xs text-muted-foreground">
-                {autoOn
-                  ? autoLastTickAt
-                    ? `last tick ${Math.max(0, Math.round((Date.now() - autoLastTickAt) / 1000))}s ago` +
-                      (autoLastResult ? ` • checked ${autoLastResult.checked}, resolved ${autoLastResult.flipped}` : "")
-                    : "starting…"
-                  : "manual mode"}
+                {autoLastTickAt
+                  ? `last tick ${Math.max(0, Math.round((Date.now() - autoLastTickAt) / 1000))}s ago` +
+                    (autoLastResult
+                      ? ` • checked ${autoLastResult.checked}, resolved ${autoLastResult.flipped}`
+                      : "")
+                  : "starting…"}
               </span>
               <span className={`inline-block h-2 w-2 rounded-full ${hbColor}`} />
               <span className="text-xs text-muted-foreground">{hbLabel}</span>
             </div>
-            <Button
-              size="sm"
-              variant={autoOn ? "outline" : "default"}
-              onClick={() => setAutoOn((v) => !v)}
-            >
-              {autoOn ? <Pause className="h-3.5 w-3.5 mr-1" /> : <Play className="h-3.5 w-3.5 mr-1" />}
-              {autoOn ? "Pause auto-reconcile" : "Resume auto-reconcile"}
-            </Button>
           </div>
         </CardContent>
       </Card>
@@ -1103,12 +1037,12 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
           webhook the instant a payment is captured.
         </div>
         <div>
-          2. <strong>Browser auto-reconciler</strong> — every {AUTO_TICK_MS / 1000}s while this
-          tab is open we re-check every pending row directly against Razorpay (no secrets
-          needed). Status shown above.
+          2. <strong>Browser auto-reconciler</strong> — every {PAYMENT_AUTO_RECONCILE_TICK_MS / 1000}s while
+          Booking Management is open we re-check every pending row directly against Razorpay (no secrets
+          needed). Always on; status shown above.
         </div>
         <div>
-          3. <strong>Supabase pg_cron</strong> — every 15s server-side sweep. Status shown
+          3. <strong>Supabase pg_cron</strong> — every 60s server-side sweep when pending orders exist.
           above; if you see <em>“never run”</em> or <em>“stalled”</em>, ask ops to enable
           <code className="mx-1">pg_cron</code> + <code>pg_net</code> and set
           <code className="mx-1">app.reconcile_url</code> /
