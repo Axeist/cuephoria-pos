@@ -449,32 +449,73 @@ async function resolveLocationId(
   return (data as { id?: string } | null)?.id ?? null;
 }
 
+/** Indian numbers are sometimes stored with/without a leading 91 country code. */
+function phoneLookupVariants(normalizedPhone: string): string[] {
+  const variants = new Set<string>([normalizedPhone]);
+  if (normalizedPhone.length === 12 && normalizedPhone.startsWith("91")) {
+    variants.add(normalizedPhone.slice(2));
+  } else if (normalizedPhone.length === 10) {
+    variants.add(`91${normalizedPhone}`);
+  }
+  return [...variants];
+}
+
+async function resolveOrganizationId(
+  supabase: SupabaseClient,
+  paymentOrder: PaymentOrderRow | null,
+  locationId: string,
+): Promise<string | null> {
+  if (paymentOrder?.organization_id) return paymentOrder.organization_id;
+  const { data } = await supabase
+    .from("locations")
+    .select("organization_id")
+    .eq("id", locationId)
+    .maybeSingle();
+  return (data as { organization_id?: string } | null)?.organization_id ?? null;
+}
+
+async function findCustomerIdByPhoneAtLocation(
+  supabase: SupabaseClient,
+  phones: string[],
+  locationId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("customers")
+    .select("id")
+    .in("phone", phones)
+    .eq("location_id", locationId)
+    .limit(1)
+    .maybeSingle();
+  return (data as { id?: string } | null)?.id ?? null;
+}
+
 async function ensureCustomer(
   supabase: SupabaseClient,
   paymentOrder: PaymentOrderRow,
   payload: NormalizedPayload,
   locationId: string,
-): Promise<string | null> {
-  if (paymentOrder.customer_id) return paymentOrder.customer_id;
-  if (payload.customer.id) return payload.customer.id;
+): Promise<{ customerId: string | null; errorDetail?: string }> {
+  if (paymentOrder.customer_id) return { customerId: paymentOrder.customer_id };
+  if (payload.customer.id) return { customerId: payload.customer.id };
 
   const phoneRaw = payload.customer.phone || paymentOrder.customer_phone || "";
   const normalizedPhone = normalizePhoneNumber(phoneRaw);
-  if (!normalizedPhone) return null;
+  if (!normalizedPhone) {
+    return { customerId: null, errorDetail: "missing customer phone" };
+  }
 
   const name = payload.customer.name || paymentOrder.customer_name || "";
   const email = payload.customer.email || paymentOrder.customer_email || undefined;
+  const phoneVariants = phoneLookupVariants(normalizedPhone);
 
-  // Existing customer at this location?
-  const { data: existing } = await supabase
-    .from("customers")
-    .select("id")
-    .eq("phone", normalizedPhone)
-    .eq("location_id", locationId)
-    .maybeSingle();
-  if ((existing as { id?: string } | null)?.id) return (existing as { id: string }).id;
+  const existingId = await findCustomerIdByPhoneAtLocation(supabase, phoneVariants, locationId);
+  if (existingId) return { customerId: existingId };
 
-  // Create new
+  const organizationId = await resolveOrganizationId(supabase, paymentOrder, locationId);
+  if (!organizationId) {
+    return { customerId: null, errorDetail: "could not resolve organization_id for location" };
+  }
+
   const customId = generateCustomerID(normalizedPhone);
   const { data: created, error } = await supabase
     .from("customers")
@@ -484,7 +525,7 @@ async function ensureCustomer(
       email: email?.trim() || null,
       custom_id: customId,
       location_id: locationId,
-      is_member: false,
+      organization_id: organizationId,
       loyalty_points: 0,
       total_spent: 0,
       total_play_time: 0,
@@ -493,22 +534,18 @@ async function ensureCustomer(
     .single();
 
   if (!error && (created as { id?: string } | null)?.id) {
-    return (created as { id: string }).id;
+    return { customerId: (created as { id: string }).id };
   }
 
   // Race with a parallel materializer — re-fetch.
   if (error?.code === "23505") {
-    const { data: retry } = await supabase
-      .from("customers")
-      .select("id")
-      .eq("phone", normalizedPhone)
-      .eq("location_id", locationId)
-      .maybeSingle();
-    if ((retry as { id?: string } | null)?.id) return (retry as { id: string }).id;
+    const retryId = await findCustomerIdByPhoneAtLocation(supabase, phoneVariants, locationId);
+    if (retryId) return { customerId: retryId };
   }
 
-  console.error("[materialize] customer create failed:", error);
-  return null;
+  const detail = error?.message || "unknown insert error";
+  console.error("[materialize] customer create failed:", detail, error);
+  return { customerId: null, errorDetail: detail };
 }
 
 async function createBookingsRows(
@@ -1038,6 +1075,7 @@ export async function materializeBookingFromPaymentOrder(
   if (!paymentOrder) {
     try {
       const expiresAtBackfill = new Date(Date.now() + PAYMENT_ORDER_PENDING_TTL_MS).toISOString();
+      const organizationIdBackfill = await resolveOrganizationId(supabase, null, locationId);
       const { data: created } = await supabase
         .from("payment_orders")
         .insert({
@@ -1047,6 +1085,7 @@ export async function materializeBookingFromPaymentOrder(
           status: "pending",
           provider_order_id: orderId,
           provider_payment_id: paymentId,
+          organization_id: organizationIdBackfill,
           location_id: locationId,
           customer_name: normalized.customer.name || null,
           customer_phone: normalized.customer.phone || null,
@@ -1068,12 +1107,20 @@ export async function materializeBookingFromPaymentOrder(
     }
   }
 
-  const customerId = await ensureCustomer(supabase, paymentOrder as PaymentOrderRow, normalized, locationId);
+  const { customerId, errorDetail: customerErrorDetail } = await ensureCustomer(
+    supabase,
+    paymentOrder as PaymentOrderRow,
+    normalized,
+    locationId,
+  );
   if (!customerId) {
+    const errMsg = customerErrorDetail
+      ? `could not resolve or create customer: ${customerErrorDetail}`
+      : "could not resolve or create customer";
     if (paymentOrder) {
       await supabase
         .from("payment_orders")
-        .update({ last_error: "could not resolve or create customer" })
+        .update({ last_error: errMsg })
         .eq("id", paymentOrder.id);
     }
     return {
@@ -1081,7 +1128,7 @@ export async function materializeBookingFromPaymentOrder(
       bookingIds: [],
       billId: null,
       paymentOrderId: paymentOrder?.id ?? null,
-      message: "could not resolve customer",
+      message: errMsg,
     };
   }
 

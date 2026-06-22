@@ -335,13 +335,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const amountPaise = Number(order.amount) || Math.round(Number(amount) * 100);
           const profileTag: "default" | "lite" = profile === "lite" ? "lite" : "default";
           const expiresAt = new Date(Date.now() + PAYMENT_ORDER_PENDING_TTL_MS).toISOString();
+          const resolvedLocationId =
+            typeof locationIdRaw === "string" && locationIdRaw.length > 0 ? locationIdRaw : null;
+          let organizationId: string | null = null;
+          if (resolvedLocationId) {
+            const { data: locRow } = await sb
+              .from("locations")
+              .select("organization_id")
+              .eq("id", resolvedLocationId)
+              .maybeSingle();
+            organizationId = (locRow as { organization_id?: string } | null)?.organization_id ?? null;
+          }
           const { error: poErr } = await sb.from("payment_orders").insert({
             provider: "razorpay",
             profile: profileTag,
             kind,
             status: "created",
             provider_order_id: order.id,
-            location_id: typeof locationIdRaw === "string" && locationIdRaw.length > 0 ? locationIdRaw : null,
+            organization_id: organizationId,
+            location_id: resolvedLocationId,
             customer_name: customerInfo?.name?.trim() || null,
             customer_phone: customerInfo?.phone?.trim() || null,
             customer_email: customerInfo?.email?.trim() || null,
