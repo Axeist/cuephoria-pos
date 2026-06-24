@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { Gamepad2, Utensils, Wallet, Calendar, Clock, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { CurrencyDisplay } from '@/components/ui/currency';
@@ -8,21 +9,32 @@ import {
   normalizeTierAccent,
   TIER_ACCENT_STYLES,
 } from '@/components/memberships/membershipTierTheme';
+import { membershipSpring } from '@/components/memberships/membershipMotion';
 
 type MembershipTierCardProps = {
   tier: MembershipTier;
   className?: string;
   compact?: boolean;
+  index?: number;
 };
 
-export default function MembershipTierCard({ tier, className, compact }: MembershipTierCardProps) {
+export default function MembershipTierCard({
+  tier,
+  className,
+  compact,
+  index = 0,
+}: MembershipTierCardProps) {
   const accent = normalizeTierAccent(tier.accentColor);
   const style = TIER_ACCENT_STYLES[accent];
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ ...membershipSpring, delay: index * 0.06 }}
+      whileHover={{ y: -6, scale: 1.02 }}
       className={cn(
-        'relative overflow-hidden rounded-2xl border bg-gradient-to-br shadow-lg transition hover:scale-[1.01]',
+        'relative overflow-hidden rounded-2xl border bg-gradient-to-br shadow-lg',
         style.border,
         style.bg,
         style.glow,
@@ -30,9 +42,11 @@ export default function MembershipTierCard({ tier, className, compact }: Members
         className,
       )}
     >
-      <div
+      <motion.div
         aria-hidden
-        className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/[0.04] blur-2xl"
+        className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/[0.06] blur-2xl"
+        animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0.5, 0.3] }}
+        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
       />
       <div className="relative space-y-3">
         <div className="flex items-start justify-between gap-2">
@@ -109,6 +123,6 @@ export default function MembershipTierCard({ tier, className, compact }: Members
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

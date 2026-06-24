@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { BadgeCheck, CreditCard, Loader2, Search, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +12,7 @@ import type { MembershipCardLookupResult } from '@/types/membership.types';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import MembershipPanelShell from '@/components/memberships/MembershipPanelShell';
 import { cn } from '@/lib/utils';
+import { staggerContainer, staggerItem } from '@/components/memberships/membershipMotion';
 
 type MemberLookupPanelProps = {
   members: Customer[];
@@ -19,6 +21,9 @@ type MemberLookupPanelProps = {
   step?: number;
   title?: string;
   description?: string;
+  /** When true, suggestions include all customers (not only existing members). */
+  includeAllCustomers?: boolean;
+  layoutKey?: string;
 };
 
 export default function MemberLookupPanel({
@@ -28,6 +33,8 @@ export default function MemberLookupPanel({
   step = 1,
   title = 'Find member',
   description = 'Search by Customer ID, phone, or name — the same reference used on POS, stations, and receipts.',
+  includeAllCustomers = false,
+  layoutKey,
 }: MemberLookupPanelProps) {
   const { toast } = useToast();
   const { activeLocationId } = useLocation();
@@ -35,15 +42,17 @@ export default function MemberLookupPanel({
   const [loading, setLoading] = useState(false);
   const [lastResult, setLastResult] = useState<MembershipCardLookupResult | null>(null);
 
-  const activeMembers = useMemo(
-    () => members.filter((c) => c.membershipTierId || c.isMember).slice(0, 48),
-    [members],
-  );
+  const pool = useMemo(() => {
+    const list = includeAllCustomers
+      ? members
+      : members.filter((c) => c.membershipTierId || c.isMember);
+    return list.slice(0, 48);
+  }, [members, includeAllCustomers]);
 
   const suggestions = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return activeMembers.slice(0, 8);
-    return activeMembers
+    if (!q) return pool.slice(0, 8);
+    return pool
       .filter((c) => {
         const id = (c.customerId ?? '').toLowerCase();
         return (
@@ -53,7 +62,7 @@ export default function MemberLookupPanel({
         );
       })
       .slice(0, 8);
-  }, [activeMembers, query]);
+  }, [pool, query]);
 
   const resolveResult = useCallback(
     async (ref: string) => {
@@ -103,6 +112,7 @@ export default function MemberLookupPanel({
       description={description}
       icon={<BadgeCheck className="h-5 w-5" />}
       className={className}
+      layoutKey={layoutKey}
     >
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="flex-1 space-y-1.5">
@@ -140,18 +150,26 @@ export default function MemberLookupPanel({
       {suggestions.length > 0 && (
         <div className="space-y-2">
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
-            {query.trim() ? 'Matches' : 'Active members'}
+            {query.trim() ? 'Matches' : includeAllCustomers ? 'Recent customers' : 'Active members'}
           </p>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <motion.div
+            className="grid gap-2 sm:grid-cols-2"
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+          >
             {suggestions.map((m) => (
-              <button
+              <motion.button
                 key={m.id}
                 type="button"
+                variants={staggerItem}
+                whileHover={{ scale: 1.02, y: -2 }}
+                whileTap={{ scale: 0.98 }}
                 disabled={loading}
                 onClick={() => pickLocal(m)}
                 className={cn(
                   'flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 text-left',
-                  'transition hover:border-violet-400/35 hover:bg-violet-500/10 hover:shadow-md hover:shadow-violet-900/20',
+                  'transition-colors hover:border-violet-400/35 hover:bg-violet-500/10 hover:shadow-md hover:shadow-violet-900/20',
                 )}
               >
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 border border-violet-400/20">
@@ -163,14 +181,18 @@ export default function MemberLookupPanel({
                     {m.customerId || m.phone}
                   </p>
                 </div>
-              </button>
+              </motion.button>
             ))}
-          </div>
+          </motion.div>
         </div>
       )}
 
       {lastResult && (
-        <div className="rounded-xl border border-emerald-500/25 bg-gradient-to-r from-emerald-500/10 to-transparent px-4 py-3.5 space-y-2">
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          className="rounded-xl border border-emerald-500/25 bg-gradient-to-r from-emerald-500/10 to-transparent px-4 py-3.5 space-y-2 overflow-hidden"
+        >
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-semibold text-emerald-100">{lastResult.customer.name}</p>
             {lastResult.customer.customerId && (
@@ -191,7 +213,7 @@ export default function MemberLookupPanel({
             {' · Balance '}
             <CurrencyDisplay amount={lastResult.customer.cardBalance ?? 0} />
           </p>
-        </div>
+        </motion.div>
       )}
     </MembershipPanelShell>
   );

@@ -1,9 +1,11 @@
 import React, { useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { CreditCard, User } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { MembershipCardWithMember } from '@/types/membership.types';
 import MembershipPanelShell from '@/components/memberships/MembershipPanelShell';
 import { cn } from '@/lib/utils';
+import { staggerContainer, staggerItem } from '@/components/memberships/membershipMotion';
 
 type MemberCardRegistryProps = {
   cards: MembershipCardWithMember[];
@@ -32,29 +34,46 @@ export default function MemberCardRegistry({ cards }: MemberCardRegistryProps) {
       title="Member card registry"
       description={`${linked.length} active link${linked.length === 1 ? '' : 's'} — each UID is bound to a Customer ID.`}
       icon={<CreditCard className="h-5 w-5" />}
+      layoutKey="registry"
     >
       {cards.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-white/10 py-12 text-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="rounded-xl border border-dashed border-white/10 py-12 text-center"
+        >
           <CreditCard className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />
           <p className="text-sm text-muted-foreground">No cards linked yet.</p>
           <p className="text-xs text-muted-foreground/80 mt-1">
-            Use Add card to register an NFC tag — tap or enter the UID.
+            Tap or enter a UID above to register an NFC tag.
           </p>
-        </div>
+        </motion.div>
       ) : (
         <div className="space-y-4">
           {needsLink.length > 0 && (
-            <p className="text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+            <motion.p
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2"
+            >
               {needsLink.length} card(s) without a member — link them using the panel above.
-            </p>
+            </motion.p>
           )}
-          <div className="space-y-2 max-h-[min(420px,50vh)] overflow-y-auto pr-1">
+          <motion.div
+            className="space-y-2 max-h-[min(420px,50vh)] overflow-y-auto pr-1"
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+          >
             {cards.map((card) => (
-              <div
+              <motion.div
                 key={card.id}
-                className="group flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-3 transition hover:border-emerald-500/25 hover:bg-emerald-500/5"
+                variants={staggerItem}
+                whileHover={{ x: 4, scale: 1.01 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+                className="group flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-3 transition-colors hover:border-emerald-500/25 hover:bg-emerald-500/5"
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/20 to-cyan-500/15 border border-white/10">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/20 to-cyan-500/15 border border-white/10 transition-transform group-hover:scale-105">
                   <CreditCard className="h-4 w-4 text-violet-200" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -81,9 +100,9 @@ export default function MemberCardRegistry({ cards }: MemberCardRegistryProps) {
                 >
                   {card.status}
                 </Badge>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       )}
     </MembershipPanelShell>

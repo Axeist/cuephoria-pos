@@ -19,7 +19,7 @@ const NoProductsFound: React.FC<NoProductsFoundProps> = ({ activeTab, onAddProdu
           Membership products are created from tier plans in the Memberships hub and appear here automatically in POS.
         </p>
         <Button className="mt-4" asChild>
-          <Link to="/memberships?tab=tiers">
+          <Link to="/memberships?zone=setup&section=tiers">
             <IdCard className="h-4 w-4 mr-2" /> Open Memberships
           </Link>
         </Button>
