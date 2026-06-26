@@ -141,6 +141,11 @@ const cache = new Map<string, CacheEntry>();
 let globalFetchPromise: Promise<LocationAnalytics> | null = null;
 let globalFetchKey: string | null = null;
 
+const EMPTY_DAILY_SERIES: DailyRevenuePoint[] = [];
+const EMPTY_TOP_CUSTOMERS: TopCustomerRow[] = [];
+const EMPTY_HOURLY: HourlyBucket[] = [];
+const EMPTY_PRODUCTS: ProductPerformanceRow[] = [];
+
 function cacheKey(locationId: string, start?: Date, end?: Date, includeBillMetrics = false): string {
   return `${locationId}|${start?.toISOString() ?? 'all'}|${end?.toISOString() ?? 'all'}|bm:${includeBillMetrics ? 1 : 0}`;
 }
@@ -507,14 +512,14 @@ export function useLocationAnalytics(options?: Options) {
   return {
     data,
     stats: data?.stats ?? null,
-    dailySeries: data?.dailySeries ?? [],
+    dailySeries: data?.dailySeries ?? EMPTY_DAILY_SERIES,
     payment: data?.payment ?? null,
-    topCustomers: data?.topCustomers ?? [],
-    topCustomersByCount: data?.topCustomersByCount ?? [],
+    topCustomers: data?.topCustomers ?? EMPTY_TOP_CUSTOMERS,
+    topCustomersByCount: data?.topCustomersByCount ?? EMPTY_TOP_CUSTOMERS,
     gaming: data?.gaming ?? null,
     canteen: data?.canteen ?? null,
-    hourly: data?.hourly ?? [],
-    products: data?.products ?? [],
+    hourly: data?.hourly ?? EMPTY_HOURLY,
+    products: data?.products ?? EMPTY_PRODUCTS,
     billMetrics: data?.billMetrics ?? null,
     loading,
     error,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
@@ -21,10 +21,8 @@ interface SalesChartProps {
 const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
   const { bills } = usePOS();
   const debouncedBills = useDebouncedValue(bills, 500);
-  const { dailySeries } = useLocationAnalytics({ dailyDays: 365 });
+  const { dailySeries, loading: analyticsLoading } = useLocationAnalytics({ dailyDays: 365 });
   const { expenses } = useExpenses();
-  const [chartData, setChartData] = useState<{ name: string; sales: number; expenses: number; withdrawals: number; }[]>([]);
-  const [isTransitioning, setIsTransitioning] = useState(false);
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [availableYears, setAvailableYears] = useState<string[]>([]);
 
@@ -47,7 +45,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
     return paidBills.filter(bill => new Date(bill.createdAt).getFullYear() === year);
   }, [debouncedBills, selectedYear]);
 
-  const generateChartData = () => {
+  const generateChartData = useMemo(() => {
     const now = new Date();
     
     // Helper function to normalize category (same as ExpenseContext)
@@ -239,37 +237,10 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
         withdrawals: monthlyWithdrawals.get(month) || 0
       }));
     }
-  };
-
-  const generateChartDataRef = useRef(generateChartData);
-  generateChartDataRef.current = generateChartData;
-
-  // Defer heavy aggregation so the UI can show a loading state first (main thread stays responsive).
-  useEffect(() => {
-    setIsTransitioning(true);
-    let cancelled = false;
-    const apply = () => {
-      if (cancelled) return;
-      setChartData(generateChartDataRef.current());
-      setIsTransitioning(false);
-    };
-    let idleId: number | undefined;
-    let fallbackId: ReturnType<typeof setTimeout> | undefined;
-    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-      idleId = window.requestIdleCallback(apply, { timeout: 500 });
-    } else if (typeof window !== 'undefined') {
-      fallbackId = window.setTimeout(apply, 0);
-    } else {
-      apply();
-    }
-    return () => {
-      cancelled = true;
-      if (idleId != null && typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function') {
-        window.cancelIdleCallback(idleId);
-      }
-      if (fallbackId != null) clearTimeout(fallbackId);
-    };
   }, [activeTab, filteredBills, expenses, selectedYear, dailySeries]);
+
+  const chartData = generateChartData;
+  const isChartLoading = analyticsLoading && activeTab !== 'hourly';
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -352,7 +323,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
         </div>
       </CardHeader>
       <CardContent className="h-[250px] sm:h-[350px] pt-2 sm:pt-4 relative">
-        {isTransitioning && (
+        {isChartLoading && (
           <div
             className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-background/55 backdrop-blur-[2px]"
             aria-busy="true"
@@ -362,7 +333,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
             <span className="text-xs text-muted-foreground">Updating chart…</span>
           </div>
         )}
-        <div className={`transition-all duration-300 ease-in-out h-full ${isTransitioning ? 'opacity-40' : 'opacity-100'}`}>
+        <div className={`transition-all duration-300 ease-in-out h-full ${isChartLoading ? 'opacity-40' : 'opacity-100'}`}>
           <ChartContainer
             config={{
               sales: {
