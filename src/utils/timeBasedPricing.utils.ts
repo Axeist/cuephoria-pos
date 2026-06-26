@@ -39,6 +39,26 @@ export function getDurationPresetMinutesFromTiers(tiers: DurationTier[]): number
   return tiers.map((t) => t.minutes);
 }
 
+/** Sorted tier minute options for public booking duration pickers. */
+export function getTimeBasedTierMinuteOptions(tiers: DurationTier[]): number[] {
+  const source = tiers.length > 0 ? tiers : getDefaultDurationTiers();
+  return [...new Set(source.map((t) => t.minutes))].sort((a, b) => a - b);
+}
+
+export function resolveTimeBasedPlayMinutes(
+  tiers: DurationTier[],
+  chosenMinutes?: number | null
+): number {
+  const options = getTimeBasedTierMinuteOptions(tiers);
+  if (chosenMinutes != null && options.includes(chosenMinutes)) return chosenMinutes;
+  return options[0] ?? 30;
+}
+
+export function formatTimeBasedTierLabel(minutes: number, price: number): string {
+  const suffix = minutes >= 60 ? `/${minutes / 60}hr` : `/${minutes}m`;
+  return `₹${price}${suffix}`;
+}
+
 /** Package price for a target duration — exact tier or sum of tier blocks (e.g. 90 = 60 + 30). */
 export function getTierPackagePrice(targetMinutes: number, tiers: DurationTier[]): number {
   if (targetMinutes <= 0 || tiers.length === 0) return 0;

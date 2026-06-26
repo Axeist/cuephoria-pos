@@ -85,6 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       payment_mode = "venue",
       location_id: locationIdRaw,
       stationPlayerCounts = {},
+      stationSessionMinutes = {},
       bookingAddons = null,
       booking_group_id: bookingGroupIdRaw,
     } = payload;
@@ -121,19 +122,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { data: stationRows, error: stationMetaErr } = await supabase
       .from("stations")
-      .select("id, type, slot_duration")
+      .select("id, type, slot_duration, pricing_mode")
       .in("id", selectedStations);
     if (stationMetaErr) {
       return j(res, { ok: false, error: "Failed to load station configuration" }, 500);
     }
     const stationMeta = new Map(
-      (stationRows ?? []).map((s: { id: string; type: string; slot_duration: number | null }) => [s.id, s]),
+      (stationRows ?? []).map((s: { id: string; type: string; slot_duration: number | null; pricing_mode: string | null }) => [s.id, s]),
     );
 
     const playDurationForStation = (stationId: string, sessionDuration: number): number => {
       const meta = stationMeta.get(stationId);
       if (!meta) return sessionDuration;
       if (meta.type === "vr") return 15;
+      if (meta.pricing_mode === "time_based") {
+        const userMinutes = Number(stationSessionMinutes?.[stationId]);
+        if (Number.isFinite(userMinutes) && userMinutes > 0) return userMinutes;
+        if (meta.slot_duration != null && meta.slot_duration > 0) return Number(meta.slot_duration);
+        return sessionDuration;
+      }
       if (meta.slot_duration != null && meta.slot_duration > 0) return Number(meta.slot_duration);
       return sessionDuration;
     };

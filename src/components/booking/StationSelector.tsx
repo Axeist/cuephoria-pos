@@ -11,6 +11,13 @@ import {
 } from '@/utils/stationPricing';
 import { getStationTheme } from '@/utils/stationTheme';
 import { getPublicSlotDurationMinutes, VR_HOURLY_PASSES, VR_PASS_DURATION_MINUTES } from '@/utils/publicBookingAvailability';
+import {
+  formatTimeBasedTierLabel,
+  getDefaultDurationTiers,
+  getTierPackagePrice,
+  getTimeBasedTierMinuteOptions,
+  resolveTimeBasedPlayMinutes,
+} from '@/utils/timeBasedPricing.utils';
 import type { Station } from '@/types/pos.types';
 
 export interface BookingStation {
@@ -33,8 +40,10 @@ interface StationSelectorProps {
   stations: BookingStation[];
   selectedStations: string[];
   stationPlayerCounts: Record<string, number>;
+  stationSessionMinutes?: Record<string, number>;
   onStationToggle: (stationId: string) => void;
   onPlayerCountChange: (stationId: string, count: number) => void;
+  onSessionMinutesChange?: (stationId: string, minutes: number) => void;
   vrPassesLeft?: Record<string, number>;
   loading?: boolean;
 }
@@ -43,8 +52,10 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
   stations,
   selectedStations,
   stationPlayerCounts,
+  stationSessionMinutes = {},
   onStationToggle,
   onPlayerCountChange,
+  onSessionMinutesChange,
   vrPassesLeft = {},
   loading = false,
 }) => {
@@ -125,6 +136,17 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
         const vrPassCount = stationPlayerCounts[station.id] ?? 1;
         const showVrPassStepper =
           station.type === 'vr' && isSelected && maxVrPasses > 1;
+        const timeBasedTiers =
+          station.duration_tiers && station.duration_tiers.length > 0
+            ? station.duration_tiers
+            : getDefaultDurationTiers();
+        const timeBasedOptions = getTimeBasedTierMinuteOptions(timeBasedTiers);
+        const showTimeBasedDurationPicker =
+          station.pricing_mode === 'time_based' && isSelected && timeBasedOptions.length > 1;
+        const selectedPlayMinutes = resolveTimeBasedPlayMinutes(
+          timeBasedTiers,
+          stationSessionMinutes[station.id]
+        );
 
         return (
           <button
@@ -185,7 +207,11 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
                   <span>
                     {station.type === 'vr'
                       ? `${VR_PASS_DURATION_MINUTES} min per pass`
-                      : `${durationMin} min session`}
+                      : station.pricing_mode === 'time_based'
+                        ? isSelected
+                          ? `${selectedPlayMinutes} min session`
+                          : `${timeBasedOptions.join(' or ')} min sessions`
+                        : `${durationMin} min session`}
                   </span>
                 </div>
                 {station.type === 'vr' && maxVrPasses > 1 && (
@@ -209,8 +235,45 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
 
               <div className="mt-auto pt-2 border-t border-white/10 text-left">
                 <p className="text-sm font-semibold text-cuephoria-lightpurple leading-snug break-words">
-                  {getPriceDisplay(station)}
+                  {station.pricing_mode === 'time_based' && isSelected
+                    ? formatTimeBasedTierLabel(
+                        selectedPlayMinutes,
+                        getTierPackagePrice(selectedPlayMinutes, timeBasedTiers)
+                      )
+                    : getPriceDisplay(station)}
                 </p>
+
+                {showTimeBasedDurationPicker && (
+                  <div
+                    className="flex flex-col gap-2 mt-3"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className="text-xs font-medium text-gray-400">Session length</span>
+                    <div className="flex flex-wrap gap-2">
+                      {timeBasedOptions.map((minutes) => {
+                        const tierPrice = getTierPackagePrice(minutes, timeBasedTiers);
+                        const active = selectedPlayMinutes === minutes;
+                        return (
+                          <Button
+                            key={minutes}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className={cn(
+                              'h-8 rounded-lg border-white/20 px-2.5 text-xs',
+                              active
+                                ? 'border-orange-400/60 bg-orange-500/20 text-orange-100'
+                                : 'text-gray-300 hover:bg-white/10'
+                            )}
+                            onClick={() => onSessionMinutesChange?.(station.id, minutes)}
+                          >
+                            {minutes} min · ₹{tierPrice}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {isSelected && multiPlayer && station.type !== 'vr' && (
                   <div

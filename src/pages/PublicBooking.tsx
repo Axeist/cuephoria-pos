@@ -18,7 +18,9 @@ import { getRateForPlayerCount } from "@/utils/stationPricing";
 import {
   getDefaultDurationTiers,
   getTierPackagePrice,
+  getTimeBasedTierMinuteOptions,
   parseDurationTiers,
+  resolveTimeBasedPlayMinutes,
 } from "@/utils/timeBasedPricing.utils";
 import { getHh99FinalRate } from "@/utils/sessionCoupon.utils";
 import { isStationPublicBookable } from "@/utils/stationTransform";
@@ -426,6 +428,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   const [stationType, setStationType] = useState<'all' | StationType>('all');
   const [selectedStations, setSelectedStations] = useState<string[]>([]);
   const [stationPlayerCounts, setStationPlayerCounts] = useState<Record<string, number>>({});
+  const [stationSessionMinutes, setStationSessionMinutes] = useState<Record<string, number>>({});
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
@@ -513,7 +516,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   const [instagramLinkClicked, setInstagramLinkClicked] = useState(false);
   const [showFollowConfirmation, setShowFollowConfirmation] = useState(false);
   const [expandedCoupons, setExpandedCoupons] = useState<Record<string, boolean>>({});
-  const [pendingCoupon, setPendingCoupon] = useState<{ code: string; type: "all" | "per-station"; stationTypes?: { ps5?: string; "8ball"?: string; vr?: string } } | null>(null);
+  const [pendingCoupon, setPendingCoupon] = useState<{ code: string; type: "all" | "per-station"; stationTypes?: Record<string, string> } | null>(null);
   
   const [, setSearchParams] = useSearchParams();
   const [paymentStatus, setPaymentStatus] = useState<"processing" | "success" | "failed" | null>(null);
@@ -1055,9 +1058,25 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           delete next[id];
           return next;
         });
+        setStationSessionMinutes((mins) => {
+          const next = { ...mins };
+          delete next[id];
+          return next;
+        });
         return prev.filter((x) => x !== id);
       }
       setStationPlayerCounts((counts) => ({ ...counts, [id]: counts[id] ?? 1 }));
+      if (station.pricing_mode === 'time_based') {
+        const tiers =
+          station.duration_tiers && station.duration_tiers.length > 0
+            ? station.duration_tiers
+            : getDefaultDurationTiers();
+        const defaultMinutes = getTimeBasedTierMinuteOptions(tiers)[0] ?? 30;
+        setStationSessionMinutes((mins) => ({
+          ...mins,
+          [id]: mins[id] ?? defaultMinutes,
+        }));
+      }
       return [...prev, id];
     });
     // DON'T reset slots - keep the selected time
@@ -1075,6 +1094,10 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       return;
     }
     setStationPlayerCounts((prev) => ({ ...prev, [stationId]: count }));
+  };
+
+  const handleSessionMinutesChange = (stationId: string, minutes: number) => {
+    setStationSessionMinutes((prev) => ({ ...prev, [stationId]: minutes }));
   };
 
   function handleSlotSelect(slot: TimeSlot) {
@@ -1219,6 +1242,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     const selectedHasVR = selectedStations.some(
       (id) => stations.find((s) => s.id === id && s.type === "vr")
     );
+    const selectedHasTimeBased = selectedStations.some(
+      (id) => stations.find((s) => s.id === id && s.pricing_mode === "time_based")
+    );
     const slotsForCoupon =
       selectedSlots.length > 0
         ? selectedSlots
@@ -1254,15 +1280,15 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     };
 
     // Helper function to apply coupon after Instagram follow
-    const applyCouponAfterInstagram = (couponCode: string, couponType: "all" | "per-station", stationTypes?: { ps5?: string; "8ball"?: string; vr?: string }) => {
+    const applyCouponAfterInstagram = (couponCode: string, couponType: "all" | "per-station", stationTypes?: Record<string, string>) => {
       if (couponType === "all") {
         setAppliedCoupons({ all: couponCode });
       } else if (stationTypes) {
         setAppliedCoupons((prev) => {
           let updated = { ...prev };
-          if (stationTypes.ps5) updated["ps5"] = stationTypes.ps5;
-          if (stationTypes["8ball"]) updated["8ball"] = stationTypes["8ball"];
-          if (stationTypes.vr) updated["vr"] = stationTypes.vr;
+          for (const [typeKey, typeCode] of Object.entries(stationTypes)) {
+            if (typeCode) updated[typeKey] = typeCode;
+          }
           return updated;
         });
       }
@@ -1328,9 +1354,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     }
 
     if (code === "NIT35") {
-      if (!(selectedHas8Ball || selectedHasPS5 || selectedHasVR)) {
+      if (!(selectedHas8Ball || selectedHasPS5 || selectedHasVR || selectedHasTimeBased)) {
         toast.error(
-          "NIT35 can be applied to PS5, 8-Ball, or VR stations in your selection."
+          "NIT35 can be applied to PS5, 8-Ball, VR, or Sim Racing stations in your selection."
         );
         return;
       }
@@ -1340,10 +1366,14 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         setShowInstagramFollowDialog(true);
         setInstagramLinkClicked(false);
         // Store coupon info to apply after Instagram follow
-        const stationTypes: { ps5?: string; "8ball"?: string; vr?: string } = {};
+        const stationTypes: { ps5?: string; "8ball"?: string; vr?: string; [key: string]: string | undefined } = {};
         if (selectedHasPS5) stationTypes.ps5 = "NIT35";
         if (selectedHas8Ball) stationTypes["8ball"] = appliedCoupons["8ball"] === "HH99" ? "HH99" : "NIT35";
         if (selectedHasVR) stationTypes.vr = "NIT35";
+        selectedStations.forEach((id) => {
+          const s = stations.find((st) => st.id === id);
+          if (s?.pricing_mode === "time_based") stationTypes[s.type] = "NIT35";
+        });
         setPendingCoupon({ code: "NIT35", type: "per-station", stationTypes });
         return;
       }
@@ -1353,6 +1383,10 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         if (selectedHasPS5) updated["ps5"] = "NIT35";
         if (selectedHas8Ball) updated["8ball"] = prev["8ball"] === "HH99" ? "HH99" : "NIT35";
         if (selectedHasVR) updated["vr"] = "NIT35";
+        selectedStations.forEach((id) => {
+          const s = stations.find((st) => st.id === id);
+          if (s?.pricing_mode === "time_based") updated[s.type] = "NIT35";
+        });
         return updated;
       });
       let msg = "🎓 NIT35 applied! 35% OFF for ";
@@ -1360,15 +1394,16 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       if (selectedHasPS5) types.push("PS5");
       if (selectedHas8Ball) types.push("8-Ball");
       if (selectedHasVR) types.push("VR");
+      if (selectedHasTimeBased) types.push("Sim Racing");
       msg += types.join(" & ") + " stations!";
       toast.success(msg);
       return;
     }
 
     if (code === "AAVEG50") {
-      if (!(selectedHas8Ball || selectedHasPS5 || selectedHasVR)) {
+      if (!(selectedHas8Ball || selectedHasPS5 || selectedHasVR || selectedHasTimeBased)) {
         toast.error(
-          "AAVEG50 can be applied to PS5, 8-Ball, or VR stations in your selection."
+          "AAVEG50 can be applied to PS5, 8-Ball, VR, or Sim Racing stations in your selection."
         );
         return;
       }
@@ -1377,6 +1412,10 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         if (selectedHasPS5) updated["ps5"] = "AAVEG50";
         if (selectedHas8Ball) updated["8ball"] = "AAVEG50";
         if (selectedHasVR) updated["vr"] = "AAVEG50";
+        selectedStations.forEach((id) => {
+          const s = stations.find((st) => st.id === id);
+          if (s?.pricing_mode === "time_based") updated[s.type] = "AAVEG50";
+        });
         return updated;
       });
       let msg = "🏫 AAVEG50 applied! 50% OFF for ";
@@ -1384,6 +1423,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       if (selectedHasPS5) types.push("PS5");
       if (selectedHas8Ball) types.push("8-Ball");
       if (selectedHasVR) types.push("VR");
+      if (selectedHasTimeBased) types.push("Sim Racing");
       msg += types.join(" & ") + " stations!";
       toast.success(msg);
       return;
@@ -1483,15 +1523,12 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     durationTiers: s.duration_tiers,
   });
 
-  const getSelectedBookingDurationMinutes = () => {
-    if (selectedSlot) {
-      return getSlotDurationMinutesFromTime(selectedSlot.start_time, selectedSlot.end_time);
-    }
-    if (selectedSlots.length > 0) {
-      const slot = selectedSlots[selectedSlots.length - 1];
-      return getSlotDurationMinutesFromTime(slot.start_time, slot.end_time);
-    }
-    return getBookingDuration(selectedStations, stations);
+  const getTimeBasedPlayMinutes = (s: Station) => {
+    const tiers =
+      s.duration_tiers && s.duration_tiers.length > 0
+        ? s.duration_tiers
+        : getDefaultDurationTiers();
+    return resolveTimeBasedPlayMinutes(tiers, stationSessionMinutes[s.id]);
   };
 
   const getStationSessionPrice = (s: Station) => {
@@ -1504,7 +1541,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         s.duration_tiers && s.duration_tiers.length > 0
           ? s.duration_tiers
           : getDefaultDurationTiers();
-      return getTierPackagePrice(getSelectedBookingDurationMinutes(), tiers);
+      return getTierPackagePrice(getTimeBasedPlayMinutes(s), tiers);
     }
     return getRateForPlayerCount(toStationPricingInput(s), count).totalRate;
   };
@@ -1639,6 +1676,20 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         totalDiscount += d;
         breakdown[`VR (${code})`] = d;
       }
+
+      const timeBasedSelected = stations.filter(
+        (s) => selectedStations.includes(s.id) && s.pricing_mode === "time_based"
+      );
+      for (const s of timeBasedSelected) {
+        const code = appliedCoupons[s.type];
+        if (code === "NIT35" || code === "AAVEG50") {
+          const d = computePercentDiscount([s], code);
+          if (d > 0) {
+            totalDiscount += d;
+            breakdown[`${s.name} (${code})`] = d;
+          }
+        }
+      }
     }
 
     return { total: totalDiscount, breakdown };
@@ -1763,6 +1814,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           sessionId,
           location_id: publicLocationId,
           stationPlayerCounts,
+          stationSessionMinutes,
           bookingAddons: bookingAddonsSnapshot,
           booking_group_id: bookingGroupIdRef.current,
         }),
@@ -1914,6 +1966,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     const pendingBooking = {
       selectedStations,
       stationPlayerCounts,
+      stationSessionMinutes,
       selectedDateISO: format(selectedDate, "yyyy-MM-dd"),
       slots: merged.sessions.map((slot) => ({
         start_time: slot.start_time,
@@ -1945,6 +1998,11 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       du: bookingDuration,
       ...(publicLocationId ? { lid: publicLocationId } : {}),
       pc: selectedStations.map((id) => stationPlayerCounts[id] ?? 1),
+      sm: selectedStations.map((id) => {
+        const s = stations.find((st) => st.id === id);
+        if (s?.pricing_mode === "time_based") return getTimeBasedPlayMinutes(s);
+        return 0;
+      }),
       c: {
         n: customerInfo.name,
         p: customerInfo.phone,
@@ -2890,9 +2948,11 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                           )}
                           selectedStations={selectedStations}
                           stationPlayerCounts={stationPlayerCounts}
+                          stationSessionMinutes={stationSessionMinutes}
                           vrPassesLeft={vrPassesLeftByStationId}
                           onStationToggle={handleStationToggle}
                           onPlayerCountChange={handlePlayerCountChange}
+                          onSessionMinutesChange={handleSessionMinutesChange}
                         />
                       </>
                     )}
@@ -2940,7 +3000,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                                   ? `${stationPlayerCounts[id] ?? 1} pass${
                                       (stationPlayerCounts[id] ?? 1) !== 1 ? 'es' : ''
                                     } (${(stationPlayerCounts[id] ?? 1) * VR_PASS_DURATION_MINUTES} min)`
-                                  : `${stationPlayerCounts[id] ?? 1}P`}
+                                  : s.pricing_mode === 'time_based'
+                                    ? `${getTimeBasedPlayMinutes(s)} min`
+                                    : `${stationPlayerCounts[id] ?? 1}P`}
                               </span>
                             </Badge>
                           </div>
@@ -3822,9 +3884,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                     } else if (pendingCoupon.stationTypes) {
                       setAppliedCoupons((prev) => {
                         let updated = { ...prev };
-                        if (pendingCoupon.stationTypes?.ps5) updated["ps5"] = pendingCoupon.stationTypes.ps5;
-                        if (pendingCoupon.stationTypes?.["8ball"]) updated["8ball"] = pendingCoupon.stationTypes["8ball"];
-                        if (pendingCoupon.stationTypes?.vr) updated["vr"] = pendingCoupon.stationTypes.vr;
+                        for (const [typeKey, typeCode] of Object.entries(pendingCoupon.stationTypes ?? {})) {
+                          if (typeCode) updated[typeKey] = typeCode;
+                        }
                         return updated;
                       });
                     }
@@ -3840,6 +3902,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                       if (pendingCoupon.stationTypes?.ps5) types.push("PS5");
                       if (pendingCoupon.stationTypes?.["8ball"]) types.push("8-Ball");
                       if (pendingCoupon.stationTypes?.vr) types.push("VR");
+                      if (Object.keys(pendingCoupon.stationTypes ?? {}).some((k) => k !== "ps5" && k !== "8ball" && k !== "vr")) {
+                        types.push("Sim Racing");
+                      }
                       successMsg = `🎓 NIT35 applied! 35% OFF for ${types.join(" & ")} stations!`;
                     } else {
                       successMsg = `🎉 ${pendingCoupon.code} applied!`;

@@ -98,6 +98,10 @@ type BookingPayload = {
   /** Compact parallel array aligned with `s` / selectedStations (Razorpay notes fallback). */
   pc?: number[];
   spc?: Record<string, number>;
+  stationSessionMinutes?: Record<string, number>;
+  /** Compact parallel array aligned with `s` / selectedStations for play duration. */
+  sm?: number[];
+  ssm?: Record<string, number>;
   bookingAddons?: { items?: Array<{ id: string; name: string; price: number }>; total?: number };
   ba?: { items?: Array<{ id: string; name: string; price: number }>; total?: number; t?: number };
   booking_group_id?: string;
@@ -113,6 +117,7 @@ export type NormalizedPayload = {
   pricing: { original: number; discount: number; final: number; coupons: string };
   locationId: string | null;
   stationPlayerCounts: Record<string, number>;
+  stationSessionMinutes: Record<string, number>;
   bookingAddons: { items: Array<{ id: string; name: string; price: number }>; total: number } | null;
   bookingGroupId: string | null;
 };
@@ -375,6 +380,24 @@ export function normalizeBookingPayload(raw: BookingPayload | string): Normalize
     });
   }
 
+  const stationSessionMinutes: Record<string, number> = {};
+  const minutesFromMap = data.stationSessionMinutes || data.ssm || {};
+  for (const [stationId, rawMinutes] of Object.entries(minutesFromMap)) {
+    const n = Number(rawMinutes);
+    if (stationId && Number.isFinite(n) && n > 0) {
+      stationSessionMinutes[stationId] = Math.floor(n);
+    }
+  }
+  const compactMinutes = Array.isArray(data.sm) ? data.sm : [];
+  if (compactMinutes.length === selectedStations.length) {
+    selectedStations.forEach((stationId, index) => {
+      const n = Number(compactMinutes[index]);
+      if (Number.isFinite(n) && n > 0) {
+        stationSessionMinutes[stationId] = Math.floor(n);
+      }
+    });
+  }
+
   const addonSrc = data.bookingAddons || data.ba;
   let bookingAddons: NormalizedPayload["bookingAddons"] = null;
   if (addonSrc && typeof addonSrc === "object" && Array.isArray(addonSrc.items) && addonSrc.items.length > 0) {
@@ -410,6 +433,7 @@ export function normalizeBookingPayload(raw: BookingPayload | string): Normalize
     pricing,
     locationId,
     stationPlayerCounts,
+    stationSessionMinutes,
     bookingAddons,
     bookingGroupId,
   };
@@ -592,10 +616,10 @@ async function createBookingsRows(
   const VR_PASS_DURATION_MINUTES = 15;
   const { data: stationRows } = await supabase
     .from("stations")
-    .select("id, type, slot_duration")
+    .select("id, type, slot_duration, pricing_mode")
     .in("id", payload.selectedStations);
   const stationMeta = new Map(
-    (stationRows ?? []).map((s: { id: string; type: string; slot_duration: number | null }) => [
+    (stationRows ?? []).map((s: { id: string; type: string; slot_duration: number | null; pricing_mode: string | null }) => [
       s.id,
       s,
     ])
@@ -604,6 +628,12 @@ async function createBookingsRows(
     const meta = stationMeta.get(stationId);
     if (!meta) return payload.duration;
     if (meta.type === "vr") return VR_PASS_DURATION_MINUTES;
+    if (meta.pricing_mode === "time_based") {
+      const userMinutes = Number(payload.stationSessionMinutes[stationId]);
+      if (Number.isFinite(userMinutes) && userMinutes > 0) return userMinutes;
+      if (meta.slot_duration != null && meta.slot_duration > 0) return Number(meta.slot_duration);
+      return payload.duration;
+    }
     if (meta.slot_duration != null && meta.slot_duration > 0) return Number(meta.slot_duration);
     return payload.duration;
   };
