@@ -45,6 +45,17 @@ const generateCustomerID = (phone: string): string => {
   return `CUE${phoneHash}${timestamp}`;
 };
 
+/** Indian numbers are sometimes stored with/without a leading 91 country code. */
+function phoneLookupVariants(normalizedPhone: string): string[] {
+  const variants = new Set<string>([normalizedPhone]);
+  if (normalizedPhone.length === 12 && normalizedPhone.startsWith("91")) {
+    variants.add(normalizedPhone.slice(2));
+  } else if (normalizedPhone.length === 10) {
+    variants.add(`91${normalizedPhone}`);
+  }
+  return [...variants];
+}
+
 function razorpayOrderTag(orderId: string): string {
   return `Razorpay Order: ${orderId}`;
 }
@@ -192,6 +203,19 @@ export default function PublicPaymentSuccess() {
       setStatus("creating");
       setMsg("Payment successful! Creating your booking…");
 
+      const pendingRaw = localStorage.getItem("pendingBooking");
+      const pendingBooking: PendingBooking | null = pendingRaw
+        ? JSON.parse(pendingRaw)
+        : null;
+
+      const ctx = returnContextFromSearchParams(searchParams, pendingBooking?.returnContext ?? null);
+      if (pendingBooking?.locationId && !ctx.locationId) {
+        ctx.locationId = pendingBooking.locationId;
+      }
+      setReturnContext(ctx);
+
+      const razorpayProfile = ctx.branchSlug === "lite" ? "lite" : "";
+
       // ──────────────────────────────────────────────────────────────────
       // Primary path: server-side idempotent materialize (webhook may have
       // already run). Never insert client-side if bookings already exist.
@@ -220,19 +244,6 @@ export default function PublicPaymentSuccess() {
       } catch (err) {
         console.warn("⚠️ Server-side materialize threw:", err);
       }
-
-      const pendingRaw = localStorage.getItem("pendingBooking");
-      const pendingBooking: PendingBooking | null = pendingRaw
-        ? JSON.parse(pendingRaw)
-        : null;
-
-      const ctx = returnContextFromSearchParams(searchParams, pendingBooking?.returnContext ?? null);
-      if (pendingBooking?.locationId && !ctx.locationId) {
-        ctx.locationId = pendingBooking.locationId;
-      }
-      setReturnContext(ctx);
-
-      const razorpayProfile = ctx.branchSlug === "lite" ? "lite" : "";
 
       const existingBookings = await fetchPaidBookingsForCheckout(paymentId, orderId);
       if (existingBookings.length > 0) {
@@ -285,12 +296,25 @@ export default function PublicPaymentSuccess() {
         return;
       }
 
+      const { data: locationRow, error: locationOrgError } = await supabase
+        .from("locations")
+        .select("organization_id")
+        .eq("id", locationId)
+        .maybeSingle();
+      const organizationId = (locationRow as { organization_id?: string } | null)?.organization_id ?? null;
+      if (locationOrgError || !organizationId) {
+        setStatus("failed");
+        setMsg("Could not determine venue organization. Please contact support or rebook.");
+        return;
+      }
+
       // 3) Ensure customer exists (by phone); create if needed
       let customerId = pb.customer.id;
       if (!customerId) {
         // Normalize phone number before searching (matches venue booking flow)
         const normalizedPhone = normalizePhoneNumber(pb.customer.phone);
-        
+        const phoneVariants = phoneLookupVariants(normalizedPhone);
+
         // Validate customer name is provided
         if (!pb.customer.name || !pb.customer.name.trim()) {
           setStatus("failed");
@@ -302,8 +326,9 @@ export default function PublicPaymentSuccess() {
         const { data: existingCustomer, error: searchError } = await supabase
           .from("customers")
           .select("id, name, custom_id")
-          .eq("phone", normalizedPhone)
+          .in("phone", phoneVariants)
           .eq("location_id", locationId)
+          .limit(1)
           .maybeSingle();
 
         if (searchError && searchError.code !== "PGRST116") {
@@ -328,7 +353,7 @@ export default function PublicPaymentSuccess() {
               email: pb.customer.email?.trim() || null,
               custom_id: customerID,
               location_id: locationId,
-              is_member: false,
+              organization_id: organizationId,
               loyalty_points: 0,
               total_spent: 0,
               total_play_time: 0,
@@ -343,8 +368,9 @@ export default function PublicPaymentSuccess() {
               const { data: retryCustomer } = await supabase
                 .from("customers")
                 .select("id")
-                .eq("phone", normalizedPhone)
+                .in("phone", phoneVariants)
                 .eq("location_id", locationId)
+                .limit(1)
                 .maybeSingle();
               
               if (retryCustomer) {

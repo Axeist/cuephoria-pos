@@ -251,8 +251,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
           }
 
-          const customerInfo = (payload as { customer?: { name?: string; phone?: string; email?: string } })
+          const payloadCustomer = (payload as { customer?: { name?: string; phone?: string; email?: string } })
             .customer;
+          const bookingPayloadCustomer =
+            bookingPayload && typeof bookingPayload === "object"
+              ? (bookingPayload as { customer?: { name?: string; phone?: string; email?: string } }).customer
+              : undefined;
+          const customerInfo = payloadCustomer ?? bookingPayloadCustomer;
           const amountPaise = Number(order.amount) || Math.round(Number(amount) * 100);
           const profileTag = profile === "lite" ? "lite" : "default";
           const expiresAt = new Date(Date.now() + PAYMENT_ORDER_PENDING_TTL_MS).toISOString();

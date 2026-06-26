@@ -91,6 +91,8 @@ type BookingPayload = {
   coup?: string;
   coupons?: string;
   locationId?: string;
+  /** Compact Razorpay notes key for locationId */
+  lid?: string;
   profile?: "default" | "lite";
   stationPlayerCounts?: Record<string, number>;
   /** Compact parallel array aligned with `s` / selectedStations (Razorpay notes fallback). */
@@ -350,7 +352,10 @@ export function normalizeBookingPayload(raw: BookingPayload | string): Normalize
     coupons: String((pricingSrc as PricingSrc).coupons ?? data.coupons ?? data.cp ?? data.coup ?? ""),
   };
 
-  const locationId = (data.locationId as string | undefined) || null;
+  const locationId =
+    (data.locationId as string | undefined) ||
+    (data.lid as string | undefined) ||
+    null;
 
   const stationPlayerCounts: Record<string, number> = {};
   const countsFromMap = data.stationPlayerCounts || data.spc || {};

@@ -1917,6 +1917,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       d: format(selectedDate, "yyyy-MM-dd"),
       t: merged.sessions.map((s) => ({ s: s.start_time, e: s.end_time })),
       du: bookingDuration,
+      ...(publicLocationId ? { lid: publicLocationId } : {}),
       pc: selectedStations.map((id) => stationPlayerCounts[id] ?? 1),
       c: {
         n: customerInfo.name,
