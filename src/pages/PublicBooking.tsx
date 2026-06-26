@@ -15,6 +15,11 @@ import { StationSelector } from "@/components/booking/StationSelector";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import { BookingStationTypeChips } from "@/components/booking/BookingStationTypeChips";
 import { getRateForPlayerCount } from "@/utils/stationPricing";
+import {
+  getDefaultDurationTiers,
+  getTierPackagePrice,
+  parseDurationTiers,
+} from "@/utils/timeBasedPricing.utils";
 import { getHh99FinalRate } from "@/utils/sessionCoupon.utils";
 import { isStationPublicBookable } from "@/utils/stationTransform";
 import { usePublicBookingBrand } from "@/hooks/usePublicBookingBrand";
@@ -105,7 +110,7 @@ type StationType = "ps5" | "8ball" | "vr";
 interface Station {
   id: string;
   name: string;
-  type: StationType;
+  type: string;
   hourly_rate: number;
   team_name?: string | null;
   team_color?: string | null;
@@ -113,7 +118,8 @@ interface Station {
   single_rate?: number | null;
   max_players?: number;
   occupancy_rates?: Record<string, number>;
-  pricing_mode?: 'static' | 'per_player';
+  pricing_mode?: 'static' | 'per_player' | 'time_based';
+  duration_tiers?: { minutes: number; price: number }[];
   category?: string | null;
   event_enabled?: boolean | null;
   slot_duration?: number | null;
@@ -269,12 +275,12 @@ const stationsForTypeFilter = (stations: Station[], stationType: 'all' | Station
   return base.filter((s) => s.type === stationType);
 };
 
-/** Map DB station.type values to booking UI types */
-const normalizeStationType = (raw: string | null | undefined): StationType => {
-  const t = String(raw ?? '').toLowerCase().trim();
-  if (t === 'vr') return 'vr';
-  if (t === '8ball' || t === '8-ball' || t === '8_ball' || t === 'snooker') return '8ball';
-  return 'ps5';
+/** Normalize DB station.type slug for booking UI (preserve custom types). */
+const normalizeStationTypeSlug = (raw: string | null | undefined): string => {
+  const t = String(raw ?? '').toLowerCase().trim().replace(/\s+/g, '_');
+  if (!t) return 'ps5';
+  if (t === '8-ball' || t === '8_ball') return '8ball';
+  return t;
 };
 
 const getBookingDuration = (stationIds: string[], stations: Station[]) => {
@@ -840,10 +846,11 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       .filter((s) => isStationPublicBookable(s))
       .map((station) => ({
         ...station,
-        type: normalizeStationType(station.type),
+        type: normalizeStationTypeSlug(station.type),
         max_players: station.max_players ?? station.max_capacity ?? 1,
         occupancy_rates: station.occupancy_rates ?? {},
         pricing_mode: station.pricing_mode ?? undefined,
+        duration_tiers: parseDurationTiers(station.duration_tiers),
       }));
 
   async function fetchStations() {
@@ -875,7 +882,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         const { data, error } = await (supabase as any)
           .from("stations")
           .select(
-            "id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate, category, event_enabled, slot_duration, max_players, occupancy_rates, pricing_mode"
+            "id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate, category, event_enabled, slot_duration, max_players, occupancy_rates, pricing_mode, duration_tiers"
           )
           .eq("location_id", publicLocationId)
           .order("name");
@@ -1473,12 +1480,31 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     singleRate: s.single_rate,
     maxCapacity: s.max_capacity,
     pricingMode: s.pricing_mode,
+    durationTiers: s.duration_tiers,
   });
+
+  const getSelectedBookingDurationMinutes = () => {
+    if (selectedSlot) {
+      return getSlotDurationMinutesFromTime(selectedSlot.start_time, selectedSlot.end_time);
+    }
+    if (selectedSlots.length > 0) {
+      const slot = selectedSlots[selectedSlots.length - 1];
+      return getSlotDurationMinutesFromTime(slot.start_time, slot.end_time);
+    }
+    return getBookingDuration(selectedStations, stations);
+  };
 
   const getStationSessionPrice = (s: Station) => {
     const count = stationPlayerCounts[s.id] ?? 1;
     if (s.type === "vr") {
       return s.hourly_rate * count;
+    }
+    if (s.pricing_mode === "time_based") {
+      const tiers =
+        s.duration_tiers && s.duration_tiers.length > 0
+          ? s.duration_tiers
+          : getDefaultDurationTiers();
+      return getTierPackagePrice(getSelectedBookingDurationMinutes(), tiers);
     }
     return getRateForPlayerCount(toStationPricingInput(s), count).totalRate;
   };

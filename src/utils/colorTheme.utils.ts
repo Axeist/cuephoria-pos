@@ -40,6 +40,7 @@ const DEFAULT_STATION_TYPE_HEX: Record<string, string> = {
   snooker: '#D97706',
   turf: '#84CC16',
   vr: '#22D3EE',
+  sim_racing: '#F97316',
   custom: '#A855F7',
 };
 

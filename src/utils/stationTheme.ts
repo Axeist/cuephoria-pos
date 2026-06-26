@@ -6,6 +6,7 @@ import {
   Target,
   Trees,
   Joystick,
+  Car,
 } from 'lucide-react';
 import type { Station } from '@/types/pos.types';
 import { getRateSuffix, isPerPlayerPricing, isTimeBasedPricing } from '@/utils/stationPricing';
@@ -187,6 +188,23 @@ const THEMES: Record<string, Omit<StationTheme, 'label'>> = {
     startBtn: 'bg-gradient-to-r from-cyan-600 via-blue-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 shadow-[0_0_22px_rgba(34,211,238,0.4)]',
     liveRing: 'ring-cyan-400/40 shadow-[0_0_32px_rgba(34,211,238,0.28)]',
     showScanLine: true,
+  },
+  sim_racing: {
+    icon: Car,
+    accent: 'text-orange-300',
+    accentMuted: 'text-orange-400/70',
+    border: 'border-orange-500/45',
+    bg: 'bg-gradient-to-br from-orange-950/90 via-red-950/70 to-[#120806]',
+    glow: 'shadow-[0_4px_32px_rgba(249,115,22,0.22)]',
+    badgeAvailable: 'bg-orange-500/25 text-orange-100 border-orange-400/40',
+    badgeOccupied: 'bg-red-500/25 text-red-100 border-red-400/50 animate-pulse-soft',
+    iconBg: 'bg-orange-500/25 ring-1 ring-orange-400/40 shadow-[0_0_12px_rgba(249,115,22,0.35)]',
+    mesh: 'bg-[radial-gradient(ellipse_at_top_left,rgba(249,115,22,0.18),transparent_55%),radial-gradient(ellipse_at_bottom_right,rgba(239,68,68,0.08),transparent_50%)]',
+    topBarIdle: 'bg-gradient-to-r from-transparent via-orange-500/60 to-transparent',
+    topBarLive: 'bg-gradient-to-r from-orange-600 via-amber-400 to-red-500 bg-[length:200%_100%] animate-station-bar-shimmer',
+    startBtn: 'bg-gradient-to-r from-orange-600 via-orange-500 to-red-600 hover:from-orange-500 hover:to-red-500 shadow-[0_0_20px_rgba(249,115,22,0.45)]',
+    liveRing: 'ring-orange-500/40 shadow-[0_0_28px_rgba(249,115,22,0.25)]',
+    showScanLine: false,
   },
 };
 

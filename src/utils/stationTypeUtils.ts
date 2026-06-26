@@ -6,6 +6,7 @@ const TYPE_LABELS: Record<string, string> = {
   snooker: 'Snooker',
   turf: 'Turf',
   vr: 'VR',
+  sim_racing: 'Sim Racing',
 };
 
 export function stationTypeLabel(slug: string, types?: StationType[]): string {

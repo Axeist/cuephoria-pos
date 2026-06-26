@@ -163,7 +163,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             phone: normalizedPhone,
             email: customerInfo.email?.trim() || null,
             custom_id: customerID,
-            is_member: false,
             loyalty_points: 0,
             total_spent: 0,
             total_play_time: 0,

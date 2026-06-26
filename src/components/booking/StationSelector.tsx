@@ -5,6 +5,7 @@ import { Users, EyeOff, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   formatOccupancyPriceLabel,
+  formatStationRateCompact,
   getRateForPlayerCount,
   isPerPlayerPricing,
 } from '@/utils/stationPricing';
@@ -15,11 +16,12 @@ import type { Station } from '@/types/pos.types';
 export interface BookingStation {
   id: string;
   name: string;
-  type: 'ps5' | '8ball' | 'vr';
+  type: string;
   hourly_rate: number;
   max_players?: number;
   occupancy_rates?: Record<string, number>;
-  pricing_mode?: 'static' | 'per_player';
+  pricing_mode?: 'static' | 'per_player' | 'time_based';
+  duration_tiers?: { minutes: number; price: number }[];
   slot_duration?: number | null;
   category?: string | null;
   team_name?: string | null;
@@ -57,6 +59,7 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
     singleRate: station.single_rate,
     maxCapacity: station.max_capacity,
     pricingMode: station.pricing_mode,
+    durationTiers: station.duration_tiers,
   });
 
   const getPriceDisplay = (station: BookingStation) => {
@@ -65,6 +68,13 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
       const total = station.hourly_rate * count;
       if (count <= 1) return `₹${total}/15mins`;
       return `₹${total} (${count} passes × ₹${station.hourly_rate}/15mins)`;
+    }
+    if (station.pricing_mode === 'time_based') {
+      const compact = formatStationRateCompact(toPricingStation(station));
+      if (compact.amount2) {
+        return `${compact.amount}${compact.suffix} · ${compact.amount2}${compact.suffix2}`;
+      }
+      return `${compact.amount}${compact.suffix}`;
     }
     return formatOccupancyPriceLabel(
       {
