@@ -31,6 +31,7 @@ import {
   Loader2,
   Mail,
   MapPin,
+  Phone,
   Pencil,
   Palette,
   Play,
@@ -199,6 +200,18 @@ const relative = (iso: string | null | undefined) => {
   return `${Math.floor(mo / 12)}y ago`;
 };
 
+const formatOwnerPhone = (phone: string | null | undefined) => {
+  if (!phone?.trim()) return "—";
+  const digits = phone.replace(/\D/g, "");
+  const ten =
+    digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits.length === 10 ? digits : "";
+  if (ten.length === 10) return `+91 ${ten.slice(0, 5)} ${ten.slice(5)}`;
+  return phone;
+};
+
+const pickOwnerMember = (members: DetailResponse["members"]) =>
+  members.find((m) => m.role === "owner") ?? members[0] ?? null;
+
 const fetcher = async <T,>(url: string, init?: RequestInit): Promise<T> => {
   const res = await fetch(url, { credentials: "same-origin", ...init });
   const json = await res.json();
@@ -252,6 +265,7 @@ const PlatformOrgDetail: React.FC = () => {
 
   const data = detailQuery.data!;
   const { organization: org, subscription, plan, plans, members, locations, activity, usage, currentFeatures } = data;
+  const ownerMember = pickOwnerMember(members);
 
   return (
     <div className="space-y-6">
@@ -293,6 +307,15 @@ const PlatformOrgDetail: React.FC = () => {
                     <span>{org.country}</span>
                     <span>·</span>
                     <span>{org.timezone}</span>
+                    {ownerMember?.phone && (
+                      <>
+                        <span>·</span>
+                        <span className="inline-flex items-center gap-1 text-zinc-300">
+                          <Phone className="h-3.5 w-3.5 text-emerald-400" />
+                          {formatOwnerPhone(ownerMember.phone)}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -341,6 +364,7 @@ const PlatformOrgDetail: React.FC = () => {
             subscription={subscription}
             plan={plan}
             locations={locations}
+            members={members}
             currentFeatures={currentFeatures}
             onSaved={() => {
               invalidateAll();
@@ -603,9 +627,11 @@ const OverviewTab: React.FC<{
   subscription: DetailResponse["subscription"];
   plan: Plan | null;
   locations: DetailResponse["locations"];
+  members: DetailResponse["members"];
   currentFeatures: Record<string, unknown>;
   onSaved: () => void;
-}> = ({ org, subscription, locations, onSaved }) => {
+}> = ({ org, subscription, locations, members, onSaved }) => {
+  const ownerMember = pickOwnerMember(members);
   const [editing, setEditing] = React.useState(false);
   const [name, setName] = React.useState(org.name);
   const [legalName, setLegalName] = React.useState(org.legal_name ?? "");
@@ -718,6 +744,33 @@ const OverviewTab: React.FC<{
       </div>
 
       <div className="space-y-4">
+        {ownerMember && (
+          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-5">
+            <div className="text-sm font-semibold text-zinc-100">Owner contact</div>
+            <div className="mt-1 text-xs text-zinc-500">Collected during self-service signup.</div>
+            <dl className="mt-3 space-y-2.5 text-xs">
+              <Row
+                k="Name"
+                v={ownerMember.displayName || ownerMember.username || "—"}
+              />
+              <Row k="Email" v={ownerMember.email || "—"} />
+              <Row
+                k="Phone"
+                v={
+                  ownerMember.phone ? (
+                    <span className="inline-flex items-center gap-1.5 text-zinc-200">
+                      <Phone className="h-3.5 w-3.5 text-emerald-400" />
+                      {formatOwnerPhone(ownerMember.phone)}
+                    </span>
+                  ) : (
+                    "—"
+                  )
+                }
+              />
+            </dl>
+          </div>
+        )}
+
         <div className="rounded-xl border border-white/10 bg-white/[0.02] p-5">
           <div className="text-sm font-semibold text-zinc-100">Lifecycle</div>
           <dl className="mt-3 space-y-2.5 text-xs">
