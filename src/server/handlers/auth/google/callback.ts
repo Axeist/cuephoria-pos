@@ -34,6 +34,13 @@ import {
 } from "../../../googleOauth";
 import { supabaseServiceClient } from "../../../supabaseServer";
 import { generateCsrfToken, csrfCookieHeader } from "../../../lib/csrf";
+import {
+  isAndroidOauth,
+  redirectMobileError,
+  redirectMobileLoginSuccess,
+  redirectMobileSignup,
+  redirectMobileTotp,
+} from "./mobileRedirect";
 
 export const config = { runtime: "edge" };
 
@@ -74,6 +81,10 @@ function clearStateCookie(): string {
   });
 }
 
+function loginPath(android: boolean): string {
+  return android ? "/app/login" : "/login";
+}
+
 export default async function handler(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
@@ -82,6 +93,12 @@ export default async function handler(req: Request) {
   const base = baseUrl(req);
 
   if (errorParam) {
+    if (stateParam) {
+      const errState = await verifyOauthState(stateParam);
+      if (errState && isAndroidOauth(errState)) {
+        return redirectMobileError(base, errorParam);
+      }
+    }
     return redirect(`${base}/login?oauth_error=${encodeURIComponent(errorParam)}`, [
       clearStateCookie(),
     ]);
@@ -99,12 +116,17 @@ export default async function handler(req: Request) {
     return redirect(`${base}/login?oauth_error=expired_state`, [clearStateCookie()]);
   }
 
+  const android = isAndroidOauth(state);
+
   let identity: GoogleIdentity;
   try {
     const tokens = await exchangeCode(code);
     identity = await verifyIdToken(tokens.id_token);
   } catch (err) {
     console.warn("[oauth] verify failed:", (err as Error).message);
+    if (android) {
+      return redirectMobileError(base, (err as Error).message);
+    }
     return redirect(
       `${base}/login?oauth_error=${encodeURIComponent((err as Error).message)}`,
       [clearStateCookie()],
@@ -132,11 +154,11 @@ export default async function handler(req: Request) {
 
     if (byEmail) {
       if (byEmail.google_sub && byEmail.google_sub !== identity.sub) {
-        // Different Google identity already linked — refuse silently.
+        if (android) return redirectMobileError(base, "account_conflict");
         return redirect(`${base}/login?oauth_error=account_conflict`, [clearStateCookie()]);
       }
-      // First-time Google link: inbox must be verified (e.g. staff added by owner).
       if (!byEmail.google_sub && !byEmail.email_verified_at) {
+        if (android) return redirectMobileError(base, "verify_email_first");
         return redirect(`${base}/login?oauth_error=verify_email_first`, [clearStateCookie()]);
       }
       await supabase
@@ -154,7 +176,9 @@ export default async function handler(req: Request) {
   // 3) Still no user.
   if (!user) {
     if (state.intent !== "signup") {
-      // Login intent but no matching account.
+      if (android) {
+        return redirectMobileError(base, "no_account", identity.email);
+      }
       return redirect(
         `${base}/login?oauth_error=no_account&email=${encodeURIComponent(identity.email)}`,
         [clearStateCookie()],
@@ -173,6 +197,9 @@ export default async function handler(req: Request) {
       }),
       iat: Math.floor(Date.now() / 1000),
     });
+    if (android) {
+      return redirectMobileSignup(base, ticket);
+    }
     const ticketCookie = cookieSerialize("cuetronix_oauth_ticket", ticket, {
       maxAgeSeconds: SIGNUP_TICKET_TTL,
       path: "/",
@@ -191,9 +218,11 @@ export default async function handler(req: Request) {
     .limit(1);
   if (membershipsErr) {
     console.warn("[oauth] membership check failed:", membershipsErr.message);
+    if (android) return redirectMobileError(base, "workspace_check_failed");
     return redirect(`${base}/login?oauth_error=workspace_check_failed`, [clearStateCookie()]);
   }
   if (!memberships || memberships.length === 0) {
+    if (android) return redirectMobileError(base, "no_workspace");
     return redirect(`${base}/login?oauth_error=no_workspace`, [clearStateCookie()]);
   }
 
@@ -210,6 +239,9 @@ export default async function handler(req: Request) {
       next: typeof state.next === "string" && state.next.startsWith("/") ? state.next : "/dashboard",
       iat: Math.floor(Date.now() / 1000),
     });
+    if (android) {
+      return redirectMobileTotp(base, pending);
+    }
     const totpCookie = cookieSerialize(OAUTH_TOTP_COOKIE, pending, {
       maxAgeSeconds: 5 * 60,
       path: "/",
@@ -217,7 +249,7 @@ export default async function handler(req: Request) {
       secure: true,
       sameSite: "Lax",
     });
-    return redirect(`${base}/login?oauth_totp=1`, [clearStateCookie(), totpCookie]);
+    return redirect(`${base}${loginPath(false)}?oauth_totp=1`, [clearStateCookie(), totpCookie]);
   }
 
   // 5) Existing user with active workspace → issue session cookie.
@@ -232,6 +264,7 @@ export default async function handler(req: Request) {
     },
     maxAge,
   );
+  const csrfToken = generateCsrfToken();
   const sessionCookie = cookieSerialize(ADMIN_SESSION_COOKIE, token, {
     maxAgeSeconds: maxAge,
     path: "/",
@@ -239,7 +272,7 @@ export default async function handler(req: Request) {
     secure: true,
     sameSite: "Lax",
   });
-  const csrfCookie = csrfCookieHeader(generateCsrfToken(), maxAge);
+  const csrfCookie = csrfCookieHeader(csrfToken, maxAge);
 
   await supabase.from("audit_log").insert({
     actor_type: "admin_user",
@@ -248,7 +281,11 @@ export default async function handler(req: Request) {
     meta: { email: identity.email },
   });
 
-  // Prefer the `next` from state if it looks like a safe path.
   const next = typeof state.next === "string" && state.next.startsWith("/") ? state.next : "/dashboard";
+
+  if (android) {
+    return redirectMobileLoginSuccess(base, token, csrfToken, maxAge, next);
+  }
+
   return redirect(`${base}${next}`, [clearStateCookie(), sessionCookie, csrfCookie]);
 }

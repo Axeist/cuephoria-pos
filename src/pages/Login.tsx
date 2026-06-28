@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -20,28 +20,16 @@ import {
 } from "lucide-react";
 import { CUETRONIX_ASSETS } from "@/branding/assets";
 import CuephoriaTechAttribution from "@/components/branding/CuephoriaTechAttribution";
-import { appToast } from "@/lib/appToast";
-import { summarizeWorkspaceMemberships } from "@/lib/tenantPortalLabels";
 import GoogleButton from "@/components/auth/GoogleButton";
 import AuthSceneBackground from "@/components/auth/AuthSceneBackground";
-import { useAuth, type LoginResult } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
+import { useStaffLoginForm } from "@/hooks/useStaffLoginForm";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
 interface LocationState {
   from?: string;
-}
-
-function toastTenantWorkspaceSummary(result: Extract<LoginResult, { ok: true }>) {
-  const title = result.portalKindLabel
-    ? `Signed in · ${result.portalKindLabel}`
-    : "Signed in";
-  const desc =
-    result.workspaceMemberships && result.workspaceMemberships.length > 0
-      ? summarizeWorkspaceMemberships(result.workspaceMemberships)
-      : undefined;
-  appToast.success(title, desc, { duration: desc ? 7200 : 4200 });
 }
 
 const FEATURE_PILLS = [
@@ -54,167 +42,42 @@ const FEATURE_PILLS = [
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isLoading: authLoading, login, completeOAuthTotp } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const locationState = location.state as LocationState;
   const loginNext =
     typeof locationState?.from === "string" && locationState.from.startsWith("/") ? locationState.from : "";
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [totpPhase, setTotpPhase] = useState<{ isAdminLogin: boolean; oauthGoogle?: boolean } | null>(null);
-  const [totpCode, setTotpCode] = useState("");
-  const [manualLoginOpen, setManualLoginOpen] = useState(false);
-  const [verificationHint, setVerificationHint] = useState<string | null>(null);
-
   const dest = loginNext || "/dashboard";
 
-  useEffect(() => {
-    if (totpPhase) setManualLoginOpen(true);
-  }, [totpPhase]);
+  const form = useStaffLoginForm({
+    dest,
+    pathname: location.pathname,
+    search: location.search,
+  });
+
+  const {
+    email,
+    setEmail,
+    password,
+    setPassword,
+    showPassword,
+    setShowPassword,
+    submitting,
+    totpPhase,
+    setTotpPhase,
+    totpCode,
+    setTotpCode,
+    manualLoginOpen,
+    verificationHint,
+    setVerificationHint,
+    toggleManualLogin,
+    handlePasswordLogin,
+  } = form;
 
   useEffect(() => {
     if (authLoading) return;
     if (user) navigate(dest, { replace: true });
   }, [authLoading, user, navigate, dest]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const oauthErr = params.get("oauth_error");
-    if (!oauthErr) return;
-    const prettyMap: Record<string, string> = {
-      no_account:
-        "No Cuetronix account exists for this Google sign-in. Create a workspace with Google first.",
-      account_conflict: "Another Google identity is already linked to this email.",
-      no_workspace:
-        "This account no longer has access to any workspace. Ask the owner to re-invite you.",
-      verify_email_first:
-        "Open the verification link we emailed to this address first, then sign in with Google using the same email.",
-      invalid_state: "Sign-in session expired. Please try again.",
-      expired_state: "Sign-in session expired. Please try again.",
-    };
-    const message = prettyMap[oauthErr] || `Google sign-in failed: ${decodeURIComponent(oauthErr)}`;
-    appToast.error(message);
-    params.delete("oauth_error");
-    params.delete("email");
-    const q = params.toString();
-    window.history.replaceState({}, "", q ? `${location.pathname}?${q}` : location.pathname);
-  }, [location.search, location.pathname]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    if (params.get("oauth_totp") !== "1") return;
-    setTotpPhase({ isAdminLogin: true, oauthGoogle: true });
-    setManualLoginOpen(true);
-    params.delete("oauth_totp");
-    const q = params.toString();
-    window.history.replaceState({}, "", q ? `${location.pathname}?${q}` : location.pathname);
-  }, [location.search, location.pathname]);
-
-  const toggleManualLogin = () => {
-    if (manualLoginOpen) {
-      if (totpPhase) {
-        setTotpPhase(null);
-        setTotpCode("");
-      }
-      setManualLoginOpen(false);
-      return;
-    }
-    setManualLoginOpen(true);
-  };
-
-  const handlePasswordLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (submitting || authLoading) return;
-    const trimmed = email.trim();
-    if (!totpPhase?.oauthGoogle && (!trimmed || !password)) {
-      appToast.error("Enter your email and password.");
-      return;
-    }
-
-    setSubmitting(true);
-    setVerificationHint(null);
-    try {
-      if (totpPhase) {
-        const tc = totpCode.trim().replace(/\s+/g, "");
-        const normalized = tc.replace(/-/g, "");
-        const useBackup =
-          normalized.length >= 8 && /^[A-Z0-9]+$/i.test(normalized) && !/^\d{6}$/.test(normalized);
-        const second = useBackup ? { backupCode: normalized.toUpperCase() } : { totpCode: tc };
-        const r = totpPhase.oauthGoogle
-          ? await completeOAuthTotp(second)
-          : await login(trimmed, password, totpPhase.isAdminLogin, {}, second);
-        if (r.ok) {
-          toastTenantWorkspaceSummary(r);
-          setTotpPhase(null);
-          setTotpCode("");
-          navigate(dest, { replace: true });
-          return;
-        }
-        if (r.requireTotp) {
-          appToast.error(r.error || "Invalid 2FA code. Try again.");
-          return;
-        }
-        if (r.emailVerificationRequired) {
-          appToast.error(r.error || "Verify your email before signing in.");
-          return;
-        }
-        appToast.error(r.error || "Sign-in failed.");
-        return;
-      }
-
-      const tryAdmin = await login(trimmed, password, true);
-      if (tryAdmin.ok) {
-        toastTenantWorkspaceSummary(tryAdmin);
-        navigate(dest, { replace: true });
-        return;
-      }
-      if (tryAdmin.requireTotp) {
-        setTotpPhase({ isAdminLogin: true });
-        setTotpCode("");
-        return;
-      }
-      if (tryAdmin.emailVerificationRequired) {
-        const msg =
-          tryAdmin.error ||
-          (tryAdmin.emailSent
-            ? "Check your inbox (and spam) for a verification link, then sign in again."
-            : "Your email must be verified before you can sign in.");
-        setVerificationHint(msg);
-        setManualLoginOpen(true);
-        appToast.error(msg);
-        return;
-      }
-
-      const tryStaff = await login(trimmed, password, false);
-      if (tryStaff.ok) {
-        toastTenantWorkspaceSummary(tryStaff);
-        navigate(dest, { replace: true });
-        return;
-      }
-      if (tryStaff.requireTotp) {
-        setTotpPhase({ isAdminLogin: false });
-        setTotpCode("");
-        return;
-      }
-      if (tryStaff.emailVerificationRequired) {
-        const msg =
-          tryStaff.error ||
-          (tryStaff.emailSent
-            ? "Check your inbox (and spam) for a verification link, then sign in again."
-            : "Your email must be verified before you can sign in.");
-        setVerificationHint(msg);
-        setManualLoginOpen(true);
-        appToast.error(msg);
-        return;
-      }
-
-      appToast.error(tryStaff.error || tryAdmin.error || "Invalid email or password.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   if (authLoading) {
     return (

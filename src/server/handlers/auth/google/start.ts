@@ -46,6 +46,7 @@ export default async function handler(req: Request) {
   const url = new URL(req.url);
   const intent = (url.searchParams.get("intent") || "login").toLowerCase();
   const next = url.searchParams.get("next") || "";
+  const platformParam = (url.searchParams.get("platform") || "").toLowerCase();
   const safeIntent = intent === "signup" ? "signup" : "login";
 
   // Generate a random nonce + CSRF token, embed intent + next, sign it.
@@ -59,6 +60,7 @@ export default async function handler(req: Request) {
     intent: safeIntent,
     next,
     iat: Math.floor(Date.now() / 1000),
+    ...(platformParam === "android" ? { platform: "android" as const } : {}),
   });
 
   const params = new URLSearchParams({

@@ -58,10 +58,24 @@ Increment `versionCode` in `android/app/build.gradle` for every new upload.
 ## Smoke test (release build on a real device)
 
 - [ ] App opens production site (not blank)
+- [ ] Cold start lands on `/app/login` (not marketing home)
 - [ ] Email/password staff login
-- [ ] Google sign-in (may need Chrome Custom Tabs if WebView blocks OAuth)
+- [ ] Google sign-in opens **in-app** Custom Tab and returns to the app (not external Chrome)
+- [ ] Google signup → `/app/signup/google` workspace picker
 - [ ] POS dashboard + one checkout path
 - [ ] Android back button
+
+**Note:** Mobile login UI and OAuth ship with the **web deploy** (`src/` + `/api/auth/mobile/exchange`). Run `npm run android:sync:play` after pulling so the native project gets `@capacitor/browser` and the deep-link intent filter.
+
+### Google OAuth on Android
+
+1. User taps **Continue with Google** on `/app/login` or `/app/signup`
+2. In-app Chrome Custom Tab (`@capacitor/browser`) opens Google OAuth
+3. Server callback issues a short-lived mobile ticket → `/auth/app-complete?handoff=1`
+4. Bridge page deep-links `com.cuephoria.pos://auth/complete?mt=...` back to the app
+5. WebView calls `POST /api/auth/mobile/exchange` to set session cookies
+
+Web `/login` and desktop OAuth are unchanged.
 
 ## Environment
 

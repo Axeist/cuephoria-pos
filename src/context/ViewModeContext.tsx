@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { isNativePlatform } from "@/utils/capacitor";
 
 /**
  * View-mode infrastructure.
@@ -199,8 +200,9 @@ export const ViewModeProvider: React.FC<{ children: React.ReactNode }> = ({
   // Phones always use mobile layout — desktop override cannot shrink usable width.
   // Desktop browsers (auto-detected) always get the classic sidebar + header shell;
   // a stale "mobile" localStorage override must not strip navigation on wide screens.
-  const mode: ViewMode =
-    viewportWidth < MOBILE_BREAKPOINT
+  const mode: ViewMode = isNativePlatform()
+    ? "mobile"
+    : viewportWidth < MOBILE_BREAKPOINT
       ? "mobile"
       : autoDetected === "desktop"
         ? "desktop"
@@ -215,7 +217,7 @@ export const ViewModeProvider: React.FC<{ children: React.ReactNode }> = ({
       // Only prompt when we've never asked AND the device looks like mobile.
       // Tablet / desktop users don't get nagged — they can still switch from
       // the settings menu.
-      shouldPrompt: !promptShown && autoDetected === "mobile",
+      shouldPrompt: !isNativePlatform() && !promptShown && autoDetected === "mobile",
       setOverride,
       dismissPrompt,
       triggerPrompt,

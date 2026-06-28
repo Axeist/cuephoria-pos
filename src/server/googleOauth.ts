@@ -23,6 +23,8 @@ export interface OauthStatePayload {
   intent: "login" | "signup" | "oauth_totp";
   next: string;
   iat: number;
+  /** Capacitor Android WebView OAuth handoff */
+  platform?: "android";
 }
 
 function b64uEncode(bytes: Uint8Array): string {

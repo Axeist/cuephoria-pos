@@ -7,7 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { PermissionsProvider, usePermissions } from "@/context/PermissionsContext";
 import { SIDEBAR_PERMISSIONS } from "@/constants/permissionCatalog";
@@ -40,6 +40,7 @@ import { isInternalOrganization } from "@/types/tenancy";
 import { useViewMode, ViewModeProvider } from "@/context/ViewModeContext";
 import { cn } from "@/lib/utils";
 import { initializeMobileApp, isNativePlatform } from "@/utils/capacitor";
+import { registerNativeOAuthListener } from "@/utils/nativeOAuth";
 import SplashScreen from "@/components/SplashScreen";
 import AppLoadingOverlay from "@/components/loading/AppLoadingOverlay";
 import PostLoginViewModeDialog from "@/components/PostLoginViewModeDialog";
@@ -54,6 +55,10 @@ import { MobileNavSheet } from "@/components/mobile/MobileNavSheet";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import SignupGoogle from "./pages/SignupGoogle";
+import MobileLogin from "./pages/MobileLogin";
+import MobileSignup from "./pages/MobileSignup";
+import MobileSignupGoogle from "./pages/MobileSignupGoogle";
+import AuthAppComplete from "./pages/AuthAppComplete";
 import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
@@ -488,6 +493,45 @@ const App = () => {
     }
   }, []);
 
+  const NativeOAuthListener = () => {
+    const navigate = useNavigate();
+    useEffect(() => {
+      if (!isNativePlatform()) return;
+      return registerNativeOAuthListener(navigate);
+    }, [navigate]);
+    return null;
+  };
+
+  const LoginRoute = () => {
+    const location = useLocation();
+    if (isNativePlatform()) {
+      return (
+        <Navigate
+          to={{ pathname: "/app/login", search: location.search }}
+          replace
+          state={location.state}
+        />
+      );
+    }
+    return <Login />;
+  };
+
+  const SignupRoute = () => {
+    const location = useLocation();
+    if (isNativePlatform()) {
+      return <Navigate to={{ pathname: "/app/signup", search: location.search }} replace />;
+    }
+    return <Signup />;
+  };
+
+  const SignupGoogleRoute = () => {
+    const location = useLocation();
+    if (isNativePlatform()) {
+      return <Navigate to={{ pathname: "/app/signup/google", search: location.search }} replace />;
+    }
+    return <SignupGoogle />;
+  };
+
   return (
     <>
       <AppBootRecovery />
@@ -501,11 +545,16 @@ const App = () => {
           <Sonner />
           {/* REMOVED: <AutoRefreshApp> wrapper */}
           <BrowserRouter>
+            <NativeOAuthListener />
             <Routes>
                 <Route path="/" element={<Index />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/signup" element={<Signup />} />
-                <Route path="/signup/google" element={<SignupGoogle />} />
+                <Route path="/app/login" element={<MobileLogin />} />
+                <Route path="/app/signup" element={<MobileSignup />} />
+                <Route path="/app/signup/google" element={<MobileSignupGoogle />} />
+                <Route path="/auth/app-complete" element={<AuthAppComplete />} />
+                <Route path="/login" element={<LoginRoute />} />
+                <Route path="/signup" element={<SignupRoute />} />
+                <Route path="/signup/google" element={<SignupGoogleRoute />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/account/verify-email" element={<VerifyEmail />} />

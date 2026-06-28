@@ -17,6 +17,7 @@ import Footer from "@/components/landing/Footer";
 import SiteAmbientBackground from "@/components/landing/SiteAmbientBackground";
 import ScrollProgress from "@/components/landing/lp/ScrollProgress";
 import { useSmoothScroll } from "@/hooks/useSmoothScroll";
+import { isNativePlatform } from "@/utils/capacitor";
 
 const Index: React.FC = () => {
   const navigate = useNavigate();
@@ -27,6 +28,7 @@ const Index: React.FC = () => {
 
   useEffect(() => {
     if (user) navigate("/dashboard");
+    else if (isNativePlatform()) navigate("/app/login", { replace: true });
   }, [user, navigate]);
 
   useEffect(() => {
