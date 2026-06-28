@@ -8,8 +8,8 @@
  *   2. Brand    — logo / icon upload + primary + accent color pickers.
  *   3. Business — what kind of operation (gaming lounge, cafe, …). Drives
  *                 default feature surfaces in the dashboard.
- *   4. Setup    — choose starter categories/products/customer.
- *   5. Preview  — live preview of dashboard header with chosen brand.
+ *   4. Setup    — guided station → product → customer micro-flow.
+ *   5. Preview  — realistic dashboard mock with chosen brand + setup data.
  *   6. Launch   — call /api/tenant/onboarding with complete=true,
  *                 refresh org context, navigate to /dashboard.
  *
@@ -21,7 +21,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft,
   ArrowRight,
@@ -33,15 +33,23 @@ import {
   Joystick,
   Loader2,
   PaintBucket,
-  Plus,
   Rocket,
   Sparkles,
   Target,
   Trophy,
-  Trash2,
   Upload,
   X,
 } from "lucide-react";
+import SetupGuidedFlow, {
+  type SetupProduct,
+  type SetupStation,
+} from "@/components/onboarding/SetupGuidedFlow";
+import OnboardingDashboardPreview from "@/components/onboarding/OnboardingDashboardPreview";
+import {
+  type BusinessType,
+  getBusinessPreset,
+} from "@/components/onboarding/onboardingPresets";
+import { staggerContainer, staggerItem } from "@/components/onboarding/onboardingMotion";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -73,15 +81,15 @@ const STEPS: { id: StepId; label: string; short: string; subtitle: string }[] = 
   },
   {
     id: "setup",
-    label: "Seed your workspace",
+    label: "Set up your floor",
     short: "Setup",
-    subtitle: "Pick starter categories, products, and your first customer.",
+    subtitle: "Create one station, one product, and optionally your first customer.",
   },
   {
     id: "preview",
     label: "Looking great",
     short: "Preview",
-    subtitle: "A quick glance at your brand before we hand over the keys.",
+    subtitle: "A preview of your live dashboard before we hand over the keys.",
   },
   {
     id: "launch",
@@ -90,16 +98,6 @@ const STEPS: { id: StepId; label: string; short: string; subtitle: string }[] = 
     subtitle: "You're seconds away from a live, tenant-isolated workspace.",
   },
 ];
-
-type BusinessType =
-  | "gaming_lounge"
-  | "gaming_turfs"
-  | "cafe"
-  | "arcade"
-  | "club"
-  | "billiards"
-  | "bowling"
-  | "other";
 
 const BUSINESS_TYPES: {
   id: BusinessType;
@@ -186,74 +184,11 @@ interface OnboardingState {
   logoUrl: string;
   iconUrl: string;
   businessType: BusinessType | "";
-  categories: string[];
-  products: Array<{ name: string; category: string; price: number; stock: number }>;
+  station: SetupStation | null;
+  product: SetupProduct | null;
   firstCustomerName: string;
   firstCustomerPhone: string;
 }
-
-const ONBOARDING_PRESETS: Record<
-  BusinessType,
-  {
-    categories: string[];
-    products: Array<{ name: string; category: string; price: number; stock: number }>;
-  }
-> = {
-  gaming_lounge: {
-    categories: ["snacks", "beverages", "hourly_pass", "addons"],
-    products: [
-      { name: "Hourly Pass 1H", category: "hourly_pass", price: 180, stock: 999 },
-      { name: "Energy Drink", category: "beverages", price: 90, stock: 30 },
-    ],
-  },
-  gaming_turfs: {
-    categories: ["turf_booking", "equipment_rental", "refreshments", "membership"],
-    products: [
-      { name: "Cricket Turf Slot (60 min)", category: "turf_booking", price: 1800, stock: 999 },
-      { name: "Football Turf Slot (60 min)", category: "turf_booking", price: 2200, stock: 999 },
-      { name: "Pickleball Paddle Rental", category: "equipment_rental", price: 120, stock: 40 },
-    ],
-  },
-  cafe: {
-    categories: ["coffee", "snacks", "combos", "desserts"],
-    products: [
-      { name: "Cappuccino", category: "coffee", price: 120, stock: 80 },
-      { name: "Nachos Combo", category: "combos", price: 220, stock: 40 },
-    ],
-  },
-  arcade: {
-    categories: ["tokens", "merch", "snacks"],
-    products: [
-      { name: "Arcade Tokens (20)", category: "tokens", price: 100, stock: 200 },
-      { name: "Soda Can", category: "snacks", price: 50, stock: 100 },
-    ],
-  },
-  club: {
-    categories: ["membership", "beverages", "events"],
-    products: [
-      { name: "Monthly Membership", category: "membership", price: 2999, stock: 999 },
-      { name: "Mocktail", category: "beverages", price: 180, stock: 60 },
-    ],
-  },
-  billiards: {
-    categories: ["table_time", "beverages", "snacks"],
-    products: [
-      { name: "Table Time 30 Min", category: "table_time", price: 100, stock: 999 },
-      { name: "Lemon Soda", category: "beverages", price: 70, stock: 50 },
-    ],
-  },
-  bowling: {
-    categories: ["lane_time", "shoe_rental", "snacks"],
-    products: [
-      { name: "Lane Slot 1 Hour", category: "lane_time", price: 600, stock: 999 },
-      { name: "Shoe Rental", category: "shoe_rental", price: 120, stock: 100 },
-    ],
-  },
-  other: {
-    categories: ["snacks", "beverages"],
-    products: [{ name: "Welcome Product", category: "snacks", price: 99, stock: 20 }],
-  },
-};
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -261,12 +196,15 @@ export default function Onboarding() {
   const orgCtx = useOrganizationOptional();
   const organization = orgCtx?.organization ?? null;
 
+  const prefersReducedMotion = useReducedMotion();
   const [stepIdx, setStepIdx] = useState(0);
+  const [setupSubStep, setSetupSubStep] = useState<0 | 1 | 2>(0);
+  const [setupDirection, setSetupDirection] = useState<1 | -1>(1);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingIcon, setUploadingIcon] = useState(false);
-  const [categoryInput, setCategoryInput] = useState("");
   const [customerSkipped, setCustomerSkipped] = useState(false);
+  const [logoUploadBounce, setLogoUploadBounce] = useState(false);
   const fileLogoRef = useRef<HTMLInputElement>(null);
   const fileIconRef = useRef<HTMLInputElement>(null);
 
@@ -278,16 +216,11 @@ export default function Onboarding() {
     logoUrl: "",
     iconUrl: "",
     businessType: "",
-    categories: [],
-    products: [],
+    station: null,
+    product: null,
     firstCustomerName: "",
     firstCustomerPhone: "",
   });
-
-  const activePreset = useMemo(
-    () => ONBOARDING_PRESETS[(state.businessType || "other") as BusinessType] ?? ONBOARDING_PRESETS.other,
-    [state.businessType],
-  );
 
   // Hydrate state from any previously-saved branding when the org context lands.
   useEffect(() => {
@@ -310,19 +243,26 @@ export default function Onboarding() {
 
   useEffect(() => {
     if (!state.businessType) return;
-    setState((prev) => {
-      if (prev.categories.length || prev.products.length) return prev;
-      const preset = ONBOARDING_PRESETS[state.businessType];
-      if (!preset) return prev;
-      return {
-        ...prev,
-        categories: [...preset.categories],
-        products: [...preset.products],
-      };
-    });
+    const preset = getBusinessPreset(state.businessType);
+    setState((prev) => ({
+      ...prev,
+      station: {
+        name: preset.station.name,
+        type: preset.station.type,
+        hourlyRate: preset.station.hourlyRate,
+      },
+      product: { ...preset.product },
+    }));
   }, [state.businessType]);
 
   const step = STEPS[stepIdx];
+
+  useEffect(() => {
+    if (step.id === "setup") {
+      setSetupSubStep(0);
+      setSetupDirection(1);
+    }
+  }, [step.id]);
   const isLast = stepIdx === STEPS.length - 1;
 
   const saveStep = useCallback(
@@ -354,9 +294,24 @@ export default function Onboarding() {
   );
 
   const submitBootstrap = useCallback(async () => {
+    const categories = [
+      ...new Set(
+        [state.product?.category, "uncategorized"].filter((c): c is string => Boolean(c)),
+      ),
+    ];
     const payload = {
-      categories: state.categories,
-      products: state.products,
+      categories,
+      stations: state.station
+        ? [
+            {
+              name: state.station.name,
+              type: state.station.type,
+              hourlyRate: state.station.hourlyRate,
+              category: "regular",
+            },
+          ]
+        : [],
+      products: state.product ? [state.product] : [],
       firstCustomerName: customerSkipped ? "" : state.firstCustomerName,
       firstCustomerPhone: customerSkipped ? "" : state.firstCustomerPhone,
     };
@@ -373,10 +328,10 @@ export default function Onboarding() {
     return json;
   }, [
     customerSkipped,
-    state.categories,
     state.firstCustomerName,
     state.firstCustomerPhone,
-    state.products,
+    state.product,
+    state.station,
   ]);
 
   async function handleFileUpload(file: File, kind: "logo" | "icon") {
@@ -407,6 +362,8 @@ export default function Onboarding() {
       const url = await handleFileUpload(file, "logo");
       if (url) {
         setState((s) => ({ ...s, logoUrl: url }));
+        setLogoUploadBounce(true);
+        setTimeout(() => setLogoUploadBounce(false), 600);
         appToast.success("Logo uploaded", "Looking sharp.");
       }
     } catch (err) {
@@ -466,8 +423,32 @@ export default function Onboarding() {
         }
         await saveStep({ step: "business", businessType: state.businessType });
       } else if (step.id === "setup") {
-        if (!state.categories.length) {
-          appToast.error("Add one category", "Create at least one category for your menu.");
+        if (setupSubStep === 0) {
+          const station = state.station;
+          if (!station?.name.trim() || !station.type) {
+            appToast.error("Name your station", "Give your first station a name to continue.");
+            setSaving(false);
+            return;
+          }
+          setSetupDirection(1);
+          setSetupSubStep(1);
+          setSaving(false);
+          return;
+        }
+        if (setupSubStep === 1) {
+          const product = state.product;
+          if (!product?.name.trim()) {
+            appToast.error("Name your product", "Add a product name to continue.");
+            setSaving(false);
+            return;
+          }
+          if (!product.price || product.price <= 0) {
+            appToast.error("Set a price", "Enter a price greater than zero.");
+            setSaving(false);
+            return;
+          }
+          setSetupDirection(1);
+          setSetupSubStep(2);
           setSaving(false);
           return;
         }
@@ -503,8 +484,18 @@ export default function Onboarding() {
 
   function goBack() {
     if (saving) return;
+    if (step.id === "setup" && setupSubStep > 0) {
+      setSetupDirection(-1);
+      setSetupSubStep((s) => (s - 1) as 0 | 1 | 2);
+      return;
+    }
     setStepIdx((idx) => Math.max(idx - 1, 0));
   }
+
+  const resetProductToPreset = useCallback(() => {
+    const preset = getBusinessPreset(state.businessType);
+    setState((prev) => ({ ...prev, product: { ...preset.product } }));
+  }, [state.businessType]);
 
   // Live preview swatch (computed from state)
   const previewGradient = useMemo(
@@ -516,7 +507,12 @@ export default function Onboarding() {
     switch (step.id) {
       case "profile":
         return (
-          <div className="space-y-5">
+          <motion.div
+            className="space-y-5"
+            initial={prefersReducedMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
             <div className="space-y-2">
               <Label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
                 Display name
@@ -526,7 +522,7 @@ export default function Onboarding() {
                 placeholder="Pixel Arena Bangalore"
                 value={state.displayName}
                 onChange={(e) => setState((s) => ({ ...s, displayName: e.target.value }))}
-                className="h-11 rounded-xl border-white/10 bg-white/[0.04] text-zinc-100 focus-visible:border-fuchsia-300/40 focus-visible:ring-fuchsia-500/25"
+                className="h-11 rounded-xl border-white/10 bg-white/[0.04] text-zinc-100 focus-visible:border-fuchsia-300/40 focus-visible:ring-fuchsia-500/25 animate-[pulse_2s_ease-in-out_1]"
               />
               <p className="text-[11px] text-zinc-500">
                 Shown on your login page, receipts, and public booking page.
@@ -545,24 +541,26 @@ export default function Onboarding() {
               />
               <p className="text-right text-[11px] text-zinc-500">{state.tagline.length}/160</p>
             </div>
-          </div>
+          </motion.div>
         );
 
       case "brand":
         return (
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
-              <BrandUploader
-                label="Logo"
-                hint="PNG/SVG · max 512KB"
-                currentUrl={state.logoUrl}
-                onPick={() => fileLogoRef.current?.click()}
-                onClear={() => setState((s) => ({ ...s, logoUrl: "" }))}
-                uploading={uploadingLogo}
-                square={false}
-                inputRef={fileLogoRef}
-                onChange={onLogoChange}
-              />
+              <motion.div animate={logoUploadBounce ? { scale: [1, 1.04, 1] } : { scale: 1 }}>
+                <BrandUploader
+                  label="Logo"
+                  hint="PNG/SVG · max 512KB"
+                  currentUrl={state.logoUrl}
+                  onPick={() => fileLogoRef.current?.click()}
+                  onClear={() => setState((s) => ({ ...s, logoUrl: "" }))}
+                  uploading={uploadingLogo}
+                  square={false}
+                  inputRef={fileLogoRef}
+                  onChange={onLogoChange}
+                />
+              </motion.div>
               <BrandUploader
                 label="Icon"
                 hint="Square · 128×128+"
@@ -587,9 +585,11 @@ export default function Onboarding() {
                     state.primaryColor.toLowerCase() === p.primary.toLowerCase() &&
                     state.accentColor.toLowerCase() === p.accent.toLowerCase();
                   return (
-                    <button
+                    <motion.button
                       type="button"
                       key={p.name}
+                      whileHover={prefersReducedMotion ? undefined : { scale: 1.03 }}
+                      whileTap={prefersReducedMotion ? undefined : { scale: 0.97 }}
                       onClick={() =>
                         setState((s) => ({ ...s, primaryColor: p.primary, accentColor: p.accent }))
                       }
@@ -606,7 +606,7 @@ export default function Onboarding() {
                       <div className="mt-1.5 text-[11px] font-medium text-zinc-400 group-hover:text-zinc-200">
                         {p.name}
                       </div>
-                    </button>
+                    </motion.button>
                   );
                 })}
               </div>
@@ -630,14 +630,22 @@ export default function Onboarding() {
 
       case "business":
         return (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <motion.div
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+            variants={prefersReducedMotion ? undefined : staggerContainer}
+            initial={prefersReducedMotion ? false : "hidden"}
+            animate="show"
+          >
             {BUSINESS_TYPES.map((bt) => {
               const Icon = bt.icon;
               const active = state.businessType === bt.id;
               return (
-                <button
+                <motion.button
                   key={bt.id}
                   type="button"
+                  variants={prefersReducedMotion ? undefined : staggerItem}
+                  whileHover={prefersReducedMotion ? undefined : { scale: 1.01 }}
+                  whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
                   onClick={() => setState((s) => ({ ...s, businessType: bt.id }))}
                   className={`relative overflow-hidden rounded-xl border p-4 text-left backdrop-blur-sm transition-all ${
                     active
@@ -664,366 +672,75 @@ export default function Onboarding() {
                       </div>
                     </div>
                   </div>
-                </button>
+                </motion.button>
               );
             })}
-          </div>
+          </motion.div>
         );
 
       case "setup":
         return (
-          <div className="space-y-6">
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-zinc-100">Categories</h4>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-8 rounded-lg border border-white/10 bg-white/[0.03] px-2 text-xs text-zinc-300"
-                  onClick={() =>
-                    setState((prev) => ({
-                      ...prev,
-                      categories: [...new Set([...prev.categories, ...activePreset.categories])],
-                    }))
-                  }
-                >
-                  Use suggestions
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {activePreset.categories.map((cat) => {
-                  const active = state.categories.includes(cat);
-                  return (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() =>
-                        setState((prev) => ({
-                          ...prev,
-                          categories: active
-                            ? prev.categories.filter((c) => c !== cat)
-                            : [...prev.categories, cat],
-                        }))
-                      }
-                      className={`rounded-full border px-2.5 py-1 text-xs ${
-                        active
-                          ? "border-fuchsia-300/40 bg-fuchsia-500/20 text-fuchsia-100"
-                          : "border-white/15 bg-white/[0.03] text-zinc-400"
-                      }`}
-                    >
-                      {cat.replace(/_/g, " ")}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  value={categoryInput}
-                  onChange={(e) => setCategoryInput(e.target.value)}
-                  placeholder="Add custom category"
-                  className="h-10 rounded-xl border-white/10 bg-white/[0.04] text-zinc-100"
-                />
-                <Button
-                  type="button"
-                  onClick={() => {
-                    const normalized = categoryInput
-                      .trim()
-                      .toLowerCase()
-                      .replace(/\s+/g, "_")
-                      .replace(/[^a-z0-9_-]/g, "");
-                    if (!normalized) return;
-                    if (state.categories.includes(normalized)) return;
-                    setState((prev) => ({ ...prev, categories: [...prev.categories, normalized] }));
-                    setCategoryInput("");
-                  }}
-                  className="h-10 rounded-xl"
-                >
-                  <Plus className="mr-1 h-4 w-4" />
-                  Add
-                </Button>
-              </div>
-              {state.categories.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {state.categories.map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.03] px-2.5 py-1 text-xs text-zinc-300"
-                      onClick={() =>
-                        setState((prev) => ({
-                          ...prev,
-                          categories: prev.categories.filter((c) => c !== cat),
-                        }))
-                      }
-                    >
-                      {cat.replace(/_/g, " ")}
-                      <X className="h-3 w-3" />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-zinc-100">Starter products</h4>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-8 rounded-lg border border-white/10 bg-white/[0.03] px-2 text-xs text-zinc-300"
-                  onClick={() =>
-                    setState((prev) => ({
-                      ...prev,
-                      products: [...prev.products, ...activePreset.products].slice(0, 12),
-                    }))
-                  }
-                >
-                  Add suggested products
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {state.products.map((product, idx) => (
-                  <div
-                    key={`${product.name}-${idx}`}
-                    className="rounded-lg border border-white/10 bg-white/[0.02] p-2 sm:p-0 sm:border-0 sm:bg-transparent grid grid-cols-2 sm:grid-cols-12 gap-2"
-                  >
-                    <div className="col-span-2 sm:col-span-5">
-                      <label className="sm:hidden text-[10px] uppercase tracking-wider text-white/40 mb-1 block">
-                        Product name
-                      </label>
-                      <Input
-                        value={product.name}
-                        onChange={(e) =>
-                          setState((prev) => ({
-                            ...prev,
-                            products: prev.products.map((p, i) =>
-                              i === idx ? { ...p, name: e.target.value } : p,
-                            ),
-                          }))
-                        }
-                        className="h-9 w-full rounded-lg border-white/10 bg-white/[0.03]"
-                        placeholder="Product name"
-                      />
-                    </div>
-                    <div className="col-span-2 sm:col-span-3">
-                      <label className="sm:hidden text-[10px] uppercase tracking-wider text-white/40 mb-1 block">
-                        Category
-                      </label>
-                      <Input
-                        value={product.category}
-                        onChange={(e) =>
-                          setState((prev) => ({
-                            ...prev,
-                            products: prev.products.map((p, i) =>
-                              i === idx ? { ...p, category: e.target.value } : p,
-                            ),
-                          }))
-                        }
-                        className="h-9 w-full rounded-lg border-white/10 bg-white/[0.03]"
-                        placeholder="Category"
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="sm:hidden text-[10px] uppercase tracking-wider text-white/40 mb-1 block">
-                        Price
-                      </label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={product.price}
-                        onChange={(e) =>
-                          setState((prev) => ({
-                            ...prev,
-                            products: prev.products.map((p, i) =>
-                              i === idx ? { ...p, price: Number(e.target.value || 0) } : p,
-                            ),
-                          }))
-                        }
-                        className="h-9 w-full rounded-lg border-white/10 bg-white/[0.03]"
-                      />
-                    </div>
-                    <div className="flex items-end gap-2 sm:col-span-2">
-                      <div className="flex-1 sm:block">
-                        <label className="sm:hidden text-[10px] uppercase tracking-wider text-white/40 mb-1 block">
-                          Stock
-                        </label>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={product.stock}
-                          onChange={(e) =>
-                            setState((prev) => ({
-                              ...prev,
-                              products: prev.products.map((p, i) =>
-                                i === idx ? { ...p, stock: Number(e.target.value || 0) } : p,
-                              ),
-                            }))
-                          }
-                          className="h-9 w-full rounded-lg border-white/10 bg-white/[0.03]"
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="h-9 w-9 sm:w-auto sm:flex-1 rounded-lg border border-white/10 p-0"
-                        onClick={() =>
-                          setState((prev) => ({
-                            ...prev,
-                            products: prev.products.filter((_, i) => i !== idx),
-                          }))
-                        }
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-9 rounded-lg border border-white/10 bg-white/[0.03] text-xs text-zinc-300"
-                  onClick={() =>
-                    setState((prev) => ({
-                      ...prev,
-                      products: [
-                        ...prev.products,
-                        { name: "", category: prev.categories[0] || "uncategorized", price: 0, stock: 0 },
-                      ],
-                    }))
-                  }
-                >
-                  <Plus className="mr-1 h-3.5 w-3.5" />
-                  Add product manually
-                </Button>
-              </div>
-            </section>
-
-            <section className="space-y-2">
-              <h4 className="text-sm font-semibold text-zinc-100">First customer (optional)</h4>
-              <p className="text-xs text-zinc-500">
-                Add one real customer now so your first invoice/search flow works instantly.
-              </p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <Input
-                  value={state.firstCustomerName}
-                  disabled={customerSkipped}
-                  onChange={(e) =>
-                    setState((prev) => ({ ...prev, firstCustomerName: e.target.value }))
-                  }
-                  placeholder="e.g. Rahul Sharma"
-                  className="h-10 rounded-xl border-white/10 bg-white/[0.04] text-zinc-100"
-                />
-                <Input
-                  value={state.firstCustomerPhone}
-                  disabled={customerSkipped}
-                  inputMode="numeric"
-                  onChange={(e) =>
-                    setState((prev) => ({
-                      ...prev,
-                      firstCustomerPhone: e.target.value.replace(/[^\d+]/g, "").slice(0, 13),
-                    }))
-                  }
-                  placeholder="10-digit mobile number"
-                  className="h-10 rounded-xl border-white/10 bg-white/[0.04] text-zinc-100"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-10 rounded-xl border border-white/10 bg-white/[0.03] text-xs"
-                  onClick={() => setCustomerSkipped((v) => !v)}
-                >
-                  {customerSkipped ? "Undo skip" : "Skip"}
-                </Button>
-              </div>
-            </section>
-          </div>
+          <SetupGuidedFlow
+            businessType={state.businessType}
+            subStep={setupSubStep}
+            direction={setupDirection}
+            station={state.station}
+            product={state.product}
+            firstCustomerName={state.firstCustomerName}
+            firstCustomerPhone={state.firstCustomerPhone}
+            customerSkipped={customerSkipped}
+            primaryColor={state.primaryColor}
+            accentColor={state.accentColor}
+            onStationChange={(station) => setState((s) => ({ ...s, station }))}
+            onProductChange={(product) => setState((s) => ({ ...s, product }))}
+            onCustomerNameChange={(firstCustomerName) =>
+              setState((s) => ({ ...s, firstCustomerName }))
+            }
+            onCustomerPhoneChange={(firstCustomerPhone) =>
+              setState((s) => ({ ...s, firstCustomerPhone }))
+            }
+            onCustomerSkippedChange={setCustomerSkipped}
+            onResetProduct={resetProductToPreset}
+          />
         );
 
       case "preview":
         return (
-          <div className="space-y-4">
-            <p className="text-sm text-zinc-400">
-              Here's how your branded dashboard will look the moment you launch.
-            </p>
-            <div
-              className="overflow-hidden rounded-2xl border border-white/10 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)]"
-              style={{ background: "rgba(5,2,12,0.55)" }}
-            >
-              {/* Fake dashboard header */}
-              <div
-                className="flex items-center gap-4 p-5"
-                style={{ background: previewGradient }}
-              >
-                {state.iconUrl ? (
-                  <img
-                    src={state.iconUrl}
-                    alt=""
-                    className="h-10 w-10 rounded-lg bg-white/20 object-cover"
-                  />
-                ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/20">
-                    <Sparkles className="h-5 w-5 text-white" />
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <div className="truncate text-lg font-bold leading-tight text-white">
-                    {state.displayName || "Your workspace"}
-                  </div>
-                  {state.tagline && (
-                    <div className="truncate text-xs text-white/80">{state.tagline}</div>
-                  )}
-                </div>
-                <div className="ml-auto flex gap-2">
-                  <div className="h-9 w-9 rounded-full bg-white/20" />
-                </div>
-              </div>
-              {/* Fake widget row */}
-              <div
-                className="grid grid-cols-3 gap-3 p-4"
-                style={{ background: "rgba(10,4,20,0.6)" }}
-              >
-                {[
-                  { label: "Today", value: "₹12,480" },
-                  { label: "Active", value: "8 / 10" },
-                  { label: "Bookings", value: "17" },
-                ].map((w) => (
-                  <div
-                    key={w.label}
-                    className="rounded-lg border border-white/10 bg-black/30 p-3 backdrop-blur-sm"
-                  >
-                    <div className="text-[10px] uppercase tracking-wide text-zinc-500">
-                      {w.label}
-                    </div>
-                    <div
-                      className="mt-1 text-xl font-bold"
-                      style={{ color: state.primaryColor }}
-                    >
-                      {w.value}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {/* Fake logo panel */}
-              {state.logoUrl && (
-                <div
-                  className="flex items-center justify-center border-t border-white/5 p-5"
-                  style={{ background: "rgba(10,4,20,0.5)" }}
-                >
-                  <img src={state.logoUrl} alt="" className="max-h-12 opacity-90" />
-                </div>
-              )}
-            </div>
-            <p className="text-xs text-zinc-500">
-              You can tweak all of this anytime from <strong>Settings → Organization</strong>.
-            </p>
-          </div>
+          <OnboardingDashboardPreview
+            displayName={state.displayName}
+            tagline={state.tagline}
+            logoUrl={state.logoUrl}
+            iconUrl={state.iconUrl}
+            primaryColor={state.primaryColor}
+            accentColor={state.accentColor}
+            station={state.station}
+            product={state.product}
+            firstCustomerName={state.firstCustomerName}
+            customerSkipped={customerSkipped}
+          />
         );
 
       case "launch":
         return (
-          <div className="py-6 text-center">
+          <div className="relative py-6 text-center">
+            {!prefersReducedMotion &&
+              Array.from({ length: 8 }).map((_, i) => (
+                <motion.span
+                  key={i}
+                  className="pointer-events-none absolute left-1/2 top-1/2 h-2 w-2 rounded-full"
+                  style={{
+                    background: i % 2 === 0 ? state.primaryColor : state.accentColor,
+                  }}
+                  initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
+                  animate={{
+                    x: Math.cos((i / 8) * Math.PI * 2) * (60 + i * 12),
+                    y: Math.sin((i / 8) * Math.PI * 2) * (60 + i * 12),
+                    opacity: 0,
+                    scale: 0.3,
+                  }}
+                  transition={{ duration: 1.2, delay: 0.2, ease: "easeOut" }}
+                />
+              ))}
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -1045,7 +762,9 @@ export default function Onboarding() {
               You're all set, {user?.username || "operator"}.
             </h3>
             <p className="mx-auto mt-2 max-w-sm text-sm text-zinc-400">
-              We'll now hand you the keys to your workspace. Add gaming stations from the sidebar, invite your team, and start taking bookings.
+              We&apos;ll hand you the keys to your workspace. Your first station is ready — add more
+              anytime from <strong className="text-zinc-300">Stations</strong>, invite your team,
+              and start taking bookings.
             </p>
             <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1.5 text-xs text-emerald-200">
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
@@ -1131,7 +850,7 @@ export default function Onboarding() {
 
         {/* ── Step content ── */}
         <div className="flex flex-1 items-center justify-center p-5 sm:p-10">
-          <div className="w-full max-w-2xl">
+          <div className={`w-full ${step.id === "preview" ? "max-w-4xl" : "max-w-2xl"}`}>
             {/* Heading */}
             <div className="mb-6 text-center">
               <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-fuchsia-300/25 bg-fuchsia-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-fuchsia-200">
