@@ -67,7 +67,7 @@ Migration `20260621170000_reconcile_cron_60s.sql` runs pg_cron on Supabase every
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `CAPACITOR_SERVER_URL` | Play builds | Production origin for WebView shell (e.g. `https://cuetronix.app`). Used by `npm run android:sync:play` / `android:release:play` only — **not** read by Vercel or `npm run build` for web. |
+| `CAPACITOR_SERVER_URL` | Play builds | Production origin for WebView shell (e.g. `https://admin.cuephoria.in`). Used by `npm run android:sync:play` / `android:release:play` only — **not** read by Vercel or `npm run build` for web. |
 
 See [ANDROID.md](./ANDROID.md).
 

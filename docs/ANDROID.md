@@ -4,7 +4,7 @@ Capacitor wraps the web app for Android. **The Vercel web deploy is unchanged** 
 
 ## How it works (Play Store)
 
-The Play build loads your **live production site** in a native WebView so `/api/*` auth and POS flows work. Set via `CAPACITOR_SERVER_URL` (defaults to `https://cuetronix.app` in the `:play` scripts below).
+The Play build loads your **live production site** in a native WebView so `/api/*` auth and POS flows work. Set via `CAPACITOR_SERVER_URL` (defaults to `https://admin.cuephoria.in`, matching `APP_BASE_URL`, in the `:play` scripts below).
 
 Without `CAPACITOR_SERVER_URL`, `android:sync` bundles `dist/` locally (legacy behavior; login via `/api` will not work on device).
 
@@ -51,7 +51,7 @@ Increment `versionCode` in `android/app/build.gradle` for every new upload.
 
 ## Store listing checklist
 
-- Privacy policy: `https://cuetronix.app/privacy` (or your `APP_BASE_URL` + `/privacy`)
+- Privacy policy: `https://admin.cuephoria.in/privacy` (or your `APP_BASE_URL` + `/privacy`)
 - Package name: `com.cuephoria.pos` (immutable after create)
 - Complete Data safety, content rating, screenshots
 
@@ -67,7 +67,7 @@ Increment `versionCode` in `android/app/build.gradle` for every new upload.
 
 | Variable | Where | Description |
 |----------|-------|-------------|
-| `CAPACITOR_SERVER_URL` | Shell when running `:play` scripts | Production origin, e.g. `https://cuetronix.app` |
+| `CAPACITOR_SERVER_URL` | Shell when running `:play` scripts | Production origin, e.g. `https://admin.cuephoria.in` |
 
 Not used by Vercel. See [ENVIRONMENT.md](./ENVIRONMENT.md).
 

@@ -16,8 +16,8 @@
     "android:run": "npm run android:sync && npx cap open android",
     "android:build": "npm run build && npx cap sync android && cd android && ./gradlew assembleDebug",
     "android:release": "npm run build && npx cap sync android && cd android && ./gradlew bundleRelease",
-    "android:sync:play": "CAPACITOR_SERVER_URL=${CAPACITOR_SERVER_URL:-https://cuetronix.app} npm run android:sync",
-    "android:release:play": "CAPACITOR_SERVER_URL=${CAPACITOR_SERVER_URL:-https://cuetronix.app} npm run android:release",
+    "android:sync:play": "CAPACITOR_SERVER_URL=${CAPACITOR_SERVER_URL:-https://admin.cuephoria.in} npm run android:sync",
+    "android:release:play": "CAPACITOR_SERVER_URL=${CAPACITOR_SERVER_URL:-https://admin.cuephoria.in} npm run android:release",
     "cap:sync": "npx cap sync",
     "cap:open:android": "npx cap open android"
   },
