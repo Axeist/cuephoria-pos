@@ -16,7 +16,8 @@ export type OrganizationStatus =
   | "trialing"
   | "past_due"
   | "canceled"
-  | "suspended";
+  | "suspended"
+  | "pending_approval";
 
 export type SubscriptionStatus =
   | "trialing"

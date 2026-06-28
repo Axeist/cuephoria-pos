@@ -35,6 +35,8 @@ import { getEnv } from "./adminApiUtils";
 
 export type EmailKind =
   | "signup_welcome"
+  | "signup_pending_approval"
+  | "signup_approved"
   | "verify_email"
   | "password_reset"
   | "payment_success"
@@ -58,6 +60,15 @@ export interface SignupWelcomeVars extends BaseTemplateVars {
    * a verification link. Omit or `password` for normal email+password signup.
    */
   signupMode?: "password" | "oauth";
+}
+
+export interface SignupPendingApprovalVars extends BaseTemplateVars {
+  loginUrl: string;
+}
+
+export interface SignupApprovedVars extends BaseTemplateVars {
+  onboardingUrl: string;
+  trialEndsAt: string;
 }
 
 export interface VerifyEmailVars extends BaseTemplateVars {
@@ -107,6 +118,8 @@ export interface GenericVars extends BaseTemplateVars {
 
 type TemplateVarsByKind = {
   signup_welcome: SignupWelcomeVars;
+  signup_pending_approval: SignupPendingApprovalVars;
+  signup_approved: SignupApprovedVars;
   verify_email: VerifyEmailVars;
   password_reset: PasswordResetVars;
   payment_success: PaymentSuccessVars;
@@ -416,6 +429,65 @@ function renderTemplate<K extends EmailKind>(
           footerNote: isOauth
             ? `You're already signed in — this link opens onboarding: ${v.dashboardUrl}`
             : `After you verify, you'll land in onboarding (no separate sign-in on this device). Setup wizard: ${v.dashboardUrl}`,
+          appBaseUrl: v.appBaseUrl,
+        }),
+      };
+    }
+
+    case "signup_pending_approval": {
+      const v = vars as SignupPendingApprovalVars;
+      const greet = v.displayName || v.organizationName || "there";
+      return {
+        subject: `Cuetronix application received — ${v.organizationName || "your workspace"}`,
+        text: [
+          `Hey ${greet},`,
+          ``,
+          `Thanks for signing up for Cuetronix. Your workspace application is under review.`,
+          ``,
+          `We'll email you when it's approved. Your 14-day free trial begins after approval.`,
+          ``,
+          `You can check status by signing in: ${v.loginUrl}`,
+          ``,
+          `— The Cuetronix team`,
+        ].join("\n"),
+        html: wrapShell({
+          preheader: "Your workspace application is under review.",
+          heading: "Application received",
+          bodyHtml: `
+            <p style="margin:12px 0 0 0">Thanks${v.displayName ? `, ${htmlEscape(v.displayName)}` : ""}. We received your application for <strong style="color:#ffffff">${htmlEscape(v.organizationName || "your workspace")}</strong>.</p>
+            <p style="margin:14px 0 0 0">Our team will review it shortly. Your <strong>14-day free trial starts only after approval</strong> — we'll email you when you're cleared to continue setup.</p>
+          `,
+          cta: { label: "Sign in to check status", url: v.loginUrl },
+          footerNote: "Questions? Reply to this email or contact support.",
+          appBaseUrl: v.appBaseUrl,
+        }),
+      };
+    }
+
+    case "signup_approved": {
+      const v = vars as SignupApprovedVars;
+      const greet = v.displayName || v.organizationName || "there";
+      return {
+        subject: `You're approved — start your Cuetronix trial`,
+        text: [
+          `Hey ${greet},`,
+          ``,
+          `Great news — your Cuetronix workspace has been approved.`,
+          ``,
+          `Your 14-day free trial runs until ${v.trialEndsAt}.`,
+          ``,
+          `Continue setup: ${v.onboardingUrl}`,
+          ``,
+          `— The Cuetronix team`,
+        ].join("\n"),
+        html: wrapShell({
+          preheader: "Your workspace is approved — your trial has started.",
+          heading: "You're approved — let's go",
+          bodyHtml: `
+            <p style="margin:12px 0 0 0">Hey ${htmlEscape(greet)}, your workspace <strong style="color:#ffffff">${htmlEscape(v.organizationName || "Cuetronix")}</strong> has been approved.</p>
+            <p style="margin:14px 0 0 0">Your <strong>14-day free trial</strong> is now active until <strong>${htmlEscape(v.trialEndsAt)}</strong>. Finish the quick setup wizard to unlock your dashboard.</p>
+          `,
+          cta: { label: "Continue onboarding", url: v.onboardingUrl },
           appBaseUrl: v.appBaseUrl,
         }),
       };

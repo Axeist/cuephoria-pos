@@ -60,12 +60,19 @@ async function handler(req: Request, ctx: OrgContext): Promise<Response> {
   //    before any write hits the DB.
   const { data: orgRow, error: orgErr } = await ctx.supabase
     .from("organizations")
-    .select("id, name, branding, timezone, business_type, onboarding_completed_at")
+    .select("id, name, branding, timezone, business_type, onboarding_completed_at, status")
     .eq("id", ctx.organizationId)
     .maybeSingle();
 
   if (orgErr || !orgRow) {
     return j({ ok: false, error: orgErr?.message || "Organization not found" }, 500);
+  }
+
+  if ((orgRow.status ?? "").trim().toLowerCase() === "pending_approval") {
+    return j(
+      { ok: false, error: "Your workspace is awaiting platform approval. You'll be notified by email when approved." },
+      403,
+    );
   }
 
   // ── Build the next branding JSONB. Keep everything previously set that

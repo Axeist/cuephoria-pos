@@ -68,7 +68,7 @@ async function getDetail(req: Request, id: string): Promise<Response> {
       supabase
         .from("org_memberships")
         .select(
-          "id, role, created_at, admin_user_id, admin_users:admin_user_id(id, username, email, google_sub, email_verified_at, is_admin, is_super_admin, is_platform_backdoor, created_at)",
+          "id, role, created_at, admin_user_id, admin_users:admin_user_id(id, username, email, display_name, phone, google_sub, email_verified_at, is_admin, is_super_admin, is_platform_backdoor, created_at)",
         )
         .eq("organization_id", id)
         .order("created_at", { ascending: true }),
@@ -94,7 +94,7 @@ async function getDetail(req: Request, id: string): Promise<Response> {
       const retry = await supabase
         .from("org_memberships")
         .select(
-          "id, role, created_at, admin_user_id, admin_users:admin_user_id(id, username, email, google_sub, email_verified_at, is_admin, is_super_admin, created_at)",
+          "id, role, created_at, admin_user_id, admin_users:admin_user_id(id, username, email, display_name, phone, google_sub, email_verified_at, is_admin, is_super_admin, created_at)",
         )
         .eq("organization_id", id)
         .order("created_at", { ascending: true });
@@ -151,6 +151,8 @@ async function getDetail(req: Request, id: string): Promise<Response> {
                 id: string;
                 username: string;
                 email: string | null;
+                display_name: string | null;
+                phone: string | null;
                 google_sub: string | null;
                 email_verified_at: string | null;
                 is_admin: boolean;
@@ -162,6 +164,8 @@ async function getDetail(req: Request, id: string): Promise<Response> {
                 id: string;
                 username: string;
                 email: string | null;
+                display_name: string | null;
+                phone: string | null;
                 google_sub: string | null;
                 email_verified_at: string | null;
                 is_admin: boolean;
@@ -180,6 +184,8 @@ async function getDetail(req: Request, id: string): Promise<Response> {
             adminUserId: m.admin_user_id,
             username: au?.username ?? null,
             email: au?.email ?? null,
+            displayName: au?.display_name ?? null,
+            phone: au?.phone ?? null,
             googleLinked: Boolean(au?.google_sub),
             emailVerifiedAt: au?.email_verified_at ?? null,
             isAdmin: au?.is_admin ?? false,

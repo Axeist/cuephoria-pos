@@ -61,6 +61,7 @@ Migration `20260621170000_reconcile_cron_60s.sql` runs pg_cron on Supabase every
 | `WEBHOOK_AUTH_DISABLED` | `0` | `1` = local dev only, skip webhook auth |
 | `CSRF_DISABLED` | `0` | `1` = local dev only, skip admin CSRF checks |
 | `RBAC_ENFORCE_ROUTES` | server N/A | Use `VITE_RBAC_ENFORCE_ROUTES` on client |
+| `SIGNUP_REQUIRES_APPROVAL` | `1` (true) | Self-service Google signup creates `pending_approval` org; trial starts on platform approve. Set `0` for instant trial rollback. |
 
 ## Rollout recommendation
 

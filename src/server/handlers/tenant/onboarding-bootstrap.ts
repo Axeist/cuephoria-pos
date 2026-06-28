@@ -54,6 +54,16 @@ async function handler(req: Request, ctx: OrgContext): Promise<Response> {
     return j({ ok: false, error: "Only owners and admins can bootstrap onboarding data." }, 403);
   }
 
+  const { data: orgRow, error: orgStatusErr } = await ctx.supabase
+    .from("organizations")
+    .select("status")
+    .eq("id", ctx.organizationId)
+    .maybeSingle();
+  if (orgStatusErr) return j({ ok: false, error: orgStatusErr.message }, 500);
+  if ((orgRow?.status ?? "").trim().toLowerCase() === "pending_approval") {
+    return j({ ok: false, error: "Workspace is awaiting platform approval." }, 403);
+  }
+
   let body: Record<string, unknown>;
   try {
     body = (await req.json()) as Record<string, unknown>;

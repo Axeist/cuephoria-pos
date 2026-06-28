@@ -343,6 +343,7 @@ const OnboardingGate: React.FC<{ children: React.ReactNode }> = ({ children }) =
   if (status === "loading") return <>{children}</>;
   if (!organization) return <>{children}</>;
   if (isInternalOrganization(organization.slug, organization.isInternal)) return <>{children}</>;
+  if ((organization.status ?? "").trim().toLowerCase() === "pending_approval") return <>{children}</>;
   if (organization.onboardingCompletedAt) return <>{children}</>;
 
   // Owners + admins get redirected to the wizard; lower roles just see the

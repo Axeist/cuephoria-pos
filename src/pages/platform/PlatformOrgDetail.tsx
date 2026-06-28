@@ -86,7 +86,7 @@ type DetailResponse = {
     country: string;
     currency: string;
     timezone: string;
-    status: "active" | "trialing" | "past_due" | "canceled" | "suspended";
+    status: "active" | "trialing" | "past_due" | "canceled" | "suspended" | "pending_approval";
     is_internal: boolean;
     trial_ends_at: string | null;
     created_at: string;
@@ -123,6 +123,8 @@ type DetailResponse = {
     adminUserId: string;
     username: string | null;
     email: string | null;
+    displayName: string | null;
+    phone: string | null;
     googleLinked: boolean;
     emailVerifiedAt: string | null;
     isAdmin: boolean;
@@ -163,6 +165,7 @@ const statusStyles: Record<string, string> = {
   past_due: "bg-amber-500/10 text-amber-300 border-amber-500/30",
   canceled: "bg-zinc-500/10 text-zinc-400 border-zinc-500/30",
   suspended: "bg-rose-500/10 text-rose-300 border-rose-500/30",
+  pending_approval: "bg-violet-500/10 text-violet-300 border-violet-500/30",
 };
 
 const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
@@ -483,12 +486,33 @@ const ActionBar: React.FC<{
   };
 
   const isSuspended = org.status === "suspended";
+  const isPendingApproval = org.status === "pending_approval";
   const isTrialing = subscription?.status === "trialing";
 
   return (
     <>
-      <div className="flex items-center gap-2">
-        {isSuspended ? (
+      <div className="flex items-center gap-2 flex-wrap">
+        {isPendingApproval ? (
+          <>
+            <Button
+              size="sm"
+              className="bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 hover:bg-emerald-500/30"
+              onClick={() => run("approve-signup")}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+              Approve signup
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-rose-300 hover:text-rose-200 hover:bg-rose-500/10"
+              onClick={() => run("reject-signup")}
+            >
+              <X className="h-3.5 w-3.5 mr-1.5" />
+              Reject
+            </Button>
+          </>
+        ) : isSuspended ? (
           <Button
             size="sm"
             className="bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 hover:bg-emerald-500/30"
@@ -510,7 +534,7 @@ const ActionBar: React.FC<{
             Suspend
           </Button>
         )}
-        {isTrialing && !isSuspended && (
+        {isTrialing && !isSuspended && !isPendingApproval && (
           <>
             <Button
               size="sm"
@@ -1094,7 +1118,7 @@ const MembersTab: React.FC<{
                   </div>
                   <div className="min-w-0">
                     <div className="text-sm text-zinc-100 flex items-center gap-2">
-                      {m.username ?? "unknown"}
+                      {m.displayName || m.username || "unknown"}
                       {m.isSuperAdmin && (
                         <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-300 px-1.5 py-0.5">
                           <Crown className="h-2.5 w-2.5" />
@@ -1109,6 +1133,9 @@ const MembersTab: React.FC<{
                       ) : (
                         <span className="text-zinc-600"> · no email</span>
                       )}
+                      {m.phone ? (
+                        <span className="text-zinc-400"> · {m.phone}</span>
+                      ) : null}
                       {m.googleLinked && (
                         <span className="ml-1.5 text-[10px] uppercase tracking-wide text-emerald-400/90">Google</span>
                       )}

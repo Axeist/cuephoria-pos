@@ -10,6 +10,8 @@
  *   end-trial    — fast-forward a trialing subscription to active.
  *   extend-trial — push trial_ends_at further into the future. Body: { days }
  *                  (1..365). Works on trialing subscriptions only.
+ *   approve-signup — approve a pending_approval self-service signup; starts trial.
+ *   reject-signup  — hard-delete a pending signup (frees email + slug).
  *
  * NOTE: The operation is read from `op`, not `action`. Vercel's
  * `api/platform/[action].ts` catch-all dispatcher overwrites any `action`
@@ -20,10 +22,12 @@
 import { j } from "../../adminApiUtils";
 import { supabaseServiceClient, SupabaseConfigError } from "../../supabaseServer";
 import { requirePlatformSession } from "../../platformApiUtils";
+import { appBaseUrl, sendEmail } from "../../email";
 
 export const config = { runtime: "edge" };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const TRIAL_DAYS = 14;
 
 const SUPPORTED_OPS = new Set([
   "suspend",
@@ -31,6 +35,8 @@ const SUPPORTED_OPS = new Set([
   "change-plan",
   "end-trial",
   "extend-trial",
+  "approve-signup",
+  "reject-signup",
 ]);
 
 export default async function handler(req: Request) {
@@ -67,6 +73,17 @@ export default async function handler(req: Request) {
       .maybeSingle();
     if (orgErr) return j({ ok: false, error: orgErr.message }, 500);
     if (!org) return j({ ok: false, error: "Organization not found." }, 404);
+
+    const pendingBlock = rejectIfPendingApproval(org.status, action);
+    if (pendingBlock) return pendingBlock;
+
+    if (action === "approve-signup") {
+      return approveSignup(supabase, session, org);
+    }
+
+    if (action === "reject-signup") {
+      return rejectSignup(supabase, session, org);
+    }
 
     if (action === "suspend") {
       if (org.is_internal) {
@@ -322,6 +339,191 @@ export default async function handler(req: Request) {
     if (err instanceof SupabaseConfigError) return j({ ok: false, error: err.message }, 503);
     return j({ ok: false, error: String((err as Error)?.message || err) }, 500);
   }
+}
+
+function rejectIfPendingApproval(status: string, action: string): Response | null {
+  if (status !== "pending_approval") return null;
+  if (action === "approve-signup" || action === "reject-signup") return null;
+  return j(
+    {
+      ok: false,
+      error: "Organization is awaiting signup approval. Use Approve or Reject signup instead.",
+    },
+    409,
+  );
+}
+
+async function approveSignup(
+  supabase: ReturnType<typeof supabaseServiceClient>,
+  session: { id: string; email: string },
+  org: { id: string; slug: string; name: string; status: string },
+): Promise<Response> {
+  if (org.status !== "pending_approval") {
+    if (org.status === "trialing") {
+      const { data: existingSub } = await supabase
+        .from("subscriptions")
+        .select("id, trial_ends_at, status")
+        .eq("organization_id", org.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existingSub) {
+        return j({ ok: true, organization: org, subscription: existingSub, noop: true }, 200);
+      }
+    }
+    return j(
+      { ok: false, error: `Cannot approve signup — organization status is "${org.status}".` },
+      409,
+    );
+  }
+
+  const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const nowIso = new Date().toISOString();
+
+  const { data: existingSub } = await supabase
+    .from("subscriptions")
+    .select("id, trial_ends_at, status")
+    .eq("organization_id", org.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!existingSub) {
+    const { data: trialPlan } = await supabase
+      .from("plans")
+      .select("id")
+      .eq("code", "pro")
+      .maybeSingle();
+    if (!trialPlan?.id) {
+      return j({ ok: false, error: "Trial plan (pro) is not configured." }, 500);
+    }
+    const { error: subErr } = await supabase.from("subscriptions").insert({
+      organization_id: org.id,
+      plan_id: trialPlan.id,
+      provider: "internal",
+      status: "trialing",
+      interval: "month",
+      current_period_start: nowIso,
+      current_period_end: trialEndsAt,
+      trial_ends_at: trialEndsAt,
+    });
+    if (subErr) {
+      return j({ ok: false, error: subErr.message || "Could not create trial subscription." }, 500);
+    }
+  }
+
+  const { data: updated, error: orgUpdErr } = await supabase
+    .from("organizations")
+    .update({ status: "trialing", trial_ends_at: trialEndsAt })
+    .eq("id", org.id)
+    .eq("status", "pending_approval")
+    .select("*")
+    .maybeSingle();
+  if (orgUpdErr) return j({ ok: false, error: orgUpdErr.message }, 500);
+  if (!updated) {
+    return j({ ok: false, error: "Organization is no longer pending approval." }, 409);
+  }
+
+  const { data: subRow } = await supabase
+    .from("subscriptions")
+    .select("id, trial_ends_at, status")
+    .eq("organization_id", org.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  await audit(supabase, session, org.id, "organization.signup_approved", {
+    slug: org.slug,
+    trialEndsAt,
+  });
+
+  try {
+    const { data: ownerMem } = await supabase
+      .from("org_memberships")
+      .select("admin_users:admin_user_id ( email, display_name )")
+      .eq("organization_id", org.id)
+      .eq("role", "owner")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    type OwnerEmbed = { email: string | null; display_name: string | null };
+    const raw = ownerMem?.admin_users as OwnerEmbed | OwnerEmbed[] | null;
+    const owner = Array.isArray(raw) ? raw[0] : raw;
+    if (owner?.email) {
+      const base = appBaseUrl();
+      await sendEmail({
+        kind: "signup_approved",
+        to: owner.email,
+        vars: {
+          appBaseUrl: base,
+          displayName: owner.display_name || undefined,
+          organizationName: org.name,
+          onboardingUrl: `${base}/onboarding`,
+          trialEndsAt: new Date(trialEndsAt).toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          }),
+        },
+        organizationId: org.id,
+        supabase,
+      });
+    }
+  } catch (mailErr) {
+    console.warn("approve-signup: approval email failed", mailErr);
+  }
+
+  return j({ ok: true, organization: updated, subscription: subRow }, 200);
+}
+
+async function rejectSignup(
+  supabase: ReturnType<typeof supabaseServiceClient>,
+  session: { id: string; email: string },
+  org: { id: string; slug: string; name: string; status: string; is_internal?: boolean },
+): Promise<Response> {
+  if (org.status !== "pending_approval") {
+    return j(
+      { ok: false, error: `Cannot reject signup — organization status is "${org.status}".` },
+      409,
+    );
+  }
+  if (org.is_internal) {
+    return j({ ok: false, error: "Internal organizations cannot be deleted." }, 409);
+  }
+
+  await audit(supabase, session, org.id, "organization.signup_rejected", { slug: org.slug });
+
+  const snapshot = { id: org.id, slug: org.slug, name: org.name };
+  const { data, error: rpcErr } = await supabase.rpc("platform_delete_organization", {
+    org_id: org.id,
+    confirm_slug: org.slug,
+  });
+  if (rpcErr) {
+    return j(
+      { ok: false, error: rpcErr.message || "Delete failed.", code: rpcErr.code },
+      500,
+    );
+  }
+
+  try {
+    await supabase.from("audit_log").insert({
+      actor_type: "platform_admin",
+      actor_id: session.id,
+      actor_label: session.email,
+      action: "organization.deleted",
+      target_type: "organization",
+      target_id: snapshot.id,
+      meta: {
+        deleted_organization: snapshot,
+        reason: "signup_rejected",
+        counts: (data as { counts?: unknown } | null)?.counts ?? null,
+      },
+    });
+  } catch (err) {
+    console.warn("audit write for signup reject delete failed:", err);
+  }
+
+  return j({ ok: true, deleted: snapshot, counts: (data as { counts?: unknown } | null)?.counts ?? null }, 200);
 }
 
 // Prefer trialing when a trial end date is still in the future, otherwise active.

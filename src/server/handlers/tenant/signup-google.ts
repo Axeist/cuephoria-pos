@@ -31,6 +31,8 @@ import { ensureTenantSignupEmailAvailable } from "../../lib/reclaimOrphanTenantA
 import { isDenied } from "../../lib/resultGuards";
 import { ensureWorkspaceBackdoorAccess } from "../../workspaceBackdoor";
 import { appBaseUrl, sendEmail } from "../../email";
+import { normalizePhoneDigits, validateIndianMobile } from "../../../lib/phone";
+import { flags } from "../../../config/featureFlags";
 
 export const config = { runtime: "edge" };
 
@@ -52,6 +54,10 @@ function slugifyCandidate(input: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
+}
+
+function signupRequiresApproval(): boolean {
+  return flags.signupRequiresApproval;
 }
 
 export default async function handler(req: Request) {
@@ -82,18 +88,21 @@ export default async function handler(req: Request) {
   const requestedSlug = String(body.slug ?? body.organizationSlug ?? "").trim();
   const requestedUsername = String(body.username ?? "").trim();
   const displayNameOverride = String(body.displayName ?? "").trim();
+  const ownerPhoneRaw = String(body.phone ?? body.ownerPhone ?? "").trim();
   const timezone = String(body.timezone ?? "Asia/Kolkata").trim() || "Asia/Kolkata";
   const acceptedTerms = Boolean(body.acceptedTerms);
 
   if (organizationName.length < 2 || organizationName.length > 120) {
     return j({ ok: false, error: "Workspace name must be 2–120 characters." }, 400);
   }
-  if (displayNameOverride.length > 0 && (displayNameOverride.length < 2 || displayNameOverride.length > 120)) {
-    return j(
-      { ok: false, error: "Your name must be 2–120 characters, or leave it blank." },
-      400,
-    );
+  if (displayNameOverride.length < 2 || displayNameOverride.length > 120) {
+    return j({ ok: false, error: "Your name must be 2–120 characters." }, 400);
   }
+  const phoneCheck = validateIndianMobile(ownerPhoneRaw);
+  if (!phoneCheck.valid) {
+    return j({ ok: false, error: phoneCheck.error || "Invalid phone number.", field: "phone" }, 400);
+  }
+  const ownerPhone = normalizePhoneDigits(ownerPhoneRaw);
   if (!acceptedTerms) {
     return j({ ok: false, error: "You must accept the Terms to continue." }, 400);
   }
@@ -112,6 +121,8 @@ export default async function handler(req: Request) {
 
   let username = requestedUsername || usernameFromEmail(identity.email);
   if (!USERNAME_RE.test(username)) username = usernameFromEmail(identity.email);
+
+  const requiresApproval = signupRequiresApproval();
 
   try {
     const supabase = createClient(
@@ -139,7 +150,6 @@ export default async function handler(req: Request) {
       );
     }
 
-    // Slug + username uniqueness.
     const [{ data: slugTaken }, { data: usernameTaken }] = await Promise.all([
       supabase.from("organizations").select("id").eq("slug", slug).maybeSingle(),
       supabase.from("admin_users").select("id").eq("username", username).maybeSingle(),
@@ -151,7 +161,6 @@ export default async function handler(req: Request) {
       );
     }
     if (usernameTaken) {
-      // Auto-suffix.
       username = `${username}-${Math.random().toString(36).slice(2, 6)}`;
     }
 
@@ -161,7 +170,11 @@ export default async function handler(req: Request) {
       .eq("code", "pro")
       .maybeSingle();
 
-    const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const trialEndsAt = requiresApproval
+      ? null
+      : new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const orgStatus = requiresApproval ? "pending_approval" : "trialing";
+
     const { data: newOrg, error: orgErr } = await supabase
       .from("organizations")
       .insert({
@@ -170,7 +183,7 @@ export default async function handler(req: Request) {
         country: "IN",
         currency: "INR",
         timezone,
-        status: "trialing",
+        status: orgStatus,
         is_internal: false,
         trial_ends_at: trialEndsAt,
         onboarding_completed_at: null,
@@ -195,8 +208,7 @@ export default async function handler(req: Request) {
       .select("id")
       .maybeSingle();
 
-    const resolvedDisplayName =
-      displayNameOverride || identity.name || null;
+    const resolvedDisplayName = displayNameOverride || identity.name || null;
 
     const { data: newUser, error: userErr } = await supabase
       .from("admin_users")
@@ -204,13 +216,14 @@ export default async function handler(req: Request) {
         username,
         is_admin: true,
         is_super_admin: false,
-        password_hash: null, // Google is the auth
+        password_hash: null,
         password: null,
         must_change_password: false,
         email: googleEmail,
         email_verified_at: new Date().toISOString(),
         google_sub: identity.sub,
         display_name: resolvedDisplayName,
+        phone: ownerPhone,
       })
       .select("id, username, email")
       .single();
@@ -230,7 +243,7 @@ export default async function handler(req: Request) {
         location_id: defaultLocation.id,
       });
     }
-    if (trialPlan?.id) {
+    if (!requiresApproval && trialPlan?.id) {
       await supabase.from("subscriptions").insert({
         organization_id: newOrg.id,
         plan_id: trialPlan.id,
@@ -247,7 +260,7 @@ export default async function handler(req: Request) {
       actor_type: "admin_user",
       actor_id: newUser.id,
       organization_id: newOrg.id,
-      action: "organization.signup_google",
+      action: requiresApproval ? "organization.signup_google_pending" : "organization.signup_google",
       target_type: "organization",
       target_id: newOrg.id,
       meta: { slug: newOrg.slug, email: identity.email },
@@ -259,31 +272,48 @@ export default async function handler(req: Request) {
       console.warn("signup-google: backdoor provision failed", backdoorErr);
     }
 
-    // Send welcome email (email is already verified via Google — simple version).
     try {
       const base = appBaseUrl();
-      await sendEmail({
-        kind: "signup_welcome",
-        to: identity.email,
-        vars: {
-          appBaseUrl: base,
-          displayName: resolvedDisplayName || identity.email.split("@")[0] || username,
-          organizationName,
-          verifyUrl: `${base}/onboarding`,
-          dashboardUrl: `${base}/onboarding`,
-          signupMode: "oauth",
-          trialEndsAt: new Date(trialEndsAt).toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          }),
-        },
-        organizationId: newOrg.id,
-        adminUserId: newUser.id,
-        supabase,
-      });
+      if (requiresApproval) {
+        await sendEmail({
+          kind: "signup_pending_approval",
+          to: identity.email,
+          vars: {
+            appBaseUrl: base,
+            displayName: resolvedDisplayName || identity.email.split("@")[0] || username,
+            organizationName,
+            loginUrl: `${base}/login`,
+          },
+          organizationId: newOrg.id,
+          adminUserId: newUser.id,
+          supabase,
+        });
+      } else {
+        await sendEmail({
+          kind: "signup_welcome",
+          to: identity.email,
+          vars: {
+            appBaseUrl: base,
+            displayName: resolvedDisplayName || identity.email.split("@")[0] || username,
+            organizationName,
+            verifyUrl: `${base}/onboarding`,
+            dashboardUrl: `${base}/onboarding`,
+            signupMode: "oauth",
+            trialEndsAt: trialEndsAt
+              ? new Date(trialEndsAt).toLocaleDateString("en-IN", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })
+              : undefined,
+          },
+          organizationId: newOrg.id,
+          adminUserId: newUser.id,
+          supabase,
+        });
+      }
     } catch (mailErr) {
-      console.warn("signup-google: welcome email failed", (mailErr as Error).message);
+      console.warn("signup-google: email failed", (mailErr as Error).message);
     }
 
     const maxAge = 8 * 60 * 60;
@@ -305,7 +335,6 @@ export default async function handler(req: Request) {
       sameSite: "Lax",
       path: "/",
     });
-    // Clear the ticket cookie.
     const clearTicket = cookieSerialize(TICKET_COOKIE, "", {
       maxAgeSeconds: 0,
       httpOnly: true,
@@ -334,7 +363,8 @@ export default async function handler(req: Request) {
           role: "owner",
           onboardingCompletedAt: null,
           trialEndsAt,
-          status: "trialing",
+          status: orgStatus,
+          pendingApproval: requiresApproval,
         },
       }),
       { status: 201, headers },

@@ -8,7 +8,7 @@
  *   2. Brand    — logo / icon upload + primary + accent color pickers.
  *   3. Business — what kind of operation (gaming lounge, cafe, …). Drives
  *                 default feature surfaces in the dashboard.
- *   4. Setup    — choose starter categories/stations/products/customer.
+ *   4. Setup    — choose starter categories/products/customer.
  *   5. Preview  — live preview of dashboard header with chosen brand.
  *   6. Launch   — call /api/tenant/onboarding with complete=true,
  *                 refresh org context, navigate to /dashboard.
@@ -75,7 +75,7 @@ const STEPS: { id: StepId; label: string; short: string; subtitle: string }[] = 
     id: "setup",
     label: "Seed your workspace",
     short: "Setup",
-    subtitle: "Pick starter categories, stations, products, and your first customer.",
+    subtitle: "Pick starter categories, products, and your first customer.",
   },
   {
     id: "preview",
@@ -187,12 +187,6 @@ interface OnboardingState {
   iconUrl: string;
   businessType: BusinessType | "";
   categories: string[];
-  stations: Array<{
-    name: string;
-    type: string;
-    category: "regular" | "nit_event";
-    hourlyRate: number;
-  }>;
   products: Array<{ name: string; category: string; price: number; stock: number }>;
   firstCustomerName: string;
   firstCustomerPhone: string;
@@ -202,16 +196,11 @@ const ONBOARDING_PRESETS: Record<
   BusinessType,
   {
     categories: string[];
-    stations: Array<{ name: string; type: string; category: "regular" | "nit_event"; hourlyRate: number }>;
     products: Array<{ name: string; category: string; price: number; stock: number }>;
   }
 > = {
   gaming_lounge: {
     categories: ["snacks", "beverages", "hourly_pass", "addons"],
-    stations: [
-      { name: "PS5 Arena 1", type: "ps5", category: "regular", hourlyRate: 180 },
-      { name: "VR Bay 1", type: "vr", category: "regular", hourlyRate: 250 },
-    ],
     products: [
       { name: "Hourly Pass 1H", category: "hourly_pass", price: 180, stock: 999 },
       { name: "Energy Drink", category: "beverages", price: 90, stock: 30 },
@@ -219,11 +208,6 @@ const ONBOARDING_PRESETS: Record<
   },
   gaming_turfs: {
     categories: ["turf_booking", "equipment_rental", "refreshments", "membership"],
-    stations: [
-      { name: "Cricket Turf A", type: "cricket_turf", category: "regular", hourlyRate: 1800 },
-      { name: "Football Turf A", type: "football_turf", category: "regular", hourlyRate: 2200 },
-      { name: "Pickleball Court 1", type: "pickleball_court", category: "regular", hourlyRate: 900 },
-    ],
     products: [
       { name: "Cricket Turf Slot (60 min)", category: "turf_booking", price: 1800, stock: 999 },
       { name: "Football Turf Slot (60 min)", category: "turf_booking", price: 2200, stock: 999 },
@@ -232,7 +216,6 @@ const ONBOARDING_PRESETS: Record<
   },
   cafe: {
     categories: ["coffee", "snacks", "combos", "desserts"],
-    stations: [{ name: "Cafe Console 1", type: "ps5", category: "regular", hourlyRate: 150 }],
     products: [
       { name: "Cappuccino", category: "coffee", price: 120, stock: 80 },
       { name: "Nachos Combo", category: "combos", price: 220, stock: 40 },
@@ -240,7 +223,6 @@ const ONBOARDING_PRESETS: Record<
   },
   arcade: {
     categories: ["tokens", "merch", "snacks"],
-    stations: [{ name: "Arcade Zone A", type: "ps5", category: "regular", hourlyRate: 120 }],
     products: [
       { name: "Arcade Tokens (20)", category: "tokens", price: 100, stock: 200 },
       { name: "Soda Can", category: "snacks", price: 50, stock: 100 },
@@ -248,7 +230,6 @@ const ONBOARDING_PRESETS: Record<
   },
   club: {
     categories: ["membership", "beverages", "events"],
-    stations: [{ name: "VIP Lounge Table", type: "8ball", category: "regular", hourlyRate: 220 }],
     products: [
       { name: "Monthly Membership", category: "membership", price: 2999, stock: 999 },
       { name: "Mocktail", category: "beverages", price: 180, stock: 60 },
@@ -256,7 +237,6 @@ const ONBOARDING_PRESETS: Record<
   },
   billiards: {
     categories: ["table_time", "beverages", "snacks"],
-    stations: [{ name: "Snooker Table 1", type: "8ball", category: "regular", hourlyRate: 200 }],
     products: [
       { name: "Table Time 30 Min", category: "table_time", price: 100, stock: 999 },
       { name: "Lemon Soda", category: "beverages", price: 70, stock: 50 },
@@ -264,7 +244,6 @@ const ONBOARDING_PRESETS: Record<
   },
   bowling: {
     categories: ["lane_time", "shoe_rental", "snacks"],
-    stations: [{ name: "Bowling Lane 1", type: "ps5", category: "regular", hourlyRate: 300 }],
     products: [
       { name: "Lane Slot 1 Hour", category: "lane_time", price: 600, stock: 999 },
       { name: "Shoe Rental", category: "shoe_rental", price: 120, stock: 100 },
@@ -272,7 +251,6 @@ const ONBOARDING_PRESETS: Record<
   },
   other: {
     categories: ["snacks", "beverages"],
-    stations: [{ name: "Main Station", type: "ps5", category: "regular", hourlyRate: 150 }],
     products: [{ name: "Welcome Product", category: "snacks", price: 99, stock: 20 }],
   },
 };
@@ -301,7 +279,6 @@ export default function Onboarding() {
     iconUrl: "",
     businessType: "",
     categories: [],
-    stations: [],
     products: [],
     firstCustomerName: "",
     firstCustomerPhone: "",
@@ -310,23 +287,6 @@ export default function Onboarding() {
   const activePreset = useMemo(
     () => ONBOARDING_PRESETS[(state.businessType || "other") as BusinessType] ?? ONBOARDING_PRESETS.other,
     [state.businessType],
-  );
-  const stationTypeSuggestions = useMemo(
-    () =>
-      [
-        ...new Set([
-          "ps5",
-          "8ball",
-          "vr",
-          "cricket_turf",
-          "football_turf",
-          "pickleball_court",
-          ...activePreset.stations.map((station) => station.type),
-        ]),
-      ].filter(
-        Boolean,
-      ),
-    [activePreset.stations],
   );
 
   // Hydrate state from any previously-saved branding when the org context lands.
@@ -351,13 +311,12 @@ export default function Onboarding() {
   useEffect(() => {
     if (!state.businessType) return;
     setState((prev) => {
-      if (prev.categories.length || prev.stations.length || prev.products.length) return prev;
+      if (prev.categories.length || prev.products.length) return prev;
       const preset = ONBOARDING_PRESETS[state.businessType];
       if (!preset) return prev;
       return {
         ...prev,
         categories: [...preset.categories],
-        stations: [...preset.stations],
         products: [...preset.products],
       };
     });
@@ -397,7 +356,6 @@ export default function Onboarding() {
   const submitBootstrap = useCallback(async () => {
     const payload = {
       categories: state.categories,
-      stations: state.stations,
       products: state.products,
       firstCustomerName: customerSkipped ? "" : state.firstCustomerName,
       firstCustomerPhone: customerSkipped ? "" : state.firstCustomerPhone,
@@ -419,7 +377,6 @@ export default function Onboarding() {
     state.firstCustomerName,
     state.firstCustomerPhone,
     state.products,
-    state.stations,
   ]);
 
   async function handleFileUpload(file: File, kind: "logo" | "icon") {
@@ -525,14 +482,6 @@ export default function Onboarding() {
             setSaving(false);
             return;
           }
-        }
-        const incompleteStation = state.stations.find(
-          (station) => station.name.trim() && !station.type.trim(),
-        );
-        if (incompleteStation) {
-          appToast.error("Missing station type", "Give each station a type or remove the empty row.");
-          setSaving(false);
-          return;
         }
       } else if (step.id === "preview") {
         // pure client step — nothing to persist.
@@ -817,178 +766,6 @@ export default function Onboarding() {
 
             <section className="space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-zinc-100">Game Stations & Types</h4>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="h-8 rounded-lg border border-white/10 bg-white/[0.03] px-2 text-xs text-zinc-300"
-                    onClick={() =>
-                      setState((prev) => ({
-                        ...prev,
-                        stations: [...prev.stations, ...activePreset.stations].slice(0, 12),
-                      }))
-                    }
-                  >
-                    Suggest stations
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="h-8 rounded-lg border border-white/10 bg-white/[0.03] px-2 text-xs text-zinc-300"
-                    onClick={() =>
-                      setState((prev) => ({
-                        ...prev,
-                        stations: [
-                          ...prev.stations,
-                          { name: "Cricket Turf A", type: "cricket_turf", category: "regular", hourlyRate: 1800 },
-                          { name: "Football Turf A", type: "football_turf", category: "regular", hourlyRate: 2200 },
-                          { name: "Pickleball Court 1", type: "pickleball_court", category: "regular", hourlyRate: 900 },
-                        ].slice(0, 12),
-                      }))
-                    }
-                  >
-                    Add turf presets
-                  </Button>
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-9 rounded-lg border border-white/10 bg-white/[0.03] text-xs text-zinc-300"
-                onClick={() =>
-                  setState((prev) => ({
-                    ...prev,
-                    stations: [
-                      ...prev.stations,
-                      {
-                        name: "",
-                        type: stationTypeSuggestions[0] || "custom_type",
-                        category: "regular",
-                        hourlyRate: 120,
-                      },
-                    ],
-                  }))
-                }
-              >
-                <Plus className="mr-1 h-3.5 w-3.5" />
-                Add station manually
-              </Button>
-              <div className="flex flex-wrap gap-2">
-                {stationTypeSuggestions.map((type) => (
-                  <span
-                    key={type}
-                    className="rounded-full border border-white/15 bg-white/[0.03] px-2.5 py-1 text-[11px] text-zinc-400"
-                  >
-                    {type}
-                  </span>
-                ))}
-              </div>
-              <div className="space-y-2">
-                {state.stations.map((station, idx) => (
-                  <div
-                    key={`${station.name}-${idx}`}
-                    className="rounded-lg border border-white/10 bg-white/[0.02] p-2 sm:p-0 sm:border-0 sm:bg-transparent grid grid-cols-1 sm:grid-cols-12 gap-2"
-                  >
-                    <div className="sm:col-span-5">
-                      <label className="sm:hidden text-[10px] uppercase tracking-wider text-white/40 mb-1 block">
-                        Station name
-                      </label>
-                      <Input
-                        value={station.name}
-                        onChange={(e) =>
-                          setState((prev) => ({
-                            ...prev,
-                            stations: prev.stations.map((s, i) =>
-                              i === idx ? { ...s, name: e.target.value } : s,
-                            ),
-                          }))
-                        }
-                        className="h-9 w-full rounded-lg border-white/10 bg-white/[0.03]"
-                        placeholder="Station name"
-                      />
-                    </div>
-                    <div className="sm:col-span-3">
-                      <label className="sm:hidden text-[10px] uppercase tracking-wider text-white/40 mb-1 block">
-                        Type
-                      </label>
-                      <Input
-                        list="onboarding-station-type-suggestions"
-                        value={station.type}
-                        placeholder="Station type"
-                        onChange={(e) =>
-                          setState((prev) => ({
-                            ...prev,
-                            stations: prev.stations.map((s, i) =>
-                              i === idx ? { ...s, type: e.target.value } : s,
-                            ),
-                          }))
-                        }
-                        className="h-9 w-full rounded-lg border-white/10 bg-white/[0.03]"
-                      />
-                    </div>
-                    <div className="sm:col-span-3 flex items-end gap-2 sm:block">
-                      <div className="flex-1 sm:block">
-                        <label className="sm:hidden text-[10px] uppercase tracking-wider text-white/40 mb-1 block">
-                          Hourly rate
-                        </label>
-                        <Input
-                          type="number"
-                          min={10}
-                          value={station.hourlyRate}
-                          onChange={(e) =>
-                            setState((prev) => ({
-                              ...prev,
-                              stations: prev.stations.map((s, i) =>
-                                i === idx ? { ...s, hourlyRate: Number(e.target.value || 0) } : s,
-                              ),
-                            }))
-                          }
-                          className="h-9 w-full rounded-lg border-white/10 bg-white/[0.03]"
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="sm:hidden h-9 w-9 rounded-lg border border-white/10 p-0"
-                        onClick={() =>
-                          setState((prev) => ({
-                            ...prev,
-                            stations: prev.stations.filter((_, i) => i !== idx),
-                          }))
-                        }
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="hidden sm:flex sm:col-span-1 h-9 rounded-lg border border-white/10 p-0"
-                      onClick={() =>
-                        setState((prev) => ({
-                          ...prev,
-                          stations: prev.stations.filter((_, i) => i !== idx),
-                        }))
-                      }
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              <datalist id="onboarding-station-type-suggestions">
-                {stationTypeSuggestions.map((type) => (
-                  <option key={type} value={type} />
-                ))}
-              </datalist>
-              <p className="text-[11px] text-zinc-500">
-                Type is fully customizable (for example: xbox, snooker, simulator, bowling_lane).
-              </p>
-            </section>
-
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
                 <h4 className="text-sm font-semibold text-zinc-100">Starter products</h4>
                 <Button
                   type="button"
@@ -1268,8 +1045,7 @@ export default function Onboarding() {
               You're all set, {user?.username || "operator"}.
             </h3>
             <p className="mx-auto mt-2 max-w-sm text-sm text-zinc-400">
-              We'll now hand you the keys to your workspace. Invite your team, add
-              stations, and start taking bookings in minutes.
+              We'll now hand you the keys to your workspace. Add gaming stations from the sidebar, invite your team, and start taking bookings.
             </p>
             <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1.5 text-xs text-emerald-200">
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />

@@ -131,7 +131,9 @@ const WorkspaceHero: React.FC = () => {
   const statusLabel =
     organization.status === "suspended"
       ? "suspended"
-      : (subscription?.status ?? organization.status ?? "active").replace(/_/g, " ");
+      : organization.status === "pending_approval"
+        ? "awaiting approval"
+        : (subscription?.status ?? organization.status ?? "active").replace(/_/g, " ");
 
   const handleDismiss = () => {
     if (!dismissKey) return;

@@ -46,6 +46,7 @@ type PlatformStats = {
   pastDue: number;
   canceled: number;
   suspended: number;
+  pendingApproval: number;
   internal: number;
   newOrgsLast7Days: number;
   mrrInr: number;
@@ -76,7 +77,7 @@ type OrgRow = {
   name: string;
   country: string;
   currency: string;
-  status: "active" | "trialing" | "past_due" | "canceled" | "suspended";
+  status: "active" | "trialing" | "past_due" | "canceled" | "suspended" | "pending_approval";
   is_internal: boolean;
   created_at: string;
   trial_ends_at: string | null;
@@ -237,6 +238,7 @@ const statusStyles: Record<string, string> = {
   past_due: "bg-amber-500/10 text-amber-300 border-amber-500/30",
   canceled: "bg-zinc-500/10 text-zinc-400 border-zinc-500/30",
   suspended: "bg-rose-500/10 text-rose-300 border-rose-500/30",
+  pending_approval: "bg-violet-500/10 text-violet-300 border-violet-500/30",
 };
 
 const PlatformDashboard: React.FC = () => {
@@ -1000,7 +1002,7 @@ const PlatformDashboard: React.FC = () => {
             )}
           </section>
 
-          {stats && stats.suspended + stats.pastDue > 0 && (
+          {stats && (stats.suspended + stats.pastDue > 0 || stats.pendingApproval > 0) && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1008,6 +1010,13 @@ const PlatformDashboard: React.FC = () => {
             >
               <AlertTriangle className="h-4 w-4" />
               <span>
+                {stats.pendingApproval > 0 && (
+                  <>
+                    <strong className="text-amber-100">{stats.pendingApproval}</strong> signup
+                    {stats.pendingApproval === 1 ? "" : "s"} awaiting approval
+                  </>
+                )}
+                {stats.pendingApproval > 0 && (stats.pastDue > 0 || stats.suspended > 0) && " · "}
                 {stats.pastDue > 0 && (
                   <>
                     <strong className="text-amber-100">{stats.pastDue}</strong> tenant
@@ -1056,6 +1065,7 @@ const PlatformDashboard: React.FC = () => {
                     <option value="active">Active</option>
                     <option value="trialing">Trialing</option>
                     <option value="past_due">Past due</option>
+                    <option value="pending_approval">Pending approval</option>
                     <option value="suspended">Suspended</option>
                     <option value="canceled">Canceled</option>
                   </select>

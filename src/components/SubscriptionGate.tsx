@@ -136,6 +136,15 @@ function isBypassPath(pathname: string): boolean {
   );
 }
 
+/** Pending signups may only reach account security paths — not onboarding or billing. */
+function shouldBypassForOrg(pathname: string, organization: ActiveOrganization | null): boolean {
+  if (!isBypassPath(pathname)) return false;
+  if ((organization?.status ?? "").trim().toLowerCase() === "pending_approval") {
+    return pathname.startsWith("/account/");
+  }
+  return true;
+}
+
 export type SubscriptionGateBillingState = {
   subscriptionGateBanner?: {
     attemptedPath?: string;
@@ -227,6 +236,7 @@ export type AccessReason =
   | "no-sub"
   | "suspended"
   | "platform-suspended"
+  | "pending-approval"
   | "bad-status";
 
 export type AccessVerdict = {
@@ -264,6 +274,10 @@ export function evaluateSubscriptionAccess(
   if (!organization) return { allowed: true, reason: "internal" }; // no org loaded yet, fail open
   if (isInternalOrganization(organization.slug, organization.isInternal)) return { allowed: true, reason: "internal" };
   if (organization.isSandbox) return { allowed: true, reason: "internal" };
+
+  if ((organization.status ?? "").trim().toLowerCase() === "pending_approval") {
+    return { allowed: false, reason: "pending-approval" };
+  }
 
   if (organization.status === "suspended") {
     return { allowed: false, reason: "platform-suspended" };
@@ -467,8 +481,8 @@ export const SubscriptionGate: React.FC<{ children: React.ReactNode }> = ({ chil
   // the previously-loaded org so the gate stays decisive.
   if (status === "loading") return <>{children}</>;
 
-  // Bypass paths — always render.
-  if (isBypassPath(location.pathname)) return <>{children}</>;
+  // Bypass paths — always render (except pending_approval restrictions).
+  if (shouldBypassForOrg(location.pathname, organization)) return <>{children}</>;
 
   const verdict = evaluateSubscriptionAccess(organization, subscription, {
     billingAccessGraceMinutes,
@@ -606,7 +620,7 @@ const GraceBanner: React.FC<{
 // Full-screen lock notice
 // ---------------------------------------------------------------------------
 
-type CopyReason = "suspended" | "platform-suspended" | "no-sub" | "bad-status";
+type CopyReason = "suspended" | "platform-suspended" | "no-sub" | "bad-status" | "pending-approval";
 
 type LockCopy = {
   eyebrow: string;
@@ -618,6 +632,15 @@ type LockCopy = {
 };
 
 const REASON_COPY: Record<CopyReason, LockCopy> = {
+  "pending-approval": {
+    eyebrow: "Awaiting approval",
+    title: "Your workspace is under review",
+    body:
+      "Thanks for signing up. A Cuetronix operator will review your application shortly. Your 14-day free trial begins once approved — we'll email you when you can continue setup.",
+    primaryCta: { label: "Sign in later", to: "/login" },
+    showSupportFooter: true,
+    showBillingFooter: false,
+  },
   "platform-suspended": {
     eyebrow: "Workspace suspended",
     title: "Workspace access paused",

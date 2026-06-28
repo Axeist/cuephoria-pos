@@ -82,6 +82,15 @@ export const flags = {
     readEnv("VITE_PUBLIC_PRICING_VISIBLE") ?? readEnv("PUBLIC_PRICING_VISIBLE"),
     false,
   ),
+
+  /**
+   * Self-service Google signup creates a pending_approval workspace until a
+   * platform admin approves. Off → instant 14-day trial (rollback / soak).
+   */
+  signupRequiresApproval: asBool(
+    readEnv("VITE_SIGNUP_REQUIRES_APPROVAL") ?? readEnv("SIGNUP_REQUIRES_APPROVAL"),
+    true,
+  ),
 } as const;
 
 export type FeatureFlags = typeof flags;

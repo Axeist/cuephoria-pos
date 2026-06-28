@@ -42,6 +42,7 @@ export default async function handler(req: Request) {
     let pastDue = 0;
     let canceled = 0;
     let suspended = 0;
+    let pendingApproval = 0;
     let internal = 0;
 
     for (const o of orgs ?? []) {
@@ -61,6 +62,9 @@ export default async function handler(req: Request) {
           break;
         case "suspended":
           suspended += 1;
+          break;
+        case "pending_approval":
+          pendingApproval += 1;
           break;
       }
     }
@@ -119,6 +123,7 @@ export default async function handler(req: Request) {
           pastDue,
           canceled,
           suspended,
+          pendingApproval,
           internal,
           newOrgsLast7Days: newThisWeek,
           mrrInr: Math.round(mrrInr * 100) / 100,

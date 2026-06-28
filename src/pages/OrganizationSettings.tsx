@@ -52,7 +52,7 @@ type TenantOrgResponse = {
     country: string;
     currency: string;
     timezone: string;
-    status: "active" | "trialing" | "past_due" | "canceled" | "suspended";
+    status: "active" | "trialing" | "past_due" | "canceled" | "suspended" | "pending_approval";
     is_internal: boolean;
     trial_ends_at: string | null;
     created_at: string;

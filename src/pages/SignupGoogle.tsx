@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { appToast } from "@/lib/appToast";
 import SplashScreen from "@/components/SplashScreen";
+import { validateIndianMobile } from "@/lib/phone";
 
 const TIMEZONES = [
   "Asia/Kolkata",
@@ -56,6 +57,7 @@ const SignupGoogle: React.FC = () => {
 
   const [orgName, setOrgName] = useState("");
   const [ownerDisplayName, setOwnerDisplayName] = useState("");
+  const [ownerPhone, setOwnerPhone] = useState("");
   const [slug, setSlug] = useState("");
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [timezone, setTimezone] = useState(
@@ -94,9 +96,12 @@ const SignupGoogle: React.FC = () => {
     if (!slugManuallyEdited) setSlug(slugify(orgName));
   }, [orgName, slugManuallyEdited]);
 
+  const phoneValid = useMemo(() => validateIndianMobile(ownerPhone).valid, [ownerPhone]);
   const slugValid = useMemo(() => /^[a-z][a-z0-9-]{1,38}[a-z0-9]$/.test(slug), [slug]);
   const canSubmit =
     orgName.trim().length >= 2 &&
+    ownerDisplayName.trim().length >= 2 &&
+    phoneValid &&
     slugValid &&
     accept &&
     state.kind === "ready" &&
@@ -116,12 +121,23 @@ const SignupGoogle: React.FC = () => {
           slug,
           timezone,
           acceptedTerms: true,
-          displayName: ownerDisplayName.trim() || undefined,
+          displayName: ownerDisplayName.trim(),
+          phone: ownerPhone.trim(),
         }),
       });
-      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        organization?: { pendingApproval?: boolean; status?: string };
+      };
       if (res.ok && json.ok) {
-        appToast.success("Workspace created — continue in onboarding.");
+        const pending =
+          json.organization?.pendingApproval || json.organization?.status === "pending_approval";
+        appToast.success(
+          pending
+            ? "Application submitted — we'll email you when approved."
+            : "Workspace created — continue in onboarding.",
+        );
         try {
           sessionStorage.removeItem("gh_show_login_splash_v1");
         } catch {
@@ -174,7 +190,7 @@ const SignupGoogle: React.FC = () => {
           variant="login_success"
           onDone={() => {
             setShowSuccessSplash(false);
-            navigate("/onboarding", { replace: true });
+            navigate("/", { replace: true });
           }}
         />
       )}
@@ -210,17 +226,49 @@ const SignupGoogle: React.FC = () => {
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="ownerDisplayName" className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                Your name
+                Your name <span className="text-red-400">*</span>
               </Label>
               <Input
                 id="ownerDisplayName"
                 value={ownerDisplayName}
                 onChange={(e) => setOwnerDisplayName(e.target.value)}
                 maxLength={120}
-                placeholder="How we’ll address you"
+                required
+                placeholder="How we'll address you"
                 className="bg-[#05060c] border-white/10 text-zinc-100 h-11"
               />
-              <p className="text-[11px] text-zinc-500">Same as email sign-up; optional to adjust.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ownerEmail" className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                Email
+              </Label>
+              <Input
+                id="ownerEmail"
+                value={state.email}
+                readOnly
+                className="bg-[#05060c]/50 border-white/10 text-zinc-400 h-11 cursor-not-allowed"
+              />
+              <p className="text-[11px] text-zinc-500">Verified via Google — used for login and notifications.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ownerPhone" className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                Phone number <span className="text-red-400">*</span>
+              </Label>
+              <Input
+                id="ownerPhone"
+                type="tel"
+                inputMode="numeric"
+                value={ownerPhone}
+                onChange={(e) => setOwnerPhone(e.target.value)}
+                required
+                placeholder="10-digit mobile number"
+                className="bg-[#05060c] border-white/10 text-zinc-100 h-11"
+              />
+              {ownerPhone.trim() && !phoneValid && (
+                <p className="text-[11px] text-red-400">Enter a valid 10-digit Indian mobile number.</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -320,7 +368,7 @@ const SignupGoogle: React.FC = () => {
 
             <p className="text-[11px] text-zinc-500 text-center flex items-center justify-center gap-1.5">
               <ShieldCheck className="h-3 w-3" />
-              Email pre-verified via Google · 14-day free trial
+              Email pre-verified via Google · trial starts after approval
             </p>
           </form>
         </div>

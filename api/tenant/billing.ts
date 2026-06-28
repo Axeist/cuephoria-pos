@@ -540,6 +540,16 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
 // ---------------------------------------------------------------------------
 
 async function postBilling(req: Request, ctx: OrgContext): Promise<Response> {
+  if ((ctx.status ?? "").trim().toLowerCase() === "pending_approval") {
+    return j(
+      {
+        ok: false,
+        error: "Your workspace is awaiting platform approval. Billing is available after approval.",
+      },
+      403,
+    );
+  }
+
   let creds: ReturnType<typeof getRazorpayCredentials>;
   try {
     creds = getRazorpayCredentials("default");
