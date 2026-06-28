@@ -63,6 +63,14 @@ Migration `20260621170000_reconcile_cron_60s.sql` runs pg_cron on Supabase every
 | `RBAC_ENFORCE_ROUTES` | server N/A | Use `VITE_RBAC_ENFORCE_ROUTES` on client |
 | `SIGNUP_REQUIRES_APPROVAL` | `1` (true) | Self-service Google signup creates `pending_approval` org; trial starts on platform approve. Set `0` for instant trial rollback. |
 
+## Android (Capacitor local builds only)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `CAPACITOR_SERVER_URL` | Play builds | Production origin for WebView shell (e.g. `https://cuetronix.app`). Used by `npm run android:sync:play` / `android:release:play` only — **not** read by Vercel or `npm run build` for web. |
+
+See [ANDROID.md](./ANDROID.md).
+
 ## Rollout recommendation
 
 1. Deploy with flags off / log-only
