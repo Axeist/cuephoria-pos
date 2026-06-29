@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { verifyPortalPin } from './pinHash.js';
+import { attendanceTodayDate } from './staffAttendanceDay.js';
 
 export type StaffPinProfile = {
   user_id: string;
@@ -18,10 +19,12 @@ export async function fetchActiveStaffPinCandidates(
   let openRows: Array<{ staff_id: string; location_id: string | null }> = [];
 
   if (options?.clockedInOnly) {
+    const today = attendanceTodayDate();
     const { data: attendance, error: attErr } = await supabase
       .from('staff_attendance')
       .select('staff_id, location_id')
       .eq('organization_id', organizationId)
+      .eq('date', today)
       .is('clock_out', null)
       .not('clock_in', 'is', null);
     if (attErr) throw new Error(attErr.message);

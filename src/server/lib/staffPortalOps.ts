@@ -6,6 +6,7 @@
 import { format } from "date-fns";
 import { supabaseServiceClient } from "../supabaseServer";
 import { resolveStaffHourlyRate } from "../../utils/staffEarnings.js";
+import { attendanceTodayDate, closeStaleOpenShifts } from "./staffAttendanceDay.js";
 
 const supabase = supabaseServiceClient("cuetronix-staff-portal-ops");
 
@@ -86,15 +87,19 @@ export type FloorClockInRow = {
   locationId: string | null;
 };
 
-/** Open shifts across the venue — for shared floor portal kiosk. */
+/** Open shifts for today only — one row per staff with an active profile. */
 export async function fetchFloorClockIns(
   organizationId: string,
   locationId?: string | null,
 ): Promise<FloorClockInRow[]> {
+  const today = attendanceTodayDate();
+  await closeStaleOpenShifts(supabase, { organizationId, beforeDate: today });
+
   let query = supabase
     .from("staff_attendance")
     .select("staff_id, clock_in, location_id")
     .eq("organization_id", organizationId)
+    .eq("date", today)
     .is("clock_out", null)
     .not("clock_in", "is", null)
     .order("clock_in", { ascending: false });
@@ -107,10 +112,20 @@ export async function fetchFloorClockIns(
   if (error) throw error;
   if (!rows?.length) return [];
 
-  const staffIds = [...new Set(rows.map((row) => String(row.staff_id)))];
+  const seenStaff = new Set<string>();
+  const uniqueRows = rows.filter((row) => {
+    const sid = String(row.staff_id);
+    if (seenStaff.has(sid)) return false;
+    seenStaff.add(sid);
+    return true;
+  });
+
+  const staffIds = [...seenStaff];
   const { data: profiles, error: profErr } = await supabase
     .from("staff_profiles")
     .select("user_id, username, full_name, designation")
+    .eq("organization_id", organizationId)
+    .eq("is_active", true)
     .in("user_id", staffIds);
   if (profErr) throw profErr;
 
@@ -118,19 +133,24 @@ export async function fetchFloorClockIns(
     (profiles ?? []).map((p) => [String(p.user_id), p]),
   );
 
-  return rows.map((row) => {
+  const result: FloorClockInRow[] = [];
+  for (const row of uniqueRows) {
     const profile = profileMap.get(String(row.staff_id));
-    const full = String(profile?.full_name ?? "").trim();
-    const username = String(profile?.username ?? "Staff");
-    return {
+    if (!profile) continue;
+
+    const full = String(profile.full_name ?? "").trim();
+    const username = String(profile.username ?? "").trim() || "Staff member";
+    result.push({
       staffId: String(row.staff_id),
       staffName: full || username,
       username,
-      designation: (profile?.designation as string | null) ?? null,
+      designation: (profile.designation as string | null) ?? null,
       clockIn: String(row.clock_in),
       locationId: row.location_id ? String(row.location_id) : null,
-    };
-  });
+    });
+  }
+
+  return result;
 }
 
 export async function assertProfileInOrg(profile: PortalProfile, organizationId: string): Promise<void> {
@@ -305,12 +325,15 @@ export async function fetchPortalDashboard(staffId: string, locationId: string) 
 }
 
 export async function clockIn(profile: PortalProfile) {
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = attendanceTodayDate();
+
+  await closeStaleOpenShifts(supabase, { staffId: profile.user_id, beforeDate: today });
 
   const { data: openShift } = await supabase
     .from("staff_attendance")
     .select("*")
     .eq("staff_id", profile.user_id)
+    .eq("date", today)
     .is("clock_out", null)
     .not("clock_in", "is", null)
     .order("clock_in", { ascending: false })
@@ -320,10 +343,7 @@ export async function clockIn(profile: PortalProfile) {
   if (openShift) {
     return {
       ok: false as const,
-      error:
-        openShift.date === today
-          ? "You are already on an active shift."
-          : `You have an open shift from ${format(new Date(String(openShift.date)), "MMM dd")}. Clock out first.`,
+      error: "You are already on an active shift.",
       currentShift: openShift,
     };
   }
