@@ -11,6 +11,10 @@ import type { MembershipCard, MembershipCardLookupResult } from '@/types/members
 import { isValidNfcUid, normalizeNfcUid } from '@/utils/nfcUid.utils';
 import MembershipPanelShell from '@/components/memberships/MembershipPanelShell';
 import { CurrencyDisplay } from '@/components/ui/currency';
+import { useEmployeePinGate } from '@/hooks/useEmployeePinGate';
+import EmployeePinVerificationDialog from '@/components/EmployeePinVerificationDialog';
+import { CRITICAL_PIN_ACTIONS } from '@/constants/criticalEmployeePinActions';
+import { gateAsyncAction } from '@/utils/employeePinGate.utils';
 
 type AssignMemberCardPanelProps = {
   member: MembershipCardLookupResult | null;
@@ -25,6 +29,13 @@ export default function AssignMemberCardPanel({
 }: AssignMemberCardPanelProps) {
   const { toast } = useToast();
   const { activeLocationId } = useLocation();
+  const {
+    showPinDialog,
+    setShowPinDialog,
+    pendingActionKey,
+    requestEmployeePin,
+    handlePinSuccess,
+  } = useEmployeePinGate();
   const [uid, setUid] = useState('');
   const [linking, setLinking] = useState(false);
 
@@ -52,20 +63,27 @@ export default function AssignMemberCardPanel({
       setUid(normalized);
       setLinking(true);
       try {
-        const res = await assignNfcCard(
-          {
-            uid: normalized,
-            customerId: member.customer.id,
-            locationId: activeLocationId,
+        await gateAsyncAction(
+          requestEmployeePin,
+          CRITICAL_PIN_ACTIONS.MEMBER_CARD_ASSIGN,
+          async () => {
+            const res = await assignNfcCard(
+              {
+                uid: normalized,
+                customerId: member.customer.id,
+                locationId: activeLocationId,
+              },
+              activeLocationId,
+            );
+            onAssigned(res.card);
+            toast({
+              title: 'Card linked',
+              description: `${normalized} → ${member.customer.customerId || member.customer.name}`,
+            });
+            setUid('');
           },
-          activeLocationId,
+          { customerName: member.customer.name },
         );
-        onAssigned(res.card);
-        toast({
-          title: 'Card linked',
-          description: `${normalized} → ${member.customer.customerId || member.customer.name}`,
-        });
-        setUid('');
       } catch (err) {
         toast({
           title: 'Link failed',
@@ -76,7 +94,7 @@ export default function AssignMemberCardPanel({
         setLinking(false);
       }
     },
-    [activeLocationId, member, onAssigned, toast],
+    [activeLocationId, member, onAssigned, requestEmployeePin, toast],
   );
 
   useNfcWedgeListener({
@@ -153,6 +171,12 @@ export default function AssignMemberCardPanel({
           </div>
         </div>
       )}
+      <EmployeePinVerificationDialog
+        open={showPinDialog}
+        onOpenChange={setShowPinDialog}
+        actionKey={pendingActionKey}
+        onSuccess={handlePinSuccess}
+      />
     </MembershipPanelShell>
   );
 }

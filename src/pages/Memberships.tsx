@@ -13,6 +13,7 @@ import MembershipLoadingShell from '@/components/memberships/MembershipLoadingSh
 import { fadeSlideUp } from '@/components/memberships/membershipMotion';
 import { useMembershipHub } from '@/hooks/useMembershipHub';
 import { usePermissions } from '@/context/PermissionsContext';
+import EmployeePinVerificationDialog from '@/components/EmployeePinVerificationDialog';
 import type { MembershipFeatureFlagKey } from '@/types/membership.types';
 import type { SetupSection } from '@/components/memberships/membershipHubConstants';
 
@@ -204,6 +205,13 @@ export default function MembershipsPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <EmployeePinVerificationDialog
+        open={hub.employeePinGate.showPinDialog}
+        onOpenChange={hub.employeePinGate.setShowPinDialog}
+        actionKey={hub.employeePinGate.pendingActionKey}
+        onSuccess={hub.employeePinGate.handlePinSuccess}
+      />
     </MobilePageShell>
   );
 }

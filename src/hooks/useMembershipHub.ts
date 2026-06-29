@@ -39,6 +39,9 @@ import {
   type HubZone,
   type SetupSection,
 } from '@/components/memberships/membershipHubConstants';
+import { useEmployeePinGate } from '@/hooks/useEmployeePinGate';
+import { CRITICAL_PIN_ACTIONS } from '@/constants/criticalEmployeePinActions';
+import { gateAsyncAction } from '@/utils/employeePinGate.utils';
 
 export function useMembershipHub() {
   const { toast } = useToast();
@@ -48,6 +51,7 @@ export function useMembershipHub() {
   const { activeLocationId, activeLocation } = useLocation();
   const { loading: featuresLoading, flags, canUse, isEnabled } = useMembershipFeatures();
   const { customers = [] } = usePOS();
+  const employeePinGate = useEmployeePinGate();
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -318,25 +322,35 @@ export function useMembershipHub() {
     if (!canExecuteRecharge || !resolvedMember) return;
     setRecharging(true);
     try {
-      const res = await rechargeMembershipCard(
+      await gateAsyncAction(
+        employeePinGate.requestEmployeePin,
+        CRITICAL_PIN_ACTIONS.MEMBER_RECHARGE,
+        async () => {
+          const res = await rechargeMembershipCard(
+            {
+              customerId: resolvedMember.customer.id,
+              creditAmount,
+              note: 'Staff recharge',
+            },
+            activeLocationId,
+          );
+          setResolvedMember({
+            ...resolvedMember,
+            customer: {
+              ...resolvedMember.customer,
+              cardBalance: res.balanceAfter,
+            },
+          });
+          toast({
+            title: 'Recharge successful',
+            description: `New balance: ₹${res.balanceAfter}`,
+          });
+        },
         {
-          customerId: resolvedMember.customer.id,
-          creditAmount,
-          note: 'Staff recharge',
+          amount: creditAmount,
+          customerName: resolvedMember.customer.name,
         },
-        activeLocationId,
       );
-      setResolvedMember({
-        ...resolvedMember,
-        customer: {
-          ...resolvedMember.customer,
-          cardBalance: res.balanceAfter,
-        },
-      });
-      toast({
-        title: 'Recharge successful',
-        description: `New balance: ₹${res.balanceAfter}`,
-      });
     } catch (err) {
       toast({
         title: 'Recharge failed',
@@ -436,5 +450,6 @@ export function useMembershipHub() {
     setResolvedMember,
     showWizard,
     tiers,
+    employeePinGate,
   };
 }

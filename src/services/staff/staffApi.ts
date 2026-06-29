@@ -66,8 +66,21 @@ export async function fetchHolidays(scope: StaffScope, year: number): Promise<St
   return staffHrCall("fetchHolidays", { scope, year });
 }
 
-export async function fetchAuditLog(scope: StaffScope, limit = 50): Promise<StaffAuditEntry[]> {
-  return staffHrCall("fetchAuditLog", { scope, limit });
+export async function fetchAuditLog(
+  scope: StaffScope,
+  options: {
+    limit?: number;
+    staffId?: string | null;
+    category?: string | null;
+    dateFrom?: string | null;
+    dateTo?: string | null;
+  } = {},
+): Promise<StaffAuditEntry[]> {
+  return staffHrCall('fetchAuditLog', {
+    scope,
+    ...options,
+    limit: options.limit ?? 100,
+  });
 }
 
 export async function fetchLeavePolicies(scope: StaffScope): Promise<StaffLeavePolicy[]> {

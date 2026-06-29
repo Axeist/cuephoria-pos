@@ -69,7 +69,8 @@ import BookingConfirmationDialog from "@/components/BookingConfirmationDialog";
 import CuephoriaTechAttribution from "@/components/branding/CuephoriaTechAttribution";
 import LegalDialog from "@/components/dialog/LegalDialog";
 import OnlinePaymentPromoDialog from "@/components/OnlinePaymentPromoDialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import {
   CalendarIcon,
   Clock,
@@ -464,6 +465,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   }, [hasAppliedCoupons, onlinePaymentEnabled, memberVenueCouponValid]);
 
   const [slotsLoading, setSlotsLoading] = useState(false);
+  const [showGameInstructionsDialog, setShowGameInstructionsDialog] = useState(false);
+  const [specialInstructions, setSpecialInstructions] = useState("");
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
   const [bookingConfirmationData, setBookingConfirmationData] = useState<any>(null);
   const [showLegalDialog, setShowLegalDialog] = useState(false);
@@ -1510,6 +1513,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           stationSessionMinutes,
           bookingAddons: bookingAddonsSnapshot,
           booking_group_id: bookingGroupIdRef.current,
+          special_instructions: specialInstructions.trim() || null,
         }),
       });
 
@@ -1680,6 +1684,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       },
       bookingAddons: bookingAddonsSnapshot,
       booking_group_id: bookingGroupIdRef.current,
+      specialInstructions: specialInstructions.trim() || undefined,
       returnContext: paymentReturnCtx,
     };
     localStorage.setItem("pendingBooking", JSON.stringify(pendingBooking));
@@ -1718,6 +1723,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
             },
             bg: bookingGroupIdRef.current,
           }
+        : {}),
+      ...(specialInstructions.trim()
+        ? { si: specialInstructions.trim().slice(0, 200) }
         : {}),
     });
 
@@ -1866,6 +1874,33 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     return null;
   };
 
+  async function proceedWithBooking() {
+    if (paymentMethod === "venue") {
+      // Don't show online payment promo if Instagram pop-up is open
+      if (showInstagramFollowDialog || showFollowConfirmation) {
+        await createVenueBooking();
+        return;
+      }
+
+      const serviceType = getServiceTypeForPromo();
+      if (serviceType && onlinePaymentEnabled && popupConfig.online_payment_promo.enabled) {
+        setShowOnlinePaymentPromo(true);
+        return;
+      }
+      await createVenueBooking();
+    } else {
+      if (!onlinePaymentEnabled) {
+        toast.error("Online payment is unavailable. Please pay at the venue or call us.");
+        return;
+      }
+      // Don't show payment warning if Instagram pop-up is open
+      if (showInstagramFollowDialog || showFollowConfirmation) {
+        return;
+      }
+      setShowPaymentWarning(true);
+    }
+  }
+
   async function handleConfirm() {
     if (!isCustomerInfoComplete) {
       toast.error("Please complete customer information first");
@@ -1893,34 +1928,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       return;
     }
 
-    // Show promotional popup if paying at venue and service type is PS5 or 8-ball
-    if (paymentMethod === "venue") {
-      // Don't show online payment promo if Instagram pop-up is open
-      if (showInstagramFollowDialog || showFollowConfirmation) {
-        // If Instagram pop-up is open, proceed directly with venue booking
-        await createVenueBooking();
-        return;
-      }
-      
-      const serviceType = getServiceTypeForPromo();
-      if (serviceType && onlinePaymentEnabled && popupConfig.online_payment_promo.enabled) {
-        setShowOnlinePaymentPromo(true);
-        return;
-      }
-      await createVenueBooking();
-    } else {
-      if (!onlinePaymentEnabled) {
-        toast.error("Online payment is unavailable. Please pay at the venue or call us.");
-        return;
-      }
-      // Don't show payment warning if Instagram pop-up is open
-      if (showInstagramFollowDialog || showFollowConfirmation) {
-        // If Instagram pop-up is open, proceed directly with online booking
-        return;
-      }
-      // Show warning modal before opening payment gateway
-      setShowPaymentWarning(true);
-    }
+    setShowGameInstructionsDialog(true);
   }
 
   const handlePromoAccept = async () => {
@@ -3446,6 +3454,40 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           ) : null}
         </div>
       </footer>
+
+      <Dialog open={showGameInstructionsDialog} onOpenChange={setShowGameInstructionsDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Which game do you want to play?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Optional — tell us what you&apos;d like to play so the venue can prepare your station.
+          </p>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="game-instructions">Game or special request</Label>
+            <Textarea
+              id="game-instructions"
+              value={specialInstructions}
+              onChange={(e) => setSpecialInstructions(e.target.value.slice(0, 500))}
+              placeholder="e.g. FIFA, Call of Duty, 8-ball doubles..."
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowGameInstructionsDialog(false)}>
+              Back
+            </Button>
+            <Button
+              onClick={() => {
+                setShowGameInstructionsDialog(false);
+                void proceedWithBooking();
+              }}
+            >
+              Continue to booking
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {bookingConfirmationData && (
         <BookingConfirmationDialog 

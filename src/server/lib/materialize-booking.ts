@@ -106,6 +106,8 @@ type BookingPayload = {
   ba?: { items?: Array<{ id: string; name: string; price: number }>; total?: number; t?: number };
   booking_group_id?: string;
   bg?: string;
+  specialInstructions?: string;
+  si?: string;
 };
 
 export type NormalizedPayload = {
@@ -120,6 +122,7 @@ export type NormalizedPayload = {
   stationSessionMinutes: Record<string, number>;
   bookingAddons: { items: Array<{ id: string; name: string; price: number }>; total: number } | null;
   bookingGroupId: string | null;
+  specialInstructions: string | null;
 };
 
 type PaymentOrderRow = {
@@ -424,6 +427,15 @@ export function normalizeBookingPayload(raw: BookingPayload | string): Normalize
         ? data.bg
         : null;
 
+  const specialInstructionsRaw =
+    typeof data.specialInstructions === "string"
+      ? data.specialInstructions
+      : typeof data.si === "string"
+        ? data.si
+        : "";
+  const specialInstructions =
+    specialInstructionsRaw.trim().length > 0 ? specialInstructionsRaw.trim().slice(0, 500) : null;
+
   return {
     selectedStations,
     selectedDateISO,
@@ -436,6 +448,7 @@ export function normalizeBookingPayload(raw: BookingPayload | string): Normalize
     stationSessionMinutes,
     bookingAddons,
     bookingGroupId,
+    specialInstructions,
   };
 }
 
@@ -667,6 +680,7 @@ async function createBookingsRows(
         booking_group_id: bookingGroupId,
         booking_addons: payload.bookingAddons,
         notes: orderTag,
+        ...(payload.specialInstructions ? { special_instructions: payload.specialInstructions } : {}),
       });
     });
   });

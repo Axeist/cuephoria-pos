@@ -22,6 +22,10 @@ import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
 import { useMembershipTiers } from '@/hooks/useMembershipTiers';
 import { fetchMembershipCards } from '@/services/membershipService';
 import { cn } from '@/lib/utils';
+import { useEmployeePinGate } from '@/hooks/useEmployeePinGate';
+import EmployeePinVerificationDialog from '@/components/EmployeePinVerificationDialog';
+import { CRITICAL_PIN_ACTIONS } from '@/constants/criticalEmployeePinActions';
+import { gateAsyncAction } from '@/utils/employeePinGate.utils';
 
 type SortField = 'joinDate' | 'totalSpent' | 'loyaltyPoints' | 'playTime';
 type SortDirection = 'asc' | 'desc';
@@ -75,6 +79,7 @@ const Customers = () => {
     joinDateTo: ''
   });
   const [showFilters, setShowFilters] = useState(false);
+  const employeePinGate = useEmployeePinGate();
 
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [duplicates, setDuplicates] = useState<Array<{ phone: string; customers: Customer[] }>>([]);
@@ -446,30 +451,39 @@ const Customers = () => {
 
     try {
       if (isEditMode && selectedCustomer) {
-        // ✅ Update with correct field name: custom_id
-        const updateData: Record<string, unknown> = {
-          name: name.trim(),
-          phone: normalizedPhone,
-          email: email?.trim() || null,
-          custom_id: customerID,
-        };
+        await gateAsyncAction(
+          employeePinGate.requestEmployeePin,
+          CRITICAL_PIN_ACTIONS.MEMBER_DETAILS_EDIT,
+          async () => {
+            const updateData: Record<string, unknown> = {
+              name: name.trim(),
+              phone: normalizedPhone,
+              email: email?.trim() || null,
+              custom_id: customerID,
+            };
 
-        const { error: updateError } = await supabase
-          .from('customers')
-          .update(updateData)
-          .eq('id', selectedCustomer.id);
+            const { error: updateError } = await supabase
+              .from('customers')
+              .update(updateData)
+              .eq('id', selectedCustomer.id);
 
-        if (updateError) {
-          console.error('Supabase update error:', updateError);
-          throw updateError;
-        }
+            if (updateError) {
+              console.error('Supabase update error:', updateError);
+              throw updateError;
+            }
 
-        toast({
-          title: 'Customer Updated',
-          description: `Customer ${customerID} has been updated successfully.`
-        });
+            toast({
+              title: 'Customer Updated',
+              description: `Customer ${customerID} has been updated successfully.`,
+            });
 
-        window.location.reload();
+            window.location.reload();
+          },
+          {
+            customerName: name.trim(),
+            phone: normalizedPhone,
+          },
+        );
       } else {
         // Guard: location MUST be known before inserting – the DB has location_id NOT NULL
         if (!activeLocationId) {
@@ -1163,6 +1177,12 @@ const Customers = () => {
           )}
         </div>
       )}
+      <EmployeePinVerificationDialog
+        open={employeePinGate.showPinDialog}
+        onOpenChange={employeePinGate.setShowPinDialog}
+        actionKey={employeePinGate.pendingActionKey}
+        onSuccess={employeePinGate.handlePinSuccess}
+      />
     </MobilePageShell>
   );
 };

@@ -62,7 +62,7 @@ export const STAFF_NAV_GROUPS: StaffNavGroup[] = [
     items: [
       { id: 'policies', label: 'Policies', description: 'Leave quotas', icon: BookOpen },
       { id: 'holidays', label: 'Holidays', description: 'Holiday calendar', icon: CalendarDays },
-      { id: 'audit', label: 'Audit', description: 'Change history', icon: History },
+      { id: 'audit', label: 'Activity log', description: 'Staff actions in plain English', icon: History },
     ],
   },
 ];
@@ -78,7 +78,7 @@ export const STAFF_SECTION_META: Record<StaffTabId, { title: string; description
   reports: { title: 'Reports', description: 'Attendance summaries and CSV exports.' },
   policies: { title: 'Leave policies', description: 'Configure annual quotas and seed balances.' },
   holidays: { title: 'Holidays', description: 'Org-wide and branch-specific holiday dates.' },
-  audit: { title: 'Audit trail', description: 'Sensitive HR actions and payroll changes.' },
+  audit: { title: 'Activity log', description: 'Payments, stock, bookings, and PIN checks — filterable by staff.' },
 };
 
 const ALL_ITEMS = STAFF_NAV_GROUPS.flatMap((g) => g.items);

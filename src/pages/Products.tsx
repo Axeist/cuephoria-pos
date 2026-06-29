@@ -19,6 +19,10 @@ import ProductSalesExport from '@/components/product/ProductSalesExport';
 import StockExport from '@/components/product/StockExport';
 import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
+import { useEmployeePinGate } from '@/hooks/useEmployeePinGate';
+import EmployeePinVerificationDialog from '@/components/EmployeePinVerificationDialog';
+import { CRITICAL_PIN_ACTIONS } from '@/constants/criticalEmployeePinActions';
+import { gateAsyncAction } from '@/utils/employeePinGate.utils';
 import { useAuth } from '@/context/AuthContext';
 import { usePermissions } from '@/context/PermissionsContext';
 import AdvancedFilters from '@/components/product/AdvancedFilters';
@@ -55,6 +59,13 @@ const ProductsPage: React.FC = () => {
   const isSuperAdmin = user?.isSuperAdmin || false;
   const performedByLabel = user?.displayName || user?.username || 'Unknown User';
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
+  const {
+    showPinDialog: showEmployeePinDialog,
+    setShowPinDialog: setShowEmployeePinDialog,
+    pendingActionKey: employeePinActionKey,
+    requestEmployeePin,
+    handlePinSuccess: handleEmployeePinSuccess,
+  } = useEmployeePinGate();
 
   const [stockLogsOpen, setStockLogsOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -182,6 +193,18 @@ const ProductsPage: React.FC = () => {
     });
   };
 
+  const gatedRestockConfirm = async (product: Product, quantity: number, notes: string) => {
+    await new Promise<void>((resolve, reject) => {
+      requestEmployeePin(
+        CRITICAL_PIN_ACTIONS.STOCK_RESTOCK,
+        () => {
+          void handleConfirmRestock(product, quantity, notes).then(resolve).catch(reject);
+        },
+        { quantity, productName: product.name },
+      );
+    });
+  };
+
   const handleDeleteProduct = (id: string) => {
     if (!canDeleteProduct) return;
     const product = products.find((p) => p.id === id);
@@ -214,6 +237,7 @@ const ProductsPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent, formData: ProductFormState) => {
     e.preventDefault();
     
+    const executeSubmit = async () => {
     try {
       setIsSubmitting(true);
       setFormError(null);
@@ -360,6 +384,35 @@ const ProductsPage: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
+    };
+
+    const { stock, category } = formData;
+    const parsedStockPreview = isEditMode && selectedProduct && !isSuperAdmin
+      ? selectedProduct.stock
+      : Number(stock);
+    const needsStockAdjustGate = Boolean(
+      isEditMode &&
+        selectedProduct &&
+        isSuperAdmin &&
+        selectedProduct.stock !== parsedStockPreview &&
+        category !== 'membership',
+    );
+
+    if (needsStockAdjustGate && selectedProduct) {
+      await gateAsyncAction(
+        requestEmployeePin,
+        CRITICAL_PIN_ACTIONS.STOCK_ADJUST,
+        executeSubmit,
+        {
+          productName: selectedProduct.name,
+          fromQty: selectedProduct.stock,
+          toQty: parsedStockPreview,
+        },
+      );
+      return;
+    }
+
+    await executeSubmit();
   };
 
   const getCategoryCounts = () => {
@@ -456,7 +509,7 @@ const ProductsPage: React.FC = () => {
         product={restockProduct}
         open={isRestockOpen}
         onOpenChange={setIsRestockOpen}
-        onConfirm={handleConfirmRestock}
+        onConfirm={gatedRestockConfirm}
       />
 
       <PinVerificationDialog
@@ -465,6 +518,13 @@ const ProductsPage: React.FC = () => {
         onSuccess={handlePinSuccess}
         title="Verify PIN to Delete"
         description="Enter the PIN to confirm this delete operation."
+      />
+
+      <EmployeePinVerificationDialog
+        open={showEmployeePinDialog}
+        onOpenChange={setShowEmployeePinDialog}
+        actionKey={employeePinActionKey}
+        onSuccess={handleEmployeePinSuccess}
       />
 
       {/* Product Widgets Section */}

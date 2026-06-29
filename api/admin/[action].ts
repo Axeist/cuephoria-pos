@@ -48,6 +48,7 @@ import analytics from "../../src/server/handlers/admin/analytics";
 import ops from "../../src/server/handlers/admin/ops";
 import memberships from "../../src/server/handlers/admin/memberships";
 import promoCoupons from "../../src/server/handlers/admin/promo-coupons";
+import verifyEmployeePin from "../../src/server/handlers/admin/verify-employee-pin";
 
 export const config = { runtime: "edge" };
 
@@ -83,6 +84,7 @@ const routes: Record<string, Handler> = {
   "ops": ops,
   "memberships": memberships,
   "promo-coupons": promoCoupons,
+  "verify-employee-pin": verifyEmployeePin,
 };
 
 export default async function dispatcher(req: Request): Promise<Response> {

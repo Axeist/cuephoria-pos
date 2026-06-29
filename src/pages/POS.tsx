@@ -48,6 +48,9 @@ import { useAuth } from '@/context/AuthContext';
 import { usePermission } from '@/context/PermissionsContext';
 import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
+import { useEmployeePinGate } from '@/hooks/useEmployeePinGate';
+import EmployeePinVerificationDialog from '@/components/EmployeePinVerificationDialog';
+import { CRITICAL_PIN_ACTIONS } from '@/constants/criticalEmployeePinActions';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { useViewMode } from '@/context/ViewModeContext';
 import { computeBillTaxFromCart } from '@/utils/tax.utils';
@@ -133,6 +136,14 @@ const POS = () => {
   const { tiers: membershipTiers } = useMembershipTiers();
   const canApplyDiscount = usePermission('pos.discount');
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
+  const {
+    showPinDialog: showEmployeePinDialog,
+    setShowPinDialog: setShowEmployeePinDialog,
+    pendingActionKey: employeePinActionKey,
+    requestEmployeePin,
+    handlePinSuccess: handleEmployeePinSuccess,
+    handlePinCancel: handleEmployeePinCancel,
+  } = useEmployeePinGate();
 
   const {
     customerSearchQuery,
@@ -375,38 +386,7 @@ const POS = () => {
     }
   };
 
-  const handleCompleteSale = async () => {
-    if (!selectedCustomer) {
-      toast({
-        title: 'No Customer Selected',
-        description: 'Please select a customer before completing the sale',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    if (cart.length === 0) {
-      toast({
-        title: 'Empty Cart',
-        description: 'Please add items to the cart before completing the sale',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    if (
-      membershipSaleTier &&
-      membershipValidityChoice === 'custom_date' &&
-      !membershipCustomExpiryDate
-    ) {
-      toast({
-        title: 'Membership expiry required',
-        description: 'Pick an end date for this membership or use tier default.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+  const executeCompleteSale = async () => {
     setIsCompletingSale(true);
     
     try {
@@ -460,6 +440,48 @@ const POS = () => {
     } finally {
       setIsCompletingSale(false);
     }
+  };
+
+  const handleCompleteSale = () => {
+    if (!selectedCustomer) {
+      toast({
+        title: 'No Customer Selected',
+        description: 'Please select a customer before completing the sale',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (cart.length === 0) {
+      toast({
+        title: 'Empty Cart',
+        description: 'Please add items to the cart before completing the sale',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (
+      membershipSaleTier &&
+      membershipValidityChoice === 'custom_date' &&
+      !membershipCustomExpiryDate
+    ) {
+      toast({
+        title: 'Membership expiry required',
+        description: 'Pick an end date for this membership or use tier default.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    requestEmployeePin(
+      CRITICAL_PIN_ACTIONS.POS_CHECKOUT,
+      () => void executeCompleteSale(),
+      {
+        amount: calculateTotal(),
+        customerName: selectedCustomer.name,
+      },
+    );
   };
 
   const handleComplimentary = async () => {
@@ -1712,6 +1734,13 @@ const POS = () => {
         onSuccess={handlePinSuccess}
         title="Unlock discounts"
         description="Enter your workspace PIN to apply discounts after midnight."
+      />
+
+      <EmployeePinVerificationDialog
+        open={showEmployeePinDialog}
+        onOpenChange={setShowEmployeePinDialog}
+        actionKey={employeePinActionKey}
+        onSuccess={handleEmployeePinSuccess}
       />
     </MobilePageShell>
   );

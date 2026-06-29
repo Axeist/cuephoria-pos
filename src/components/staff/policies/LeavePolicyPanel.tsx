@@ -22,6 +22,7 @@ import {
 } from '@/services/staff/staffApi';
 import type { StaffLeavePolicy } from '@/types/staff.types';
 import { BookOpen, Plus, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import EmployeePinProtectionCard from '@/components/staff/policies/EmployeePinProtectionCard';
 
 const LEAVE_TYPES = [
   'casual_leave',
@@ -145,6 +146,7 @@ const LeavePolicyPanel: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <EmployeePinProtectionCard compact />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-white flex items-center gap-2">

@@ -143,9 +143,21 @@ export type StaffAuditEntry = {
   organization_id: string;
   location_id: string | null;
   actor_admin_user_id: string | null;
+  actor_staff_id?: string | null;
+  actor_name?: string | null;
   action: string;
   entity_type: string;
   entity_id: string | null;
+  category?: string | null;
+  summary?: string | null;
   payload: Record<string, unknown>;
   created_at: string;
+};
+
+export type StaffHrSettings = {
+  organizationId: string;
+  payrollPayoutThreshold: number;
+  breakMaxMinutes: number;
+  employeePinProtectionEnabled: boolean;
+  updatedAt?: string;
 };

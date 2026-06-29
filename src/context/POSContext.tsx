@@ -42,6 +42,10 @@ import type { MembershipPurchaseFollowUp } from '@/types/membership.types';
 import { resolveMemberFnbUnitPrice } from '@/utils/membershipBenefits.utils';
 import { computeWalletCheckoutAmounts } from '@/utils/membershipWallet.utils';
 import type { MembershipValidityOverride } from '@/utils/membershipValidity.utils';
+import { useEmployeePinGate } from '@/hooks/useEmployeePinGate';
+import EmployeePinVerificationDialog from '@/components/EmployeePinVerificationDialog';
+import { CRITICAL_PIN_ACTIONS } from '@/constants/criticalEmployeePinActions';
+import { gateAsyncAction } from '@/utils/employeePinGate.utils';
 
 const CATEGORY_APPEARANCE_STORAGE_KEY = 'cuephoria_category_appearance_columns';
 
@@ -160,6 +164,14 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     () => setPendingMembershipFollowUp(null),
     [],
   );
+
+  const {
+    showPinDialog: showEmployeePinDialog,
+    setShowPinDialog: setShowEmployeePinDialog,
+    pendingActionKey: employeePinActionKey,
+    requestEmployeePin,
+    handlePinSuccess: handleEmployeePinSuccess,
+  } = useEmployeePinGate();
   
   const [categories, setCategories] = useState<string[]>(['uncategorized']);
   const [categoryMeta, setCategoryMeta] = useState<Record<string, ProductCategoryMeta>>({});
@@ -197,8 +209,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCustomers, 
     selectedCustomer, 
     setSelectedCustomer, 
-    addCustomer, 
-    updateCustomer,
+    addCustomer: addCustomerRaw, 
+    updateCustomer: updateCustomerRaw,
     updateCustomerMembership,
     deleteCustomer, 
     selectCustomer,
@@ -225,7 +237,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshStations,
     reorderStations,
     applyAccentToStationType,
-  } = useStations([], updateCustomer);
+  } = useStations([], updateCustomerRaw);
 
   const { settings: appSettings } = useAppSettings();
   
@@ -481,7 +493,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     realiseCreditPayment: realiseCreditPaymentBase,
     exportBills: exportBillsBase, 
     exportCustomers: exportCustomersBase 
-  } = useBills(updateCustomer, updateProduct);
+  } = useBills(updateCustomerRaw, updateProduct);
 
   // Load saved cart from DB when customer is selected
   useEffect(() => {
@@ -1030,7 +1042,17 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const moveSession = async (fromStationId: string, toStationId: string): Promise<void> => {
-    await moveSessionBase(fromStationId, toStationId);
+    const fromStation = stations.find((s) => s.id === fromStationId);
+    const toStation = stations.find((s) => s.id === toStationId);
+    await gateAsyncAction(
+      requestEmployeePin,
+      CRITICAL_PIN_ACTIONS.SESSION_MOVE,
+      () => moveSessionBase(fromStationId, toStationId),
+      {
+        fromStation: fromStation?.name,
+        toStation: toStation?.name,
+      },
+    );
   };
 
   /** Merge session lines into the customer's saved cart without opening POS. */
@@ -1119,7 +1141,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ],
   );
   
-  const endSession = async (stationId: string, billingMode?: EarlyEndBillingMode): Promise<SessionEndCheckoutMode | void> => {
+  const endSessionImpl = async (stationId: string, billingMode?: EarlyEndBillingMode): Promise<SessionEndCheckoutMode | void> => {
     try {
       const station = stations.find(s => s.id === stationId);
       if (!station || !station.isOccupied || !station.currentSession) {
@@ -1213,7 +1235,24 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const endSessionGroup = async (stationId: string): Promise<SessionEndCheckoutMode | void> => {
+  const endSession = async (stationId: string, billingMode?: EarlyEndBillingMode): Promise<SessionEndCheckoutMode | void> => {
+    const station = stations.find((s) => s.id === stationId);
+    const pinCustomer = station?.currentSession?.customerId
+      ? customers.find((c) => c.id === station.currentSession!.customerId)
+      : undefined;
+
+    return gateAsyncAction(
+      requestEmployeePin,
+      CRITICAL_PIN_ACTIONS.SESSION_END,
+      () => endSessionImpl(stationId, billingMode),
+      {
+        stationName: station?.name,
+        customerName: pinCustomer?.name,
+      },
+    );
+  };
+
+  const endSessionGroupImpl = async (stationId: string): Promise<SessionEndCheckoutMode | void> => {
     try {
       const anchor = stations.find((s) => s.id === stationId);
       const groupId = anchor?.currentSession?.sessionGroupId;
@@ -1262,12 +1301,75 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const endSessionGroup = async (stationId: string): Promise<SessionEndCheckoutMode | void> => {
+    const anchor = stations.find((s) => s.id === stationId);
+    const pinCustomer = anchor?.currentSession?.customerId
+      ? customers.find((c) => c.id === anchor.currentSession!.customerId)
+      : undefined;
+
+    return gateAsyncAction(
+      requestEmployeePin,
+      CRITICAL_PIN_ACTIONS.SESSION_END,
+      () => endSessionGroupImpl(stationId),
+      {
+        stationName: anchor?.name,
+        customerName: pinCustomer?.name,
+      },
+    );
+  };
+
   const pauseSession = async (stationId: string): Promise<void> => {
     await pauseSessionBase(stationId);
   };
 
   const resumeSession = async (stationId: string): Promise<void> => {
     await resumeSessionBase(stationId);
+  };
+
+  const addCustomer = async (customer: Omit<Customer, 'id' | 'createdAt'>) =>
+    gateAsyncAction(
+      requestEmployeePin,
+      CRITICAL_PIN_ACTIONS.MEMBER_REGISTER,
+      () => addCustomerRaw(customer),
+      {
+        customerName: customer.name,
+        phone: customer.phone,
+      },
+    );
+
+  const updateCustomer = async (customer: Customer) =>
+    gateAsyncAction(
+      requestEmployeePin,
+      CRITICAL_PIN_ACTIONS.MEMBER_DETAILS_EDIT,
+      () => updateCustomerRaw(customer),
+      {
+        customerName: customer.name,
+        phone: customer.phone,
+      },
+    );
+
+  const gatedStartMaintenance = async (
+    stationId: string,
+    durationMinutes: number,
+    startedByName: string,
+  ) => {
+    const station = stations.find((s) => s.id === stationId);
+    return gateAsyncAction(
+      requestEmployeePin,
+      CRITICAL_PIN_ACTIONS.STATION_MAINTENANCE,
+      () => startMaintenance(stationId, durationMinutes, startedByName),
+      { stationName: station?.name, enabled: true },
+    );
+  };
+
+  const gatedEndMaintenance = async (stationId: string, options?: { silent?: boolean }) => {
+    const station = stations.find((s) => s.id === stationId);
+    await gateAsyncAction(
+      requestEmployeePin,
+      CRITICAL_PIN_ACTIONS.STATION_MAINTENANCE,
+      () => endMaintenance(stationId, options),
+      { stationName: station?.name, enabled: false },
+    );
   };
   
   const updateCustomerMembershipWrapper = (
@@ -1648,8 +1750,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     resumeSession,
     extendSession,
     moveSession,
-    startMaintenance,
-    endMaintenance,
+    startMaintenance: gatedStartMaintenance,
+    endMaintenance: gatedEndMaintenance,
     deleteStation,
     updateStation,
     refreshStations,
@@ -1718,6 +1820,12 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <POSContext.Provider value={contextValue}>
       {children}
+      <EmployeePinVerificationDialog
+        open={showEmployeePinDialog}
+        onOpenChange={setShowEmployeePinDialog}
+        actionKey={employeePinActionKey}
+        onSuccess={handleEmployeePinSuccess}
+      />
     </POSContext.Provider>
   );
 };

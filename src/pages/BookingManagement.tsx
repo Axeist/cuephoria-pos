@@ -64,6 +64,7 @@ interface Booking {
   duration: number;
   status: 'confirmed' | 'in-progress' | 'completed' | 'cancelled' | 'no-show';
   notes?: string;
+  special_instructions?: string | null;
   original_price?: number | null;
   final_price?: number | null;
   discount_percentage?: number | null;
@@ -638,6 +639,7 @@ export default function BookingManagement() {
             duration,
             status,
             notes,
+            special_instructions,
             original_price,
             final_price,
             discount_percentage,
@@ -677,6 +679,7 @@ export default function BookingManagement() {
             duration,
             status,
             notes,
+            special_instructions,
             original_price,
             final_price,
             discount_percentage,
@@ -851,6 +854,7 @@ export default function BookingManagement() {
           duration: b.duration,
           status: b.status,
           notes: b.notes ?? undefined,
+          special_instructions: b.special_instructions ?? undefined,
           original_price: b.original_price ?? null,
           final_price: b.final_price ?? null,
           discount_percentage: b.discount_percentage ?? null,
@@ -4008,6 +4012,13 @@ export default function BookingManagement() {
                                                   </div>
                                                 </div>
                                                 
+                                                {booking.special_instructions && (
+                                                  <div className="mt-3 p-2 bg-primary/5 border border-primary/20 rounded text-sm">
+                                                    <span className="text-muted-foreground">Game request: </span>
+                                                    {booking.special_instructions}
+                                                  </div>
+                                                )}
+
                                                 {booking.notes && (
                                                   <div className="mt-3 p-2 bg-muted/50 rounded text-sm">
                                                     <span className="text-muted-foreground">Notes: </span>

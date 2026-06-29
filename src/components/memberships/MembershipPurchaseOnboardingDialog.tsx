@@ -31,6 +31,10 @@ import {
   TIER_ACCENT_STYLES,
 } from '@/components/memberships/membershipTierTheme';
 import { cn } from '@/lib/utils';
+import { useEmployeePinGate } from '@/hooks/useEmployeePinGate';
+import EmployeePinVerificationDialog from '@/components/EmployeePinVerificationDialog';
+import { CRITICAL_PIN_ACTIONS } from '@/constants/criticalEmployeePinActions';
+import { gateAsyncAction } from '@/utils/employeePinGate.utils';
 
 type Step = 'welcome' | 'wallet' | 'card' | 'done';
 
@@ -52,6 +56,13 @@ export default function MembershipPurchaseOnboardingDialog({
   const { canUse } = useMembershipFeatures();
   const walletEnabled = canUse('card_balance_enabled');
   const nfcEnabled = canUse('nfc_cards_enabled');
+  const {
+    showPinDialog,
+    setShowPinDialog,
+    pendingActionKey,
+    requestEmployeePin,
+    handlePinSuccess,
+  } = useEmployeePinGate();
 
   const [step, setStep] = useState<Step>('welcome');
   const [amount, setAmount] = useState('');
@@ -103,22 +114,32 @@ export default function MembershipPurchaseOnboardingDialog({
     }
     setWalletLoading(true);
     try {
-      const res = await rechargeMembershipCard(
-        {
-          customerId: followUp.customerId,
-          creditAmount: credit,
-          note: `POS membership onboarding (bill ${followUp.billId.slice(0, 8)})`,
-          referenceType: 'bill',
-          referenceId: followUp.billId,
+      await gateAsyncAction(
+        requestEmployeePin,
+        CRITICAL_PIN_ACTIONS.MEMBER_RECHARGE,
+        async () => {
+          const res = await rechargeMembershipCard(
+            {
+              customerId: followUp.customerId,
+              creditAmount: credit,
+              note: `POS membership onboarding (bill ${followUp.billId.slice(0, 8)})`,
+              referenceType: 'bill',
+              referenceId: followUp.billId,
+            },
+            activeLocationId,
+          );
+          toast({
+            title: 'Wallet credited',
+            description: `₹${credit} added — balance ₹${res.balanceAfter}`,
+          });
+          onWalletCredited?.(res.balanceAfter);
+          advance();
         },
-        activeLocationId,
+        {
+          amount: credit,
+          customerName: followUp.customerName,
+        },
       );
-      toast({
-        title: 'Wallet credited',
-        description: `₹${credit} added — balance ₹${res.balanceAfter}`,
-      });
-      onWalletCredited?.(res.balanceAfter);
-      advance();
     } catch (err) {
       toast({
         title: 'Top-up failed',
@@ -145,21 +166,28 @@ export default function MembershipPurchaseOnboardingDialog({
       setCardUid(normalized);
       setCardLoading(true);
       try {
-        await assignNfcCard(
-          {
-            uid: normalized,
-            customerId: followUp.customerId,
-            locationId: activeLocationId,
+        await gateAsyncAction(
+          requestEmployeePin,
+          CRITICAL_PIN_ACTIONS.MEMBER_CARD_ASSIGN,
+          async () => {
+            await assignNfcCard(
+              {
+                uid: normalized,
+                customerId: followUp.customerId,
+                locationId: activeLocationId,
+              },
+              activeLocationId,
+            );
+            toast({
+              title: 'Card linked',
+              description: `${normalized} → ${followUp.customerDisplayId || followUp.customerName}`,
+            });
+            onCardAssigned?.();
+            setStep('done');
+            onClose();
           },
-          activeLocationId,
+          { customerName: followUp.customerName },
         );
-        toast({
-          title: 'Card linked',
-          description: `${normalized} → ${followUp.customerDisplayId || followUp.customerName}`,
-        });
-        onCardAssigned?.();
-        setStep('done');
-        onClose();
       } catch (err) {
         toast({
           title: 'Link failed',
@@ -170,7 +198,7 @@ export default function MembershipPurchaseOnboardingDialog({
         setCardLoading(false);
       }
     },
-    [activeLocationId, followUp, onCardAssigned, onClose, toast],
+    [activeLocationId, followUp, onCardAssigned, onClose, requestEmployeePin, toast],
   );
 
   useNfcWedgeListener({
@@ -183,6 +211,7 @@ export default function MembershipPurchaseOnboardingDialog({
   };
 
   return (
+    <>
     <Dialog open={!!followUp} onOpenChange={handleOpenChange}>
       <DialogContent
         className={cn(
@@ -382,5 +411,12 @@ export default function MembershipPurchaseOnboardingDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <EmployeePinVerificationDialog
+      open={showPinDialog}
+      onOpenChange={setShowPinDialog}
+      actionKey={pendingActionKey}
+      onSuccess={handlePinSuccess}
+    />
+    </>
   );
 }

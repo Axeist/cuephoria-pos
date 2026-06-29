@@ -8,6 +8,7 @@ import { assertEntitlement } from "../../lib/entitlements.js";
 import { assertWorkspacePermission, resolveWorkspaceAccess } from "../../lib/workspacePermissions";
 import { isDenied } from "../../lib/resultGuards";
 import * as ops from "../../lib/staffHrOps";
+import * as pinOps from "../../lib/employeePinOps.js";
 import type {
   StaffHoliday,
   StaffLeavePolicy,
@@ -36,6 +37,8 @@ function permForOp(op: string): string {
   if (OP_PERMISSIONS[op]) return OP_PERMISSIONS[op];
   if (op.startsWith("fetch") || op === "assertStaffInScope" || op === "checkActiveShift" || op === "logHrAudit") {
     if (op.includes("Audit")) return "hr.audit.view";
+    if (op.includes("HrSettings") || op === "updateHrSettings") return "hr.policies.edit";
+    if (op === "logStaffActivity") return "hr.view";
     if (op.includes("Holiday")) return "hr.holidays.view";
     if (op.includes("Leave") && op.includes("Policy")) return "hr.policies.view";
     if (op.includes("Leave")) return "hr.requests.view";
@@ -64,7 +67,31 @@ const HANDLERS: Record<string, (args: OpArgs) => Promise<unknown>> = {
   deleteStaffProfile: (a) => ops.deleteStaffProfile(a.staffId as string, a.scope as StaffScope),
   fetchLeaveBalances: (a) => ops.fetchLeaveBalances(a.staffId as string, a.year as number),
   fetchHolidays: (a) => ops.fetchHolidays(a.scope as StaffScope, a.year as number),
-  fetchAuditLog: (a) => ops.fetchAuditLog(a.scope as StaffScope, a.limit as number | undefined),
+  fetchAuditLog: (a) =>
+    ops.fetchAuditLog(a.scope as StaffScope, {
+      limit: a.limit as number | undefined,
+      staffId: (a.staffId as string | null) ?? null,
+      category: (a.category as string | null) ?? null,
+      dateFrom: (a.dateFrom as string | null) ?? null,
+      dateTo: (a.dateTo as string | null) ?? null,
+    }),
+  fetchHrSettings: (a) => pinOps.fetchHrSettings(a.organizationId as string),
+  updateHrSettings: (a) =>
+    pinOps.updateHrSettings(a.organizationId as string, {
+      employeePinProtectionEnabled: a.employeePinProtectionEnabled as boolean | undefined,
+    }),
+  logStaffActivity: (a) =>
+    pinOps.logStaffActivity({
+      organizationId: a.organizationId as string,
+      locationId: (a.locationId as string | null) ?? null,
+      actorStaffId: (a.actorStaffId as string | null) ?? null,
+      actorAdminUserId: (a.actorAdminUserId as string | null) ?? null,
+      actionKey: a.actionKey as string,
+      context: (a.context as Record<string, unknown>) ?? {},
+      outcome: a.outcome as 'success' | 'failed' | 'bypass' | undefined,
+      entityType: a.entityType as string | undefined,
+      entityId: (a.entityId as string | null) ?? null,
+    }),
   fetchLeavePolicies: (a) => ops.fetchLeavePolicies(a.scope as StaffScope),
   upsertLeavePolicy: (a) =>
     ops.upsertLeavePolicy(a.scope as StaffScope, a.policy as Omit<StaffLeavePolicy, "id" | "created_at" | "updated_at"> & { id?: string }),
@@ -202,6 +229,14 @@ export default async function handler(req: Request): Promise<Response> {
     const scope = args.scope as StaffScope | undefined;
     if (scope && typeof scope === "object" && scope.organizationId !== ctx.organizationId) {
       return j({ ok: false, error: "Workspace scope mismatch." }, 403);
+    }
+
+    if (op === "fetchHrSettings" || op === "updateHrSettings" || op === "logStaffActivity") {
+      const orgArg = typeof args.organizationId === "string" ? args.organizationId : "";
+      if (orgArg && orgArg !== ctx.organizationId) {
+        return j({ ok: false, error: "Workspace scope mismatch." }, 403);
+      }
+      args.organizationId = ctx.organizationId;
     }
 
     const data = await run(args);

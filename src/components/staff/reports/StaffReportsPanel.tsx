@@ -33,7 +33,7 @@ const StaffReportsPanel: React.FC = () => {
       try {
         const [records, audit] = await Promise.all([
           fetchAttendanceForMonth(profileIds, month, year),
-          staffScope ? fetchAuditLog(staffScope, 100) : Promise.resolve([]),
+          staffScope ? fetchAuditLog(staffScope, { limit: 100 }) : Promise.resolve([]),
         ]);
         if (cancelled) return;
         const totalHours = records.reduce((s, r) => s + (Number(r.total_working_hours) || 0), 0);

@@ -88,7 +88,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       stationSessionMinutes = {},
       bookingAddons = null,
       booking_group_id: bookingGroupIdRaw,
+      special_instructions: specialInstructionsRaw,
     } = payload;
+
+    const special_instructions =
+      typeof specialInstructionsRaw === 'string' && specialInstructionsRaw.trim()
+        ? specialInstructionsRaw.trim().slice(0, 500)
+        : null;
 
     const location_id = typeof locationIdRaw === "string" && locationIdRaw.length > 0 ? locationIdRaw : null;
     if (!location_id) return j(res, { ok: false, error: "Missing location_id (branch)" }, 400);
@@ -368,6 +374,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         player_count: Number(stationPlayerCounts?.[stationId]) || 1,
         booking_group_id,
         ...(addonSnapshot ? { booking_addons: addonSnapshot } : {}),
+        ...(special_instructions ? { special_instructions } : {}),
       })),
     );
     const rows = rowTemplates.map((row) => ({

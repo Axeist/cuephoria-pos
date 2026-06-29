@@ -9,6 +9,10 @@ import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/co
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { stationTypeLabel } from '@/utils/stationTypeUtils';
+import { useEmployeePinGate } from '@/hooks/useEmployeePinGate';
+import EmployeePinVerificationDialog from '@/components/EmployeePinVerificationDialog';
+import { CRITICAL_PIN_ACTIONS } from '@/constants/criticalEmployeePinActions';
+import { gateAsyncAction } from '@/utils/employeePinGate.utils';
 
 interface StationOption {
   id: string;
@@ -27,6 +31,8 @@ interface Booking {
   duration: number;
   status: 'confirmed' | 'in-progress' | 'completed' | 'cancelled' | 'no-show';
   notes?: string;
+  special_instructions?: string | null;
+  payment_mode?: string | null;
   final_price?: number;
   station: {
     name: string;
@@ -75,6 +81,13 @@ export function BookingEditDialog({
   onBookingUpdated,
 }: BookingEditDialogProps) {
   const [loading, setLoading] = useState(false);
+  const {
+    showPinDialog,
+    setShowPinDialog,
+    pendingActionKey,
+    requestEmployeePin,
+    handlePinSuccess,
+  } = useEmployeePinGate();
   const [stationsLoading, setStationsLoading] = useState(false);
   const [stationOptions, setStationOptions] = useState<StationOption[]>([]);
   const [formData, setFormData] = useState({
@@ -84,6 +97,8 @@ export function BookingEditDialog({
     end_time: '',
     status: 'confirmed' as 'confirmed' | 'in-progress' | 'completed' | 'cancelled' | 'no-show',
     notes: '',
+    special_instructions: '',
+    payment_mode: '',
     final_price: '',
   });
 
@@ -97,6 +112,8 @@ export function BookingEditDialog({
       end_time: normalizeTimeForInput(booking.end_time),
       status: booking.status,
       notes: booking.notes || '',
+      special_instructions: booking.special_instructions || '',
+      payment_mode: booking.payment_mode || '',
       final_price:
         booking.final_price != null && Number.isFinite(booking.final_price)
           ? Number(booking.final_price).toFixed(2)
@@ -181,50 +198,89 @@ export function BookingEditDialog({
       return;
     }
 
-    setLoading(true);
-    try {
-      const startTimeNormalized = formData.start_time.length === 5
-        ? `${formData.start_time}:00`
-        : formData.start_time;
-      const endTimeNormalized = formData.end_time.length === 5
-        ? `${formData.end_time}:00`
-        : formData.end_time;
+    const stationChanged = formData.station_id !== booking.station_id;
+    const fromStation = stationOptions.find((s) => s.id === booking.station_id)?.name ?? booking.station.name;
+    const toStation = stationOptions.find((s) => s.id === formData.station_id)?.name ?? formData.station_id;
+    const paymentChanged =
+      booking.status === 'completed' &&
+      formData.payment_mode !== (booking.payment_mode || 'venue');
 
-      const updateData: Record<string, unknown> = {
-        station_id: formData.station_id,
-        booking_date: formData.booking_date,
-        start_time: startTimeNormalized,
-        end_time: endTimeNormalized,
-        status: formData.status,
-        notes: formData.notes || null,
-        status_updated_at: new Date().toISOString(),
-        status_updated_by: 'admin',
-      };
+    const runSubmit = async () => {
+      setLoading(true);
+      try {
+        const startTimeNormalized = formData.start_time.length === 5
+          ? `${formData.start_time}:00`
+          : formData.start_time;
+        const endTimeNormalized = formData.end_time.length === 5
+          ? `${formData.end_time}:00`
+          : formData.end_time;
 
-      if (formData.final_price) {
-        updateData.final_price = parseFloat(formData.final_price);
+        const updateData: Record<string, unknown> = {
+          station_id: formData.station_id,
+          booking_date: formData.booking_date,
+          start_time: startTimeNormalized,
+          end_time: endTimeNormalized,
+          status: formData.status,
+          notes: formData.notes || null,
+          special_instructions: formData.special_instructions.trim() || null,
+          status_updated_at: new Date().toISOString(),
+          status_updated_by: 'admin',
+        };
+
+        if (booking.status === 'completed' && formData.payment_mode) {
+          updateData.payment_mode = formData.payment_mode;
+        }
+
+        if (formData.final_price) {
+          updateData.final_price = parseFloat(formData.final_price);
+        }
+
+        const startTime = new Date(`2000-01-01T${formData.start_time}`);
+        const endTime = new Date(`2000-01-01T${formData.end_time}`);
+        updateData.duration = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
+
+        const { error } = await supabase
+          .from('bookings')
+          .update(updateData)
+          .eq('id', booking.id);
+
+        if (error) throw error;
+
+        toast.success('Booking updated successfully');
+        onBookingUpdated();
+        onOpenChange(false);
+      } catch (error) {
+        console.error('Error updating booking:', error);
+        toast.error('Failed to update booking');
+      } finally {
+        setLoading(false);
       }
+    };
 
-      const startTime = new Date(`2000-01-01T${formData.start_time}`);
-      const endTime = new Date(`2000-01-01T${formData.end_time}`);
-      updateData.duration = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
-
-      const { error } = await supabase
-        .from('bookings')
-        .update(updateData)
-        .eq('id', booking.id);
-
-      if (error) throw error;
-
-      toast.success('Booking updated successfully');
-      onBookingUpdated();
-      onOpenChange(false);
-    } catch (error) {
-      console.error('Error updating booking:', error);
-      toast.error('Failed to update booking');
-    } finally {
-      setLoading(false);
+    if (stationChanged) {
+      await gateAsyncAction(
+        requestEmployeePin,
+        CRITICAL_PIN_ACTIONS.BOOKING_MOVE_STATION,
+        runSubmit,
+        { fromStation, toStation },
+      );
+      return;
     }
+
+    if (paymentChanged) {
+      await gateAsyncAction(
+        requestEmployeePin,
+        CRITICAL_PIN_ACTIONS.BOOKING_PAYMENT_MODE,
+        runSubmit,
+        {
+          fromMode: booking.payment_mode || 'venue',
+          toMode: formData.payment_mode,
+        },
+      );
+      return;
+    }
+
+    await runSubmit();
   };
 
   const handleChange = (field: string, value: string) => {
@@ -347,6 +403,38 @@ export function BookingEditDialog({
           </div>
 
           <div>
+            <Label htmlFor="special_instructions">Game / special request</Label>
+            <Textarea
+              id="special_instructions"
+              value={formData.special_instructions}
+              onChange={(e) => handleChange('special_instructions', e.target.value)}
+              placeholder="Customer game preference from online booking"
+              rows={2}
+            />
+          </div>
+
+          {booking.status === 'completed' && (
+            <div>
+              <Label htmlFor="payment_mode">Payment method</Label>
+              <Select
+                value={formData.payment_mode || 'venue'}
+                onValueChange={(value) => handleChange('payment_mode', value)}
+              >
+                <SelectTrigger id="payment_mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="venue">Pay at venue</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="upi">UPI</SelectItem>
+                  <SelectItem value="card">Card</SelectItem>
+                  <SelectItem value="razorpay">Razorpay (online)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div>
             <Label htmlFor="notes">Notes</Label>
             <Textarea
               id="notes"
@@ -366,6 +454,12 @@ export function BookingEditDialog({
             </Button>
           </DialogFooter>
         </form>
+        <EmployeePinVerificationDialog
+          open={showPinDialog}
+          onOpenChange={setShowPinDialog}
+          actionKey={pendingActionKey}
+          onSuccess={handlePinSuccess}
+        />
       </ResponsiveDialogContent>
     </ResponsiveDialog>
   );

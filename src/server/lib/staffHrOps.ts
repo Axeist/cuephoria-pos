@@ -259,8 +259,15 @@ export async function fetchHolidays(scope: StaffScope, year: number): Promise<St
 
 export async function fetchAuditLog(
   scope: StaffScope,
-  limit = 50,
+  options: {
+    limit?: number;
+    staffId?: string | null;
+    category?: string | null;
+    dateFrom?: string | null;
+    dateTo?: string | null;
+  } = {},
 ): Promise<StaffAuditEntry[]> {
+  const limit = options.limit ?? 50;
   assertScope(scope);
   let q = supabase
     .from('staff_hr_audit_log')
@@ -271,12 +278,44 @@ export async function fetchAuditLog(
   if (scope.scope === 'location' && scope.locationId) {
     q = q.or(`location_id.is.null,location_id.eq.${scope.locationId}`);
   }
+  if (options.staffId) {
+    q = q.eq('actor_staff_id', options.staffId);
+  }
+  if (options.category && options.category !== 'all') {
+    q = q.eq('category', options.category);
+  }
+  if (options.dateFrom) {
+    q = q.gte('created_at', options.dateFrom);
+  }
+  if (options.dateTo) {
+    q = q.lte('created_at', options.dateTo);
+  }
   const { data, error } = await q;
   if (error) {
     if (error.code === '42P01') return [];
     throw error;
   }
-  return (data ?? []) as StaffAuditEntry[];
+
+  const rows = (data ?? []) as StaffAuditEntry[];
+  const staffIds = [
+    ...new Set(rows.map((r) => r.actor_staff_id).filter((id): id is string => Boolean(id))),
+  ];
+  const nameById = new Map<string, string>();
+  if (staffIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('staff_profiles')
+      .select('user_id, full_name, username')
+      .in('user_id', staffIds);
+    for (const p of profiles ?? []) {
+      const name = String(p.full_name ?? '').trim() || String(p.username ?? 'Staff');
+      nameById.set(String(p.user_id), name);
+    }
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    actor_name: row.actor_staff_id ? nameById.get(row.actor_staff_id) ?? null : null,
+  }));
 }
 
 export async function fetchLeavePolicies(scope: StaffScope): Promise<StaffLeavePolicy[]> {
