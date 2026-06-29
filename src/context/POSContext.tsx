@@ -352,6 +352,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const forceLoadSavedCartCustomerIdRef = useRef<string | null>(null);
   /** Session-only lines from the customer's saved cart — captured once on select, not re-fetched each edit. */
   const sessionDraftLinesRef = useRef<CartItem[]>([]);
+  const productsRef = useRef(products);
+  productsRef.current = products;
 
   const addToCartWithStock = useCallback(
     (item: Omit<CartItem, 'total'>) => {
@@ -511,7 +513,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
 
-      setCart(clampCartItemsToStock(savedCartData.items, products));
+      setCart(clampCartItemsToStock(savedCartData.items, productsRef.current));
       setDiscountAmount(Number(savedCartData.discount ?? 0));
       setDiscountType(savedCartData.discount_type ?? 'percentage');
       setLoyaltyPointsUsedAmount(Number(savedCartData.loyalty_points_used ?? 0));
@@ -527,7 +529,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cancelled = true;
       sessionDraftLinesRef.current = [];
     };
-  }, [selectedCustomer?.id, activeLocationId, loadSavedCartForCustomer, products, setCart, setDiscountAmount, setDiscountType, setLoyaltyPointsUsedAmount, toast]);
+  }, [selectedCustomer?.id, activeLocationId, loadSavedCartForCustomer, setCart, setDiscountAmount, setDiscountType, setLoyaltyPointsUsedAmount, toast]);
 
   const loadSavedCartForCheckout = useCallback(
     (customerId: string) => {

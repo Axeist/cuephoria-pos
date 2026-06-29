@@ -19,84 +19,88 @@ export const useCart = (taxSettings?: TaxSettings) => {
   
   const addToCart = (item: Omit<CartItem, 'total'>, availableStock?: number) => {
     try {
-      // For non-membership products, check available stock
-      if (item.type === 'product' && item.category !== 'membership' && typeof availableStock === 'number') {
-        const currentCartQuantity = totalProductQuantityInCart(cart, item.id);
-        const totalRequestedQuantity = currentCartQuantity + item.quantity;
-        
-        // Check if we have enough stock
-        if (totalRequestedQuantity > availableStock) {
-          // If not enough stock, adjust quantity or show error
-          if (availableStock <= currentCartQuantity) {
+      setCart((prev) => {
+        let nextItem = item;
+
+        if (
+          nextItem.type === 'product' &&
+          nextItem.category !== 'membership' &&
+          typeof availableStock === 'number'
+        ) {
+          const currentCartQuantity = totalProductQuantityInCart(prev, nextItem.id);
+          const totalRequestedQuantity = currentCartQuantity + nextItem.quantity;
+
+          if (totalRequestedQuantity > availableStock) {
+            if (availableStock <= currentCartQuantity) {
+              toast({
+                title: 'Insufficient Stock',
+                description: `Only ${availableStock} units of ${nextItem.name} available (${currentCartQuantity} already in cart)`,
+                variant: 'destructive',
+              });
+              return prev;
+            }
+
+            const adjustedQuantity = availableStock - currentCartQuantity;
             toast({
-              title: "Insufficient Stock",
-              description: `Only ${availableStock} units of ${item.name} available (${currentCartQuantity} already in cart)`,
-              variant: "destructive"
+              title: 'Stock Limited',
+              description: `Only added ${adjustedQuantity} units of ${nextItem.name} (stock limit reached)`,
+              variant: 'destructive',
             });
-            return;
+            nextItem = { ...nextItem, quantity: adjustedQuantity };
           }
-          
-          // Adjust quantity to match available stock
-          const adjustedQuantity = availableStock - currentCartQuantity;
-          toast({
-            title: "Stock Limited",
-            description: `Only added ${adjustedQuantity} units of ${item.name} (stock limit reached)`,
-            variant: "destructive"
-          });
-          
-          // Update item quantity to what's available
-          item = { ...item, quantity: adjustedQuantity };
         }
-      }
-      
-      const existingItem = findCartItem(cart, item);
-      
-      if (existingItem) {
-        const updatedCart = cart.map(i => 
-          cartItemsMatch(i, item)
-            ? { ...i, quantity: i.quantity + item.quantity, total: (i.quantity + item.quantity) * i.price }
-            : i
-        );
-        setCart(updatedCart);
+
+        const existingItem = findCartItem(prev, nextItem);
+
+        if (existingItem) {
+          toast({
+            title: 'Item Updated',
+            description: `Increased quantity of ${nextItem.name}`,
+          });
+          return prev.map((i) =>
+            cartItemsMatch(i, nextItem)
+              ? {
+                  ...i,
+                  quantity: i.quantity + nextItem.quantity,
+                  total: (i.quantity + nextItem.quantity) * i.price,
+                }
+              : i,
+          );
+        }
+
         toast({
-          title: "Item Updated",
-          description: `Increased quantity of ${item.name}`,
+          title: 'Item Added',
+          description: `Added ${nextItem.name} to cart`,
         });
-      } else {
-        const newItem = { ...item, total: item.quantity * item.price };
-        setCart([...cart, newItem]);
-        toast({
-          title: "Item Added",
-          description: `Added ${item.name} to cart`,
-        });
-      }
+        const newItem = { ...nextItem, total: nextItem.quantity * nextItem.price };
+        return [...prev, newItem];
+      });
     } catch (error) {
-      console.error("Error adding to cart:", error);
+      console.error('Error adding to cart:', error);
       toast({
-        title: "Error",
-        description: "Failed to add item to cart",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to add item to cart',
+        variant: 'destructive',
       });
     }
   };
   
   const removeFromCart = (id: string, stationName?: string) => {
     try {
-      const itemToRemove =
-        findCartItem(cart, { id, type: 'product', stationName }) ??
-        findCartItem(cart, { id, type: 'session', stationName }) ??
-        cart.find((i) => i.id === id);
+      setCart((prev) => {
+        const itemToRemove =
+          findCartItem(prev, { id, type: 'product', stationName }) ??
+          findCartItem(prev, { id, type: 'session', stationName }) ??
+          prev.find((i) => i.id === id);
 
-      if (!itemToRemove) return;
+        if (!itemToRemove) return prev;
 
-      setCart(cart.filter((i) => !cartItemsMatch(i, itemToRemove)));
-      
-      if (itemToRemove) {
         toast({
-          title: "Item Removed",
+          title: 'Item Removed',
           description: `Removed ${itemToRemove.name} from cart`,
         });
-      }
+        return prev.filter((i) => !cartItemsMatch(i, itemToRemove));
+      });
     } catch (error) {
       console.error("Error removing from cart:", error);
       toast({
@@ -119,43 +123,44 @@ export const useCart = (taxSettings?: TaxSettings) => {
         return;
       }
 
-      const cartItem = findCartItem(cart, { id, type: 'product', stationName })
-        ?? findCartItem(cart, { id, type: 'session', stationName });
-      const limit =
-        cartItem?.type === 'product' &&
-        cartItem.category !== 'membership' &&
-        typeof stockLimit === 'number'
-          ? stockLimit
-          : null;
+      setCart((prev) => {
+        const cartItem =
+          findCartItem(prev, { id, type: 'product', stationName }) ??
+          findCartItem(prev, { id, type: 'session', stationName });
+        const limit =
+          cartItem?.type === 'product' &&
+          cartItem.category !== 'membership' &&
+          typeof stockLimit === 'number'
+            ? stockLimit
+            : null;
 
-      const { quantity: nextQty, blocked, capped } = clampQuantityToStock(quantity, limit);
+        const { quantity: nextQty, blocked, capped } = clampQuantityToStock(quantity, limit);
 
-      if (blocked) {
-        toast({
-          title: 'Insufficient Stock',
-          description: `No more units of ${cartItem?.name ?? 'this item'} available`,
-          variant: 'destructive',
-        });
-        return;
-      }
+        if (blocked) {
+          toast({
+            title: 'Insufficient Stock',
+            description: `No more units of ${cartItem?.name ?? 'this item'} available`,
+            variant: 'destructive',
+          });
+          return prev;
+        }
 
-      if (capped && cartItem) {
-        toast({
-          title: 'Stock Limited',
-          description: `Only ${nextQty} unit(s) of ${cartItem.name} available`,
-          variant: 'destructive',
-        });
-      }
+        if (capped && cartItem) {
+          toast({
+            title: 'Stock Limited',
+            description: `Only ${nextQty} unit(s) of ${cartItem.name} available`,
+            variant: 'destructive',
+          });
+        }
 
-      if (!cartItem) return;
+        if (!cartItem) return prev;
 
-      const updatedCart = cart.map((i) =>
-        cartItemsMatch(i, cartItem)
-          ? { ...i, quantity: nextQty, total: nextQty * i.price }
-          : i
-      );
-
-      setCart(updatedCart);
+        return prev.map((i) =>
+          cartItemsMatch(i, cartItem)
+            ? { ...i, quantity: nextQty, total: nextQty * i.price }
+            : i,
+        );
+      });
     } catch (error) {
       console.error("Error updating cart item:", error);
       toast({
