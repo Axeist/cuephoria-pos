@@ -27,6 +27,7 @@ const PlatformPlans = lazy(() => import("@/pages/platform/PlatformPlans"));
 const PlatformBroadcasts = lazy(() => import("@/pages/platform/PlatformBroadcasts"));
 const PlatformSandbox = lazy(() => import("@/pages/platform/PlatformSandbox"));
 import { flags } from "@/config/featureFlags";
+import { cueflowLandingPaths } from "@/data/cueflowLandings";
 import { AppHeader } from "@/components/AppHeader";
 import { POSProvider } from "@/context/POSContext";
 import { ExpenseProvider } from "@/context/ExpenseContext";
@@ -108,6 +109,7 @@ const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
 const AcceptableUse = lazy(() => import("./pages/AcceptableUse"));
 const CookiePolicy = lazy(() => import("./pages/CookiePolicy"));
 const VsCompetitor = lazy(() => import("./pages/VsCompetitor"));
+const CueflowLanding = lazy(() => import("./pages/CueflowLanding"));
 const CafePOS = lazy(() => import("./pages/cafe/CafePOS"));
 const CafeMenu = lazy(() => import("./pages/cafe/CafeMenu"));
 const CafeOrders = lazy(() => import("./pages/cafe/CafeOrders"));
@@ -569,6 +571,17 @@ const App = () => {
                     </LazyPage>
                   }
                 />
+                {cueflowLandingPaths.map((landingPath) => (
+                  <Route
+                    key={landingPath}
+                    path={landingPath}
+                    element={
+                      <LazyPage>
+                        <CueflowLanding />
+                      </LazyPage>
+                    }
+                  />
+                ))}
 
                 {/* First-run onboarding wizard (post-signup).
                     Runs in a minimal shell — no sidebar, no POS provider. */}

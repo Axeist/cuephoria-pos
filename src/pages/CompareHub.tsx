@@ -19,6 +19,7 @@ import Footer from "@/components/landing/Footer";
 import SiteAmbientBackground from "@/components/landing/SiteAmbientBackground";
 import { Button } from "@/components/ui/button";
 import { competitors } from "@/data/competitors";
+import { cueflowLandings } from "@/data/cueflowLandings";
 
 const FEATURED_SLUGS = ["cueflow", "gamebiller", "playo", "hudle"];
 
@@ -237,6 +238,30 @@ const CompareHub: React.FC = () => {
                 </span>
               </div>
             </Link>
+          </section>
+
+          {/* ─── CueFlow / CueBill guide cluster ─── */}
+          <section className="max-w-6xl mx-auto px-5 sm:px-8 mt-8">
+            <div className="text-[11px] uppercase tracking-[0.22em] text-white/40 mb-3 font-semibold">
+              CueFlow & CueBill guides
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {cueflowLandings.map((l) => (
+                <Link
+                  key={l.path}
+                  to={l.path}
+                  className="inline-block rounded-full border border-white/8 bg-white/[0.02] px-3 py-1.5 text-xs text-white/60 hover:text-fuchsia-200 hover:border-fuchsia-300/30 transition-colors"
+                >
+                  {l.path.replace(/^\//, "").replace(/-/g, " ")}
+                </Link>
+              ))}
+              <Link
+                to="/vs/cueflow"
+                className="inline-block rounded-full border border-fuchsia-300/30 bg-fuchsia-500/10 px-3 py-1.5 text-xs text-fuchsia-200 font-semibold"
+              >
+                full comparison →
+              </Link>
+            </div>
           </section>
 
           {/* ─── Featured (top 3) ─── */}

@@ -25,6 +25,13 @@ Allow: /contact
 Allow: /contact-us
 Allow: /compare
 Allow: /vs/
+Allow: /cueflow-alternative
+Allow: /cuebill-alternative
+Allow: /cuetronix-alternative
+Allow: /cueflow-vs-cuetronix
+Allow: /is-cuebill-worth-it
+Allow: /cueflow-review
+Allow: /why-not-cueflow
 Allow: /terms
 Allow: /terms-and-conditions
 Allow: /privacy
