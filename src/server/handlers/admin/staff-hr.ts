@@ -214,14 +214,15 @@ export default async function handler(req: Request): Promise<Response> {
       return j({ ok: false, error: ctx.message || "Could not resolve workspace." }, ctx.status);
     }
 
+    const body = (await req.json().catch(() => ({}))) as { op?: string; args?: OpArgs };
+    const op = typeof body.op === "string" ? body.op.trim() : "";
+    const args = body.args && typeof body.args === "object" ? body.args : {};
+
     if (!PIN_GATE_OPS.has(op)) {
       const staffGate = await assertEntitlement(ctx, "staff_hr_enabled");
       if (staffGate) return staffGate;
     }
 
-    const body = (await req.json().catch(() => ({}))) as { op?: string; args?: OpArgs };
-    const op = typeof body.op === "string" ? body.op.trim() : "";
-    const args = body.args && typeof body.args === "object" ? body.args : {};
     const run = HANDLERS[op];
     if (!run) return j({ ok: false, error: `Unknown staff HR op: ${op}` }, 400);
 
