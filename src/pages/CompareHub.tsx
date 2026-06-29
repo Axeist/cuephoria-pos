@@ -20,7 +20,7 @@ import SiteAmbientBackground from "@/components/landing/SiteAmbientBackground";
 import { Button } from "@/components/ui/button";
 import { competitors } from "@/data/competitors";
 
-const FEATURED_SLUGS = ["gamebiller", "playo", "hudle", "ggleap"];
+const FEATURED_SLUGS = ["cueflow", "gamebiller", "playo", "hudle"];
 
 const BrandBadge: React.FC<{ mark: string; color: string }> = ({ mark, color }) => (
   <div
@@ -65,7 +65,7 @@ const CompareHub: React.FC = () => {
   useEffect(() => {
     const prevTitle = document.title;
     document.title =
-      "Cuetronix Comparisons — GameBiller, Playo, Hudle, ggLeap, SENET, CourtReserve, Skedda, SmartLaunch & SpringboardVR (2026)";
+      "Cuetronix Comparisons — CueBill & CueFlow Review, GameBiller, Playo, Hudle & More (2026)";
 
     const upsert = (selector: string, attr: "name" | "property", key: string, value: string) => {
       let el = document.head.querySelector<HTMLMetaElement>(selector);
@@ -79,11 +79,11 @@ const CompareHub: React.FC = () => {
     };
 
     const desc =
-      "See how Cuetronix — the world's first all-in-one gaming and sports venue OS — compares with GameBiller, Playo, Hudle, ggLeap, SENET, SmartLaunch, CourtReserve, Skedda and SpringboardVR. Honest feature-by-feature comparisons, pricing, migration guides and verdicts for each.";
+      "Honest CueBill & CueFlow review plus Cuetronix comparisons with GameBiller, Playo, Hudle, ggLeap, SENET, SmartLaunch, CourtReserve, Skedda and SpringboardVR. Feature matrices, pricing, migration guides and verdicts.";
 
     const created = [
       upsert(`meta[name="description"]`,         "name",     "description",         desc),
-      upsert(`meta[name="keywords"]`,            "name",     "keywords",            "gaming venue software comparison, GameBiller alternative, Playo alternative, Hudle alternative, ggLeap alternative, SENET alternative, CourtReserve alternative, Skedda alternative, SpringboardVR alternative, venue management software, gaming lounge POS"),
+      upsert(`meta[name="keywords"]`,            "name",     "keywords",            "CueBill review, CueFlow review, is CueBill worth it, CueBill alternative, CueFlow alternative, gaming venue software comparison, GameBiller alternative, Playo alternative, Hudle alternative, snooker club software India, venue management software"),
       upsert(`meta[property="og:title"]`,        "property", "og:title",            "Cuetronix Comparisons — the complete competitor index"),
       upsert(`meta[property="og:description"]`,  "property", "og:description",      desc),
       upsert(`meta[property="og:type"]`,         "property", "og:type",             "website"),
@@ -166,7 +166,7 @@ const CompareHub: React.FC = () => {
       <noscript>
         <div className="p-8 text-white">
           <h1>Cuetronix Comparisons — the complete competitor index</h1>
-          <p>Honest operator-first comparisons with Playo, Hudle, ggLeap, SENET, SmartLaunch, CourtReserve, Skedda and SpringboardVR.</p>
+          <p>Honest CueBill & CueFlow review plus comparisons with GameBiller, Playo, Hudle, ggLeap, SENET, SmartLaunch, CourtReserve, Skedda and SpringboardVR.</p>
           <ul>
             {competitors.map((c) => (
               <li key={c.slug}>
@@ -211,6 +211,32 @@ const CompareHub: React.FC = () => {
                 <StatPill icon={TrendingUp}   value="14-day"                    label="Free trial" />
               </div>
             </motion.div>
+          </section>
+
+          {/* ─── CueBill / CueFlow research CTA ─── */}
+          <section className="max-w-6xl mx-auto px-5 sm:px-8 mt-12">
+            <Link
+              to="/vs/cueflow"
+              className="glass-card glass-card-interactive block p-6 sm:p-8 relative overflow-hidden group"
+            >
+              <div className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-indigo-500/20 blur-3xl" />
+              <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-rose-200/90 font-semibold mb-2">
+                    Researching CueBill or CueFlow?
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white group-hover:text-fuchsia-100 transition-colors">
+                    Honest CueBill & CueFlow review — is it worth it?
+                  </h2>
+                  <p className="mt-2 text-sm text-gray-400 max-w-xl">
+                    UI, exposed API keys, poor data protection — read before you sign up for CueBill.
+                  </p>
+                </div>
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-fuchsia-200 shrink-0">
+                  Read the review <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                </span>
+              </div>
+            </Link>
           </section>
 
           {/* ─── Featured (top 3) ─── */}

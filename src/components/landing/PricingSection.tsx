@@ -95,6 +95,10 @@ const FAQ = [
     q: "Can I export my data if I ever leave?",
     a: "Always. You can export customers, bills, bookings, stations, menu, and the full audit log as CSV or Excel at any time from your workspace settings.",
   },
+  {
+    q: "Evaluating CueBill or CueFlow for your snooker club?",
+    a: "Read our honest CueBill & CueFlow review before you sign up — we cover UI quality, client-side API key exposure, data protection, and how Cuetronix compares for Indian snooker and pool halls.",
+  },
 ];
 
 const fadeUp = {
@@ -302,6 +306,15 @@ const PricingSection: React.FC = () => {
           </div>
 
           <p className="text-center text-base text-gray-500 mt-12">
+            Evaluating CueBill or CueFlow?{" "}
+            <button
+              type="button"
+              onClick={() => navigate("/vs/cueflow")}
+              className="text-violet-300 hover:text-violet-200 font-medium"
+            >
+              Read our honest review
+            </button>
+            {" · "}
             Still curious?{" "}
             <a
               href="mailto:hello@cuetronix.com"

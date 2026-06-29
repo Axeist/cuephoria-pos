@@ -1,4 +1,21 @@
 {
+  "redirects": [
+    { "source": "/vs/cuebill", "destination": "/vs/cueflow", "permanent": true },
+    { "source": "/cuebill", "destination": "/vs/cueflow", "permanent": true },
+    { "source": "/cueflow", "destination": "/vs/cueflow", "permanent": true },
+    { "source": "/cuebill-review", "destination": "/vs/cueflow", "permanent": true },
+    { "source": "/cueflow-review", "destination": "/vs/cueflow", "permanent": true },
+    { "source": "/reviews/cuebill", "destination": "/vs/cueflow", "permanent": true },
+    { "source": "/reviews/cueflow", "destination": "/vs/cueflow", "permanent": true },
+    { "source": "/alternatives/cuebill", "destination": "/vs/cueflow", "permanent": true },
+    { "source": "/alternatives/cueflow", "destination": "/vs/cueflow", "permanent": true },
+    { "source": "/is-cuebill-worth-it", "destination": "/vs/cueflow", "permanent": true },
+    { "source": "/is-cueflow-worth-it", "destination": "/vs/cueflow", "permanent": true },
+    { "source": "/cuebill-alternative", "destination": "/vs/cueflow", "permanent": true },
+    { "source": "/cueflow-alternative", "destination": "/vs/cueflow", "permanent": true },
+    { "source": "/cuebill-vs-cuetronix", "destination": "/vs/cueflow", "permanent": true },
+    { "source": "/cueflow-vs-cuetronix", "destination": "/vs/cueflow", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/((?!api/|assets/|.*\\.(?:js|mjs|css|map|png|jpg|jpeg|gif|svg|ico|webp|avif|woff|woff2|ttf|otf|txt|xml|webmanifest|json)$).*)", "destination": "/index.html" }
   ],

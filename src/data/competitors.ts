@@ -80,6 +80,7 @@ export interface Competitor {
   metaDescription: string;
   keywords: string[];
   longTailKeywords: string[];      // crawlable footer keyword cluster
+  ogImage?: string;                // optional per-page Open Graph image
 
   // Narrative
   tldr: string;
@@ -1743,7 +1744,356 @@ const springboardVR: Competitor = {
     "Keep SpringboardVR for VR content. Use Cuetronix for everything else — and for the mixed-venue future most arcades are moving toward.",
 };
 
+/* ─────────────────────────────────────────────────────────────────────────
+ *  10. CUEFLOW (company) / CUEBILL (app)
+ * ─────────────────────────────────────────────────────────────────────── */
+const cueflow: Competitor = {
+  slug: "cueflow",
+  name: "CueFlow (CueBill)",
+  brandMark: "CF",
+  brandColor: "#6366F1",
+  tagline: "CueBill snooker billing app by CueFlow (Khushi Catalyst).",
+  oneLiner:
+    "CueFlow is the company behind cueflow.in; CueBill is their snooker-club billing app (Android + app.cueflow.in). The marketing site sells enterprise security — the CueBill client tells a different story.",
+  category: "Gaming centre",
+  region: "India",
+  website: "https://cueflow.in",
+
+  stats: {
+    foundedYear: 2024,
+    hqCountry: "India (Khushi Catalyst)",
+    employees: "Not publicly disclosed",
+    primaryMarkets: ["India", "UAE", "Saudi Arabia", "Arab countries (claimed)"],
+    publicRating: { score: 4.9, max: 5, source: "Claimed on cueflow.in" },
+    customerEstimate: "500+ clubs (website claim)",
+  },
+
+  metaTitle: "CueBill & CueFlow Review (2026) — Worth It? Honest Verdict | Cuetronix",
+  metaDescription:
+    "Honest CueBill & CueFlow review for snooker clubs. Bad UI, exposed API keys, poor data protection. Is it worth it? No — here's the better alternative.",
+  ogImage: "https://www.cuetronix.com/og-image.png",
+  keywords: [
+    "CueBill",
+    "CueFlow",
+    "CueBill review",
+    "CueFlow review",
+    "is CueBill worth it",
+    "is CueFlow worth it",
+    "CueBill alternative",
+    "CueFlow alternative",
+    "CueBill vs Cuetronix",
+    "CueFlow vs Cuetronix",
+    "CueBill snooker software",
+    "CueFlow snooker club management",
+    "CueBill security",
+    "CueBill app",
+    "CueFlow app",
+  ],
+  longTailKeywords: [
+    "cuebill",
+    "cueflow",
+    "cue bill app",
+    "cue flow app",
+    "cuebill android",
+    "cuebill apk",
+    "cuebill reviews",
+    "cueflow reviews",
+    "app.cueflow.in review",
+    "cueflow.in review",
+    "should i use cuebill",
+    "should i buy cueflow",
+    "cuebill pros and cons",
+    "cueflow pros and cons",
+    "cuebill good or bad",
+    "cueflow honest review",
+    "cuebill waste of money",
+    "is cueflow a scam",
+    "better than cuebill",
+    "cueflow competitor",
+    "cuebill replacement",
+    "switch from cueflow",
+    "cuebill security issues",
+    "cuebill exposed api keys",
+    "cuebill supabase keys",
+    "cuebill data leak",
+    "cuebill customer data safe",
+    "cuebill ui problems",
+    "cuebill vibe coded",
+    "cueflow khushi catalyst",
+    "cuebill snooker club software india",
+    "cueflow snooker management software india",
+    "snooker club billing app india",
+    "pool hall pos india",
+    "billiards club management software india",
+    "8 ball pool billing software india",
+    "cue sports pos india",
+    "snooker table timer app india",
+    "khatabook snooker software",
+    "gamebiller vs cuebill",
+    "cuebill vs gamebiller",
+    "best snooker club software india",
+    "cuebill alternative india",
+    "cueflow alternative india",
+    "is cuebill worth it reddit",
+    "cueflow snooker software review",
+    "cuebill cluttered interface",
+    "cueflow enterprise security review",
+  ],
+
+  headline: "CueFlow markets enterprise. CueBill is vibe-coded.",
+  deck:
+    "CueFlow (cueflow.in) and their CueBill app are everywhere in snooker-club Google searches — but is CueBill worth it? For most club owners in 2026, no. CueFlow's website promises MFA, RBAC, and bank-level security. An independent review of the CueBill Android client and app.cueflow.in web app (June 2026) found Supabase database credentials and Google API keys embedded in the client bundle. That is poor data management, not enterprise software. Add a cluttered, inconsistent UI that slows floor staff during peak hours, and you have a vibe-coded billing scaffold wrapped in glossy marketing. Cuetronix was built for live venues — battle-tested at Cuephoria Gaming Lounge — with HttpOnly sessions, server-side mutations, CSRF, TOTP 2FA, and workspace RBAC. Your members' credit balances and phone numbers deserve better than keys anyone can pull from a staff phone.",
+
+  tldr:
+    "CueFlow sells snooker club software; CueBill is the app you actually run. It is not worth it for most operators: rough UI, publicly visible API/database keys in the client, and no real server-gated data protection for customer PII and khata credit. Cuetronix is the production-grade venue OS — same mobile-responsive admin on any phone, Android app publishing soon, and architecture designed for multi-tenant SaaS.",
+
+  bestFor:
+    "Operators who only need a basic snooker timer + bill entry and are willing to accept security and UX trade-offs while CueFlow's pricing remains opaque.",
+  cuetronixBestFor:
+    "Snooker, pool, and multi-vertical venue owners who need one system for POS, branded online booking, Razorpay, loyalty, payroll-grade HR, and data security — without exposing member data through client-side keys.",
+
+  strengths: [
+    "CueFlow's cueflow.in site is snooker-first with India and Arab-market positioning (UPI, Khatabook narrative).",
+    "CueBill is on the Play Store today for clubs that want an installable Android shell.",
+    "Website lists a broad feature checklist (canteen, tournaments, loyalty, bookings).",
+  ],
+  limitations: [
+    "CueBill's UI is cluttered and inconsistent — staff lose time navigating confusing screens during peak hours.",
+    "CueFlow's marketing site looks polished; the CueBill app feels like an unfinished, vibe-coded prototype.",
+    "Independent review (June 2026): Supabase JWT/database credentials and Google API keys are publicly visible in the CueBill client bundle — anyone can extract them from the APK or web assets.",
+    "Poor customer-data governance: member phone numbers, credit/khata balances, and session history are not meaningfully protected when database keys ship to every install.",
+    "CueFlow claims enterprise security, MFA, RBAC, and GDPR on cueflow.in — contradicted by client-side credential exposure in CueBill.",
+    "Snooker-only billing focus; no multi-vertical depth for turfs, courts, PC/console lounges, or VR without a new stack.",
+    "Pricing is opaque ('contact us') vs Cuetronix published plans at ₹999 / ₹2,499 / ₹3,999 per month.",
+    "No published payroll-grade HR (attendance cycles, payslips, overtime) — operators still need a separate HR tool.",
+    "CueFlow / CueBill naming overlaps the Cuephoria / Cuetronix ecosystem — they are unrelated products.",
+    "Website claims (500+ clubs, 4.9/5, 40% revenue lift) are marketing assertions, not independently verified.",
+  ],
+  cuetronixAdvantages: [
+    {
+      title: "Your customer data stays on the server",
+      description:
+        "Member credit, phone numbers, and session history are accessed through authenticated server APIs — not exposed Supabase keys in a CueBill APK. Cuetronix never ships service-role secrets to staff devices.",
+      icon: "shield",
+      proof: "HttpOnly sessions + /api/admin/* mutations with workspace RBAC.",
+    },
+    {
+      title: "Staff-ready UI, not a cluttered prototype",
+      description:
+        "Cuetronix is designed for busy counters: clear timers, fast billing, consistent layout. CueBill's interface is visibly rough — more time fighting the app, less time serving customers.",
+      icon: "zap",
+      proof: "Battle-tested daily at Cuephoria Gaming Lounge.",
+    },
+    {
+      title: "Built for production, not a weekend vibe-code",
+      description:
+        "CueFlow's landing page reads enterprise; CueBill reads like an AI-scaffolded app with a feature checklist. Cuetronix is multi-tenant SaaS engineered for live revenue operations.",
+      icon: "shield",
+      proof: "Server-gated org context — clients cannot supply arbitrary tenant IDs.",
+    },
+    {
+      title: "One ledger for booking + counter + walk-ins",
+      description:
+        "Online slots, walk-ins, POS tickets, and extensions stay on one ledger. CueBill covers snooker billing; growth workflows often still need separate tools.",
+      icon: "workflow",
+      proof: "Branded Razorpay booking portal with 0% commission on direct bookings.",
+    },
+    {
+      title: "Multi-vertical without re-platforming",
+      description:
+        "Run snooker, pool, turfs, courts, consoles, and cafe from the same control plane. CueBill is snooker-centric.",
+      icon: "boxes",
+      proof: "Expand services without replacing core software.",
+    },
+    {
+      title: "Payroll-grade HR on Pro",
+      description:
+        "Biometric attendance, shifts, payroll runs, and payslips are in-product — no month-end spreadsheet fire drills.",
+      icon: "users",
+      proof: "80+ granular permissions across 5 system roles.",
+    },
+    {
+      title: "Mobile web today — Android app publishing soon",
+      description:
+        "Staff run the full venue OS from any phone browser. Optional Capacitor Android shell loads the same admin UI — no feature-limited companion fork like many billing-only apps.",
+      icon: "globe",
+      proof: "One codebase; counter and owner dashboard always in sync.",
+    },
+    {
+      title: "Transparent pricing",
+      description:
+        "Published ₹999 / ₹2,499 / ₹3,999 plans with a 14-day trial. No 'contact us' quote games.",
+      icon: "coins",
+      proof: "Total cost of ownership is predictable as you scale.",
+    },
+  ],
+
+  pricing: {
+    cuetronix: "₹999 / ₹2,499 / ₹3,999 per month · 14-day free trial · published plans",
+    competitor: "Contact for quote (cueflow.in) · 7-day trial claimed",
+    note: "CueBill's headline price may look low, but factor in security risk, tool sprawl for HR/booking, and opaque upgrades. Cuetronix is usually lower all-in cost at scale.",
+  },
+
+  features: [
+    { category: "Platform", name: "Production-grade architecture (not vibe-coded scaffold)", cuetronix: YES, competitor: NO },
+    { category: "Platform", name: "Polished, staff-ready UI (fast floor workflows)", cuetronix: YES, competitor: NO, note: "CueBill UI is cluttered and inconsistent" },
+    { category: "Platform", name: "API/database secrets kept off client devices", cuetronix: YES, competitor: NO, note: "CueBill bundle review June 2026" },
+    { category: "Platform", name: "Server-gated mutations (no direct DB from phone)", cuetronix: YES, competitor: NO },
+    { category: "Platform", name: "HttpOnly admin sessions", cuetronix: YES, competitor: NO },
+    { category: "Platform", name: "CSRF protection on writes", cuetronix: YES, competitor: NO },
+    { category: "Platform", name: "TOTP 2FA (verified in product)", cuetronix: YES, competitor: PARTIAL, note: "Claimed on cueflow.in only" },
+    { category: "Platform", name: "Tenant data isolation / audit trail", cuetronix: YES, competitor: NO, note: "CueBill keys undermine isolation" },
+    { category: "Platform", name: "Customer PII governance (credit, phone, payments)", cuetronix: YES, competitor: NO },
+
+    { category: "Billing & POS", name: "Real-time snooker/pool table timers", cuetronix: YES, competitor: YES },
+    { category: "Billing & POS", name: "Pause/resume/extend session controls", cuetronix: YES, competitor: YES },
+    { category: "Billing & POS", name: "Unified cafe + table ticket", cuetronix: YES, competitor: PARTIAL },
+    { category: "Billing & POS", name: "GST-ready invoice workflows", cuetronix: YES, competitor: YES },
+    { category: "Billing & POS", name: "Group/split bills and auto-settlement", cuetronix: YES, competitor: PARTIAL },
+
+    { category: "Online Booking", name: "Branded booking portal on venue sub-domain", cuetronix: YES, competitor: PARTIAL },
+    { category: "Online Booking", name: "Online slot booking with deposit/prepay", cuetronix: YES, competitor: PARTIAL },
+    { category: "Online Booking", name: "Unified calendar for online + walk-in", cuetronix: YES, competitor: PARTIAL },
+
+    { category: "Payments", name: "Native Razorpay payment orchestration", cuetronix: YES, competitor: PARTIAL },
+    { category: "Payments", name: "Webhook-safe payment verification", cuetronix: YES, competitor: PARTIAL },
+
+    { category: "Operations", name: "Turf/court/console/VR without new stack", cuetronix: YES, competitor: NO },
+    { category: "Operations", name: "Tournament brackets and event workflows", cuetronix: YES, competitor: PARTIAL },
+    { category: "Operations", name: "Khatabook-style credit tracking", cuetronix: YES, competitor: YES },
+
+    { category: "Staff & HR", name: "Payroll cycles, overtime, and payslips", cuetronix: YES, competitor: NO },
+    { category: "Staff & HR", name: "Biometric or QR attendance", cuetronix: YES, competitor: PARTIAL },
+
+    { category: "Analytics", name: "Branch-level P&L and utilization dashboards", cuetronix: YES, competitor: PARTIAL },
+    { category: "Analytics", name: "Customer lifecycle and repeat-booking insights", cuetronix: YES, competitor: PARTIAL },
+
+    { category: "Platform", name: "Mobile floor ops (full admin on phone browser)", cuetronix: YES, competitor: YES },
+    { category: "Platform", name: "Native Android app (Play Store)", cuetronix: "Publishing soon", competitor: YES, note: "CueBill APK today; Cuetronix mobile web is production-ready now" },
+    { category: "Platform", name: "Single codebase (no stale native fork)", cuetronix: YES, competitor: NO },
+  ],
+
+  whenToPickCuetronix: [
+    "You care about member credit safety and cannot accept database keys in a staff APK.",
+    "You want a clean UI that staff learn in one shift, not a cluttered prototype.",
+    "You need booking, POS, payments, loyalty, and HR in one login.",
+    "You run or plan multi-vertical ops: snooker + cafe + turf/courts/consoles.",
+    "You want published pricing and a 14-day trial without a sales call.",
+    "You are scaling to multiple branches and need governance from day one.",
+  ],
+  whenToPickCompetitor: [
+    "You only need the most basic snooker timer today and accept security/UX trade-offs.",
+    "You specifically want CueBill's Play Store APK branding before Cuetronix Android ships.",
+  ],
+
+  operatorProfile: {
+    headline: "Who leaves CueBill for Cuetronix",
+    venueType: "Snooker or pool club outgrowing a vibe-coded billing app",
+    before: [
+      "CueBill timers work, but the UI fights staff every busy Friday night.",
+      "Member khata and phone numbers live behind keys anyone can pull from the APK.",
+      "CueFlow marketing promised enterprise security — the app does not deliver.",
+      "Booking, loyalty, and payroll still live in WhatsApp and spreadsheets.",
+    ],
+    after: [
+      "One venue OS: sessions, billing, bookings, payments, and staff workflows.",
+      "Customer data accessed through server APIs — secrets never on floor tablets.",
+      "Staff finish shifts faster with a UI built for counters, not demos.",
+      "Owner sees utilization and margin from one dashboard — no stitched exports.",
+    ],
+  },
+
+  migration: {
+    difficulty: "easy",
+    duration: "3–7 working days",
+    steps: [
+      { title: "Audit CueBill setup", description: "Map table rates, khata balances, staff roles, products, and current reports from CueBill / CueFlow." },
+      { title: "Data import", description: "Import customers, memberships, credit balances, and products via structured CSV templates." },
+      { title: "Payments and booking", description: "Configure Razorpay, booking policies, and branded portal — replace opaque CueFlow quote workflows." },
+      { title: "Staff and permissions", description: "Set workspace roles, attendance, and payroll components if on Pro." },
+      { title: "Cutover", description: "Brief parallel run, verify ledger parity, switch fully with onboarding support." },
+    ],
+  },
+
+  integrations: [
+    "Razorpay payments",
+    "WhatsApp notifications",
+    "Google Calendar",
+    "GST exports / accounting flows",
+    "Biometric attendance hardware",
+    "Webhook/API integration points",
+  ],
+  support: CUETRONIX_SUPPORT,
+
+  faqs: [
+    {
+      q: "Is CueBill worth it?",
+      a: "For most snooker club owners in 2026, no. CueFlow's website sells enterprise software, but the CueBill app delivers a cluttered UI, publicly visible Supabase and Google API credentials in the client bundle (reviewed June 2026), and poor protection for member credit and contact data. If your members' khata balances matter, CueBill is not worth the risk. Cuetronix offers production-grade architecture, transparent pricing from ₹999/month, and a 14-day free trial — built for venues that cannot afford data leaks or slow floor workflows.",
+    },
+    {
+      q: "Is CueFlow worth it for snooker clubs?",
+      a: "CueFlow (the company) and CueBill (the app) are not the same as their marketing suggests. cueflow.in claims 500+ clubs, 4.9/5 ratings, and enterprise security — but the CueBill client exposes database keys and ships a rough, vibe-coded interface. Worth-it decisions should be based on the app you run daily, not the landing page. Most clubs researching CueFlow are better served by Cuetronix: snooker timers plus booking, Razorpay, loyalty, payroll HR, and server-gated data access in one platform.",
+    },
+    {
+      q: "What is the difference between CueFlow and CueBill?",
+      a: "CueFlow is the company behind cueflow.in (Khushi Catalyst) — marketing, sales, and positioning. CueBill is their operator product: the Android app and app.cueflow.in web client where staff run timers and billing. Our security and UI criticism targets CueBill specifically; CueFlow's polished website often oversells what the app delivers.",
+    },
+    {
+      q: "Is CueBill safe for customer data?",
+      a: "No — not by industry standards. When Supabase JWT/database credentials and Google API keys are embedded in a public client bundle, anyone with the APK or browser devtools can extract them. That puts member phone numbers, credit balances, and session history at risk across every club on the platform. Cuetronix routes sensitive access through HttpOnly sessions and server-side service role with workspace RBAC — secrets never ship to staff phones.",
+    },
+    {
+      q: "Why are API keys visible in the CueBill app?",
+      a: "It indicates a vibe-coded, client-first architecture — typical of rapid AI-assisted builds where the database is called directly from the phone instead of through a secured server API. Production SaaS keeps privileged keys on the server only. CueBill's approach is a red flag for any club storing member credit or personal data.",
+    },
+    {
+      q: "How bad is CueBill's user interface?",
+      a: "Operators describe it as cluttered and inconsistent — confusing navigation, generic layouts, and flows that slow staff during peak hours. CueFlow's marketing screenshots look polished; the day-to-day CueBill experience feels like an unfinished prototype. Cuetronix is designed for floor speed: clear timers, fast billing, and a consistent mobile-responsive admin that works in any phone browser today.",
+    },
+    {
+      q: "What is the best CueBill alternative in India?",
+      a: "Cuetronix is the strongest CueBill alternative for Indian snooker and pool clubs that need more than a timer: branded online booking with Razorpay, unified POS, loyalty, tournaments, multi-vertical expansion, and payroll-grade HR on Pro — with architecture built for production, not a weekend scaffold. Start a 14-day free trial at cuetronix.com with published plans from ₹999/month.",
+    },
+    {
+      q: "What is the best CueFlow alternative?",
+      a: "Cuetronix replaces both CueFlow's marketing promise and CueBill's limited app with a full venue operating system. You get snooker table billing plus cafe, bookings, payments, staff attendance, and branch analytics — without client-side database keys or opaque 'contact us' pricing.",
+    },
+    {
+      q: "CueBill vs Cuetronix — which is better?",
+      a: "CueBill covers basic snooker billing with a Play Store app today. Cuetronix covers the entire venue business with better UI, server-gated security, transparent pricing, and multi-vertical support. For any club planning to grow past a single snooker room, Cuetronix is the stronger long-term platform.",
+    },
+    {
+      q: "CueFlow vs Cuetronix — full comparison?",
+      a: "CueFlow sells snooker club software through cueflow.in; Cuetronix is a multi-vertical venue OS built by Cuephoria Tech. CueFlow claims enterprise security — Cuetronix implements it (HttpOnly sessions, CSRF, TOTP 2FA, audit logs). CueBill exposes API keys in the client — Cuetronix does not. See the feature matrix on this page for a side-by-side breakdown.",
+    },
+    {
+      q: "Can I migrate from CueBill to Cuetronix without downtime?",
+      a: "Yes. Most clubs run a short parallel period: import members and table rates via CSV, verify a few sessions and bills match, then switch fully in 3–7 working days with guided onboarding. Your historical khata balances and customer profiles can move across structured templates.",
+    },
+    {
+      q: "Does Cuetronix have an Android app?",
+      a: "Today, staff use the full mobile-responsive web admin on any phone — timers, billing, reports, and bookings with no feature-limited companion app. A Capacitor Android shell is ready and Play Store publish is imminent. Unlike CueBill, it loads the same live UI — no stale native fork with exposed keys.",
+    },
+    {
+      q: "Is CueFlow the same as Cuetronix or Cuephoria?",
+      a: "No. CueFlow / CueBill (Khushi Catalyst) are unrelated to Cuetronix and Cuephoria Tech. Similar 'Cue*' naming causes confusion — Cuetronix is the venue OS from Cuephoria Tech, battle-tested at Cuephoria Gaming Lounge. There is no affiliation with CueFlow.",
+    },
+    {
+      q: "How much does CueFlow / CueBill cost vs Cuetronix?",
+      a: "CueFlow uses 'contact us' pricing on cueflow.in with a claimed 7-day trial. Cuetronix publishes Starter ₹999, Growth ₹2,499, and Pro ₹3,999 per month with a 14-day free trial — no sales call required. Compare total cost including separate HR and booking tools CueBill operators often still need.",
+    },
+    {
+      q: "Should I trust CueFlow's 500+ clubs claim?",
+      a: "cueflow.in states 500+ clubs and 4.9/5 ratings — these are marketing assertions, not independently verified. More importantly, club count does not fix exposed API keys or a rough CueBill UI. Evaluate the app your staff will use daily and how customer data is protected. That is where CueBill falls short and Cuetronix is engineered to hold up.",
+    },
+  ],
+
+  verdict:
+    "CueFlow sells a polished story. CueBill delivers a rough UI, exposed database keys, and prototype-grade ops. Is CueBill worth it? No — not if your members' credit and contact data matter. Cuetronix is the production venue OS built for operators who outgrew vibe-coded billing apps.",
+};
+
 export const competitors: Competitor[] = [
+  cueflow,
   playo,
   hudle,
   ggLeap,

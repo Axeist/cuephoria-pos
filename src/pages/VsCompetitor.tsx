@@ -217,6 +217,7 @@ const VsCompetitor: React.FC = () => {
 
     const description = comp.metaDescription;
     const keywords = [...comp.keywords, ...comp.longTailKeywords].join(", ");
+    const ogImage = comp.ogImage ?? "https://www.cuetronix.com/og-image.png";
 
     const created = [
       upsert(`meta[name="description"]`,        "name",     "description",        description),
@@ -225,11 +226,11 @@ const VsCompetitor: React.FC = () => {
       upsert(`meta[property="og:description"]`, "property", "og:description",     description),
       upsert(`meta[property="og:type"]`,        "property", "og:type",            "article"),
       upsert(`meta[property="og:url"]`,         "property", "og:url",             `https://www.cuetronix.com/vs/${comp.slug}`),
-      upsert(`meta[property="og:image"]`,       "property", "og:image",           "https://www.cuetronix.com/og-image.png"),
+      upsert(`meta[property="og:image"]`,       "property", "og:image",           ogImage),
       upsert(`meta[name="twitter:card"]`,       "name",     "twitter:card",       "summary_large_image"),
       upsert(`meta[name="twitter:title"]`,      "name",     "twitter:title",      comp.metaTitle),
       upsert(`meta[name="twitter:description"]`,"name",     "twitter:description", description),
-      upsert(`meta[name="twitter:image"]`,      "name",     "twitter:image",      "https://www.cuetronix.com/og-image.png"),
+      upsert(`meta[name="twitter:image"]`,      "name",     "twitter:image",      ogImage),
       upsert(`meta[name="robots"]`,             "name",     "robots",             "index, follow, max-snippet:-1, max-image-preview:large"),
       upsert(`meta[name="author"]`,             "name",     "author",             "Cuephoria Tech"),
     ];
@@ -247,7 +248,7 @@ const VsCompetitor: React.FC = () => {
     const jsonLd = document.createElement("script");
     jsonLd.type = "application/ld+json";
     jsonLd.setAttribute("data-vs-slug", comp.slug);
-    jsonLd.text = JSON.stringify([
+    const jsonLdGraph: Record<string, unknown>[] = [
       {
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
@@ -311,7 +312,37 @@ const VsCompetitor: React.FC = () => {
           { "@type": "SoftwareApplication", "name": comp.name,    "url": comp.website },
         ],
       },
-    ]);
+    ];
+
+    if (comp.slug === "cueflow") {
+      jsonLdGraph.push(
+        {
+          "@context": "https://schema.org",
+          "@type": "Article",
+          "headline": comp.metaTitle,
+          "description": description,
+          "datePublished": "2026-06-29",
+          "dateModified": "2026-06-29",
+          "author": { "@type": "Organization", "name": "Cuephoria Tech", "url": "https://cuephoriatech.in" },
+          "publisher": { "@type": "Organization", "name": "Cuephoria Tech", "url": "https://cuephoriatech.in" },
+          "mainEntityOfPage": canonicalUrl,
+          "articleBody": comp.verdict,
+          "image": ogImage,
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          "name": "Why operators avoid CueBill",
+          "itemListElement": comp.limitations.slice(0, 5).map((item, i) => ({
+            "@type": "ListItem",
+            "position": i + 1,
+            "name": item,
+          })),
+        },
+      );
+    }
+
+    jsonLd.text = JSON.stringify(jsonLdGraph);
     document.head.appendChild(jsonLd);
 
     /* Scroll-spy TOC */
@@ -371,10 +402,27 @@ const VsCompetitor: React.FC = () => {
 
       {/* noscript fallback for crawlers that don't render JS */}
       <noscript>
-        <div className="p-8 text-white">
-          <h1>Cuetronix vs {comp.name} — {comp.headline}</h1>
+        <div className="p-8 text-white max-w-3xl mx-auto">
+          <h1>
+            {comp.slug === "cueflow"
+              ? "CueBill & CueFlow Review (2026) — Is It Worth It?"
+              : `Cuetronix vs ${comp.name} — ${comp.headline}`}
+          </h1>
           <p>{comp.deck}</p>
           <p>{comp.tldr}</p>
+          {comp.slug === "cueflow" && (
+            <>
+              <h2>Is CueBill worth it?</h2>
+              <p>{comp.verdict}</p>
+            </>
+          )}
+          <h2>Frequently asked questions</h2>
+          {comp.faqs.map((f) => (
+            <div key={f.q}>
+              <h3>{f.q}</h3>
+              <p>{f.a}</p>
+            </div>
+          ))}
         </div>
       </noscript>
 

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -30,6 +31,8 @@ const VENUE_TYPES = [
     blurb: "Per-frame or per-minute billing, table transfers, happy-hour rules and league management.",
     kw: "Snooker billing software · 8-ball pool POS · Billiards billing",
     color: "from-emerald-500 to-teal-500",
+    compareHref: "/vs/cueflow",
+    compareLabel: "CueBill / CueFlow review →",
   },
   {
     id: "for-turf",
@@ -243,6 +246,14 @@ const SolutionsSection: React.FC = () => {
               <p className="mt-3 text-[11px] uppercase tracking-[0.14em] text-violet-200/60">
                 {v.kw}
               </p>
+              {"compareHref" in v && v.compareHref && (
+                <Link
+                  to={v.compareHref}
+                  className="mt-3 inline-block text-sm font-medium text-fuchsia-300/90 hover:text-fuchsia-200 transition-colors"
+                >
+                  {"compareLabel" in v ? v.compareLabel : "Compare →"}
+                </Link>
+              )}
               <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/[0.03] blur-2xl transition-opacity duration-300 group-hover:bg-violet-500/20" />
             </motion.article>
           ))}

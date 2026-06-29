@@ -31,6 +31,7 @@ const Footer: React.FC = () => {
         { label: "Pricing", onClick: () => scrollTo("pricing") },
         { label: "Security", onClick: () => scrollTo("trust") },
         { label: "Compare", onClick: () => navigate("/compare") },
+        { label: "CueBill / CueFlow review", onClick: () => navigate("/vs/cueflow") },
         { label: "FAQ", onClick: () => scrollTo("faq") },
       ],
     },

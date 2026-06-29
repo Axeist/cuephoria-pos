@@ -128,9 +128,26 @@
   <!-- Competitor comparison pages (high-intent SEO) -->
   <url>
     <loc>https://www.cuetronix.com/compare</loc>
-    <lastmod>2026-04-22</lastmod>
+    <lastmod>2026-06-29</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
+  </url>
+  <url>
+    <loc>https://www.cuetronix.com/vs/cueflow</loc>
+    <lastmod>2026-06-29</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.98</priority>
+    <image:image>
+      <image:loc>https://www.cuetronix.com/og-image.png</image:loc>
+      <image:title>CueBill and CueFlow Review — Cuetronix Comparison</image:title>
+      <image:caption>Honest review of CueBill app and CueFlow snooker club software</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.cuetronix.com/vs/gamebiller</loc>
+    <lastmod>2026-06-29</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.85</priority>
+    <priority>0.90</priority>
   </url>
   <url>
     <loc>https://www.cuetronix.com/vs/playo</loc>
