@@ -51,13 +51,17 @@ export function mapTierRow(row: Record<string, unknown>): MembershipTier {
     isActive: Boolean(row.is_active),
     playtimeDiscountPct: Number(row.playtime_discount_pct ?? 0),
     fnbDiscountPct: Number(row.fnb_discount_pct ?? 0),
+    fnbBenefitsEnabled: row.fnb_benefits_enabled != null ? Boolean(row.fnb_benefits_enabled) : true,
     cardPaymentFnbEnabled: Boolean(row.card_payment_fnb_enabled),
     bookingPayAtVenueEnabled: Boolean(row.booking_pay_at_venue_enabled),
     minRechargeAmount: row.min_recharge_amount != null ? Number(row.min_recharge_amount) : null,
     maxCardBalance: row.max_card_balance != null ? Number(row.max_card_balance) : null,
     retailPrice: Number(row.retail_price ?? 0),
     walletCreditOnPurchase: Number(row.wallet_credit_on_purchase ?? 0),
-    defaultDuration: (row.default_duration as 'weekly' | 'monthly') ?? 'monthly',
+    defaultDuration:
+      (row.default_duration as MembershipTier['defaultDuration']) ?? 'monthly',
+    defaultValidityDays:
+      row.default_validity_days != null ? Number(row.default_validity_days) : null,
     defaultMembershipHours:
       row.default_membership_hours != null ? Number(row.default_membership_hours) : null,
     productId: row.product_id ? String(row.product_id) : null,

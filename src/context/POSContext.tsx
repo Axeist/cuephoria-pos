@@ -40,6 +40,8 @@ import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
 import { useMembershipTiers } from '@/hooks/useMembershipTiers';
 import type { MembershipPurchaseFollowUp } from '@/types/membership.types';
 import { resolveMemberFnbUnitPrice } from '@/utils/membershipBenefits.utils';
+import { computeWalletCheckoutAmounts } from '@/utils/membershipWallet.utils';
+import type { MembershipValidityOverride } from '@/utils/membershipValidity.utils';
 
 const CATEGORY_APPEARANCE_STORAGE_KEY = 'cuephoria_category_appearance_columns';
 
@@ -1270,8 +1272,13 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     customerId: string, 
     membershipData: {
       membershipPlan?: string;
-      membershipDuration?: 'weekly' | 'monthly';
+      membershipDuration?: string;
       membershipHoursLeft?: number;
+      membershipTierId?: string;
+      membershipExpiryDate?: string | null;
+      membershipStartDate?: string;
+      validityOverride?: MembershipValidityOverride;
+      tier?: import('@/types/membership.types').MembershipTier;
     }
   ): Customer | null => {
     const customer = customers.find(c => c.id === customerId);
@@ -1306,7 +1313,11 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'card',
     status: 'completed' | 'complimentary' = 'completed',
     compNote?: string,
-    customTimestamp?: Date
+    customTimestamp?: Date,
+    options?: {
+      membershipValidityOverride?: MembershipValidityOverride;
+      walletRemainderMethod?: 'cash' | 'upi';
+    },
   ): Promise<Bill | undefined> => {
     if (!selectedCustomer) {
       toast({
@@ -1354,6 +1365,40 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.log("Payment method:", isSplitPayment ? 'split' : paymentMethod);
       console.log("Transaction status:", status);
       console.log("Custom timestamp:", customTimestamp);
+
+      const memberTier = selectedCustomer.membershipTierId
+        ? membershipTiers.find((t) => t.id === selectedCustomer.membershipTierId) ?? null
+        : null;
+
+      let finalPaymentMethod = isSplitPayment ? 'split' : paymentMethod;
+      let finalIsSplit = isSplitPayment;
+      let finalCash = cashAmount;
+      let finalUpi = upiAmount;
+      let cardRedeemAmount = 0;
+
+      if (paymentMethod === 'card' && !isSplitPayment && status !== 'complimentary') {
+        const walletCheckout = computeWalletCheckoutAmounts(
+          currentCart,
+          discount,
+          discountType,
+          loyaltyPointsUsed,
+          appSettings.taxSettings,
+          memberTier,
+        );
+        cardRedeemAmount = walletCheckout.walletAmount;
+
+        if (walletCheckout.remainderAmount > 0) {
+          finalIsSplit = true;
+          finalPaymentMethod = 'split';
+          if (options?.walletRemainderMethod === 'upi') {
+            finalUpi = walletCheckout.remainderAmount;
+            finalCash = 0;
+          } else {
+            finalCash = walletCheckout.remainderAmount;
+            finalUpi = 0;
+          }
+        }
+      }
       
       const bill = await completeSaleBase(
         currentCart, 
@@ -1362,25 +1407,26 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         discountType, 
         loyaltyPointsUsed, 
         calculateTotal, 
-        isSplitPayment ? 'split' : paymentMethod,
+        finalPaymentMethod,
         products,
-        isSplitPayment,
-        cashAmount,
-        upiAmount,
+        finalIsSplit,
+        finalCash,
+        finalUpi,
         status,
         compNote,
-        customTimestamp
+        customTimestamp,
+        cardRedeemAmount,
       );
       
       if (bill) {
         console.log("Bill created successfully:", bill);
 
-        if (paymentMethod === 'card' && !isSplitPayment) {
+        if (cardRedeemAmount > 0) {
           try {
             const { redeemMembershipCard } = await import('@/services/membershipService');
             await redeemMembershipCard({
               customerId: selectedCustomer.id,
-              amount: bill.total,
+              amount: cardRedeemAmount,
               referenceType: 'bill',
               referenceId: bill.id,
             });
@@ -1411,23 +1457,18 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             
             if (product) {
               const membershipHours = product.membershipHours;
-              let membershipDuration: 'weekly' | 'monthly' = 'weekly';
-              
-              if (product.duration) {
-                membershipDuration = product.duration;
-              } else if (product.name.toLowerCase().includes('weekly')) {
-                membershipDuration = 'weekly';
-              } else if (product.name.toLowerCase().includes('monthly')) {
-                membershipDuration = 'monthly';
-              }
-              
+              const tierMeta = product.membershipTierId
+                ? membershipTiers.find((t) => t.id === product.membershipTierId)
+                : null;
+
               updateCustomerMembership(selectedCustomer.id, {
                 membershipPlan: product.name,
-                membershipDuration: membershipDuration,
                 ...(membershipHours != null && membershipHours > 0
                   ? { membershipHoursLeft: membershipHours }
                   : {}),
                 membershipTierId: product.membershipTierId,
+                tier: tierMeta ?? undefined,
+                validityOverride: options?.membershipValidityOverride,
               });
               
               break;

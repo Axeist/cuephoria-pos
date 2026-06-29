@@ -34,6 +34,7 @@ export function getFnbDiscountPct(
 ): number {
   if (!moduleEnabled || !tierPlansEnabled) return 0;
   if (!isActiveMember(customer, tier)) return 0;
+  if (tier && tier.fnbBenefitsEnabled === false) return 0;
   return Math.max(0, Math.min(100, tier?.fnbDiscountPct ?? 0));
 }
 

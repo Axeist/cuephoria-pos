@@ -9,6 +9,7 @@ import {
   registerCustomerMemoryCacheClear,
 } from '@/utils/tenantIsolation';
 import { scopedTable } from '@/services/coreOpsClient';
+import { computeMembershipExpiry } from '@/utils/membershipValidity.utils';
 
 // ✅ HELPER FUNCTIONS FOR PHONE NORMALIZATION AND ID GENERATION
 const normalizePhoneNumber = (phone: string): string => {
@@ -840,22 +841,45 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     customerId: string,
     membershipData: {
       membershipPlan?: string;
-      membershipDuration?: 'weekly' | 'monthly';
+      membershipDuration?: string;
       membershipHoursLeft?: number;
       membershipTierId?: string;
+      membershipExpiryDate?: string | null;
+      membershipStartDate?: string;
+      validityOverride?: import('@/utils/membershipValidity.utils').MembershipValidityOverride;
+      tier?: import('@/types/membership.types').MembershipTier;
     },
   ) => {
     const customer = customers.find((c) => c.id === customerId);
     if (!customer) return null;
 
     const now = new Date();
-    const membershipStartDate = now;
-    let membershipExpiryDate = new Date(now);
+    const membershipStartDate = membershipData.membershipStartDate
+      ? new Date(membershipData.membershipStartDate)
+      : now;
 
-    if (membershipData.membershipDuration === 'weekly') {
-      membershipExpiryDate.setDate(membershipExpiryDate.getDate() + 7);
-    } else if (membershipData.membershipDuration === 'monthly') {
-      membershipExpiryDate.setMonth(membershipExpiryDate.getMonth() + 1);
+    let membershipExpiryDate: Date | null | undefined = membershipData.membershipExpiryDate
+      ? new Date(membershipData.membershipExpiryDate)
+      : undefined;
+    let membershipDuration = membershipData.membershipDuration;
+
+    if (membershipData.membershipTierId && membershipData.tier) {
+      const { expiryDate, durationLabel } = computeMembershipExpiry(
+        membershipStartDate,
+        membershipData.tier,
+        membershipData.validityOverride ?? { mode: 'tier_default' },
+      );
+      if (membershipExpiryDate === undefined) {
+        membershipExpiryDate = expiryDate;
+      }
+      membershipDuration = membershipDuration ?? durationLabel;
+    } else if (membershipExpiryDate === undefined) {
+      membershipExpiryDate = new Date(membershipStartDate);
+      if (membershipData.membershipDuration === 'weekly') {
+        membershipExpiryDate.setDate(membershipExpiryDate.getDate() + 7);
+      } else if (membershipData.membershipDuration === 'monthly') {
+        membershipExpiryDate.setMonth(membershipExpiryDate.getMonth() + 1);
+      }
     }
 
     if (membershipData.membershipTierId) {
@@ -865,8 +889,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           customerId,
           tierId: membershipData.membershipTierId,
           membershipStartDate: membershipStartDate.toISOString(),
-          membershipExpiryDate: membershipExpiryDate.toISOString(),
-          membershipDuration: membershipData.membershipDuration ?? null,
+          membershipExpiryDate: membershipExpiryDate?.toISOString() ?? null,
+          membershipDuration: membershipDuration ?? membershipData.membershipDuration ?? null,
           membershipHoursLeft: membershipData.membershipHoursLeft ?? null,
         });
       } catch (err) {
@@ -879,13 +903,13 @@ export const useCustomers = (initialCustomers: Customer[]) => {
       isMember: true,
       membershipTierId: membershipData.membershipTierId || customer.membershipTierId,
       membershipTierName: membershipData.membershipPlan || customer.membershipTierName,
-      membershipDuration: membershipData.membershipDuration || customer.membershipDuration,
+      membershipDuration: membershipDuration || customer.membershipDuration,
       membershipHoursLeft:
         membershipData.membershipHoursLeft !== undefined
           ? membershipData.membershipHoursLeft
           : customer.membershipHoursLeft,
       membershipStartDate,
-      membershipExpiryDate,
+      membershipExpiryDate: membershipExpiryDate ?? undefined,
     };
 
     const result = await updateCustomer(updatedCustomer);

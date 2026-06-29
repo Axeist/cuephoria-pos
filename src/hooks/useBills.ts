@@ -110,6 +110,7 @@ export const useBills = (
       isSplitPayment: bill.is_split_payment || false,
       cashAmount: bill.cash_amount ? Number(bill.cash_amount) : 0,
       upiAmount: bill.upi_amount ? Number(bill.upi_amount) : 0,
+      cardAmount: bill.card_amount ? Number(bill.card_amount) : 0,
       taxableAmount: bill.taxable_amount != null ? Number(bill.taxable_amount) : undefined,
       taxAmount: bill.tax_amount != null ? Number(bill.tax_amount) : undefined,
       taxRate: bill.tax_rate != null ? Number(bill.tax_rate) : undefined,
@@ -362,7 +363,8 @@ export const useBills = (
     upiAmount: number = 0,
     status: 'completed' | 'complimentary' = 'completed',
     compNote?: string,
-    customTimestamp?: Date  // ✅ NEW PARAMETER
+    customTimestamp?: Date,
+    cardAmount: number = 0,
   ): Promise<Bill | undefined> => {
     try {
       console.log('Starting completeSale with cart:', cart);
@@ -405,6 +407,23 @@ export const useBills = (
       const billTimestamp = customTimestamp || new Date();
       console.log('Bill will be created with timestamp:', billTimestamp);
 
+      const resolvedIsSplit =
+        isSplitPayment || (cardAmount > 0 && (cashAmount > 0 || upiAmount > 0));
+      const resolvedPaymentMethod =
+        cardAmount > 0 && !resolvedIsSplit
+          ? 'card'
+          : paymentMethod;
+      const resolvedCashAmount = resolvedIsSplit
+        ? cashAmount
+        : paymentMethod === 'cash'
+          ? total
+          : 0;
+      const resolvedUpiAmount = resolvedIsSplit
+        ? upiAmount
+        : paymentMethod === 'upi'
+          ? total
+          : 0;
+
       const { data: billData, error: billError } = await scopedTable('bills', activeLocationId).insert({
         customer_id: customer.id,
         subtotal: subtotal,
@@ -414,12 +433,13 @@ export const useBills = (
         loyalty_points_used: loyaltyPointsUsed,
         loyalty_points_earned: loyaltyPointsEarned,
         total: total,
-        payment_method: paymentMethod,
+        payment_method: resolvedPaymentMethod,
         status: status,
         comp_note: compNote,
-        is_split_payment: isSplitPayment,
-        cash_amount: isSplitPayment ? cashAmount : (paymentMethod === 'cash' ? total : 0),
-        upi_amount: isSplitPayment ? upiAmount : (paymentMethod === 'upi' ? total : 0),
+        is_split_payment: resolvedIsSplit,
+        cash_amount: resolvedCashAmount,
+        upi_amount: resolvedUpiAmount,
+        card_amount: cardAmount,
         taxable_amount: taxResult.taxableAmount,
         tax_amount: taxResult.taxAmount,
         tax_rate: taxResult.taxRate,
@@ -537,12 +557,13 @@ export const useBills = (
         loyaltyPointsUsed: loyaltyPointsUsed,
         loyaltyPointsEarned: loyaltyPointsEarned,
         total: total,
-        paymentMethod: paymentMethod,
+        paymentMethod: resolvedPaymentMethod,
         status: status,
         compNote: compNote,
-        isSplitPayment: isSplitPayment,
-        cashAmount: isSplitPayment ? cashAmount : (paymentMethod === 'cash' ? total : 0),
-        upiAmount: isSplitPayment ? upiAmount : (paymentMethod === 'upi' ? total : 0),
+        isSplitPayment: resolvedIsSplit,
+        cashAmount: resolvedCashAmount,
+        upiAmount: resolvedUpiAmount,
+        cardAmount,
         taxableAmount: taxResult.taxableAmount,
         taxAmount: taxResult.taxAmount,
         taxRate: taxResult.taxRate,

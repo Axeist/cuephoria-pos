@@ -27,6 +27,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import SplitPaymentForm from '@/components/checkout/SplitPaymentForm';
 import SavedCartsManager from '@/components/SavedCartsManager';
 import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
+import { useMembershipTiers } from '@/hooks/useMembershipTiers';
 import NfcCardLookupPanel from '@/components/memberships/NfcCardLookupPanel';
 import MembershipPurchaseOnboardingDialog from '@/components/memberships/MembershipPurchaseOnboardingDialog';
 import type { MembershipCardLookupResult } from '@/types/membership.types';
@@ -50,6 +51,19 @@ import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { useViewMode } from '@/context/ViewModeContext';
 import { computeBillTaxFromCart } from '@/utils/tax.utils';
+import { computeWalletCheckoutAmounts } from '@/utils/membershipWallet.utils';
+import {
+  computeMembershipExpiry,
+  formatValidityLabel,
+  type MembershipValidityOverride,
+} from '@/utils/membershipValidity.utils';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { usePosCustomerPickerSearch } from '@/hooks/usePosCustomerPickerSearch';
 
 const POS = () => {
@@ -108,9 +122,15 @@ const POS = () => {
   const [customBillTime, setCustomBillTime] = useState('');
   const [useCustomDateTime, setUseCustomDateTime] = useState(false);
   const [discountPinUnlocked, setDiscountPinUnlocked] = useState(false);
+  const [membershipValidityChoice, setMembershipValidityChoice] = useState<
+    'tier_default' | 'lifetime' | 'custom_date'
+  >('tier_default');
+  const [membershipCustomExpiryDate, setMembershipCustomExpiryDate] = useState('');
+  const [walletRemainderMethod, setWalletRemainderMethod] = useState<'cash' | 'upi'>('cash');
 
   const { user } = useAuth();
   const { canUse, isEnabled: membershipModuleEnabled } = useMembershipFeatures();
+  const { tiers: membershipTiers } = useMembershipTiers();
   const canApplyDiscount = usePermission('pos.discount');
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
 
@@ -374,6 +394,19 @@ const POS = () => {
       return;
     }
     
+    if (
+      membershipSaleTier &&
+      membershipValidityChoice === 'custom_date' &&
+      !membershipCustomExpiryDate
+    ) {
+      toast({
+        title: 'Membership expiry required',
+        description: 'Pick an end date for this membership or use tier default.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsCompletingSale(true);
     
     try {
@@ -384,7 +417,16 @@ const POS = () => {
       }
       
       console.log("Starting completeSale process...");
-      const bill = await completeSale(paymentMethod, undefined, undefined, customTimestamp);
+      const bill = await completeSale(
+        paymentMethod,
+        undefined,
+        undefined,
+        customTimestamp,
+        {
+          membershipValidityOverride,
+          walletRemainderMethod,
+        },
+      );
       console.log("CompleteSale returned:", bill);
       
       if (bill) {
@@ -493,12 +535,57 @@ const POS = () => {
     discountValue = discount;
   }
   const total = calculateTotal();
+  const { settings } = useAppSettings();
+
+  const membershipCartProduct = useMemo(() => {
+    return cart
+      .map((item) => products.find((p) => p.id === item.id && p.category === 'membership'))
+      .find(Boolean) ?? null;
+  }, [cart, products]);
+
+  const membershipSaleTier = useMemo(() => {
+    if (!membershipCartProduct?.membershipTierId) return null;
+    return membershipTiers.find((t) => t.id === membershipCartProduct.membershipTierId) ?? null;
+  }, [membershipCartProduct, membershipTiers]);
+
+  const membershipValidityOverride = useMemo((): MembershipValidityOverride | undefined => {
+    if (!membershipSaleTier) return undefined;
+    if (membershipValidityChoice === 'lifetime') return { mode: 'lifetime' };
+    if (membershipValidityChoice === 'custom_date' && membershipCustomExpiryDate) {
+      return { mode: 'custom_date', expiryDate: new Date(membershipCustomExpiryDate) };
+    }
+    return { mode: 'tier_default' };
+  }, [membershipSaleTier, membershipValidityChoice, membershipCustomExpiryDate]);
+
+  const membershipExpiryPreview = useMemo(() => {
+    if (!membershipSaleTier || !membershipValidityOverride) return null;
+    return computeMembershipExpiry(new Date(), membershipSaleTier, membershipValidityOverride);
+  }, [membershipSaleTier, membershipValidityOverride]);
+
+  const memberTier = useMemo(() => {
+    if (!selectedCustomer?.membershipTierId) return null;
+    return membershipTiers.find((t) => t.id === selectedCustomer.membershipTierId) ?? null;
+  }, [selectedCustomer?.membershipTierId, membershipTiers]);
+
+  const walletCheckout = useMemo(
+    () =>
+      computeWalletCheckoutAmounts(
+        cart,
+        discount,
+        discountType,
+        loyaltyPointsUsed,
+        settings.taxSettings,
+        memberTier,
+      ),
+    [cart, discount, discountType, loyaltyPointsUsed, settings.taxSettings, memberTier],
+  );
+
   const canPayWithCard =
     membershipModuleEnabled &&
     canUse('card_balance_payments_enabled') &&
     Boolean(selectedCustomer?.membershipTierId) &&
-    (selectedCustomer?.cardBalance ?? 0) >= total;
-  const { settings } = useAppSettings();
+    walletCheckout.walletAmount > 0 &&
+    (selectedCustomer?.cardBalance ?? 0) >= walletCheckout.walletAmount;
   const taxPreview = useMemo(
     () =>
       computeBillTaxFromCart(
@@ -1310,8 +1397,12 @@ const POS = () => {
                     title={
                       !selectedCustomer?.membershipTierId
                         ? 'Members only'
-                        : (selectedCustomer?.cardBalance ?? 0) < total
+                        : walletCheckout.walletAmount <= 0
+                          ? 'Wallet cannot cover items in this cart'
+                        : (selectedCustomer?.cardBalance ?? 0) < walletCheckout.walletAmount
                           ? 'Insufficient card balance'
+                          : walletCheckout.remainderAmount > 0
+                            ? `Wallet pays ${formatCurrency(walletCheckout.walletAmount)}; F&B paid separately`
                           : 'Pay from membership card balance'
                     }
                   >
@@ -1331,7 +1422,73 @@ const POS = () => {
                   </div>
                 )}
               </RadioGroup>
+
+              {paymentMethod === 'card' && walletCheckout.remainderAmount > 0 && (
+                <div className="mt-3 rounded-lg border border-cuephoria-purple/30 bg-cuephoria-purple/5 p-3 space-y-2 text-sm">
+                  <p>
+                    Wallet (gaming): <CurrencyDisplay amount={walletCheckout.walletAmount} />
+                  </p>
+                  <p>
+                    F&B due separately: <CurrencyDisplay amount={walletCheckout.remainderAmount} />
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <Label className="text-xs">Pay F&B via</Label>
+                    <RadioGroup
+                      value={walletRemainderMethod}
+                      onValueChange={(v) => setWalletRemainderMethod(v as 'cash' | 'upi')}
+                      className="flex gap-4"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="cash" id="wallet-remainder-cash" />
+                        <Label htmlFor="wallet-remainder-cash">Cash</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="upi" id="wallet-remainder-upi" />
+                        <Label htmlFor="wallet-remainder-upi">UPI</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {membershipSaleTier && (
+              <div className="space-y-3 border-t pt-4">
+                <h4 className="font-medium font-heading">Membership validity</h4>
+                <Select
+                  value={membershipValidityChoice}
+                  onValueChange={(v: 'tier_default' | 'lifetime' | 'custom_date') =>
+                    setMembershipValidityChoice(v)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tier_default">
+                      Tier default ({formatValidityLabel(membershipSaleTier)})
+                    </SelectItem>
+                    <SelectItem value="lifetime">Lifetime</SelectItem>
+                    <SelectItem value="custom_date">Custom end date</SelectItem>
+                  </SelectContent>
+                </Select>
+                {membershipValidityChoice === 'custom_date' && (
+                  <Input
+                    type="date"
+                    value={membershipCustomExpiryDate}
+                    onChange={(e) => setMembershipCustomExpiryDate(e.target.value)}
+                  />
+                )}
+                {membershipExpiryPreview && (
+                  <p className="text-xs text-muted-foreground">
+                    Expires:{' '}
+                    {membershipExpiryPreview.expiryDate
+                      ? membershipExpiryPreview.expiryDate.toLocaleDateString('en-IN')
+                      : 'Lifetime'}
+                  </p>
+                )}
+              </div>
+            )}
 
             {paymentMethod === 'split' && (
               <div className="mt-4 animate-slide-up delay-450">

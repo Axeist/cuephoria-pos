@@ -20,7 +20,7 @@ export interface Product {
   originalPrice?: number;
   offerPrice?: number;
   studentPrice?: number;
-  duration?: 'weekly' | 'monthly';
+  duration?: 'lifetime' | 'weekly' | 'monthly' | 'custom_days';
   membershipHours?: number;
   membershipTierId?: string;
 }
@@ -149,6 +149,7 @@ export interface Bill {
   isSplitPayment?: boolean;
   cashAmount?: number;
   upiAmount?: number;
+  cardAmount?: number;
   transactionFee?: number; // Transaction fee for online payments (2.5% of total)
   createdAt: Date;
 }
@@ -277,8 +278,13 @@ export interface POSContextType {
   updateCustomer: (customer: Customer) => void;
   updateCustomerMembership: (customerId: string, membershipData: {
     membershipPlan?: string;
-    membershipDuration?: 'weekly' | 'monthly';
+    membershipDuration?: string;
     membershipHoursLeft?: number;
+    membershipTierId?: string;
+    membershipExpiryDate?: string | null;
+    membershipStartDate?: string;
+    validityOverride?: import('@/utils/membershipValidity.utils').MembershipValidityOverride;
+    tier?: import('@/types/membership.types').MembershipTier;
   }) => Customer | null;
   deleteCustomer: (id: string) => void;
   selectCustomer: (id: string | null) => void;
@@ -309,9 +315,14 @@ export interface POSContextType {
   pendingMembershipFollowUp: MembershipPurchaseFollowUp | null;
   clearPendingMembershipFollowUp: () => void;
   completeSale: (
-    paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'razorpay',
+    paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'razorpay' | 'card',
     status?: 'completed' | 'complimentary',
-    compNote?: string
+    compNote?: string,
+    customTimestamp?: Date,
+    options?: {
+      membershipValidityOverride?: import('@/utils/membershipValidity.utils').MembershipValidityOverride;
+      walletRemainderMethod?: 'cash' | 'upi';
+    },
   ) => Promise<Bill | undefined>;
   updateBill: (
     originalBill: Bill, 

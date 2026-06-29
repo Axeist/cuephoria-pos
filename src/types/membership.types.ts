@@ -46,13 +46,17 @@ export interface MembershipTier {
   isActive: boolean;
   playtimeDiscountPct: number;
   fnbDiscountPct: number;
+  /** When false, F&B tier discounts are not applied. */
+  fnbBenefitsEnabled: boolean;
+  /** When true, member wallet balance can pay F&B lines; when false, gaming/non-F&B only. */
   cardPaymentFnbEnabled: boolean;
   bookingPayAtVenueEnabled: boolean;
   minRechargeAmount?: number | null;
   maxCardBalance?: number | null;
   retailPrice?: number;
   walletCreditOnPurchase?: number;
-  defaultDuration?: 'weekly' | 'monthly';
+  defaultDuration?: 'lifetime' | 'weekly' | 'monthly' | 'custom_days';
+  defaultValidityDays?: number | null;
   defaultMembershipHours?: number | null;
   productId?: string | null;
   description?: string;

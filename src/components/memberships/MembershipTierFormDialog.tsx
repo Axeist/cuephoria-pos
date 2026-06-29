@@ -132,6 +132,7 @@ export default function MembershipTierFormDialog({
                     max={100}
                     value={tierForm.fnbDiscountPct}
                     onChange={(e) => set({ fnbDiscountPct: Number(e.target.value) })}
+                    disabled={tierForm.fnbBenefitsEnabled === false}
                   />
                 </div>
               </div>
@@ -210,26 +211,55 @@ export default function MembershipTierFormDialog({
                     )}
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Default duration</Label>
+                    <Label>Default validity</Label>
                     <Select
                       value={tierForm.defaultDuration ?? 'monthly'}
-                      onValueChange={(v: 'weekly' | 'monthly') => set({ defaultDuration: v })}
+                      onValueChange={(v: MembershipTier['defaultDuration']) =>
+                        set({ defaultDuration: v })
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="lifetime">Lifetime</SelectItem>
                         <SelectItem value="weekly">Weekly</SelectItem>
                         <SelectItem value="monthly">Monthly</SelectItem>
+                        <SelectItem value="custom_days">Custom (days)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+                  {tierForm.defaultDuration === 'custom_days' && (
+                    <div className="space-y-1.5">
+                      <Label>Validity period (days)</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={tierForm.defaultValidityDays ?? 30}
+                        onChange={(e) =>
+                          set({ defaultValidityDays: Number(e.target.value) || 30 })
+                        }
+                      />
+                    </div>
+                  )}
                   <div className="space-y-3 rounded-xl border border-white/8 bg-white/[0.02] p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <Label>F&B discount with card balance</Label>
+                        <Label>F&B benefits</Label>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Apply tier F&B discount when paying with wallet balance.
+                          Apply tier F&B discounts on food and drinks for members.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={tierForm.fnbBenefitsEnabled !== false}
+                        onCheckedChange={(checked) => set({ fnbBenefitsEnabled: checked })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label>Wallet covers F&B bills</Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          When off, wallet balance only pays gaming and non-F&B items.
                         </p>
                       </div>
                       <Switch
@@ -272,11 +302,13 @@ export default function MembershipTierFormDialog({
                   isActive: tierForm.isActive ?? true,
                   playtimeDiscountPct: tierForm.playtimeDiscountPct ?? 0,
                   fnbDiscountPct: tierForm.fnbDiscountPct ?? 0,
+                  fnbBenefitsEnabled: tierForm.fnbBenefitsEnabled !== false,
                   cardPaymentFnbEnabled: tierForm.cardPaymentFnbEnabled ?? false,
                   bookingPayAtVenueEnabled: tierForm.bookingPayAtVenueEnabled ?? false,
                   retailPrice: tierForm.retailPrice ?? 0,
                   walletCreditOnPurchase: tierForm.walletCreditOnPurchase ?? 0,
                   defaultDuration: tierForm.defaultDuration ?? 'monthly',
+                  defaultValidityDays: tierForm.defaultValidityDays ?? null,
                   defaultMembershipHours: tierForm.defaultMembershipHours ?? null,
                   description: tierForm.description ?? '',
                   tagline: tierForm.tagline ?? '',

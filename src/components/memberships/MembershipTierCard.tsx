@@ -4,6 +4,7 @@ import { Gamepad2, Utensils, Wallet, Calendar, Clock, Sparkles } from 'lucide-re
 import { Badge } from '@/components/ui/badge';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import type { MembershipTier } from '@/types/membership.types';
+import { formatValidityLabel } from '@/utils/membershipValidity.utils';
 import { cn } from '@/lib/utils';
 import {
   normalizeTierAccent,
@@ -82,7 +83,7 @@ export default function MembershipTierCard({
               {tier.playtimeDiscountPct}% playtime
             </span>
           )}
-          {tier.fnbDiscountPct > 0 && (
+          {tier.fnbBenefitsEnabled !== false && tier.fnbDiscountPct > 0 && (
             <span className={cn('inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px]', style.chip)}>
               <Utensils className="h-3 w-3" />
               {tier.fnbDiscountPct}% F&B
@@ -96,7 +97,7 @@ export default function MembershipTierCard({
           )}
           <span className={cn('inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px]', style.chip)}>
             <Calendar className="h-3 w-3" />
-            {tier.defaultDuration === 'weekly' ? 'Weekly' : 'Monthly'}
+            {formatValidityLabel(tier)}
           </span>
           {tier.defaultMembershipHours != null && tier.defaultMembershipHours > 0 && (
             <span className={cn('inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px]', style.chip)}>
