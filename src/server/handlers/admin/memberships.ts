@@ -176,8 +176,11 @@ export default async function handler(req: Request) {
       const permGate = assertWorkspacePermission(access, perm);
       if (isDenied(permGate)) return j({ ok: false, error: permGate.error }, 403);
 
-      const modGate = assertMembershipFeature(flags, 'module_enabled');
-      if (isDenied(modGate)) return j({ ok: false, error: modGate.error }, 403);
+      // Allow updateSettings to enable module_enabled (first-time setup).
+      if (op !== 'updateSettings') {
+        const modGate = assertMembershipFeature(flags, 'module_enabled');
+        if (isDenied(modGate)) return j({ ok: false, error: modGate.error }, 403);
+      }
 
       const featKey = OP_FEATURES[op];
       if (featKey) {
