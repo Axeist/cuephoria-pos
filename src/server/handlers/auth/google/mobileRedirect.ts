@@ -2,15 +2,15 @@
  * Android OAuth callback helpers — redirect to /auth/app-complete with signed ticket.
  */
 
-import { cookieSerialize } from "../../adminApiUtils";
+import { cookieSerialize } from "../../../adminApiUtils";
 import {
   signMobileTicket,
   type MobileTicketErrorData,
   type MobileTicketLoginData,
   type MobileTicketSignupData,
   type MobileTicketTotpData,
-} from "../../mobileAuthTicket";
-import type { OauthStatePayload } from "../../googleOauth";
+} from "../../../mobileAuthTicket";
+import type { OauthStatePayload } from "../../../googleOauth";
 
 const STATE_COOKIE = "cuetronix_oauth_state";
 

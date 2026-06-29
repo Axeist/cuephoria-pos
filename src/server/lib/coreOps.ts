@@ -275,7 +275,9 @@ export async function executeCoreOp(
     orgWide,
     ctx.access,
   );
-  if (!scoped.ok) return scoped;
+  if (scoped.ok === false) {
+    return { ok: false, error: scoped.error, status: scoped.status };
+  }
 
   // Location scope must be applied AFTER the action verb (select/update/delete)
   // because supabase-js filter methods don't exist on the bare from() builder.
@@ -324,15 +326,22 @@ export async function executeCoreOp(
       if (isDenied(owned)) return { ok: false, error: owned.message, status: 404 };
 
       const prepared = rows.map((r) => injectLocationOnWrite(table, locationId, r));
-      let q = supabase.from(table).insert(prepared);
       // Supabase insert().single() returns null without an explicit select().
-      if (payload.select || payload.single) q = q.select(selectStr);
       if (payload.single) {
-        const { data, error } = await q.single();
+        const { data, error } = await supabase
+          .from(table)
+          .insert(prepared)
+          .select(selectStr)
+          .single();
         if (error) return { ok: false, error: error.message, status: 500 };
         return { ok: true, data };
       }
-      const { data, error } = await q;
+      if (payload.select) {
+        const { data, error } = await supabase.from(table).insert(prepared).select(selectStr);
+        if (error) return { ok: false, error: error.message, status: 500 };
+        return { ok: true, data };
+      }
+      const { data, error } = await supabase.from(table).insert(prepared);
       if (error) return { ok: false, error: error.message, status: 500 };
       return { ok: true, data };
     }
@@ -341,22 +350,22 @@ export async function executeCoreOp(
       if (!payload.row || typeof payload.row !== "object") {
         return { ok: false, error: "Missing row for update", status: 400 };
       }
-      let q = applyFilters(supabase.from(table).update(payload.row), filters);
-      if (payload.select || payload.single) q = q.select(selectStr);
+      const updateQuery = applyFilters(supabase.from(table).update(payload.row), filters);
       if (payload.single) {
-        const { data, error } = await q.single();
+        const { data, error } = await updateQuery.select(selectStr).single();
         if (error) return { ok: false, error: error.message, status: 500 };
         return { ok: true, data };
       }
-      const { data, error } = await q.select();
+      const { data, error } = await updateQuery.select(selectStr);
       if (error) return { ok: false, error: error.message, status: 500 };
       return { ok: true, data };
     }
 
     if (action === "delete") {
-      let q = applyFilters(supabase.from(table).delete(), filters);
-      if (payload.select) q = q.select(payload.select);
-      const { data, error } = await q;
+      const deleteQuery = applyFilters(supabase.from(table).delete(), filters);
+      const { data, error } = payload.select
+        ? await deleteQuery.select(payload.select)
+        : await deleteQuery;
       if (error) return { ok: false, error: error.message, status: 500 };
       return { ok: true, data };
     }

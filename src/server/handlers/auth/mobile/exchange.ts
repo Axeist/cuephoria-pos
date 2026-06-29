@@ -10,8 +10,8 @@ import {
   cookieSerialize,
   j,
   jWithCookies,
-} from "../../adminApiUtils";
-import { csrfCookieHeader } from "../../lib/csrf";
+} from "../../../adminApiUtils";
+import { csrfCookieHeader } from "../../../lib/csrf";
 import {
   parseMobileTicketData,
   verifyMobileTicket,
@@ -19,7 +19,7 @@ import {
   type MobileTicketLoginData,
   type MobileTicketSignupData,
   type MobileTicketTotpData,
-} from "../../mobileAuthTicket";
+} from "../../../mobileAuthTicket";
 
 export const config = { runtime: "edge" };
 
