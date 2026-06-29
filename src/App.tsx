@@ -27,7 +27,7 @@ const PlatformPlans = lazy(() => import("@/pages/platform/PlatformPlans"));
 const PlatformBroadcasts = lazy(() => import("@/pages/platform/PlatformBroadcasts"));
 const PlatformSandbox = lazy(() => import("@/pages/platform/PlatformSandbox"));
 import { flags } from "@/config/featureFlags";
-import { cueflowLandingPaths } from "@/data/cueflowLandings";
+import { allCompetitorLandingPaths } from "@/data/competitorLandingsIndex";
 import { AppHeader } from "@/components/AppHeader";
 import { POSProvider } from "@/context/POSContext";
 import { ExpenseProvider } from "@/context/ExpenseContext";
@@ -571,7 +571,7 @@ const App = () => {
                     </LazyPage>
                   }
                 />
-                {cueflowLandingPaths.map((landingPath) => (
+                {allCompetitorLandingPaths.map((landingPath) => (
                   <Route
                     key={landingPath}
                     path={landingPath}

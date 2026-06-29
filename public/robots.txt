@@ -32,6 +32,16 @@ Allow: /cueflow-vs-cuetronix
 Allow: /is-cuebill-worth-it
 Allow: /cueflow-review
 Allow: /why-not-cueflow
+Allow: /cuebook-alternative
+Allow: /cuebook-review
+Allow: /cuebook-vs-cuetronix
+Allow: /is-cuebook-worth-it
+Allow: /why-not-cuebook
+Allow: /clubsync-alternative
+Allow: /club-sync-india-alternative
+Allow: /clubsync-review
+Allow: /clubsync-vs-cuetronix
+Allow: /why-not-clubsync
 Allow: /terms
 Allow: /terms-and-conditions
 Allow: /privacy

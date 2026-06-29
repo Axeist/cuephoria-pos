@@ -7,15 +7,19 @@ import Header from "@/components/landing/Header";
 import Footer from "@/components/landing/Footer";
 import SiteAmbientBackground from "@/components/landing/SiteAmbientBackground";
 import { Button } from "@/components/ui/button";
-import { cueflowLandingByPath } from "@/data/cueflowLandings";
+import {
+  competitorFullComparePath,
+  competitorLandingLabel,
+} from "@/data/competitorLandingTypes";
+import { competitorLandingByPath } from "@/data/competitorLandingsIndex";
 
-const FULL_COMPARE = "/vs/cueflow";
-
-const CueflowLanding: React.FC = () => {
+const CompetitorLanding: React.FC = () => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
-  const page = cueflowLandingByPath(pathname);
+  const page = competitorLandingByPath(pathname);
+  const competitorLabel = page ? competitorLandingLabel(page.competitorSlug) : "Competitor";
+  const fullComparePath = page ? competitorFullComparePath(page.competitorSlug) : "/compare";
 
   useEffect(() => {
     if (!page) return;
@@ -57,7 +61,7 @@ const CueflowLanding: React.FC = () => {
 
     const jsonLd = document.createElement("script");
     jsonLd.type = "application/ld+json";
-    jsonLd.setAttribute("data-cueflow-landing", page.path);
+    jsonLd.setAttribute("data-competitor-landing", page.path);
     jsonLd.text = JSON.stringify([
       {
         "@context": "https://schema.org",
@@ -100,12 +104,14 @@ const CueflowLanding: React.FC = () => {
     return (
       <div className="lp-root relative min-h-screen bg-[#05060b] text-white flex flex-col items-center justify-center px-6">
         <h1 className="text-3xl font-extrabold mb-4">Page not found</h1>
-        <Button onClick={() => navigate(FULL_COMPARE)} className="bg-gradient-to-r from-violet-600 to-fuchsia-600">
-          CueFlow comparison <ArrowRight size={16} className="ml-2" />
+        <Button onClick={() => navigate("/compare")} className="bg-gradient-to-r from-violet-600 to-fuchsia-600">
+          Compare hub <ArrowRight size={16} className="ml-2" />
         </Button>
       </div>
     );
   }
+
+  const mythsTitle = page.mythsSectionTitle ?? `${competitorLabel} claims vs facts`;
 
   return (
     <div className="lp-root relative min-h-screen bg-[#05060b] text-white antialiased selection:bg-violet-500/40 selection:text-white">
@@ -155,8 +161,8 @@ const CueflowLanding: React.FC = () => {
                 >
                   Start 14-day free trial <ArrowRight size={16} className="ml-2" />
                 </Button>
-                <Button variant="outline" onClick={() => navigate(FULL_COMPARE)} className="border-white/20">
-                  Full CueFlow comparison
+                <Button variant="outline" onClick={() => navigate(fullComparePath)} className="border-white/20">
+                  Full {competitorLabel} comparison
                 </Button>
               </div>
             </motion.div>
@@ -165,7 +171,7 @@ const CueflowLanding: React.FC = () => {
               <section className="mt-14">
                 <h2 className="text-xl font-bold text-white mb-5 flex items-center gap-2">
                   <ShieldAlert size={20} className="text-rose-300" />
-                  CueFlow claims vs facts
+                  {mythsTitle}
                 </h2>
                 <div className="space-y-4">
                   {page.myths.map((m) => (
@@ -215,13 +221,14 @@ const CueflowLanding: React.FC = () => {
             <section className="mt-14 glass-card p-6 sm:p-8 text-center border-fuchsia-500/20">
               <h2 className="text-2xl font-bold text-white">See the full scored comparison</h2>
               <p className="mt-3 text-gray-400 max-w-xl mx-auto">
-                30+ features, security rows, migration steps, and operator verdict — everything CueFlow&apos;s pages leave out.
+                30+ features, HRMS & Razorpay booking rows, migration steps, and operator verdict — why Cuetronix is
+                the all-in-one gaming venue OS.
               </p>
               <Button
-                onClick={() => navigate(FULL_COMPARE)}
+                onClick={() => navigate(fullComparePath)}
                 className="mt-6 bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600"
               >
-                CueBill & CueFlow full review <ArrowRight size={16} className="ml-2" />
+                {competitorLabel} full review <ArrowRight size={16} className="ml-2" />
               </Button>
             </section>
 
@@ -248,4 +255,4 @@ const CueflowLanding: React.FC = () => {
   );
 };
 
-export default CueflowLanding;
+export default CompetitorLanding;

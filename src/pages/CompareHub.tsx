@@ -20,8 +20,38 @@ import SiteAmbientBackground from "@/components/landing/SiteAmbientBackground";
 import { Button } from "@/components/ui/button";
 import { competitors } from "@/data/competitors";
 import { cueflowLandings } from "@/data/cueflowLandings";
+import { cuebookLandings } from "@/data/cuebookLandings";
+import { clubsyncLandings } from "@/data/clubsyncLandings";
+import type { CompetitorLandingPage } from "@/data/competitorLandingTypes";
 
-const FEATURED_SLUGS = ["cueflow", "gamebiller", "playo", "hudle"];
+const FEATURED_SLUGS = ["cueflow", "cuebook", "clubsync", "gamebiller", "playo", "hudle"];
+
+const GuideCluster: React.FC<{
+  title: string;
+  landings: CompetitorLandingPage[];
+  fullComparePath: string;
+}> = ({ title, landings, fullComparePath }) => (
+  <section className="max-w-6xl mx-auto px-5 sm:px-8 mt-8">
+    <div className="text-[11px] uppercase tracking-[0.22em] text-white/40 mb-3 font-semibold">{title}</div>
+    <div className="flex flex-wrap gap-2">
+      {landings.map((l) => (
+        <Link
+          key={l.path}
+          to={l.path}
+          className="inline-block rounded-full border border-white/8 bg-white/[0.02] px-3 py-1.5 text-xs text-white/60 hover:text-fuchsia-200 hover:border-fuchsia-300/30 transition-colors"
+        >
+          {l.path.replace(/^\//, "").replace(/-/g, " ")}
+        </Link>
+      ))}
+      <Link
+        to={fullComparePath}
+        className="inline-block rounded-full border border-fuchsia-300/30 bg-fuchsia-500/10 px-3 py-1.5 text-xs text-fuchsia-200 font-semibold"
+      >
+        full comparison →
+      </Link>
+    </div>
+  </section>
+);
 
 const BrandBadge: React.FC<{ mark: string; color: string }> = ({ mark, color }) => (
   <div
@@ -66,7 +96,7 @@ const CompareHub: React.FC = () => {
   useEffect(() => {
     const prevTitle = document.title;
     document.title =
-      "Cuetronix Comparisons — CueBill & CueFlow Review, GameBiller, Playo, Hudle & More (2026)";
+      "Cuetronix Comparisons — CueBook, Club Sync, CueFlow, GameBiller & More (2026)";
 
     const upsert = (selector: string, attr: "name" | "property", key: string, value: string) => {
       let el = document.head.querySelector<HTMLMetaElement>(selector);
@@ -80,11 +110,11 @@ const CompareHub: React.FC = () => {
     };
 
     const desc =
-      "Honest CueBill & CueFlow review plus Cuetronix comparisons with GameBiller, Playo, Hudle, ggLeap, SENET, SmartLaunch, CourtReserve, Skedda and SpringboardVR. Feature matrices, pricing, migration guides and verdicts.";
+      "Honest CueBook, Club Sync India, and CueBill/CueFlow reviews plus Cuetronix comparisons with GameBiller, Playo, Hudle and more. All-in-one gaming venue OS with corporate HRMS and Razorpay booking.";
 
     const created = [
       upsert(`meta[name="description"]`,         "name",     "description",         desc),
-      upsert(`meta[name="keywords"]`,            "name",     "keywords",            "CueBill review, CueFlow review, is CueBill worth it, CueBill alternative, CueFlow alternative, gaming venue software comparison, GameBiller alternative, Playo alternative, Hudle alternative, snooker club software India, venue management software"),
+      upsert(`meta[name="keywords"]`,            "name",     "keywords",            "CueBook alternative, Club Sync India alternative, CueBill review, CueFlow review, is CueBook worth it, gaming venue software comparison, corporate HRMS snooker club, Razorpay booking portal, GameBiller alternative, Playo alternative, Hudle alternative, snooker club software India"),
       upsert(`meta[property="og:title"]`,        "property", "og:title",            "Cuetronix Comparisons — the complete competitor index"),
       upsert(`meta[property="og:description"]`,  "property", "og:description",      desc),
       upsert(`meta[property="og:type"]`,         "property", "og:type",             "website"),
@@ -167,7 +197,7 @@ const CompareHub: React.FC = () => {
       <noscript>
         <div className="p-8 text-white">
           <h1>Cuetronix Comparisons — the complete competitor index</h1>
-          <p>Honest CueBill & CueFlow review plus comparisons with GameBiller, Playo, Hudle, ggLeap, SENET, SmartLaunch, CourtReserve, Skedda and SpringboardVR.</p>
+          <p>Honest CueBook, Club Sync India, and CueBill/CueFlow reviews plus comparisons with GameBiller, Playo, Hudle, and more.</p>
           <ul>
             {competitors.map((c) => (
               <li key={c.slug}>
@@ -214,6 +244,62 @@ const CompareHub: React.FC = () => {
             </motion.div>
           </section>
 
+          {/* ─── CueBook research CTA ─── */}
+          <section className="max-w-6xl mx-auto px-5 sm:px-8 mt-12">
+            <Link
+              to="/vs/cuebook"
+              className="glass-card glass-card-interactive block p-6 sm:p-8 relative overflow-hidden group"
+            >
+              <div className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-teal-500/20 blur-3xl" />
+              <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-teal-200/90 font-semibold mb-2">
+                    Researching CueBook (cuebook.in)?
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white group-hover:text-fuchsia-100 transition-colors">
+                    CueBook bills tables — Cuetronix runs the whole gaming venue
+                  </h2>
+                  <p className="mt-2 text-sm text-gray-400 max-w-xl">
+                    Corporate HRMS, Razorpay booking portal, PS5/PC/turf — what pool-hall POS tools do not ship.
+                  </p>
+                </div>
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-fuchsia-200 shrink-0">
+                  Read the review <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                </span>
+              </div>
+            </Link>
+          </section>
+
+          <GuideCluster title="CueBook guides" landings={cuebookLandings} fullComparePath="/vs/cuebook" />
+
+          {/* ─── Club Sync India research CTA ─── */}
+          <section className="max-w-6xl mx-auto px-5 sm:px-8 mt-8">
+            <Link
+              to="/vs/clubsync"
+              className="glass-card glass-card-interactive block p-6 sm:p-8 relative overflow-hidden group"
+            >
+              <div className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-blue-500/20 blur-3xl" />
+              <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-blue-200/90 font-semibold mb-2">
+                    Researching Club Sync India?
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white group-hover:text-fuchsia-100 transition-colors">
+                    One all-in-one OS vs three Club Sync apps
+                  </h2>
+                  <p className="mt-2 text-sm text-gray-400 max-w-xl">
+                    Corporate payroll HRMS and branded Razorpay booking — not just snooker POS + scoreboard.
+                  </p>
+                </div>
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-fuchsia-200 shrink-0">
+                  Read the review <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                </span>
+              </div>
+            </Link>
+          </section>
+
+          <GuideCluster title="Club Sync India guides" landings={clubsyncLandings} fullComparePath="/vs/clubsync" />
+
           {/* ─── CueBill / CueFlow research CTA ─── */}
           <section className="max-w-6xl mx-auto px-5 sm:px-8 mt-12">
             <Link
@@ -240,29 +326,7 @@ const CompareHub: React.FC = () => {
             </Link>
           </section>
 
-          {/* ─── CueFlow / CueBill guide cluster ─── */}
-          <section className="max-w-6xl mx-auto px-5 sm:px-8 mt-8">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-white/40 mb-3 font-semibold">
-              CueFlow & CueBill guides
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {cueflowLandings.map((l) => (
-                <Link
-                  key={l.path}
-                  to={l.path}
-                  className="inline-block rounded-full border border-white/8 bg-white/[0.02] px-3 py-1.5 text-xs text-white/60 hover:text-fuchsia-200 hover:border-fuchsia-300/30 transition-colors"
-                >
-                  {l.path.replace(/^\//, "").replace(/-/g, " ")}
-                </Link>
-              ))}
-              <Link
-                to="/vs/cueflow"
-                className="inline-block rounded-full border border-fuchsia-300/30 bg-fuchsia-500/10 px-3 py-1.5 text-xs text-fuchsia-200 font-semibold"
-              >
-                full comparison →
-              </Link>
-            </div>
-          </section>
+          <GuideCluster title="CueFlow & CueBill guides" landings={cueflowLandings} fullComparePath="/vs/cueflow" />
 
           {/* ─── Featured (top 3) ─── */}
           <section className="max-w-6xl mx-auto px-5 sm:px-8 mt-16">
@@ -271,7 +335,7 @@ const CompareHub: React.FC = () => {
               <div className="text-[11px] uppercase tracking-[0.22em] text-orange-200/85 font-semibold">Most searched</div>
               <div className="flex-1 h-px bg-white/8" />
             </div>
-            <div className="grid md:grid-cols-3 gap-4">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {featured.map((c, i) => (
                 <motion.div
                   key={c.slug}

@@ -2122,8 +2122,412 @@ const cueflow: Competitor = {
     "CueFlow's blog misrepresents Cuetronix — we do publish pricing, offer a 14-day trial, and run mobile floor ops today. CueBill still delivers a rough UI and exposed database keys. Is CueBill worth it? No — not if your members' data matters. Trust the comparison that includes security, not cueflow.in's sales sheet.",
 };
 
+/* ─────────────────────────────────────────────────────────────────────────
+ *  11. CUEBOOK (cuebook.in)
+ * ─────────────────────────────────────────────────────────────────────── */
+const cuebook: Competitor = {
+  slug: "cuebook",
+  name: "CueBook",
+  brandMark: "CB",
+  brandColor: "#0D9488",
+  tagline: "Billiard & snooker hall billing from cuebook.in.",
+  oneLiner:
+    "CueBook is a pool-hall-focused browser POS — live table dashboard, per-minute billing, khata, snack tabs, and multi-branch views. It is not an all-in-one gaming venue OS.",
+  category: "Gaming centre",
+  region: "India",
+  website: "https://cuebook.in",
+
+  stats: {
+    foundedYear: 2025,
+    hqCountry: "India",
+    employees: "Not publicly disclosed",
+    primaryMarkets: ["India"],
+    customerEstimate: "Not publicly disclosed",
+  },
+
+  metaTitle: "Cuetronix vs CueBook (2026) — All-in-One Gaming OS vs Pool Hall POS",
+  metaDescription:
+    "Cuetronix vs CueBook. CueBook bills pool tables and khata in the browser. Cuetronix is the only all-in-one gaming venue OS with corporate HRMS, Razorpay booking portal, and PS5/PC/turf stations.",
+  keywords: [
+    "Cuetronix vs CueBook",
+    "CueBook alternative",
+    "cuebook.in review",
+    "pool hall software India",
+    "snooker hall POS India",
+    "CueBook vs Cuetronix",
+  ],
+  longTailKeywords: [
+    "cuebook",
+    "cuebook.in",
+    "cuebook alternative",
+    "cuebook review",
+    "is cuebook worth it",
+    "cuebook vs cuetronix",
+    "billiard hall management software",
+    "pool hall billing software india",
+    "snooker club software cuebook",
+    "cuebook khata book",
+    "gaming venue OS vs cuebook",
+    "cuebook payroll HR",
+    "cuebook online booking",
+  ],
+
+  headline: "CueBook bills tables. Cuetronix runs the whole gaming venue.",
+  deck:
+    "CueBook on cuebook.in is a capable pool and snooker counter tool: live table status, pause/resume billing, split payments, khata, and snack-bar tabs in the browser. Cuetronix includes all of that — then adds what no pool-hall POS ships: corporate-level staff HRMS (payroll, payslips, biometric attendance), a dedicated branded online booking portal with Razorpay webhook verification, and multi-vertical stations for PS5, PC, turf, and courts. Cuetronix is the only all-in-one gaming software in India that combines those three pillars in one login.",
+
+  tldr:
+    "CueBook fits timer + khata only. Cuetronix is the all-in-one gaming venue OS — corporate HRMS, Razorpay booking, snooker, consoles, turf, loyalty, and tournaments — with published pricing and a 14-day trial.",
+
+  bestFor:
+    "Single-location pool or snooker halls that only need browser-based table billing, khata, and snack tabs — and will not need payroll HR or online Razorpay booking.",
+  cuetronixBestFor:
+    "Operators building a modern gaming lounge or multi-activity club who need corporate HRMS, a Razorpay booking portal on their own brand, and snooker plus console/PC/turf in one system.",
+
+  strengths: [
+    "Clear pool-hall UX: live table board, pause/resume, per-minute fairness.",
+    "Khata book and split Cash/UPI/Card payments built in.",
+    "Snack bar and cue rentals on the running tab.",
+    "Multi-branch switching for small chains.",
+    "Responsive browser UI — no app install required for staff.",
+  ],
+  limitations: [
+    "Pool/snooker scope only — no PS5, PC, or turf station engines.",
+    "No corporate payroll HRMS — payslips, leave cycles, overtime, biometric attendance absent.",
+    "No dedicated branded online booking portal with Razorpay integration on cuebook.in.",
+    "No tournaments, loyalty, or membership depth at Cuetronix level.",
+    "Pricing not published on marketing site — trial-first positioning.",
+    "Operators outgrow it when they add gaming cafe or online prepay booking.",
+  ],
+  cuetronixAdvantages: [
+    {
+      title: "Corporate HRMS — not just floor staff",
+      description:
+        "Payroll runs, payslips, biometric attendance, shifts, leave and overtime on Pro. CueBook has no corporate HR layer.",
+      icon: "users",
+      proof: "Only Cuetronix in this tier ships HRMS inside the venue OS.",
+    },
+    {
+      title: "Dedicated Razorpay booking portal",
+      description:
+        "Branded sub-domain, slot booking, UPI/cards, webhook-verified prepay — same ledger as walk-ins. CueBook is counter-first.",
+      icon: "coins",
+      proof: "0% commission on direct bookings through your portal.",
+    },
+    {
+      title: "All-in-one gaming software",
+      description:
+        "Snooker, pool, PS5, Xbox, PC, turf, courts, cafe — one control plane. CueBook stops at billiards.",
+      icon: "boxes",
+      proof: "Expand verticals without re-platforming.",
+    },
+    {
+      title: "Tournaments, loyalty, branch P&L",
+      description: "Community and retention modules CueBook does not market.",
+      icon: "trophy",
+    },
+    {
+      title: "Published plans + 14-day trial",
+      description: "₹999–₹3,999/month transparent — evaluate HRMS and booking before you commit.",
+      icon: "chart",
+    },
+  ],
+
+  pricing: {
+    cuetronix: "₹999 / ₹2,499 / ₹3,999 per month · 14-day free trial · published plans",
+    competitor: "Affordable plans claimed · free trial · pricing not published on cuebook.in",
+    note: "Compare total cost including separate HR and booking tools CueBook operators add later.",
+  },
+
+  features: [
+    { category: "Billing & POS", name: "Real-time snooker/pool table timers", cuetronix: YES, competitor: YES },
+    { category: "Billing & POS", name: "Pause/resume per-minute billing", cuetronix: YES, competitor: YES },
+    { category: "Billing & POS", name: "Khata / member credit tracking", cuetronix: YES, competitor: YES },
+    { category: "Billing & POS", name: "Snack bar on session ticket", cuetronix: YES, competitor: YES },
+    { category: "Billing & POS", name: "PS5 / PC / console session billing", cuetronix: YES, competitor: NO },
+    { category: "Billing & POS", name: "Turf / court scheduling", cuetronix: YES, competitor: NO },
+
+    { category: "Online Booking", name: "Branded booking portal (your sub-domain)", cuetronix: YES, competitor: NO },
+    { category: "Online Booking", name: "Razorpay UPI/cards with webhook verification", cuetronix: YES, competitor: NO },
+    { category: "Online Booking", name: "Unified online + walk-in calendar", cuetronix: YES, competitor: PARTIAL },
+
+    { category: "Staff & HR", name: "Corporate HRMS — payroll, payslips, leave", cuetronix: YES, competitor: NO },
+    { category: "Staff & HR", name: "Biometric / QR attendance", cuetronix: YES, competitor: NO },
+    { category: "Staff & HR", name: "Shift rostering only (no payroll)", cuetronix: YES, competitor: NO },
+
+    { category: "Operations", name: "Tournaments & loyalty programs", cuetronix: YES, competitor: NO },
+    { category: "Operations", name: "Multi-vertical gaming venue OS", cuetronix: YES, competitor: NO },
+
+    { category: "Analytics", name: "Branch-level P&L and utilization", cuetronix: YES, competitor: PARTIAL },
+    { category: "Platform", name: "All-in-one gaming software (single login)", cuetronix: YES, competitor: PARTIAL },
+    { category: "Platform", name: "Published SaaS pricing", cuetronix: YES, competitor: PARTIAL },
+  ],
+
+  whenToPickCuetronix: [
+    "You need corporate HRMS — payroll and payslips — not just billing.",
+    "You want customers booking and prepaying on your brand via Razorpay.",
+    "You run or plan PS5, PC, turf, or courts alongside pool tables.",
+    "You want tournaments, loyalty, and one owner dashboard.",
+  ],
+  whenToPickCompetitor: [
+    "You operate a small pool-only hall with timer + khata only.",
+    "You will never need online booking deposits or staff payroll in software.",
+  ],
+
+  operatorProfile: {
+    headline: "Who upgrades from CueBook to Cuetronix",
+    venueType: "Pool hall adding consoles, online booking, or payroll HR",
+    before: [
+      "Table billing works but HR lives in spreadsheets.",
+      "No online prepay — WhatsApp booking chaos.",
+      "Cannot bill PS5 or turf without another app.",
+    ],
+    after: [
+      "Corporate HRMS and Razorpay booking in the same admin as POS.",
+      "One ledger for snooker, cafe, consoles, and walk-ins.",
+      "Owner sees branch margin without exporting CSVs.",
+    ],
+  },
+
+  migration: {
+    difficulty: "easy",
+    duration: "3–7 working days",
+    steps: [
+      { title: "Export members and khata", description: "CSV templates for customers, credit balances, and table rates." },
+      { title: "Configure booking + Razorpay", description: "Branded portal, deposit rules, webhook reconciliation." },
+      { title: "Enable HR if on Pro", description: "Attendance, shifts, payroll components." },
+      { title: "Parallel run and cutover", description: "Verify bills match, switch fully with support." },
+    ],
+  },
+
+  integrations: ["Razorpay", "WhatsApp", "GST exports", "Biometric attendance", "Google Calendar"],
+  support: CUETRONIX_SUPPORT,
+
+  faqs: [
+    {
+      q: "Is Cuetronix a CueBook alternative?",
+      a: "Yes — and a step up. CueBook is pool-hall POS. Cuetronix is all-in-one gaming software with corporate HRMS and a Razorpay booking portal CueBook does not offer.",
+    },
+    {
+      q: "Does CueBook have corporate HRMS like Cuetronix?",
+      a: "No. CueBook covers floor billing and khata. Cuetronix Pro includes payroll cycles, payslips, attendance, and leave — corporate HRMS depth no pool-hall POS in this tier matches.",
+    },
+    {
+      q: "Does CueBook have online booking with Razorpay?",
+      a: "CueBook marketing focuses on counter billing in the browser. Cuetronix ships a dedicated branded booking portal with Razorpay UPI/cards and webhook-safe prepay.",
+    },
+    {
+      q: "CueBook vs Cuetronix for a gaming cafe with pool tables?",
+      a: "Cuetronix. You need console session engines plus HRMS and booking — CueBook is billiards-only.",
+    },
+    {
+      q: "Is CueBook worth it?",
+      a: "For timer-only pool halls, maybe short term. If you need HRMS or Razorpay booking within a year, start on Cuetronix.",
+    },
+  ],
+
+  verdict:
+    "CueBook is a fine pool-hall counter. Cuetronix is the only all-in-one gaming venue OS with corporate HRMS and a Razorpay booking portal — choose it when billing is just the beginning.",
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+ *  12. CLUB SYNC INDIA (clubsyncindia.com)
+ * ─────────────────────────────────────────────────────────────────────── */
+const clubsync: Competitor = {
+  slug: "clubsync",
+  name: "Club Sync India",
+  brandMark: "CS",
+  brandColor: "#2563EB",
+  tagline: "Snooker club POS, booking, and scoreboard ecosystem.",
+  oneLiner:
+    "Club Sync India (CSI) bundles a snooker POS app (iOS/Android/Windows), book.clubsyncindia.com reservations, and a separate live scoreboard app — early-access pricing today.",
+  category: "Gaming centre",
+  region: "India",
+  website: "https://www.clubsyncindia.com",
+
+  stats: {
+    foundedYear: 2025,
+    hqCountry: "India",
+    employees: "Not publicly disclosed",
+    primaryMarkets: ["India"],
+    publicRating: { score: 4.8, max: 5, source: "Claimed on clubsyncindia.com" },
+    customerEstimate: "Early access — scale not publicly verified",
+  },
+
+  metaTitle: "Cuetronix vs Club Sync India (2026) — Venue OS vs Snooker App Bundle",
+  metaDescription:
+    "Cuetronix vs Club Sync India. CSI splits POS, booking, and scoreboard. Cuetronix is all-in-one gaming software with corporate HRMS and branded Razorpay booking in one platform.",
+  keywords: [
+    "Cuetronix vs Club Sync India",
+    "Club Sync India alternative",
+    "ClubSync alternative",
+    "clubsyncindia.com",
+    "Club Sync vs Cuetronix",
+  ],
+  longTailKeywords: [
+    "club sync india",
+    "clubsyncindia",
+    "club sync india alternative",
+    "club sync india review",
+    "club sync vs cuetronix",
+    "club sync india booking",
+    "club sync india POS",
+    "snooker club software india CSI",
+    "club sync payroll",
+    "club sync HRMS",
+    "gaming venue OS vs club sync",
+  ],
+
+  headline: "Club Sync India splits snooker across apps. Cuetronix unifies the venue.",
+  deck:
+    "Club Sync India offers a snooker POS, a booking directory at book.clubsyncindia.com, and a scoreboard app — three surfaces, shift management but no corporate payroll HRMS. Cuetronix is the all-in-one gaming software stack: snooker timers, corporate-level staff HRMS, dedicated Razorpay booking on your brand, plus PS5/PC/turf when you grow. No other platform in this comparison set combines corporate HRMS with a Razorpay booking portal inside one venue OS.",
+
+  tldr:
+    "Club Sync India is a snooker bundle in early access. Cuetronix is production all-in-one gaming venue software — HRMS, Razorpay booking, multi-vertical stations, published pricing.",
+
+  bestFor:
+    "Snooker clubs that want native POS apps plus a separate scoreboard product and are fine without corporate payroll HR or brand-owned Razorpay booking.",
+  cuetronixBestFor:
+    "Clubs and gaming lounges that need one login for POS, corporate HRMS, Razorpay online booking, and expansion beyond snooker.",
+
+  strengths: [
+    "Native POS on iOS, Android, and Windows.",
+    "Integrated booking flow via book.clubsyncindia.com.",
+    "Dedicated live scoreboard / TV app with OBS overlay.",
+    "Food orders and player profiles in POS.",
+    "Free early-access positioning lowers trial friction.",
+  ],
+  limitations: [
+    "Three products (POS, booking, scoreboard) — not one venue OS.",
+    "Staff shifts — not corporate HRMS with payroll and payslips.",
+    "Booking is platform-style, not a dedicated Razorpay portal on your sub-domain.",
+    "Snooker-first — no PS5, PC, or turf station engines.",
+    "Early-access pricing — long-term cost unclear.",
+    "No published tier comparison vs Cuetronix ₹999–₹3,999 plans.",
+  ],
+  cuetronixAdvantages: [
+    {
+      title: "Corporate HRMS built in",
+      description: "Payroll, payslips, attendance, leave — Pro module. Club Sync stops at shifts.",
+      icon: "users",
+      proof: "Only Cuetronix ships corporate HRMS in all-in-one gaming software here.",
+    },
+    {
+      title: "Your Razorpay booking portal",
+      description: "Branded site, deposit policies, webhook reconciliation — not a shared club directory.",
+      icon: "coins",
+    },
+    {
+      title: "One app, every module",
+      description: "POS, booking, HR, loyalty, tournaments — no scoreboard-vs-POS silo.",
+      icon: "workflow",
+    },
+    {
+      title: "All-in-one gaming verticals",
+      description: "Add consoles, PC, turf without leaving Cuetronix.",
+      icon: "boxes",
+    },
+    {
+      title: "Battle-tested SaaS",
+      description: "Cuephoria Gaming Lounge production use — not early-access experiment.",
+      icon: "shield",
+    },
+  ],
+
+  pricing: {
+    cuetronix: "₹999 / ₹2,499 / ₹3,999 per month · 14-day trial · published",
+    competitor: "Free during early access (clubsyncindia.com) · future pricing TBD",
+    note: "Model CSI total cost when early access ends vs Cuetronix all-in pricing.",
+  },
+
+  features: [
+    { category: "Billing & POS", name: "Snooker table timers & billing", cuetronix: YES, competitor: YES },
+    { category: "Billing & POS", name: "F&B orders on ticket", cuetronix: YES, competitor: YES },
+    { category: "Billing & POS", name: "PS5 / PC / gaming cafe stations", cuetronix: YES, competitor: NO },
+    { category: "Billing & POS", name: "Turf / court scheduling", cuetronix: YES, competitor: NO },
+
+    { category: "Online Booking", name: "Branded portal on your sub-domain", cuetronix: YES, competitor: PARTIAL },
+    { category: "Online Booking", name: "Razorpay with webhook verification", cuetronix: YES, competitor: PARTIAL },
+    { category: "Online Booking", name: "book.clubsyncindia.com directory booking", cuetronix: YES, competitor: YES, note: "CSI uses shared booking site" },
+
+    { category: "Staff & HR", name: "Corporate HRMS — payroll & payslips", cuetronix: YES, competitor: NO },
+    { category: "Staff & HR", name: "Shift management (no payroll)", cuetronix: YES, competitor: YES },
+
+    { category: "Operations", name: "Live TV scoreboard / tournaments", cuetronix: YES, competitor: YES, note: "CSI separate scoreboard app" },
+    { category: "Operations", name: "All-in-one gaming venue OS", cuetronix: YES, competitor: PARTIAL },
+
+    { category: "Platform", name: "Single login all modules", cuetronix: YES, competitor: PARTIAL },
+    { category: "Platform", name: "Native iOS/Android POS", cuetronix: "Publishing soon", competitor: YES },
+    { category: "Platform", name: "Published long-term pricing", cuetronix: YES, competitor: NO },
+  ],
+
+  whenToPickCuetronix: [
+    "You need corporate payroll HRMS, not shift notes.",
+    "You want Razorpay booking on your brand.",
+    "You plan PS5, PC, or turf revenue.",
+    "You want one platform before CSI early access ends.",
+  ],
+  whenToPickCompetitor: [
+    "You want a free snooker POS + scoreboard trial today.",
+    "Snooker-only forever, no HR or gaming cafe plans.",
+  ],
+
+  operatorProfile: {
+    headline: "Who moves from Club Sync India to Cuetronix",
+    venueType: "Snooker club outgrowing the CSI app bundle",
+    before: [
+      "Three apps to train staff on.",
+      "Payroll still manual despite 'shift management'.",
+      "Booking lives on clubsyncindia.com, not your domain.",
+    ],
+    after: [
+      "Corporate HRMS and Razorpay booking beside POS.",
+      "Console/turf ready without new vendors.",
+      "One owner dashboard for the whole gaming business.",
+    ],
+  },
+
+  migration: {
+    difficulty: "easy",
+    duration: "3–7 working days",
+    steps: [
+      { title: "Map CSI tables and menu", description: "Rates, staff roles, player profiles export where available." },
+      { title: "Stand up Razorpay booking", description: "Branded portal replaces directory-only flow if needed." },
+      { title: "HR rollout on Pro", description: "Attendance and payroll from go-live." },
+      { title: "Cutover", description: "Short parallel billing verification." },
+    ],
+  },
+
+  integrations: ["Razorpay", "WhatsApp", "Biometric attendance", "Tournament TV boards"],
+  support: CUETRONIX_SUPPORT,
+
+  faqs: [
+    {
+      q: "Is Cuetronix a Club Sync India alternative?",
+      a: "Yes. Cuetronix replaces the CSI three-app bundle with one all-in-one gaming OS plus corporate HRMS and Razorpay booking.",
+    },
+    {
+      q: "Does Club Sync India have payroll HRMS?",
+      a: "No — shifts and staff in POS, not corporate payroll cycles and payslips. Cuetronix Pro does.",
+    },
+    {
+      q: "Club Sync India vs Cuetronix booking?",
+      a: "CSI uses book.clubsyncindia.com. Cuetronix gives each venue a branded Razorpay portal integrated with POS.",
+    },
+    {
+      q: "Is Club Sync India all-in-one gaming software?",
+      a: "It is snooker-first with separate scoreboard app. Cuetronix covers snooker plus gaming cafe verticals in one stack.",
+    },
+  ],
+
+  verdict:
+    "Club Sync India is a snooker starter bundle. Cuetronix is the all-in-one gaming venue OS with corporate HRMS and Razorpay booking — the platform you keep after early access ends.",
+};
+
 export const competitors: Competitor[] = [
   cueflow,
+  cuebook,
+  clubsync,
   playo,
   hudle,
   ggLeap,

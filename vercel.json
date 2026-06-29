@@ -8,7 +8,18 @@
     { "source": "/alternatives/cuebill", "destination": "/cuebill-alternative", "permanent": true },
     { "source": "/alternatives/cueflow", "destination": "/cueflow-alternative", "permanent": true },
     { "source": "/is-cueflow-worth-it", "destination": "/is-cuebill-worth-it", "permanent": true },
-    { "source": "/cuebill-vs-cuetronix", "destination": "/cueflow-vs-cuetronix", "permanent": true }
+    { "source": "/cuebill-vs-cuetronix", "destination": "/cueflow-vs-cuetronix", "permanent": true },
+    { "source": "/cuebook", "destination": "/cuebook-alternative", "permanent": true },
+    { "source": "/reviews/cuebook", "destination": "/cuebook-review", "permanent": true },
+    { "source": "/alternatives/cuebook", "destination": "/cuebook-alternative", "permanent": true },
+    { "source": "/clubsync", "destination": "/clubsync-alternative", "permanent": true },
+    { "source": "/club-sync-india", "destination": "/club-sync-india-alternative", "permanent": true },
+    { "source": "/vs/club-sync-india", "destination": "/vs/clubsync", "permanent": true },
+    { "source": "/reviews/clubsync", "destination": "/clubsync-review", "permanent": true },
+    { "source": "/reviews/club-sync-india", "destination": "/clubsync-review", "permanent": true },
+    { "source": "/alternatives/clubsync", "destination": "/clubsync-alternative", "permanent": true },
+    { "source": "/alternatives/club-sync-india", "destination": "/club-sync-india-alternative", "permanent": true },
+    { "source": "/club-sync-vs-cuetronix", "destination": "/clubsync-vs-cuetronix", "permanent": true }
   ],
   "rewrites": [
     { "source": "/((?!api/|assets/|.*\\.(?:js|mjs|css|map|png|jpg|jpeg|gif|svg|ico|webp|avif|woff|woff2|ttf|otf|txt|xml|webmanifest|json)$).*)", "destination": "/index.html" }

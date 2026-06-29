@@ -1,44 +1,20 @@
 /**
- * Standalone SEO landing pages targeting CueFlow / CueBill search intent.
- * Each path has unique copy (not a duplicate of /vs/cueflow) to avoid thin-content penalties.
- * Full feature matrix lives at /vs/cueflow.
+ * SEO landing pages targeting CueFlow / CueBill search intent.
  */
 
-export interface CueflowLandingSection {
-  title: string;
-  bullets: string[];
-}
+import type { CompetitorLandingPage } from "@/data/competitorLandingTypes";
 
-export interface CueflowLandingMyth {
-  myth: string;
-  fact: string;
-}
+export type {
+  CompetitorLandingSection,
+  CompetitorLandingMyth,
+  CompetitorLandingFaq,
+  CompetitorLandingPage,
+} from "@/data/competitorLandingTypes";
 
-export interface CueflowLandingFaq {
-  q: string;
-  a: string;
-}
-
-export interface CueflowLandingPage {
-  path: string;
-  metaTitle: string;
-  metaDescription: string;
-  keywords: string[];
-  badge: string;
-  headline: string;
-  deck: string;
-  sections: CueflowLandingSection[];
-  myths?: CueflowLandingMyth[];
-  faqs: CueflowLandingFaq[];
-  relatedPaths: string[];
-  sitemapPriority: number;
-}
-
-const FULL_COMPARE = "/vs/cueflow";
-
-export const cueflowLandings: CueflowLandingPage[] = [
+export const cueflowLandings: CompetitorLandingPage[] = [
   {
     path: "/cuetronix-alternative",
+    competitorSlug: "cueflow",
     metaTitle: "Cuetronix Alternative? Read This Before CueFlow Misleads You (2026)",
     metaDescription:
       "Searching for a Cuetronix alternative? CueFlow's landing page gets the facts wrong. Compare real pricing, free trial, mobile ops, and security before you switch.",
@@ -95,11 +71,12 @@ export const cueflowLandings: CueflowLandingPage[] = [
         a: "No. It falsely claims Cuetronix lacks published pricing and a free trial, and calls Cuetronix 'browser-only.' It also omits CueBill security and UI issues entirely.",
       },
     ],
-    relatedPaths: ["/cueflow-alternative", "/cueflow-vs-cuetronix", FULL_COMPARE],
+    relatedPaths: ["/cueflow-alternative", "/cueflow-vs-cuetronix", "/vs/cueflow"],
     sitemapPriority: 0.97,
   },
   {
     path: "/cueflow-alternative",
+    competitorSlug: "cueflow",
     metaTitle: "Best CueFlow Alternative for Snooker Clubs (2026) | Cuetronix",
     metaDescription:
       "Top CueFlow alternative for Indian snooker and pool clubs. Published pricing, 14-day trial, mobile admin, Razorpay booking, payroll HR — without CueBill's exposed API keys.",
@@ -138,11 +115,12 @@ export const cueflowLandings: CueflowLandingPage[] = [
         a: "Yes. Import members and table rates via CSV, run a short parallel period, and cut over in 3–7 days with onboarding support.",
       },
     ],
-    relatedPaths: ["/cuebill-alternative", "/why-not-cueflow", FULL_COMPARE],
+    relatedPaths: ["/cuebill-alternative", "/why-not-cueflow", "/vs/cueflow"],
     sitemapPriority: 0.96,
   },
   {
     path: "/cuebill-alternative",
+    competitorSlug: "cueflow",
     metaTitle: "Best CueBill Alternative (2026) — Secure Snooker Club Software",
     metaDescription:
       "Leave CueBill behind. The best CueBill alternative with clean UI, server-side data protection, published pricing, and a 14-day Cuetronix trial.",
@@ -180,11 +158,12 @@ export const cueflowLandings: CueflowLandingPage[] = [
         a: "Yes — real-time timers, pause/resume, cafe on the same ticket, and unified reporting. Plus booking and HR CueBill operators usually bolt on separately.",
       },
     ],
-    relatedPaths: ["/cueflow-alternative", "/is-cuebill-worth-it", FULL_COMPARE],
+    relatedPaths: ["/cueflow-alternative", "/is-cuebill-worth-it", "/vs/cueflow"],
     sitemapPriority: 0.96,
   },
   {
     path: "/cueflow-vs-cuetronix",
+    competitorSlug: "cueflow",
     metaTitle: "CueFlow vs Cuetronix (2026) — Honest Comparison (Correcting CueFlow's Blog)",
     metaDescription:
       "CueFlow vs Cuetronix: the comparison CueFlow won't publish. Pricing, trial, mobile, security, and CueBill data protection — side by side with facts.",
@@ -215,11 +194,12 @@ export const cueflowLandings: CueflowLandingPage[] = [
         a: "See the complete scored comparison at /vs/cueflow — 30+ rows including platform security CueFlow's blog tables skip.",
       },
     ],
-    relatedPaths: ["/cuetronix-alternative", "/cueflow-review", FULL_COMPARE],
+    relatedPaths: ["/cuetronix-alternative", "/cueflow-review", "/vs/cueflow"],
     sitemapPriority: 0.97,
   },
   {
     path: "/is-cuebill-worth-it",
+    competitorSlug: "cueflow",
     metaTitle: "Is CueBill Worth It? (2026 Verdict) — Honest Review for Club Owners",
     metaDescription:
       "Is CueBill worth it? For most snooker clubs in 2026, no. Exposed API keys, cluttered UI, and poor data protection. See the verdict and the better option.",
@@ -256,11 +236,12 @@ export const cueflowLandings: CueflowLandingPage[] = [
         a: "Try billing real member credit through an app with exposed keys — then ask if a 7-day surface trial caught that. Cuetronix offers 14 days with transparent architecture documentation.",
       },
     ],
-    relatedPaths: ["/cuebill-alternative", "/cueflow-review", FULL_COMPARE],
+    relatedPaths: ["/cuebill-alternative", "/cueflow-review", "/vs/cueflow"],
     sitemapPriority: 0.95,
   },
   {
     path: "/cueflow-review",
+    competitorSlug: "cueflow",
     metaTitle: "CueFlow & CueBill Review (2026) — What cueflow.in Won't Tell You",
     metaDescription:
       "Honest CueFlow and CueBill review: UI problems, exposed API keys, misleading comparison pages, and how Cuetronix compares for Indian snooker clubs.",
@@ -289,11 +270,12 @@ export const cueflowLandings: CueflowLandingPage[] = [
         a: "Slow, confusing flows during peak hours — the opposite of floor-ready software. Cuetronix is designed for counter speed.",
       },
     ],
-    relatedPaths: ["/is-cuebill-worth-it", "/cueflow-vs-cuetronix", FULL_COMPARE],
+    relatedPaths: ["/is-cuebill-worth-it", "/cueflow-vs-cuetronix", "/vs/cueflow"],
     sitemapPriority: 0.95,
   },
   {
     path: "/why-not-cueflow",
+    competitorSlug: "cueflow",
     metaTitle: "Why Not CueFlow? 7 Reasons Snooker Clubs Choose Cuetronix (2026)",
     metaDescription:
       "Why not CueFlow / CueBill? Security, UI, false competitor claims, opaque pricing, and missing HR/booking depth — why clubs pick Cuetronix instead.",
@@ -322,12 +304,7 @@ export const cueflowLandings: CueflowLandingPage[] = [
         a: "Only for the smallest shops that need a bare timer today and explicitly accept security and UX trade-offs. Everyone else outgrows CueBill fast.",
       },
     ],
-    relatedPaths: ["/cueflow-alternative", "/cuetronix-alternative", FULL_COMPARE],
+    relatedPaths: ["/cueflow-alternative", "/cuetronix-alternative", "/vs/cueflow"],
     sitemapPriority: 0.94,
   },
 ];
-
-export const cueflowLandingByPath = (path: string): CueflowLandingPage | undefined =>
-  cueflowLandings.find((p) => p.path === path);
-
-export const cueflowLandingPaths = cueflowLandings.map((p) => p.path);
