@@ -5,7 +5,7 @@ import {
   categoryForAction,
   type StaffActivityCategory,
   type StaffActivityContext,
-} from '../../../constants/staffActivityLabels.js';
+} from '../constants/staffActivityLabels.js';
 import { supabaseServiceClient } from '../supabaseServer.js';
 
 export type StaffHrSettings = {
@@ -215,7 +215,7 @@ export async function verifyEmployeePortalPin(
   const attemptLabel = args.actionKey;
 
   const clocked = await assertStaffClockedIn(supabase, String(profile.user_id));
-  if (!clocked.ok) {
+  if (clocked.ok === false) {
     await logStaffActivity({
       organizationId: args.organizationId,
       locationId: args.locationId,

@@ -108,7 +108,7 @@ export default async function handler(req: Request) {
     };
 
     const result = await ops.validatePromoCoupon(supabase, organizationId, code, ctx);
-    if (!result.ok) {
+    if (result.ok === false) {
       return j({ ok: false, error: result.error }, 400);
     }
 

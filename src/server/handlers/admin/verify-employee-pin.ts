@@ -66,7 +66,7 @@ export default async function handler(req: Request) {
       isOwnerBypass,
     });
 
-    if (!result.ok) {
+    if (result.ok === false) {
       return j({ ok: false, error: result.error, code: result.code }, 400);
     }
 

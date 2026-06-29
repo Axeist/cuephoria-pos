@@ -186,10 +186,14 @@ export async function validatePromoCoupon(
   }
 
   const eligibility = validatePromoCouponEligibility(coupon, ctx);
-  if (!eligibility.ok) return eligibility;
+  if (eligibility.ok === false) {
+    return { ok: false, error: eligibility.error };
+  }
 
   const customerCheck = validatePromoCouponCustomer(coupon, ctx.customer);
-  if (!customerCheck.ok) return customerCheck;
+  if (customerCheck.ok === false) {
+    return { ok: false, error: customerCheck.error };
+  }
 
   if (coupon.maxUsesPerCustomer != null && ctx.customer?.id) {
     const { count } = await supabase
