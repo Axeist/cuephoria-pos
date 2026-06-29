@@ -15,6 +15,16 @@ export async function fetchEmployeePinProtection(
   return staffHrCall('fetchHrSettings', { organizationId });
 }
 
+/** Any signed-in staff member can read the master on/off flag (session-scoped). */
+export async function fetchEmployeePinProtectionStatus(): Promise<boolean> {
+  const res = await adminFetch('/api/admin/verify-employee-pin', { method: 'GET' });
+  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok || json.ok === false) {
+    throw new Error(String(json.error || 'Failed to load PIN protection status'));
+  }
+  return Boolean(json.employeePinProtectionEnabled);
+}
+
 export async function updateEmployeePinProtection(
   organizationId: string,
   enabled: boolean,

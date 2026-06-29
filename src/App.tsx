@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { PermissionsProvider, usePermissions } from "@/context/PermissionsContext";
+import { EmployeePinProtectionProvider } from "@/context/EmployeePinProtectionContext";
 import { SIDEBAR_PERMISSIONS } from "@/constants/permissionCatalog";
 import { LocationProvider } from "@/context/LocationContext";
 import { AppSettingsProvider } from "@/context/AppSettingsContext";
@@ -333,7 +334,9 @@ const ProtectedRoute = ({
   return (
     <OrganizationProvider>
       <PermissionsProvider>
-        <ProtectedAppShell permission={permission} bare={isBare} />
+        <EmployeePinProtectionProvider>
+          <ProtectedAppShell permission={permission} bare={isBare} />
+        </EmployeePinProtectionProvider>
       </PermissionsProvider>
     </OrganizationProvider>
   );

@@ -5,10 +5,10 @@ import EmployeePinProtectionCard from '@/components/staff/policies/EmployeePinPr
 
 export default function TeamManagement() {
   return (
-    <>
+    <div className="space-y-0">
       <EmployeePinProtectionCard />
       <RolesAndPermissionsPanel />
       <StaffManagement />
-    </>
+    </div>
   );
 }

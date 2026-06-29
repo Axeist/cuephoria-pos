@@ -442,11 +442,14 @@ const StaffManagement: React.FC = () => {
   );
 
   return (
-    <div className="space-y-4 -mt-2">
+    <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          {staffMembers.length} member{staffMembers.length === 1 ? '' : 's'}
-        </p>
+        <div className="flex items-center gap-2">
+          <Users className="h-4 w-4 text-primary" />
+          <p className="text-sm font-medium">
+            {staffMembers.length} member{staffMembers.length === 1 ? '' : 's'}
+          </p>
+        </div>
         <Dialog open={isAddingStaff} onOpenChange={(open) => { setIsAddingStaff(open); if (!open) resetAddForm(); }}>
           <DialogTrigger asChild>
             <Button size="sm" className="gap-1.5 btn-gradient border-0">

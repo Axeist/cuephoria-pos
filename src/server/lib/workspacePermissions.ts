@@ -102,10 +102,12 @@ export async function resolveWorkspaceAccess(
 }
 
 export function canShowMyPortalSidebar(access: ResolvedWorkspaceAccess): boolean {
-  if (!access.hasStaffProfile) return false;
-  const slug = access.role?.slug;
-  if (slug === "owner") return false;
-  return true;
+  if (access.role?.slug === "owner") return false;
+  return (
+    access.hasStaffProfile ||
+    access.permissions.includes("pos.view") ||
+    access.permissions.includes("stations.view")
+  );
 }
 
 export function canShowStaffManagementSidebar(access: ResolvedWorkspaceAccess): boolean {

@@ -13,9 +13,12 @@ export type WorkspaceAccessSnapshot = {
 };
 
 export function canShowMyPortalSidebar(access: WorkspaceAccessSnapshot): boolean {
-  if (!access.hasStaffProfile) return false;
   if (access.role?.slug === 'owner') return false;
-  return true;
+  return (
+    access.hasStaffProfile ||
+    access.permissions.includes('pos.view') ||
+    access.permissions.includes('stations.view')
+  );
 }
 
 export function canShowStaffManagementSidebar(access: WorkspaceAccessSnapshot): boolean {

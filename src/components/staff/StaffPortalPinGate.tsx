@@ -8,14 +8,23 @@ import { KeyRound, Loader2 } from "lucide-react";
 
 interface StaffPortalPinGateProps {
   displayName?: string | null;
-  onVerified: (profile: Record<string, unknown>) => void;
+  onVerified: (profile: Record<string, unknown>, portalSessionToken?: string) => void;
   onCancel?: () => void;
+  floorClockIns?: Array<{
+    staffId: string;
+    staffName: string;
+    username: string;
+    designation: string | null;
+    clockIn: string;
+    locationId: string | null;
+  }>;
 }
 
 const StaffPortalPinGate: React.FC<StaffPortalPinGateProps> = ({
   displayName,
   onVerified,
   onCancel,
+  floorClockIns = [],
 }) => {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +51,7 @@ const StaffPortalPinGate: React.FC<StaffPortalPinGateProps> = ({
         setError(json?.error || "Incorrect PIN.");
         return;
       }
-      onVerified(json.profile);
+      onVerified(json.profile, json.portalSessionToken as string | undefined);
     } catch {
       setError("Could not verify PIN. Try again.");
     } finally {
@@ -57,11 +66,11 @@ const StaffPortalPinGate: React.FC<StaffPortalPinGateProps> = ({
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-primary/15">
             <KeyRound className="h-7 w-7 text-primary" />
           </div>
-          <CardTitle className="text-2xl gradient-text">Staff Portal</CardTitle>
+          <CardTitle className="text-2xl gradient-text">My Portal</CardTitle>
           <CardDescription className="text-muted-foreground">
             {displayName
-              ? `Hi ${displayName}, enter your portal PIN to continue.`
-              : "Enter your portal PIN to open your attendance and requests."}
+              ? `Hi ${displayName} — enter your portal PIN, or any on-duty staff can enter theirs on this device.`
+              : 'Enter your portal PIN to clock in. Works on a shared floor login — no need to switch accounts.'}
           </CardDescription>
         </CardHeader>
         <CardContent>

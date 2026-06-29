@@ -1,11 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { verifyPortalPin } from './pinHash.js';
 import {
   buildActivitySummary,
   categoryForAction,
   type StaffActivityCategory,
   type StaffActivityContext,
 } from '../constants/staffActivityLabels.js';
+import { matchStaffByPortalPin } from './staffPinResolve.js';
 import { supabaseServiceClient } from '../supabaseServer.js';
 
 export type StaffHrSettings = {
@@ -83,6 +83,14 @@ export async function isPinProtectionEnabled(organizationId: string): Promise<bo
   return settings.employeePinProtectionEnabled;
 }
 
+/** Minimal read for POS gates — avoids exposing payroll policy fields. */
+export async function fetchEmployeePinProtectionFlag(
+  organizationId: string,
+): Promise<{ employeePinProtectionEnabled: boolean }> {
+  const enabled = await isPinProtectionEnabled(organizationId);
+  return { employeePinProtectionEnabled: enabled };
+}
+
 export async function resolveStaffByAdminUserId(
   supabase: SupabaseClient,
   adminUserId: string,
@@ -95,6 +103,38 @@ export async function resolveStaffByAdminUserId(
     .maybeSingle();
   if (error) throw new Error(error.message);
   return data;
+}
+
+type StaffPinProfile = {
+  user_id: string;
+  full_name: string | null;
+  username: string | null;
+  portal_pin: string | null;
+  location_id: string | null;
+};
+
+export const STAFF_PORTAL_SESSION_ACTION = 'staff_portal.session';
+
+export function createStaffPortalSessionToken(payload: {
+  staffId: string;
+  adminUserId: string;
+  organizationId: string;
+}): string {
+  return createAssertionToken({
+    staffId: payload.staffId,
+    actionKey: STAFF_PORTAL_SESSION_ACTION,
+    adminUserId: payload.adminUserId,
+    organizationId: payload.organizationId,
+  });
+}
+
+export function verifyStaffPortalSessionToken(
+  token: string,
+  staffId: string,
+  adminUserId: string,
+): boolean {
+  const verified = verifyAssertionToken(token, STAFF_PORTAL_SESSION_ACTION, adminUserId);
+  return verified?.staffId === staffId;
 }
 
 export async function assertStaffClockedIn(
@@ -202,45 +242,29 @@ export async function verifyEmployeePortalPin(
     return { ok: true, bypass: true };
   }
 
-  const profile = await resolveStaffByAdminUserId(supabase, args.adminUserId);
-  if (!profile?.portal_pin) {
-    return {
-      ok: false,
-      error: 'No staff profile is linked to your login. Ask your manager to complete setup.',
-      code: 'no_profile',
-    };
+  const profileResult = await matchStaffByPortalPin(supabase, args.organizationId, args.pin, {
+    locationId: args.locationId,
+    clockedInOnly: true,
+  });
+
+  if (profileResult.ok === false) {
+    const attemptLabel = args.actionKey;
+    if (profileResult.code === 'not_clocked_in' || profileResult.code === 'bad_pin') {
+      await logStaffActivity({
+        organizationId: args.organizationId,
+        locationId: args.locationId,
+        actorAdminUserId: args.adminUserId,
+        actionKey: profileResult.code === 'not_clocked_in' ? 'pin.not_clocked_in' : 'pin.failed',
+        context: { attemptAction: attemptLabel },
+        outcome: 'failed',
+      });
+    }
+    return { ok: false, error: profileResult.error, code: profileResult.code };
   }
 
+  const profile = profileResult.profile;
   const staffName = staffDisplayName(profile);
   const attemptLabel = args.actionKey;
-
-  const clocked = await assertStaffClockedIn(supabase, String(profile.user_id));
-  if (clocked.ok === false) {
-    await logStaffActivity({
-      organizationId: args.organizationId,
-      locationId: args.locationId,
-      actorStaffId: String(profile.user_id),
-      actorAdminUserId: args.adminUserId,
-      actionKey: 'pin.not_clocked_in',
-      context: { staffName, attemptAction: attemptLabel },
-      outcome: 'failed',
-    });
-    return { ok: false, error: clocked.error, code: 'not_clocked_in' };
-  }
-
-  const pinOk = await verifyPortalPin(String(profile.portal_pin), args.pin);
-  if (!pinOk) {
-    await logStaffActivity({
-      organizationId: args.organizationId,
-      locationId: args.locationId,
-      actorStaffId: String(profile.user_id),
-      actorAdminUserId: args.adminUserId,
-      actionKey: 'pin.failed',
-      context: { staffName, attemptAction: attemptLabel },
-      outcome: 'failed',
-    });
-    return { ok: false, error: 'Incorrect employee PIN.', code: 'bad_pin' };
-  }
 
   await logStaffActivity({
     organizationId: args.organizationId,

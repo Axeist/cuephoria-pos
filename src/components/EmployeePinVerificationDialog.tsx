@@ -48,7 +48,12 @@ export default function EmployeePinVerificationDialog({
       });
       if (!result.ok) {
         toast({
-          title: result.code === 'not_clocked_in' ? 'Not clocked in' : 'PIN failed',
+          title:
+            result.code === 'not_clocked_in'
+              ? 'Not clocked in'
+              : result.code === 'ambiguous_pin'
+                ? 'Duplicate PIN'
+                : 'PIN failed',
           description: result.error,
           variant: 'destructive',
         });
@@ -74,10 +79,12 @@ export default function EmployeePinVerificationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Enter your employee PIN</DialogTitle>
+          <DialogTitle>Who is on duty?</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Confirm <strong>{actionLabel}</strong> with the same PIN you use on My Portal.
+          Enter <strong>your own</strong> My Portal PIN to confirm <strong>{actionLabel}</strong>.
+          This works even when someone else is logged into this device — we record who actually
+          performed the action.
         </p>
         <div className="space-y-2 py-2">
           <Label htmlFor="employee-pin">Employee PIN</Label>
@@ -92,7 +99,8 @@ export default function EmployeePinVerificationDialog({
             onKeyDown={(e) => e.key === 'Enter' && void handleVerify()}
           />
           <p className="text-xs text-muted-foreground">
-            You must be clocked in.{' '}
+            You must be clocked in on My Portal. Any on-duty staff member can enter their own PIN
+            on a shared floor login.{' '}
             <Link to="/staff-portal" className="text-primary underline">
               Open My Portal
             </Link>

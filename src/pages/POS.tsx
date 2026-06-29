@@ -506,7 +506,19 @@ const POS = () => {
     setIsCompDialogOpen(true);
   };
 
-  const handleConfirmComplimentary = async () => {
+  const handleConfirmComplimentary = () => {
+    requestEmployeePin(
+      CRITICAL_PIN_ACTIONS.POS_CHECKOUT,
+      () => void executeConfirmComplimentary(),
+      {
+        amount: 0,
+        customerName: selectedCustomer?.name,
+        note: 'Complimentary',
+      },
+    );
+  };
+
+  const executeConfirmComplimentary = async () => {
     setIsCompletingSale(true);
     
     try {

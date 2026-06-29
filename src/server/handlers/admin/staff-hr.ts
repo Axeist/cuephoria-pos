@@ -33,12 +33,16 @@ const OP_PERMISSIONS: Record<string, string> = {
   approveAllPayroll: "hr.payroll.generate",
 };
 
+const PIN_GATE_OPS = new Set(["fetchEmployeePinProtection", "logStaffActivity"]);
+
 function permForOp(op: string): string {
+  if (op === "fetchEmployeePinProtection" || op === "logStaffActivity") return "pos.view";
   if (OP_PERMISSIONS[op]) return OP_PERMISSIONS[op];
   if (op.startsWith("fetch") || op === "assertStaffInScope" || op === "checkActiveShift" || op === "logHrAudit") {
     if (op.includes("Audit")) return "hr.audit.view";
-    if (op.includes("HrSettings") || op === "updateHrSettings") return "hr.policies.edit";
-    if (op === "logStaffActivity") return "hr.view";
+    if (op === "fetchHrSettings") return "hr.policies.view";
+    if (op === "updateHrSettings") return "hr.policies.edit";
+    if (op === "logStaffActivity") return "pos.view";
     if (op.includes("Holiday")) return "hr.holidays.view";
     if (op.includes("Leave") && op.includes("Policy")) return "hr.policies.view";
     if (op.includes("Leave")) return "hr.requests.view";
@@ -76,6 +80,8 @@ const HANDLERS: Record<string, (args: OpArgs) => Promise<unknown>> = {
       dateTo: (a.dateTo as string | null) ?? null,
     }),
   fetchHrSettings: (a) => pinOps.fetchHrSettings(a.organizationId as string),
+  fetchEmployeePinProtection: (a) =>
+    pinOps.fetchEmployeePinProtectionFlag(a.organizationId as string),
   updateHrSettings: (a) =>
     pinOps.updateHrSettings(a.organizationId as string, {
       employeePinProtectionEnabled: a.employeePinProtectionEnabled as boolean | undefined,
@@ -208,8 +214,10 @@ export default async function handler(req: Request): Promise<Response> {
       return j({ ok: false, error: ctx.message || "Could not resolve workspace." }, ctx.status);
     }
 
-    const staffGate = await assertEntitlement(ctx, "staff_hr_enabled");
-    if (staffGate) return staffGate;
+    if (!PIN_GATE_OPS.has(op)) {
+      const staffGate = await assertEntitlement(ctx, "staff_hr_enabled");
+      if (staffGate) return staffGate;
+    }
 
     const body = (await req.json().catch(() => ({}))) as { op?: string; args?: OpArgs };
     const op = typeof body.op === "string" ? body.op.trim() : "";
@@ -231,7 +239,12 @@ export default async function handler(req: Request): Promise<Response> {
       return j({ ok: false, error: "Workspace scope mismatch." }, 403);
     }
 
-    if (op === "fetchHrSettings" || op === "updateHrSettings" || op === "logStaffActivity") {
+    if (
+      op === "fetchHrSettings" ||
+      op === "fetchEmployeePinProtection" ||
+      op === "updateHrSettings" ||
+      op === "logStaffActivity"
+    ) {
       const orgArg = typeof args.organizationId === "string" ? args.organizationId : "";
       if (orgArg && orgArg !== ctx.organizationId) {
         return j({ ok: false, error: "Workspace scope mismatch." }, 403);

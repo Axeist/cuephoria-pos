@@ -33,7 +33,22 @@ export async function resolvePortalProfile(adminUserId: string): Promise<PortalP
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
+  return mapProfileRowToPortalProfile(data);
+}
 
+export async function resolvePortalProfileByStaffId(staffId: string): Promise<PortalProfile | null> {
+  const { data, error } = await supabase
+    .from("staff_profiles")
+    .select("*")
+    .eq("user_id", staffId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return mapProfileRowToPortalProfile(data);
+}
+
+function mapProfileRowToPortalProfile(data: Record<string, unknown>): PortalProfile {
   const monthlySalary = Number(data.monthly_salary ?? 0);
   const shiftStart = (data.shift_start_time as string | null) ?? null;
   const shiftEnd = (data.shift_end_time as string | null) ?? null;
@@ -60,6 +75,62 @@ export async function resolvePortalProfile(adminUserId: string): Promise<PortalP
     default_shift_hours: defaultShiftHours,
     is_active: data.is_active !== false,
   };
+}
+
+export type FloorClockInRow = {
+  staffId: string;
+  staffName: string;
+  username: string;
+  designation: string | null;
+  clockIn: string;
+  locationId: string | null;
+};
+
+/** Open shifts across the venue — for shared floor portal kiosk. */
+export async function fetchFloorClockIns(
+  organizationId: string,
+  locationId?: string | null,
+): Promise<FloorClockInRow[]> {
+  let query = supabase
+    .from("staff_attendance")
+    .select("staff_id, clock_in, location_id")
+    .eq("organization_id", organizationId)
+    .is("clock_out", null)
+    .not("clock_in", "is", null)
+    .order("clock_in", { ascending: false });
+
+  if (locationId) {
+    query = query.eq("location_id", locationId);
+  }
+
+  const { data: rows, error } = await query;
+  if (error) throw error;
+  if (!rows?.length) return [];
+
+  const staffIds = [...new Set(rows.map((row) => String(row.staff_id)))];
+  const { data: profiles, error: profErr } = await supabase
+    .from("staff_profiles")
+    .select("user_id, username, full_name, designation")
+    .in("user_id", staffIds);
+  if (profErr) throw profErr;
+
+  const profileMap = new Map(
+    (profiles ?? []).map((p) => [String(p.user_id), p]),
+  );
+
+  return rows.map((row) => {
+    const profile = profileMap.get(String(row.staff_id));
+    const full = String(profile?.full_name ?? "").trim();
+    const username = String(profile?.username ?? "Staff");
+    return {
+      staffId: String(row.staff_id),
+      staffName: full || username,
+      username,
+      designation: (profile?.designation as string | null) ?? null,
+      clockIn: String(row.clock_in),
+      locationId: row.location_id ? String(row.location_id) : null,
+    };
+  });
 }
 
 export async function assertProfileInOrg(profile: PortalProfile, organizationId: string): Promise<void> {

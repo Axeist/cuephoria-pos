@@ -12,6 +12,8 @@ import {
 import { resolveStaffHourlyRate, resolveStaffShiftHours } from '@/utils/staffEarnings';
 import { staffPortalCall } from '@/services/staff/staffPortalTransport';
 import { adminFetch } from '@/services/adminFetch';
+import type { FloorClockIn } from '@/components/staff/portal/FloorOnDutyPanel';
+import { useLocation } from '@/context/LocationContext';
 
 function mapPortalProfileToStaff(profile: Record<string, unknown>) {
   const shift_start_time = profile.shiftStartTime as string | null | undefined;
@@ -50,9 +52,11 @@ export function useStaffPortal() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { activeLocationId } = useLocation();
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
   const [portalGate, setPortalGate] = useState<'loading' | 'no_profile' | 'pin' | 'ready'>('loading');
   const [portalDisplayName, setPortalDisplayName] = useState<string | null>(null);
+  const [floorClockIns, setFloorClockIns] = useState<FloorClockIn[]>([]);
   const [showLeaveRequest, setShowLeaveRequest] = useState(false);
   const [showRegularizationRequest, setShowRegularizationRequest] = useState(false);
   const [showOTRequest, setShowOTRequest] = useState(false);
@@ -78,6 +82,19 @@ export function useStaffPortal() {
     dateTo: ''
   });
 
+  const refreshFloorClockIns = async () => {
+    try {
+      const qs = activeLocationId ? `?locationId=${encodeURIComponent(activeLocationId)}` : '';
+      const res = await adminFetch(`/api/admin/staff-portal${qs}`, { method: 'GET', credentials: 'same-origin' });
+      const json = await res.json();
+      if (json?.ok) {
+        setFloorClockIns(json.floorClockIns ?? []);
+      }
+    } catch {
+      /* non-blocking */
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
 
@@ -87,24 +104,17 @@ export function useStaffPortal() {
         return;
       }
 
-      const unlockedStaffId = getStaffPortalUnlock(user.id);
-      if (unlockedStaffId) {
-        try {
-          const res = await adminFetch('/api/admin/staff-portal', { method: 'GET', credentials: 'same-origin' });
-          const json = await res.json();
-          if (!cancelled && json?.ok && json.hasProfile && json.profile?.userId === unlockedStaffId) {
-            setSelectedStaff(mapPortalProfileToStaff(json.profile));
-            setPortalGate('ready');
-            return;
-          }
-        } catch {
-          /* fall through to PIN */
-        }
-        clearStaffPortalUnlock();
+      const unlock = getStaffPortalUnlock(user.id);
+      if (unlock?.profile) {
+        setSelectedStaff(mapPortalProfileToStaff(unlock.profile));
+        setPortalGate('ready');
+        void refreshFloorClockIns();
+        return;
       }
 
       try {
-        const res = await adminFetch('/api/admin/staff-portal', { method: 'GET', credentials: 'same-origin' });
+        const qs = activeLocationId ? `?locationId=${encodeURIComponent(activeLocationId)}` : '';
+        const res = await adminFetch(`/api/admin/staff-portal${qs}`, { method: 'GET', credentials: 'same-origin' });
         const json = await res.json();
         if (cancelled) return;
 
@@ -112,21 +122,23 @@ export function useStaffPortal() {
           setPortalGate('no_profile');
           return;
         }
-        if (!json.hasProfile) {
-          setPortalGate('no_profile');
-          return;
-        }
 
-        setPortalDisplayName(json.profile?.fullName ?? user.displayName ?? user.username);
+        setFloorClockIns(json.floorClockIns ?? []);
+
+        if (json.hasProfile && json.profile) {
+          setPortalDisplayName(json.profile?.fullName ?? user.displayName ?? user.username);
+        } else {
+          setPortalDisplayName(null);
+        }
         setPortalGate('pin');
       } catch {
-        if (!cancelled) setPortalGate('no_profile');
+        if (!cancelled) setPortalGate('pin');
       }
     };
 
     bootPortal();
     return () => { cancelled = true; };
-  }, [user?.id, user?.displayName, user?.username]);
+  }, [user?.id, user?.displayName, user?.username, activeLocationId]);
 
   useEffect(() => {
     if (selectedStaff) {
@@ -191,7 +203,7 @@ export function useStaffPortal() {
         leaveRequests: any[];
         leaveBalance: { paid: number; unpaid: number };
         payslips: any[];
-      }>('fetchDashboard');
+      }>('fetchDashboard', {}, { adminUserId: user?.id ?? null });
 
       setCurrentShift(dashboard.currentShift);
       setAllAttendance(dashboard.allAttendance);
@@ -204,7 +216,7 @@ export function useStaffPortal() {
       setLeaveRequests(dashboard.leaveRequests);
       setLeaveBalance(dashboard.leaveBalance);
       setPayslips(dashboard.payslips);
-
+      await refreshFloorClockIns();
     } catch (error: any) {
       console.error('Error fetching staff data:', error);
       toast({
@@ -221,7 +233,11 @@ export function useStaffPortal() {
     if (!selectedStaff?.user_id) return;
 
     try {
-      const result = await staffPortalCall<{ ok: boolean; error?: string; currentShift?: any }>('clockIn');
+      const result = await staffPortalCall<{ ok: boolean; error?: string; currentShift?: any }>(
+        'clockIn',
+        {},
+        { adminUserId: user?.id ?? null },
+      );
       if (!result.ok) {
         if (result.currentShift) setCurrentShift(result.currentShift);
         toast({
@@ -249,7 +265,7 @@ export function useStaffPortal() {
     if (!currentShift) return;
 
     try {
-      await staffPortalCall('clockOut', { attendanceId: currentShift.id });
+      await staffPortalCall('clockOut', { attendanceId: currentShift.id }, { adminUserId: user?.id ?? null });
       setCurrentShift(null);
       toast({ title: 'Clocked Out', description: 'Shift ended successfully' });
       await fetchStaffData();
@@ -267,9 +283,11 @@ export function useStaffPortal() {
     if (!currentShift) return;
 
     try {
-      const result = await staffPortalCall<{ ok: boolean; error?: string }>('startBreak', {
-        attendanceId: currentShift.id,
-      });
+      const result = await staffPortalCall<{ ok: boolean; error?: string }>(
+        'startBreak',
+        { attendanceId: currentShift.id },
+        { adminUserId: user?.id ?? null },
+      );
       if (!result.ok) {
         toast({
           title: 'Break Conflict',
@@ -301,6 +319,7 @@ export function useStaffPortal() {
       const result = await staffPortalCall<{ breakMinutes: number; totalBreak: number; exceeded: boolean }>(
         'endBreak',
         { attendanceId: currentShift.id },
+        { adminUserId: user?.id ?? null },
       );
 
       if (result.exceeded) {
@@ -332,7 +351,7 @@ export function useStaffPortal() {
     if (!deleteLeaveId) return;
 
     try {
-      await staffPortalCall('deleteLeave', { leaveId: deleteLeaveId });
+      await staffPortalCall('deleteLeave', { leaveId: deleteLeaveId }, { adminUserId: user?.id ?? null });
       toast({ title: 'Success', description: 'Leave request deleted successfully' });
       setDeleteLeaveId(null);
       fetchStaffData();
@@ -419,12 +438,21 @@ export function useStaffPortal() {
     navigate('/dashboard');
   };
 
-  const handlePinVerified = (profile: Record<string, unknown>) => {
+  const handlePinVerified = (
+    profile: Record<string, unknown>,
+    portalSessionToken?: string,
+  ) => {
     if (user?.id && profile.userId) {
-      setStaffPortalUnlocked(user.id, String(profile.userId));
+      setStaffPortalUnlocked(
+        user.id,
+        String(profile.userId),
+        portalSessionToken,
+        profile,
+      );
     }
     setSelectedStaff(mapPortalProfileToStaff(profile));
     setPortalGate('ready');
+    void refreshFloorClockIns();
   };
 
   return {
@@ -432,6 +460,7 @@ export function useStaffPortal() {
     selectedStaff, setSelectedStaff,
     portalGate, setPortalGate,
     portalDisplayName, setPortalDisplayName,
+    floorClockIns, refreshFloorClockIns,
     showLeaveRequest, setShowLeaveRequest,
     showRegularizationRequest, setShowRegularizationRequest,
     showOTRequest, setShowOTRequest,

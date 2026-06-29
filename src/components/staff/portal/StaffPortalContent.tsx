@@ -27,11 +27,13 @@ import {
 } from '@/components/ui/alert-dialog';
 import { resolveStaffHourlyRate, resolveStaffShiftHours, isStaffSalaryConfigured } from '@/utils/staffEarnings';
 import { clearStaffPortalUnlock } from '@/utils/staffPortalSession';
+import FloorOnDutyPanel from '@/components/staff/portal/FloorOnDutyPanel';
 
 const StaffPortalContent: React.FC = () => {
   const p = useStaffPortal();
   const {
     selectedStaff, setSelectedStaff, portalGate, setPortalGate, portalDisplayName,
+    floorClockIns, refreshFloorClockIns,
     showLeaveRequest, setShowLeaveRequest, showRegularizationRequest, setShowRegularizationRequest,
     showOTRequest, setShowOTRequest, showDoubleShiftRequest, setShowDoubleShiftRequest,
     currentShift, activePortalTab, setActivePortalTab, filteredAttendance, monthlyStats,
@@ -53,30 +55,29 @@ const StaffPortalContent: React.FC = () => {
 
   if (portalGate === 'no_profile') {
     return (
-      <div className="flex flex-1 items-center justify-center p-6">
-        <Card className="max-w-md glass-card border-border/50 border-border/50">
-          <CardHeader>
-            <CardTitle className="text-white">Portal not set up</CardTitle>
-            <CardDescription>
-              Your login is not linked to a staff profile yet. Ask your manager to add you in
-              Settings → User Management, or to link your HR profile.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" onClick={handleCloseDialog}>Back to dashboard</Button>
-          </CardContent>
-        </Card>
+      <div className="flex flex-1 flex-col gap-4 p-4 md:p-6 max-w-2xl mx-auto w-full">
+        <FloorOnDutyPanel rows={floorClockIns} />
+        <StaffPortalPinGate
+          displayName={portalDisplayName}
+          floorClockIns={floorClockIns}
+          onVerified={handlePinVerified}
+          onCancel={handleCloseDialog}
+        />
       </div>
     );
   }
 
   if (portalGate === 'pin' || !selectedStaff) {
     return (
-      <StaffPortalPinGate
-        displayName={portalDisplayName}
-        onVerified={handlePinVerified}
-        onCancel={handleCloseDialog}
-      />
+      <div className="flex flex-1 flex-col gap-4 p-4 md:p-6 max-w-2xl mx-auto w-full">
+        <FloorOnDutyPanel rows={floorClockIns} />
+        <StaffPortalPinGate
+          displayName={portalDisplayName}
+          floorClockIns={floorClockIns}
+          onVerified={handlePinVerified}
+          onCancel={handleCloseDialog}
+        />
+      </div>
     );
   }
 
@@ -89,8 +90,10 @@ const StaffPortalContent: React.FC = () => {
         clearStaffPortalUnlock();
         setSelectedStaff(null);
         setPortalGate('pin');
+        void refreshFloorClockIns();
       }}
     >
+      <FloorOnDutyPanel rows={floorClockIns} className="glass-card border-border/50 mb-4" />
       {/* Clock In/Out Card with Real-Time Timer */}
       <Card className="glass-card border-border/50 border-border/50">
         <CardContent className="p-6">

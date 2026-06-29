@@ -4,11 +4,16 @@ import {
   parseCookies,
   verifyAdminSession,
 } from "../../adminApiUtils";
-import { verifyPortalPin } from "../../lib/pinHash";
 import { supabaseServiceClient } from "../../supabaseServer";
 import { resolveOrgContext } from "../../orgContext";
 import { assertEntitlement } from "../../lib/entitlements.js";
 import { resolveStaffHourlyRate } from "../../../utils/staffEarnings.js";
+import { matchStaffByPortalPin } from "../../lib/staffPinResolve.js";
+import {
+  createStaffPortalSessionToken,
+  verifyAssertionToken,
+  STAFF_PORTAL_SESSION_ACTION,
+} from "../../lib/employeePinOps.js";
 import * as ops from "../../lib/staffPortalOps";
 
 export const config = { runtime: "edge" };
@@ -48,6 +53,8 @@ type OpArgs = Record<string, unknown>;
 
 const HANDLERS: Record<string, (profile: ops.PortalProfile, args: OpArgs) => Promise<unknown>> = {
   fetchDashboard: (p) => ops.fetchPortalDashboard(p.user_id, p.location_id),
+  fetchFloorClockIns: (_p, a) =>
+    ops.fetchFloorClockIns(String(a.organizationId ?? ""), (a.locationId as string | null) ?? null),
   clockIn: (p) => ops.clockIn(p),
   clockOut: (p, a) => ops.clockOut(p, String(a.attendanceId ?? "")),
   startBreak: (p, a) => ops.startBreak(p, String(a.attendanceId ?? "")),
@@ -100,7 +107,7 @@ const HANDLERS: Record<string, (profile: ops.PortalProfile, args: OpArgs) => Pro
     }),
 };
 
-async function resolveLinkedProfile(adminUserId: string) {
+async function resolveLinkedProfileRow(adminUserId: string) {
   const supabase = supabaseServiceClient("cuephoria-staff-portal");
   const { data: profile, error } = await supabase
     .from("staff_profiles")
@@ -110,6 +117,38 @@ async function resolveLinkedProfile(adminUserId: string) {
     .maybeSingle();
   if (error) throw error;
   return profile;
+}
+
+function verifyPortalSessionToken(
+  token: string,
+  adminUserId: string,
+): { staffId: string } | null {
+  return verifyAssertionToken(token, STAFF_PORTAL_SESSION_ACTION, adminUserId);
+}
+
+async function resolveActingPortalProfile(opts: {
+  sessionUserId: string;
+  organizationId: string;
+  portalSessionToken?: string | null;
+}): Promise<ops.PortalProfile> {
+  if (opts.portalSessionToken) {
+    const verified = verifyPortalSessionToken(opts.portalSessionToken, opts.sessionUserId);
+    if (verified) {
+      const profile = await ops.resolvePortalProfileByStaffId(verified.staffId);
+      if (profile) {
+        await ops.assertProfileInOrg(profile, opts.organizationId);
+        return profile;
+      }
+    }
+  }
+
+  const linked = await ops.resolvePortalProfile(opts.sessionUserId);
+  if (linked) {
+    await ops.assertProfileInOrg(linked, opts.organizationId);
+    return linked;
+  }
+
+  throw new Error("Enter your portal PIN to continue.");
 }
 
 export default async function handler(req: Request) {
@@ -126,14 +165,24 @@ export default async function handler(req: Request) {
     const staffGate = await assertEntitlement(ctx, "staff_hr_enabled");
     if (staffGate) return staffGate;
 
+    const url = new URL(req.url);
+    const locationId = url.searchParams.get("locationId");
+
     if (req.method === "GET") {
-      const profile = await resolveLinkedProfile(sessionUser.id);
-      if (!profile) {
+      const linked = await resolveLinkedProfileRow(sessionUser.id);
+      const floorClockIns = await ops.fetchFloorClockIns(
+        ctx.organizationId,
+        locationId || null,
+      );
+
+      if (!linked) {
         return j(
           {
             ok: true,
             hasProfile: false,
-            message: "No staff profile is linked to your login. Ask your manager to complete setup in Settings.",
+            kioskMode: true,
+            floorClockIns,
+            message: "Enter any staff portal PIN to clock in — works on a shared floor login.",
           },
           200,
         );
@@ -141,11 +190,20 @@ export default async function handler(req: Request) {
 
       const portalProfile = await ops.resolvePortalProfile(sessionUser.id);
       if (!portalProfile) {
-        return j({ ok: true, hasProfile: false }, 200);
+        return j({ ok: true, hasProfile: false, kioskMode: true, floorClockIns }, 200);
       }
       await ops.assertProfileInOrg(portalProfile, ctx.organizationId);
 
-      return j({ ok: true, hasProfile: true, profile: profilePayload(profile) }, 200);
+      return j(
+        {
+          ok: true,
+          hasProfile: true,
+          kioskMode: true,
+          floorClockIns,
+          profile: profilePayload(linked),
+        },
+        200,
+      );
     }
 
     if (req.method === "POST") {
@@ -153,41 +211,65 @@ export default async function handler(req: Request) {
         pin?: string;
         op?: string;
         args?: OpArgs;
+        portalSessionToken?: string;
       };
 
       if (typeof body.pin === "string" && body.pin.trim() && !body.op) {
         const pin = body.pin.trim();
-        const profile = await resolveLinkedProfile(sessionUser.id);
-        if (!profile) {
-          return j({ ok: false, error: "No staff profile linked to your account." }, 404);
+        const supabase = supabaseServiceClient("staff-portal-pin");
+        const matched = await matchStaffByPortalPin(supabase, ctx.organizationId, pin, {
+          locationId: locationId || null,
+          clockedInOnly: false,
+        });
+
+        if (matched.ok === false) {
+          return j({ ok: false, error: matched.error, code: matched.code }, 403);
         }
 
-        const portalProfile = await ops.resolvePortalProfile(sessionUser.id);
-        if (!portalProfile) {
-          return j({ ok: false, error: "No staff profile linked to your account." }, 404);
+        const fullProfile = await ops.resolvePortalProfileByStaffId(String(matched.profile.user_id));
+        if (!fullProfile) {
+          return j({ ok: false, error: "Staff profile not found." }, 404);
         }
-        await ops.assertProfileInOrg(portalProfile, ctx.organizationId);
+        await ops.assertProfileInOrg(fullProfile, ctx.organizationId);
 
-        if (!(await verifyPortalPin(profile.portal_pin as string, pin))) {
-          return j({ ok: false, error: "Incorrect PIN. Check with your manager if you forgot it." }, 403);
-        }
+        const { data: row } = await supabase
+          .from("staff_profiles")
+          .select("*")
+          .eq("user_id", matched.profile.user_id)
+          .maybeSingle();
 
-        return j({ ok: true, profile: profilePayload(profile) }, 200);
+        const portalSessionToken = createStaffPortalSessionToken({
+          staffId: String(matched.profile.user_id),
+          adminUserId: sessionUser.id,
+          organizationId: ctx.organizationId,
+        });
+
+        return j(
+          {
+            ok: true,
+            profile: profilePayload(row ?? {}),
+            portalSessionToken,
+          },
+          200,
+        );
       }
 
       const op = typeof body.op === "string" ? body.op.trim() : "";
       if (!op) return j({ ok: false, error: "Missing op or pin." }, 400);
 
-      const portalProfile = await ops.resolvePortalProfile(sessionUser.id);
-      if (!portalProfile) {
-        return j({ ok: false, error: "No staff profile linked to your account." }, 404);
-      }
-      await ops.assertProfileInOrg(portalProfile, ctx.organizationId);
+      const portalProfile = await resolveActingPortalProfile({
+        sessionUserId: sessionUser.id,
+        organizationId: ctx.organizationId,
+        portalSessionToken: body.portalSessionToken ?? null,
+      });
 
       const run = HANDLERS[op];
       if (!run) return j({ ok: false, error: `Unknown staff portal op: ${op}` }, 400);
 
       const args = body.args && typeof body.args === "object" ? body.args : {};
+      if (op === "fetchFloorClockIns") {
+        args.organizationId = ctx.organizationId;
+      }
       const data = await run(portalProfile, args);
       return j({ ok: true, data }, 200);
     }
