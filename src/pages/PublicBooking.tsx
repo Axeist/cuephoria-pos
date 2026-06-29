@@ -22,7 +22,21 @@ import {
   parseDurationTiers,
   resolveTimeBasedPlayMinutes,
 } from "@/utils/timeBasedPricing.utils";
-import { getHh99FinalRate } from "@/utils/sessionCoupon.utils";
+import {
+  fetchPublicPromoCoupons,
+  validatePublicPromoCoupon,
+} from "@/services/promoCouponService";
+import type { PromoCoupon } from "@/types/promoCoupon.types";
+import type { PromoDiscountStation } from "@/utils/promoCouponDiscount.utils";
+import {
+  buildPublicPromoValidateSlots,
+  buildPublicPromoValidateStations,
+  buildScopeMapForPromo,
+  computePublicBookingDiscount,
+  mergePromoDetailsForScope,
+  promoCouponEmoji,
+  promoSuccessMessage,
+} from "@/utils/publicBookingPromo.utils";
 import { isStationPublicBookable } from "@/utils/stationTransform";
 import { usePublicBookingBrand } from "@/hooks/usePublicBookingBrand";
 import { usePublicBookingPopups } from "@/hooks/usePublicBookingPopups";
@@ -83,7 +97,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, parse, getDay } from "date-fns";
+import { format, parse } from "date-fns";
 import { getCustomerSession, clearCustomerSession } from "@/utils/customerAuth";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
@@ -139,13 +153,6 @@ interface CustomerInfo {
   email: string;
 }
 
-/** Enabled coupons from booking_settings — drives public list + generic %/fixed discounts */
-interface BookingCouponMeta {
-  code: string;
-  description: string;
-  discount_type: "percentage" | "fixed";
-  discount_value: number;
-}
 interface TodayBookingRow {
   id: string;
   booking_date: string;
@@ -171,49 +178,6 @@ const INR = (n: number) =>
 
 const genTxnId = () =>
   `CUE-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-
-const isHappyHour = (date: Date, slot: TimeSlot | null) => {
-  if (!slot) return false;
-  const day = getDay(date);
-  const startHour = Number(slot.start_time.split(":")[0]);
-  return day >= 1 && day <= 5 && startHour >= 11 && startHour < 16;
-};
-
-/** HH99 requires every selected slot to fall inside Mon–Fri 11 AM–4 PM. */
-const isHappyHourSelection = (date: Date, slots: TimeSlot[]) => {
-  if (slots.length === 0) return false;
-  return slots.every((slot) => isHappyHour(date, slot));
-};
-
-const couponRowEmoji = (code: string) => {
-  switch (code) {
-    case "NIT35":
-      return "🎓";
-    case "HH99":
-      return "⏰";
-    case "CUEPHORIA35":
-      return "📚";
-    case "CUEPHORIA20":
-      return "🎉";
-    default:
-      return "🏷️";
-  }
-};
-
-/** Hidden on public booking only (still in DB / admin; not accepted here). */
-const PUBLIC_BOOKING_EXCLUDED_COUPON_CODES = new Set([
-  "AXEIST",
-  "TEST210198$",
-  "GAMEINSIDER50",
-]);
-
-const FALLBACK_ALLOWED_COUPON_CODES = [
-  "CUEPHORIA20",
-  "CUEPHORIA35",
-  "HH99",
-  "NIT35",
-  "AAVEG50",
-];
 
 // ✅ NEW: Phone number normalization
 const normalizePhoneNumber = (phone: string): string => {
@@ -473,6 +437,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   }, [customerNumber]);
 
   const [appliedCoupons, setAppliedCoupons] = useState<Record<string, string>>({});
+  const [appliedPromoDetails, setAppliedPromoDetails] = useState<Record<string, PromoCoupon>>({});
+  const [publicPromoCoupons, setPublicPromoCoupons] = useState<PromoCoupon[]>([]);
   const [couponCode, setCouponCode] = useState("");
   const [memberVenueCouponValid, setMemberVenueCouponValid] = useState(false);
 
@@ -516,7 +482,12 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   const [instagramLinkClicked, setInstagramLinkClicked] = useState(false);
   const [showFollowConfirmation, setShowFollowConfirmation] = useState(false);
   const [expandedCoupons, setExpandedCoupons] = useState<Record<string, boolean>>({});
-  const [pendingCoupon, setPendingCoupon] = useState<{ code: string; type: "all" | "per-station"; stationTypes?: Record<string, string> } | null>(null);
+  const [pendingCoupon, setPendingCoupon] = useState<{
+    code: string;
+    coupon: PromoCoupon;
+    scopeMap: Record<string, string>;
+    successMessage: string;
+  } | null>(null);
   
   const [, setSearchParams] = useSearchParams();
   const [paymentStatus, setPaymentStatus] = useState<"processing" | "success" | "failed" | null>(null);
@@ -526,7 +497,6 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   // Dynamic settings from database
   const [eventName, setEventName] = useState("IIM Event");
   const [eventDescription, setEventDescription] = useState("Choose VR (15m) or PS5 Gaming (30m)");
-  const [bookingCouponsFromDB, setBookingCouponsFromDB] = useState<BookingCouponMeta[]>([]);
   const [poolAddonsConfig, setPoolAddonsConfig] = useState<PoolBookingAddon[]>(
     mergePoolBookingAddons(null),
   );
@@ -578,39 +548,11 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           setEventDescription(eventSettings.description || "Choose VR (15m) or PS5 Gaming (30m)");
         }
 
-        const { data: couponsData, error: couponsError } = await supabase
-          .from('booking_settings')
-          .select('setting_value')
-          .eq('setting_key', 'booking_coupons')
-          .eq('location_id', publicLocationId)
-          .maybeSingle();
-
-        if (!couponsError && couponsData) {
-          const couponsArray = couponsData.setting_value as Array<{
-            code: string;
-            description?: string;
-            discount_type?: string;
-            discount_value?: number;
-            enabled?: boolean;
-          }>;
-          const enabled: BookingCouponMeta[] = couponsArray
-            .filter((c) => c.enabled !== false && String(c.code || "").trim())
-            .map((c) => {
-              const code = String(c.code).trim().toUpperCase();
-              const dv = c.discount_value;
-              const num =
-                typeof dv === "number" && Number.isFinite(dv) ? dv : Number(dv) || 0;
-              return {
-                code,
-                description:
-                  String(c.description ?? "").trim() || `Discount — ${code}`,
-                discount_type: c.discount_type === "fixed" ? "fixed" : "percentage",
-                discount_value: Number.isFinite(num) ? num : 0,
-              };
-            })
-            .filter((c) => !PUBLIC_BOOKING_EXCLUDED_COUPON_CODES.has(c.code));
-          setBookingCouponsFromDB(enabled);
-        }
+        if (!publicLocationId) return;
+        const promos = await fetchPublicPromoCoupons(publicLocationId, 'public_booking');
+        setPublicPromoCoupons(
+          promos.filter((c) => c.enabled && c.channels.includes('public_booking')),
+        );
 
         const { data: addonsData, error: addonsError } = await supabase
           .from('booking_settings')
@@ -736,32 +678,53 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   }, [selectedSlot, selectedSlots.length]);
 
   useEffect(() => {
+    if (!publicLocationId || !Object.keys(appliedCoupons).length) return;
+
     const slots =
       selectedSlots.length > 0
         ? selectedSlots
         : selectedSlot
           ? [selectedSlot]
           : [];
-    const happyHourOk = isHappyHourSelection(selectedDate, slots);
-    if (!happyHourOk && (appliedCoupons["8ball"] === "HH99" || appliedCoupons["ps5"] === "HH99")) {
-      setAppliedCoupons((prev) => {
-        const copy = { ...prev };
-        let removed = false;
-        if (copy["8ball"] === "HH99") {
-          delete copy["8ball"];
-          removed = true;
+    if (!slots.length) return;
+
+    let cancelled = false;
+
+    void (async () => {
+      const entries = Object.entries(appliedCoupons);
+      const nextCoupons: Record<string, string> = {};
+      const nextDetails: Record<string, PromoCoupon> = {};
+
+      for (const [scopeKey, code] of entries) {
+        const result = await validatePublicPromoCoupon({
+          locationId: publicLocationId,
+          code,
+          phone: customerInfo.phone?.trim(),
+          selectedDate: format(selectedDate, 'yyyy-MM-dd'),
+          slots: buildPublicPromoValidateSlots(selectedDate, slots),
+          stations: buildPublicPromoValidateStations(selectedStations, stations),
+          slotCount: slots.length,
+        });
+        if (cancelled) return;
+        if (result.ok) {
+          nextCoupons[scopeKey] = code;
+          nextDetails[scopeKey] = result.coupon;
         }
-        if (copy["ps5"] === "HH99") {
-          delete copy["ps5"];
-          removed = true;
-        }
-        if (removed) {
-          toast.error("❌ HH99 removed: valid only Mon–Fri 11 AM–4 PM");
-        }
-        return copy;
-      });
-    }
-  }, [selectedDate, selectedSlot, selectedSlots, appliedCoupons]);
+      }
+
+      if (cancelled) return;
+      if (Object.keys(nextCoupons).length !== entries.length) {
+        toast.error('A coupon was removed because it no longer applies to your selection.');
+      }
+      setAppliedCoupons(nextCoupons);
+      setAppliedPromoDetails(nextDetails);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, selectedSlot, selectedSlots, selectedStations, publicLocationId]);
 
   useEffect(() => {
     const ch = supabase
@@ -1169,20 +1132,13 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     setSelectedSlot(slotsToSet[slotsToSet.length - 1]);
   }
 
-  // Use dynamic coupons from database, fallback to defaults if not loaded yet
-  const allowedCoupons =
-    bookingCouponsFromDB.length > 0
-      ? bookingCouponsFromDB.map((c) => c.code)
-      : FALLBACK_ALLOWED_COUPON_CODES;
-
-  function validateStudentID() {
-    return window.confirm(
-      "🎓 CUEPHORIA35 is for other college & school students ONLY.\nShow a valid student ID card during your visit for this discount. Apply?"
-    );
-  }
-
   function removeCoupon(key: string) {
     setAppliedCoupons((prev) => {
+      const c = { ...prev };
+      delete c[key];
+      return c;
+    });
+    setAppliedPromoDetails((prev) => {
       const c = { ...prev };
       delete c[key];
       return c;
@@ -1190,260 +1146,124 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     setMemberVenueCouponValid(false);
   }
 
-  async function tryMemberVenueCoupon(code: string): Promise<boolean> {
-    if (!publicLocationId || !customerInfo.phone?.trim()) return false;
-    try {
-      const res = await fetch("/api/tenant/membership-coupon-validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          location_id: publicLocationId,
-          phone: customerInfo.phone.trim(),
-          code: code.toUpperCase().trim(),
-        }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (res.ok && json?.ok) {
-        setMemberVenueCouponValid(true);
-        setAppliedCoupons({ all: code.toUpperCase().trim() });
-        setPaymentMethod("venue");
-        toast.success("Member coupon applied — you can pay at the venue.");
-        return true;
-      }
-    } catch {
-      /* fall through to standard coupons */
+  function getSlotsForCoupon() {
+    return selectedSlots.length > 0
+      ? selectedSlots
+      : selectedSlot
+        ? [selectedSlot]
+        : [];
+  }
+
+  function shouldShowInstagramDialog(coupon: PromoCoupon) {
+    const gate = popupConfig.instagram_gate;
+    if (!coupon.gates?.requireInstagramFollow) return false;
+    if (!gate.enabled) return false;
+    if (!gate.require_for_coupon_codes.includes(coupon.code.toUpperCase())) return false;
+    if (customerInfo.id) return false;
+
+    const isAnyDialogOpen =
+      showConfirmationDialog ||
+      showLegalDialog ||
+      showRefundDialog ||
+      showOnlinePaymentPromo ||
+      showPaymentWarning ||
+      showFollowConfirmation;
+
+    return !isAnyDialogOpen;
+  }
+
+  function commitAppliedPromo(coupon: PromoCoupon, scopeMap: Record<string, string>) {
+    setAppliedCoupons(scopeMap);
+    setAppliedPromoDetails((prev) =>
+      mergePromoDetailsForScope(scopeMap, coupon, coupon.stackable ? prev : {}, coupon.stackable),
+    );
+    if (coupon.allowsVenuePayment && coupon.memberOnly) {
+      setMemberVenueCouponValid(true);
+      setPaymentMethod('venue');
+    } else {
+      setMemberVenueCouponValid(false);
     }
-    return false;
+    toast.success(promoSuccessMessage(coupon));
   }
 
   async function applyCoupon(raw: string) {
-    const code = (raw || "").toUpperCase().trim();
-    if (!code) return;
+    const code = (raw || '').toUpperCase().trim();
+    if (!code || !publicLocationId) return;
 
-    if (await tryMemberVenueCoupon(code)) return;
+    const slotsForCoupon = getSlotsForCoupon();
+    if (!slotsForCoupon.length) {
+      toast.error('Select a time slot before applying a coupon.');
+      return;
+    }
+    if (!selectedStations.length) {
+      toast.error('Select stations before applying a coupon.');
+      return;
+    }
 
-    if (!onlinePaymentEnabled) {
-      toast.error("Online payment is unavailable. Coupons cannot be applied — pay at venue without a coupon or call us.");
+    const result = await validatePublicPromoCoupon({
+      locationId: publicLocationId,
+      code,
+      phone: customerInfo.phone?.trim(),
+      selectedDate: format(selectedDate, 'yyyy-MM-dd'),
+      slots: buildPublicPromoValidateSlots(selectedDate, slotsForCoupon),
+      stations: buildPublicPromoValidateStations(selectedStations, stations),
+      slotCount: slotsForCoupon.length,
+    });
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+
+    const coupon = result.coupon;
+
+    if (coupon.gates?.requireStudentConfirm) {
+      const ok = window.confirm(
+        `🎓 ${coupon.code} may require ID verification at the venue. Apply this discount?`,
+      );
+      if (!ok) return;
+    }
+
+    const scopeMap = buildScopeMapForPromo(
+      coupon,
+      selectedStations,
+      stations,
+      coupon.stackable ? appliedCoupons : {},
+    );
+
+    if (coupon.discountScope !== 'whole_booking' && !Object.keys(scopeMap).length) {
+      toast.error('This coupon does not apply to your selected stations.');
+      return;
+    }
+
+    if (coupon.allowsVenuePayment && !coupon.allowsOnlinePayment) {
+      setMemberVenueCouponValid(true);
+      commitAppliedPromo(coupon, scopeMap);
+      return;
+    }
+
+    if (!onlinePaymentEnabled && !coupon.allowsVenuePayment) {
+      toast.error(
+        'Online payment is unavailable. This coupon cannot be applied — pay at venue or call us.',
+      );
       return;
     }
 
     setMemberVenueCouponValid(false);
-    if (!allowedCoupons.includes(code)) {
-      toast.error("🚫 Invalid coupon code. Please re-check and try again!");
-      return;
-    }
 
-    const selectedHas8Ball = selectedStations.some(
-      (id) => stations.find((s) => s.id === id && s.type === "8ball")
-    );
-    const selectedHasPS5 = selectedStations.some(
-      (id) => stations.find((s) => s.id === id && s.type === "ps5")
-    );
-    const selectedHasVR = selectedStations.some(
-      (id) => stations.find((s) => s.id === id && s.type === "vr")
-    );
-    const selectedHasTimeBased = selectedStations.some(
-      (id) => stations.find((s) => s.id === id && s.pricing_mode === "time_based")
-    );
-    const slotsForCoupon =
-      selectedSlots.length > 0
-        ? selectedSlots
-        : selectedSlot
-          ? [selectedSlot]
-          : [];
-    const happyHourActive = isHappyHourSelection(selectedDate, slotsForCoupon);
-
-    // Check if customer is new (no customerInfo.id means new customer)
-    const isNewCustomer = !customerInfo.id;
-    
-    // Helper function to check if Instagram follow dialog should be shown
-    const shouldShowInstagramDialog = (couponCode: string) => {
-      const gate = popupConfig.instagram_gate;
-      if (!gate.enabled) return false;
-      if (!gate.require_for_coupon_codes.includes(couponCode.toUpperCase().trim())) return false;
-      if (!isNewCustomer) return false;
-      
-      // Check if any other dialog is open - don't show Instagram popup if so
-      const isAnyDialogOpen = 
-        showConfirmationDialog || 
-        showLegalDialog || 
-        showRefundDialog || 
-        showOnlinePaymentPromo || 
-        showPaymentWarning ||
-        showFollowConfirmation;
-      
-      if (isAnyDialogOpen) {
-        return false; // Don't show popup when other dialogs are open
-      }
-      
-      return true;
-    };
-
-    // Helper function to apply coupon after Instagram follow
-    const applyCouponAfterInstagram = (couponCode: string, couponType: "all" | "per-station", stationTypes?: Record<string, string>) => {
-      if (couponType === "all") {
-        setAppliedCoupons({ all: couponCode });
-      } else if (stationTypes) {
-        setAppliedCoupons((prev) => {
-          let updated = { ...prev };
-          for (const [typeKey, typeCode] of Object.entries(stationTypes)) {
-            if (typeCode) updated[typeKey] = typeCode;
-          }
-          return updated;
-        });
-      }
-    };
-
-    if (code === "CUEPHORIA35") {
-      if (!validateStudentID()) return;
-      
-      // For new customers, show Instagram follow dialog
-      if (shouldShowInstagramDialog("CUEPHORIA35")) {
-        setShowInstagramFollowDialog(true);
-        setInstagramLinkClicked(false);
-        // Store coupon info to apply after Instagram follow
-        setPendingCoupon({ code: "CUEPHORIA35", type: "all" });
-        return;
-      }
-      
-      setAppliedCoupons({ all: "CUEPHORIA35" });
-      toast.success(
-        "📚 CUEPHORIA35 applied: 35% OFF for students with valid ID!\nShow your student ID when you visit! 🤝"
-      );
-      return;
-    }
-
-    if (code === "CUEPHORIA20") {
-      // For new customers, show Instagram follow dialog
-      if (shouldShowInstagramDialog("CUEPHORIA20")) {
-        setShowInstagramFollowDialog(true);
-        setInstagramLinkClicked(false);
-        // Store coupon info to apply after Instagram follow
-        setPendingCoupon({ code: "CUEPHORIA20", type: "all" });
-        return;
-      }
-      
-      setAppliedCoupons({ all: "CUEPHORIA20" });
-      toast.success("🎉 CUEPHORIA20 applied: 20% OFF! Book more, play more! 🕹️");
-      return;
-    }
-
-    if (code === "HH99") {
-      if (selectedHasVR) {
-        toast.error("⏰ HH99 is not applicable to VR gaming stations.");
-        return;
-      }
-      if (!(selectedHas8Ball || selectedHasPS5)) {
-        toast.error("⏰ HH99 applies to PS5 and 8-Ball stations during Happy Hours.");
-        return;
-      }
-      if (!happyHourActive) {
-        toast.error("🕒 HH99 valid only Mon–Fri 11 AM to 4 PM (Happy Hours).");
-        return;
-      }
-      setAppliedCoupons((prev) => {
-        let updated = { ...prev };
-        if (selectedHas8Ball) updated["8ball"] = "HH99";
-        if (selectedHasPS5) updated["ps5"] = "HH99";
-        return updated;
+    if (shouldShowInstagramDialog(coupon)) {
+      setShowInstagramFollowDialog(true);
+      setInstagramLinkClicked(false);
+      setPendingCoupon({
+        code: coupon.code,
+        coupon,
+        scopeMap,
+        successMessage: promoSuccessMessage(coupon),
       });
-      toast.success(
-        "⏰ HH99 applied! PS5 & 8-Ball stations at ₹99/hour during Happy Hours! ✨"
-      );
       return;
     }
 
-    if (code === "NIT35") {
-      if (!(selectedHas8Ball || selectedHasPS5 || selectedHasVR || selectedHasTimeBased)) {
-        toast.error(
-          "NIT35 can be applied to PS5, 8-Ball, VR, or Sim Racing stations in your selection."
-        );
-        return;
-      }
-      
-      // For new customers, show Instagram follow dialog
-      if (shouldShowInstagramDialog("NIT35")) {
-        setShowInstagramFollowDialog(true);
-        setInstagramLinkClicked(false);
-        // Store coupon info to apply after Instagram follow
-        const stationTypes: { ps5?: string; "8ball"?: string; vr?: string; [key: string]: string | undefined } = {};
-        if (selectedHasPS5) stationTypes.ps5 = "NIT35";
-        if (selectedHas8Ball) stationTypes["8ball"] = appliedCoupons["8ball"] === "HH99" ? "HH99" : "NIT35";
-        if (selectedHasVR) stationTypes.vr = "NIT35";
-        selectedStations.forEach((id) => {
-          const s = stations.find((st) => st.id === id);
-          if (s?.pricing_mode === "time_based") stationTypes[s.type] = "NIT35";
-        });
-        setPendingCoupon({ code: "NIT35", type: "per-station", stationTypes });
-        return;
-      }
-      
-      setAppliedCoupons((prev) => {
-        let updated = { ...prev };
-        if (selectedHasPS5) updated["ps5"] = "NIT35";
-        if (selectedHas8Ball) updated["8ball"] = prev["8ball"] === "HH99" ? "HH99" : "NIT35";
-        if (selectedHasVR) updated["vr"] = "NIT35";
-        selectedStations.forEach((id) => {
-          const s = stations.find((st) => st.id === id);
-          if (s?.pricing_mode === "time_based") updated[s.type] = "NIT35";
-        });
-        return updated;
-      });
-      let msg = "🎓 NIT35 applied! 35% OFF for ";
-      const types = [];
-      if (selectedHasPS5) types.push("PS5");
-      if (selectedHas8Ball) types.push("8-Ball");
-      if (selectedHasVR) types.push("VR");
-      if (selectedHasTimeBased) types.push("Sim Racing");
-      msg += types.join(" & ") + " stations!";
-      toast.success(msg);
-      return;
-    }
-
-    if (code === "AAVEG50") {
-      if (!(selectedHas8Ball || selectedHasPS5 || selectedHasVR || selectedHasTimeBased)) {
-        toast.error(
-          "AAVEG50 can be applied to PS5, 8-Ball, VR, or Sim Racing stations in your selection."
-        );
-        return;
-      }
-      setAppliedCoupons((prev) => {
-        let updated = { ...prev };
-        if (selectedHasPS5) updated["ps5"] = "AAVEG50";
-        if (selectedHas8Ball) updated["8ball"] = "AAVEG50";
-        if (selectedHasVR) updated["vr"] = "AAVEG50";
-        selectedStations.forEach((id) => {
-          const s = stations.find((st) => st.id === id);
-          if (s?.pricing_mode === "time_based") updated[s.type] = "AAVEG50";
-        });
-        return updated;
-      });
-      let msg = "🏫 AAVEG50 applied! 50% OFF for ";
-      const types = [];
-      if (selectedHasPS5) types.push("PS5");
-      if (selectedHas8Ball) types.push("8-Ball");
-      if (selectedHasVR) types.push("VR");
-      if (selectedHasTimeBased) types.push("Sim Racing");
-      msg += types.join(" & ") + " stations!";
-      toast.success(msg);
-      return;
-    }
-
-    // Configured in Settings → Booking: generic % or fixed off entire selection
-    const dbMeta = bookingCouponsFromDB.find((c) => c.code === code);
-    if (dbMeta) {
-      setAppliedCoupons({ all: dbMeta.code });
-      if (dbMeta.discount_type === "percentage") {
-        toast.success(
-          `🎟️ ${dbMeta.code} applied: ${dbMeta.discount_value}% off your booking!`
-        );
-      } else {
-        toast.success(
-          `🎟️ ${dbMeta.code} applied: ${INR(dbMeta.discount_value)} off your booking!`
-        );
-      }
-      return;
-    }
+    commitAppliedPromo(coupon, scopeMap);
   }
 
   const handleCouponApply = () => {
@@ -1546,153 +1366,26 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     return getRateForPlayerCount(toStationPricingInput(s), count).totalRate;
   };
 
-  const sumStationSessionPrices = (stationList: Station[]) =>
-    stationList.reduce((sum, s) => sum + getStationSessionPrice(s), 0);
-
-  const computeHh99Discount = (stationList: Station[]) =>
-    stationList.reduce((discount, s) => {
-      const undiscounted = getStationSessionPrice(s);
-      const count = stationPlayerCounts[s.id] ?? 1;
-      const finalRate = getHh99FinalRate(toStationPricingInput(s), count);
-      return discount + Math.max(0, undiscounted - finalRate);
-    }, 0);
-
-  const getLegacyPercentRate = (couponCode: string): number | null => {
-    const dbCoupon = bookingCouponsFromDB.find((c) => c.code === couponCode);
-    if (dbCoupon?.discount_type === "percentage") {
-      return Math.min(100, Math.max(0, dbCoupon.discount_value)) / 100;
-    }
-    if (couponCode === "NIT35") return 0.35;
-    if (couponCode === "AAVEG50") return 0.5;
-    return null;
-  };
-
-  const computePercentDiscount = (stationList: Station[], couponCode: string) => {
-    const rate = getLegacyPercentRate(couponCode);
-    if (rate == null) return 0;
-    return sumStationSessionPrices(stationList) * rate;
+  const buildPromoDiscountStations = (): PromoDiscountStation[] => {
+    const selectedStationObjects = stations.filter((s) => selectedStations.includes(s.id));
+    return selectedStationObjects.map((s) => ({
+      id: s.id,
+      type: s.type,
+      pricingMode: s.pricing_mode,
+      undiscountedPrice: getStationSessionPrice(s),
+      playerCount: stationPlayerCounts[s.id] ?? 1,
+      pricingInput: toStationPricingInput(s),
+    }));
   };
 
   const calculateDiscount = () => {
     const original = calculateOriginalPrice();
-    if (original === 0) return { total: 0, breakdown: {} as Record<string, number> };
-    if (!Object.keys(appliedCoupons).length)
-      return { total: 0, breakdown: {} as Record<string, number> };
-
-    if (appliedCoupons["all"]) {
-      if (appliedCoupons["all"] === "CUEPHORIA20") {
-        const disc = original * 0.20;
-        return { total: disc, breakdown: { all: disc } };
-      }
-      if (appliedCoupons["all"] === "CUEPHORIA35") {
-        const disc = original * 0.35;
-        return { total: disc, breakdown: { all: disc } };
-      }
-      const dbAll = bookingCouponsFromDB.find(
-        (c) => c.code === appliedCoupons["all"]
-      );
-      if (dbAll) {
-        if (dbAll.discount_type === "percentage") {
-          const rate = Math.min(100, Math.max(0, dbAll.discount_value)) / 100;
-          const disc = original * rate;
-          return { total: disc, breakdown: { [dbAll.code]: disc } };
-        }
-        const disc = Math.min(original, Math.max(0, dbAll.discount_value));
-        return { total: disc, breakdown: { [dbAll.code]: disc } };
-      }
-      return { total: 0, breakdown: {} as Record<string, number> };
-    }
-
-    let totalDiscount = 0;
-    const breakdown: Record<string, number> = {};
-
-    if (
-      appliedCoupons["8ball"] === "HH99" &&
-      appliedCoupons["ps5"] === "NIT35"
-    ) {
-      const eightBalls = stations.filter(
-        (s) => selectedStations.includes(s.id) && s.type === "8ball"
-      );
-      const d = computeHh99Discount(eightBalls);
-      if (d > 0) {
-        totalDiscount += d;
-        breakdown["8-Ball (HH99)"] = d;
-      }
-      const ps5s = stations.filter(
-        (s) => selectedStations.includes(s.id) && s.type === "ps5"
-      );
-      const d2 = computePercentDiscount(ps5s, "NIT35");
-      totalDiscount += d2;
-      breakdown["PS5 (HH99+NIT35)"] = d2;
-    } else {
-      if (appliedCoupons["8ball"] === "HH99") {
-        const eightBalls = stations.filter(
-          (s) => selectedStations.includes(s.id) && s.type === "8ball"
-        );
-        const d = computeHh99Discount(eightBalls);
-        if (d > 0) {
-          totalDiscount += d;
-          breakdown["8-Ball (HH99)"] = d;
-        }
-      }
-
-      if (appliedCoupons["ps5"] === "HH99") {
-        const ps5s = stations.filter(
-          (s) => selectedStations.includes(s.id) && s.type === "ps5"
-        );
-        const d = computeHh99Discount(ps5s);
-        if (d > 0) {
-          totalDiscount += d;
-          breakdown["PS5 (HH99)"] = d;
-        }
-      }
-
-      if (appliedCoupons["8ball"] === "NIT35" || appliedCoupons["8ball"] === "AAVEG50") {
-        const balls = stations.filter(
-          (s) => selectedStations.includes(s.id) && s.type === "8ball"
-        );
-        const code = appliedCoupons["8ball"];
-        const d = computePercentDiscount(balls, code);
-        totalDiscount += d;
-        breakdown[`8-Ball (${code})`] = d;
-      }
-
-      if (appliedCoupons["ps5"] === "NIT35" || appliedCoupons["ps5"] === "AAVEG50") {
-        const ps5s = stations.filter(
-          (s) => selectedStations.includes(s.id) && s.type === "ps5"
-        );
-        const code = appliedCoupons["ps5"];
-        const d = computePercentDiscount(ps5s, code);
-        totalDiscount += d;
-        breakdown[`PS5 (${code})`] = d;
-      }
-
-      if (appliedCoupons["vr"] === "NIT35" || appliedCoupons["vr"] === "AAVEG50") {
-        const vrStations = stations.filter(
-          (s) => selectedStations.includes(s.id) && s.type === "vr"
-        );
-        const code = appliedCoupons["vr"];
-        const d = computePercentDiscount(vrStations, code);
-        totalDiscount += d;
-        breakdown[`VR (${code})`] = d;
-      }
-
-      const timeBasedSelected = stations.filter(
-        (s) => selectedStations.includes(s.id) && s.pricing_mode === "time_based"
-      );
-      for (const s of timeBasedSelected) {
-        const code = appliedCoupons[s.type];
-        if (code === "NIT35" || code === "AAVEG50") {
-          const d = computePercentDiscount([s], code);
-          if (d > 0) {
-            totalDiscount += d;
-            breakdown[`${s.name} (${code})`] = d;
-          }
-        }
-      }
-    }
-
-    return { total: totalDiscount, breakdown };
+    return computePublicBookingDiscount(
+      appliedCoupons,
+      appliedPromoDetails,
+      buildPromoDiscountStations(),
+      original,
+    );
   };
 
   const originalPrice = calculateOriginalPrice();
@@ -3133,10 +2826,10 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                       </Label>
                       
                       <div className="space-y-2.5">
-                      {bookingCouponsFromDB.length > 0 ? (
-                        bookingCouponsFromDB.map((coupon) => (
+                      {publicPromoCoupons.length > 0 ? (
+                        publicPromoCoupons.map((coupon) => (
                           <div
-                            key={coupon.code}
+                            key={coupon.id}
                             className="rounded-lg bg-gray-800/30 border border-gray-700/50 overflow-hidden"
                           >
                             <div
@@ -3149,7 +2842,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                               }
                             >
                               <div className="flex items-start gap-2 flex-1 min-w-0">
-                                <span className="text-sm flex-shrink-0">{couponRowEmoji(coupon.code)}</span>
+                                <span className="text-sm flex-shrink-0">{promoCouponEmoji(coupon)}</span>
                                 <div className="flex-1 min-w-0">
                                   <span className="font-semibold text-gray-200 text-xs font-mono">
                                     {coupon.code}
@@ -3166,7 +2859,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                                   size="sm"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    applyCoupon(coupon.code);
+                                    void applyCoupon(coupon.code);
                                   }}
                                   className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-7"
                                 >
@@ -3183,9 +2876,11 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                               <div className="px-2 pb-2 pt-0 border-t border-gray-700/50">
                                 <p className="text-xs text-gray-400 mt-2">{coupon.description}</p>
                                 <p className="text-[11px] text-gray-500 mt-1">
-                                  {coupon.discount_type === "percentage"
-                                    ? `${coupon.discount_value}% off the booking total`
-                                    : `${INR(coupon.discount_value)} off the booking total`}
+                                  {coupon.discountType === "percentage"
+                                    ? `${coupon.discountValue}% off`
+                                    : coupon.discountType === "flat_rate"
+                                      ? `₹${coupon.discountValue} flat rate`
+                                      : `${INR(coupon.discountValue)} off`}
                                 </p>
                               </div>
                             )}
@@ -3206,12 +2901,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                         ✅ Applied Coupons
                       </Label>
                       {Object.entries(appliedCoupons).map(([key, val]) => {
-                        let emoji = "🏷️";
-                        if (val === "HH99") emoji = "⏰";
-                        else if (val === "NIT35") emoji = "🎓";
-                        else if (val === "CUEPHORIA20") emoji = "🎉";
-                        else if (val === "CUEPHORIA35") emoji = "📚";
-                        else if (val === "AAVEG50") emoji = "🏫";
+                        const promo = appliedPromoDetails[key];
+                        const emoji = promo ? promoCouponEmoji(promo) : "🏷️";
                         return (
                           <div
                             key={key}
@@ -3879,37 +3570,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
               <Button
                 onClick={() => {
                   if (pendingCoupon) {
-                    if (pendingCoupon.type === "all") {
-                      setAppliedCoupons({ all: pendingCoupon.code });
-                    } else if (pendingCoupon.stationTypes) {
-                      setAppliedCoupons((prev) => {
-                        let updated = { ...prev };
-                        for (const [typeKey, typeCode] of Object.entries(pendingCoupon.stationTypes ?? {})) {
-                          if (typeCode) updated[typeKey] = typeCode;
-                        }
-                        return updated;
-                      });
-                    }
-                    
-                    // Show success message based on coupon
-                    let successMsg = "";
-                    if (pendingCoupon.code === "CUEPHORIA35") {
-                      successMsg = "📚 CUEPHORIA35 applied: 35% OFF for students with valid ID!\nShow your student ID when you visit! 🤝";
-                    } else if (pendingCoupon.code === "CUEPHORIA20") {
-                      successMsg = "🎉 CUEPHORIA20 applied: 20% OFF! Book more, play more! 🕹️";
-                    } else if (pendingCoupon.code === "NIT35") {
-                      const types = [];
-                      if (pendingCoupon.stationTypes?.ps5) types.push("PS5");
-                      if (pendingCoupon.stationTypes?.["8ball"]) types.push("8-Ball");
-                      if (pendingCoupon.stationTypes?.vr) types.push("VR");
-                      if (Object.keys(pendingCoupon.stationTypes ?? {}).some((k) => k !== "ps5" && k !== "8ball" && k !== "vr")) {
-                        types.push("Sim Racing");
-                      }
-                      successMsg = `🎓 NIT35 applied! 35% OFF for ${types.join(" & ")} stations!`;
-                    } else {
-                      successMsg = `🎉 ${pendingCoupon.code} applied!`;
-                    }
-                    toast.success(successMsg);
+                    commitAppliedPromo(pendingCoupon.coupon, pendingCoupon.scopeMap);
                   }
                   setShowInstagramFollowDialog(false);
                   setShowFollowConfirmation(false);

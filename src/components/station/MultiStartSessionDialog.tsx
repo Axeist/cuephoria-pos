@@ -37,10 +37,7 @@ import type { StationBookingRow } from '@/types/prepaidBooking.types';
 import { useLocation } from '@/context/LocationContext';
 import { PrepaidBookingNotice } from '@/components/station/PrepaidBookingNotice';
 import { fetchTodayBookingsForStationCustomer, pickDefaultPrepaidBooking } from '@/utils/prepaidBooking.utils';
-import {
-  applyCouponToRate,
-  isHappyHour,
-} from '@/utils/sessionCoupon.utils';
+import { applyCouponToRate } from '@/utils/sessionCoupon.utils';
 import { useBranchCoupons } from '@/hooks/useBranchCoupons';
 import { useMembershipSessionCoupons } from '@/hooks/useMembershipSessionCoupons';
 import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
@@ -90,7 +87,7 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
 }) => {
   const { customers, updateCustomer } = usePOS();
   const { activeLocationId } = useLocation();
-  const { coupons: branchCoupons, options: couponOptions, loading: couponsLoading } = useBranchCoupons(
+  const { coupons: branchCoupons, promoCoupons, options: couponOptions, loading: couponsLoading } = useBranchCoupons(
     activeLocationId,
     open,
   );
@@ -238,9 +235,9 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
     const valid =
       branchCoupons.some((c) => c.code === selectedCoupon) ||
       membershipCoupons.some((c) => c.code === selectedCoupon) ||
-      selectedCoupon === 'HH99';
+      promoCoupons.some((c) => c.code === selectedCoupon);
     if (!valid) setSelectedCoupon('none');
-  }, [branchCoupons, membershipCoupons, couponsLoading, membershipCouponsLoading, selectedCoupon]);
+  }, [branchCoupons, membershipCoupons, promoCoupons, couponsLoading, membershipCouponsLoading, selectedCoupon]);
 
   const handleLateNightUnlock = () => {
     requestPinVerification(() => setLateNightPinUnlocked(true));
@@ -260,6 +257,7 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
         station,
         membershipCoupons,
         selectedCustomer,
+        promoCoupons,
       );
       const suffix = pricingRateSuffix({
         type: station.type ?? 'ps5',
@@ -278,29 +276,17 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
         showPlayerCount: isPerPlayerPricing(station) && (station.maxPlayers ?? 1) > 1,
       };
     });
-  }, [stations, playerCounts, couponCode, branchCoupons, membershipCoupons, selectedCustomer]);
+  }, [stations, playerCounts, couponCode, branchCoupons, membershipCoupons, promoCoupons, selectedCustomer]);
 
   const grandTotal = stationPricing.reduce((sum, row) => sum + row.finalRate, 0);
   const undiscountedGrandTotal = stationPricing.reduce((sum, row) => sum + row.undiscountedTotal, 0);
 
   useEffect(() => {
-    const invalid = stationPricing.find((r) => r.invalidCoupon === 'HH99');
-    if (invalid && selectedCoupon === 'HH99') {
-      toast({
-        title: 'Invalid Timing',
-        description: 'HH99 is only valid Mon-Fri, 11 AM - 4 PM',
-        variant: 'destructive',
-      });
-      setSelectedCoupon('none');
-      return;
-    }
-    const memberInvalid = stationPricing.find(
-      (r) => r.invalidCoupon && r.invalidCoupon !== 'HH99',
-    );
-    if (memberInvalid?.invalidCoupon) {
+    const invalid = stationPricing.find((r) => r.invalidCoupon);
+    if (invalid?.invalidCoupon) {
       toast({
         title: 'Invalid coupon',
-        description: `${memberInvalid.invalidCoupon} is not valid for this customer`,
+        description: `${invalid.invalidCoupon} is not valid for this session or customer`,
         variant: 'destructive',
       });
       setSelectedCoupon('none');
@@ -709,12 +695,6 @@ const MultiStartSessionDialog: React.FC<MultiStartSessionDialogProps> = ({
                   ))}
                 </SelectContent>
               </Select>
-              {selectedCoupon === 'HH99' && !isHappyHour() && (
-                <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-2 flex gap-2 text-sm">
-                  <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
-                  HH99 only valid Mon–Fri 11 AM – 4 PM
-                </div>
-              )}
             </div>
           )}
 

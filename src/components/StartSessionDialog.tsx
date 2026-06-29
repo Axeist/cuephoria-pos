@@ -43,7 +43,7 @@ import { useMembershipFeatures } from '@/hooks/useMembershipFeatures';
 import NfcCardLookupPanel from '@/components/memberships/NfcCardLookupPanel';
 import { mergeNfcLookupWithCustomer } from '@/utils/nfcCustomer.utils';
 import type { MembershipCardLookupResult } from '@/types/membership.types';
-import { applyCouponToRate, isHappyHour } from '@/utils/sessionCoupon.utils';
+import { applyCouponToRate } from '@/utils/sessionCoupon.utils';
 
 const isLateNight = () => new Date().getHours() < 6;
 
@@ -102,7 +102,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   const isTimeBased = pricingMode === 'time_based';
   const { customers, updateCustomer } = usePOS();
   const { activeLocationId } = useLocation();
-  const { coupons: branchCoupons, options: couponOptions, loading: couponsLoading } = useBranchCoupons(
+  const { coupons: branchCoupons, promoCoupons, options: couponOptions, loading: couponsLoading } = useBranchCoupons(
     activeLocationId,
     open,
   );
@@ -229,7 +229,8 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   const lateNightLocked = isLateNight() && !lateNightPinUnlocked && !isAdmin;
 
   const selectedCouponMeta = branchCoupons.find((c) => c.code === selectedCoupon)
-    ?? membershipCoupons.find((c) => c.code === selectedCoupon);
+    ?? membershipCoupons.find((c) => c.code === selectedCoupon)
+    ?? promoCoupons.find((c) => c.code === selectedCoupon);
 
   const sessionCouponOptions = useMemo(() => {
     const memberOptions = membershipCoupons.map((c) => ({
@@ -252,9 +253,9 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     const valid =
       branchCoupons.some((c) => c.code === selectedCoupon) ||
       membershipCoupons.some((c) => c.code === selectedCoupon) ||
-      selectedCoupon === 'HH99';
+      promoCoupons.some((c) => c.code === selectedCoupon);
     if (!valid) setSelectedCoupon('none');
-  }, [branchCoupons, membershipCoupons, couponsLoading, membershipCouponsLoading, selectedCoupon]);
+  }, [branchCoupons, membershipCoupons, promoCoupons, couponsLoading, membershipCouponsLoading, selectedCoupon]);
 
   const handleLateNightUnlock = () => {
     requestPinVerification(() => setLateNightPinUnlocked(true));
@@ -325,22 +326,13 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
       pricingStation,
       membershipCoupons,
       selectedCustomer,
+      promoCoupons,
     );
-
-    if (invalidCoupon === 'HH99') {
-      toast({
-        title: 'Invalid Timing',
-        description: 'HH99 is only valid Mon-Fri, 11 AM - 4 PM',
-        variant: 'destructive',
-      });
-      setSelectedCoupon('none');
-      return;
-    }
 
     if (invalidCoupon) {
       toast({
         title: 'Invalid coupon',
-        description: `${invalidCoupon} is not valid for this customer`,
+        description: `${invalidCoupon} is not valid for this session or customer`,
         variant: 'destructive',
       });
       setSelectedCoupon('none');
@@ -349,7 +341,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
 
     setFinalRate(nextRate);
     setPerPersonRate(nextPerPerson);
-  }, [selectedCoupon, undiscountedRate, undiscountedPerPerson, playerCount, branchCoupons, membershipCoupons, selectedCustomer, toast]);
+  }, [selectedCoupon, undiscountedRate, undiscountedPerPerson, playerCount, branchCoupons, membershipCoupons, promoCoupons, selectedCustomer, toast]);
 
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
@@ -725,16 +717,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                 </SelectContent>
               </Select>
 
-              {selectedCoupon === 'HH99' && !isHappyHour() && (
-                <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md p-3 flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-amber-900 dark:text-amber-100">
-                    <strong>Note:</strong> HH99 is only valid Mon-Fri, 11 AM - 4 PM. Currently outside Happy Hour.
-                  </p>
-                </div>
-              )}
-
-              {selectedCoupon !== 'none' && selectedCouponMeta?.description && selectedCoupon !== 'HH99' && (
+              {selectedCoupon !== 'none' && selectedCouponMeta?.description && (
                 <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md p-3 flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
                   <p className="text-sm text-blue-900 dark:text-blue-100">{selectedCouponMeta.description}</p>

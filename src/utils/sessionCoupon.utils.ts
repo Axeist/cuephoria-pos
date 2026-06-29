@@ -1,7 +1,9 @@
-/** Shared coupon / happy-hour helpers for start-session flows */
+/** Shared coupon helpers for start-session flows */
 
 import type { BranchBookingCoupon } from '@/types/bookingCoupon.types';
 import type { MembershipCoupon } from '@/types/membership.types';
+import type { PromoCoupon } from '@/types/promoCoupon.types';
+import { validatePromoCouponEligibility } from '@/utils/promoCouponEligibility.utils';
 import type { Customer } from '@/types/pos.types';
 import { isActiveMember } from '@/utils/membershipBenefits.utils';
 import {
@@ -11,9 +13,26 @@ import {
   type StationPricingInput,
 } from '@/utils/stationPricing';
 
-const HH99_FLAT_RATE = 99;
+function flatRateForStation(
+  station: StationPricingInput,
+  playerCount: number,
+  flat: number,
+): number {
+  const count = Math.max(1, playerCount);
+  if (
+    count > 1 &&
+    (isPerPlayerPricing(station) ||
+      isLegacyControllerStation(station) ||
+      hasOccupancyRates(station))
+  ) {
+    return flat * count;
+  }
+  return flat;
+}
 
-/** HH99 is ₹99/person when the station price scales with player count. */
+/** @deprecated Use promo coupon flat_rate instead — kept for callers importing HH helpers */
+export const HH99_FLAT_RATE = 99;
+
 export function hh99AppliesPerPerson(
   station: StationPricingInput,
   playerCount: number,
@@ -30,10 +49,7 @@ export function getHh99FinalRate(
   station: StationPricingInput,
   playerCount: number,
 ): number {
-  const count = Math.max(1, playerCount);
-  return hh99AppliesPerPerson(station, playerCount)
-    ? HH99_FLAT_RATE * count
-    : HH99_FLAT_RATE;
+  return flatRateForStation(station, playerCount, HH99_FLAT_RATE);
 }
 
 export const isHappyHour = (): boolean => {
@@ -43,6 +59,35 @@ export const isHappyHour = (): boolean => {
   return dayOfWeek >= 1 && dayOfWeek <= 5 && currentHour >= 11 && currentHour < 16;
 };
 
+function applyPromoToRate(
+  undiscountedRate: number,
+  promo: PromoCoupon,
+  playerCount: number,
+  station?: StationPricingInput,
+): { finalRate: number; perPersonRate: number } {
+  const perPerson = (rate: number) =>
+    playerCount > 0 ? Math.round(rate / playerCount) : rate;
+
+  if (promo.discountType === 'flat_rate' && station) {
+    const finalRate = flatRateForStation(station, playerCount, promo.discountValue);
+    const perPersonRate =
+      playerCount > 1 && hh99AppliesPerPerson(station, playerCount)
+        ? promo.discountValue
+        : perPerson(finalRate);
+    return { finalRate, perPersonRate };
+  }
+
+  let newRate = undiscountedRate;
+  if (promo.discountType === 'percentage') {
+    newRate = undiscountedRate * (1 - promo.discountValue / 100);
+  } else if (promo.discountType === 'fixed') {
+    newRate = undiscountedRate - promo.discountValue;
+  }
+
+  const finalRate = Math.max(0, Math.round(newRate));
+  return { finalRate, perPersonRate: perPerson(finalRate) };
+}
+
 export function applyCouponToRate(
   undiscountedRate: number,
   couponCode: string | undefined,
@@ -51,6 +96,7 @@ export function applyCouponToRate(
   station?: StationPricingInput,
   membershipCoupons: MembershipCoupon[] = [],
   customer?: Pick<Customer, 'membershipTierId' | 'membershipExpiryDate' | 'isMember'> | null,
+  promoCoupons: PromoCoupon[] = [],
 ): { finalRate: number; perPersonRate: number; invalidCoupon?: string } {
   const perPerson = (rate: number) =>
     playerCount > 0 ? Math.round(rate / playerCount) : rate;
@@ -64,21 +110,39 @@ export function applyCouponToRate(
 
   const code = couponCode.toUpperCase();
 
-  // Legacy happy-hour flat rate — kept for workspaces that still use HH99.
-  if (code === 'HH99') {
-    if (!isHappyHour()) {
+  const promo = promoCoupons.find((c) => c.code === code);
+  if (promo) {
+    const now = new Date();
+    const eligibility = validatePromoCouponEligibility(promo, {
+      channel: 'pos_session',
+      locationId: '',
+      selectedDate: now,
+      slots: [{ start: now }],
+      stations: station
+        ? [
+            {
+              id: 'session',
+              type: String(station.type ?? 'ps5'),
+              pricingMode: station.pricingMode ?? null,
+            },
+          ]
+        : [],
+      slotCount: 1,
+      now,
+    });
+    if (!eligibility.ok) {
       return {
         finalRate: undiscountedRate,
         perPersonRate: perPerson(undiscountedRate),
-        invalidCoupon: 'HH99',
+        invalidCoupon: code,
       };
     }
-    const finalRate = station
-      ? getHh99FinalRate(station, playerCount)
-      : HH99_FLAT_RATE;
-    const perPersonRate = station && hh99AppliesPerPerson(station, playerCount)
-      ? HH99_FLAT_RATE
-      : perPerson(finalRate);
+    const { finalRate, perPersonRate } = applyPromoToRate(
+      undiscountedRate,
+      promo,
+      playerCount,
+      station,
+    );
     return { finalRate, perPersonRate };
   }
 

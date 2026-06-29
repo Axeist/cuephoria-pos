@@ -88,6 +88,7 @@ const PublicTournaments = lazy(() => import("./pages/PublicTournaments"));
 const PublicStations = lazy(() => import("./pages/PublicStations"));
 const PublicBooking = lazy(() => import("./pages/PublicBooking"));
 const BookingManagement = lazy(() => import("./pages/BookingManagement"));
+const CouponManagement = lazy(() => import("./pages/CouponManagement"));
 const StaffManagement = lazy(() => import("./pages/StaffManagement"));
 const StaffPortal = lazy(() => import("./pages/StaffPortal"));
 const ChatAI = lazy(() => import("./pages/ChatAI"));
@@ -1016,6 +1017,16 @@ const App = () => {
                       <LazyPage>
                         <PlanFeatureGate feature="bookings_enabled">
                           <BookingManagement />
+                        </PlanFeatureGate>
+                      </LazyPage>
+                    }
+                  />
+                  <Route
+                    path="/coupons"
+                    element={
+                      <LazyPage>
+                        <PlanFeatureGate feature="bookings_enabled">
+                          <CouponManagement />
                         </PlanFeatureGate>
                       </LazyPage>
                     }

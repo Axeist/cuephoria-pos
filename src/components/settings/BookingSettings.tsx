@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { adminFetch } from '@/services/adminFetch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -253,7 +254,11 @@ const BookingSettings = () => {
               <h3 className="text-sm font-semibold">Coupon codes</h3>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Toggle saves instantly. Edit values then save changes to publish.
+              Legacy simple coupons. For eligibility rules, happy hour, and POS coupons use{' '}
+              <Link to="/coupons" className="text-primary underline underline-offset-2">
+                Promo coupon management
+              </Link>
+              .
             </p>
           </div>
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
