@@ -445,11 +445,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     },
   ): Promise<{ success: boolean; portalPin?: string | null }> => {
     try {
-      if (!user?.isAdmin) {
-        toast.error("Only admins can add users");
-        return { success: false };
-      }
-
       const res = await adminFetch('/api/admin/users', {
         method: 'POST',
         credentials: 'same-origin',
@@ -510,10 +505,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const regenerateStaffPortalPin = async (id: string): Promise<{ success: boolean; portalPin?: string | null }> => {
     try {
-      if (!user?.isAdmin) {
-        toast.error('Only admins can regenerate portal PINs');
-        return { success: false };
-      }
       const res = await adminFetch('/api/admin/users', {
         method: 'PATCH',
         credentials: 'same-origin',
@@ -538,10 +529,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     locationIds?: string[],
   ): Promise<{ success: boolean; portalPin?: string | null }> => {
     try {
-      if (!user?.isAdmin) {
-        toast.error('Only admins can create portal PINs');
-        return { success: false };
-      }
       const res = await adminFetch('/api/admin/users', {
         method: 'PATCH',
         credentials: 'same-origin',
@@ -563,11 +550,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const getStaffMembers = async () => {
     try {
-      if (!user?.isAdmin) {
-        toast.error("Only admins can view users");
-        return [];
-      }
-      
       const res = await adminFetch('/api/admin/users', { method: 'GET', credentials: 'same-origin' });
       const json = await res.json();
       if (!json?.ok) {
@@ -602,11 +584,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     >,
   ): Promise<boolean> => {
     try {
-      if (!user?.isAdmin) {
-        toast.error("Only admins can update staff members");
-        return false;
-      }
-
       const body: Record<string, any> = { id };
       if (updatedData.username) body.username = updatedData.username;
       if (typeof updatedData.displayName === "string") body.displayName = updatedData.displayName;
@@ -676,10 +653,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const verifyStaffEmailManually = async (id: string): Promise<boolean> => {
     try {
-      if (!user?.isAdmin) {
-        toast.error('Only admins can verify staff email');
-        return false;
-      }
       const res = await adminFetch('/api/admin/users', {
         method: 'PATCH',
         credentials: 'same-origin',
@@ -705,10 +678,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resendStaffVerificationEmail = async (id: string): Promise<boolean> => {
     try {
-      if (!user?.isAdmin) {
-        toast.error('Only admins can resend verification email');
-        return false;
-      }
       const res = await adminFetch('/api/admin/users', {
         method: 'PATCH',
         credentials: 'same-origin',
@@ -748,11 +717,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteStaffMember = async (id: string): Promise<boolean> => {
     try {
-      if (!user?.isAdmin) {
-        toast.error("Only admins can delete staff members");
-        return false;
-      }
-      
       const res = await adminFetch(`/api/admin/users?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
         credentials: 'same-origin',
