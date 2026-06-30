@@ -117,7 +117,13 @@ export const useExtendSession = ({
     };
 
     if (timeBased) {
-      const pricing = buildTimeBasedSessionPricing(newPlanned, tiers);
+      const oldPlanned = session.plannedDurationMinutes ?? 0;
+      const oldFullPackage = getTierPackagePrice(oldPlanned, tiers);
+      const discountMult =
+        oldFullPackage > 0 && session.timeTierPrice != null
+          ? session.timeTierPrice / oldFullPackage
+          : 1;
+      const pricing = buildTimeBasedSessionPricing(newPlanned, tiers, discountMult);
       updatedSession = {
         ...updatedSession,
         timeTierPrice: pricing.timeTierPrice,

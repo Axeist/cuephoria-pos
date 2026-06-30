@@ -17,7 +17,7 @@ import {
   usesPresetSessionBilling,
   getEarlyEndDetails,
 } from '@/utils/sessionBilling.utils';
-import { calculateTimeBasedLiveCost, isTimeBasedSession, getDefaultDurationTiers } from '@/utils/timeBasedPricing.utils';
+import { calculateTimeBasedLiveCost, isTimeBasedSession, getDefaultDurationTiers, resolveTimeBasedBillingSession } from '@/utils/timeBasedPricing.utils';
 import { isTimeBasedPricing } from '@/utils/stationPricing';
 import {
   buildPrepaidOvertimeCartItem,
@@ -199,7 +199,14 @@ export const useEndSession = ({
         }
         console.log('Pre-paid session end:', { overtimeMs, sessionCost, billedMinutes });
       } else if (isTimeBasedSession(session)) {
-        sessionCost = calculateTimeBasedLiveCost(session, billableMs, playtimeDiscountPct);
+        const tiers = isTimeBasedPricing(station)
+          ? station.durationTiers?.length
+            ? station.durationTiers
+            : getDefaultDurationTiers()
+          : [];
+        const billingSession =
+          tiers.length > 0 ? resolveTimeBasedBillingSession(session, tiers) : session;
+        sessionCost = calculateTimeBasedLiveCost(billingSession, billableMs, playtimeDiscountPct);
         billedMinutes = Math.ceil(billableMs / (1000 * 60));
       } else {
         const usesPresetBilling =

@@ -87,19 +87,18 @@ export function getTierPackagePrice(targetMinutes: number, tiers: DurationTier[]
   return Math.ceil(total);
 }
 
-/** Per-minute overtime rate derived from the tier matching planned duration. */
+/** Per-minute overtime rate — matches the effective rate of the booked package. */
 export function getOvertimePerMinute(plannedMinutes: number, tiers: DurationTier[]): number {
   if (plannedMinutes <= 0 || tiers.length === 0) return 0;
 
   const exact = tiers.find((t) => t.minutes === plannedMinutes);
   if (exact) return exact.price / exact.minutes;
 
-  const sortedAsc = [...tiers].sort((a, b) => a.minutes - b.minutes);
-  let best = sortedAsc[0];
-  for (const tier of sortedAsc) {
-    if (tier.minutes <= plannedMinutes) best = tier;
-  }
-  return best ? best.price / best.minutes : 0;
+  // Composite durations (e.g. 120 min = 60+60) must use the package's effective per-minute
+  // rate, not the largest tier at or below planned (90 min tier would overcharge OT).
+  const packagePrice = getTierPackagePrice(plannedMinutes, tiers);
+  if (packagePrice <= 0) return 0;
+  return packagePrice / plannedMinutes;
 }
 
 export function buildTimeBasedSessionPricing(
@@ -113,11 +112,11 @@ export function buildTimeBasedSessionPricing(
 } {
   const basePrice = getTierPackagePrice(plannedMinutes, tiers);
   const timeTierPrice = Math.ceil(basePrice * priceMultiplier);
-  const overtimePerMinute = getOvertimePerMinute(plannedMinutes, tiers);
+  const overtimePerMinute = getOvertimePerMinute(plannedMinutes, tiers) * priceMultiplier;
   return {
     timeTierPrice,
     overtimePerMinute,
-    hourlyRate: Math.ceil(overtimePerMinute * 60),
+    hourlyRate: Math.round(overtimePerMinute * 60),
   };
 }
 
@@ -144,6 +143,29 @@ export function isTimeBasedSession(
   session: Pick<Session, 'timeTierPrice' | 'overtimePerMinute'>
 ): boolean {
   return session.timeTierPrice != null && session.overtimePerMinute != null;
+}
+
+/** Recompute locked OT/min from current tiers (fixes composite-duration overcharge on active sessions). */
+export function resolveTimeBasedBillingSession(
+  session: Pick<Session, 'plannedDurationMinutes' | 'timeTierPrice' | 'overtimePerMinute'>,
+  tiers: DurationTier[],
+): Pick<Session, 'plannedDurationMinutes' | 'timeTierPrice' | 'overtimePerMinute'> {
+  const planned = session.plannedDurationMinutes ?? 0;
+  if (!isTimeBasedSession(session) || planned <= 0 || tiers.length === 0) {
+    return session;
+  }
+
+  const fullPackagePrice = getTierPackagePrice(planned, tiers);
+  if (fullPackagePrice <= 0) return session;
+
+  const correctOtPerMin = fullPackagePrice / planned;
+  const lockedBase = session.timeTierPrice ?? fullPackagePrice;
+  const discountRatio = lockedBase / fullPackagePrice;
+
+  return {
+    ...session,
+    overtimePerMinute: correctOtPerMin * discountRatio,
+  };
 }
 
 export function formatOvertimePerMinute(perMin: number): string {

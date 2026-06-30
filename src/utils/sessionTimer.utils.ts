@@ -1,5 +1,11 @@
 import { Session, Station } from '@/types/pos.types';
-import { isTimeBasedSession, calculateTimeBasedLiveCost } from '@/utils/timeBasedPricing.utils';
+import {
+  isTimeBasedSession,
+  calculateTimeBasedLiveCost,
+  getDefaultDurationTiers,
+  resolveTimeBasedBillingSession,
+} from '@/utils/timeBasedPricing.utils';
+import { isTimeBasedPricing } from '@/utils/stationPricing';
 
 type BillableSession = Pick<
   Session,
@@ -86,7 +92,7 @@ export function calculateSessionCost(
 }
 
 export function calculateLiveSessionCost(
-  station: Pick<Station, 'category' | 'slotDuration' | 'type' | 'pricingMode'>,
+  station: Pick<Station, 'category' | 'slotDuration' | 'type' | 'pricingMode' | 'durationTiers'>,
   session: Pick<
     Session,
     'hourlyRate' | 'timeTierPrice' | 'overtimePerMinute' | 'plannedDurationMinutes'
@@ -95,7 +101,14 @@ export function calculateLiveSessionCost(
   playtimeDiscountPct = 0
 ): number {
   if (isTimeBasedSession(session)) {
-    return calculateTimeBasedLiveCost(session, billableMs, playtimeDiscountPct);
+    const tiers = isTimeBasedPricing(station)
+      ? station.durationTiers?.length
+        ? station.durationTiers
+        : getDefaultDurationTiers()
+      : [];
+    const billingSession =
+      tiers.length > 0 ? resolveTimeBasedBillingSession(session, tiers) : session;
+    return calculateTimeBasedLiveCost(billingSession, billableMs, playtimeDiscountPct);
   }
   const sessionRate = session.hourlyRate ?? 0;
   return calculateSessionCost(station, sessionRate, billableMs, playtimeDiscountPct);

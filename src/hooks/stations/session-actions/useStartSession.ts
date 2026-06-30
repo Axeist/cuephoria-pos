@@ -138,8 +138,9 @@ export const useStartSession = ({
       let billingRate = prepaidBooking ? station.hourlyRate : sessionRate;
 
       if (timeBased) {
-        const pricing = buildTimeBasedSessionPricing(resolvedPlanned, tiers);
-        timeTierPrice = sessionRate;
+        const discountMult = undiscountedTotal > 0 ? sessionRate / undiscountedTotal : 1;
+        const pricing = buildTimeBasedSessionPricing(resolvedPlanned, tiers, discountMult);
+        timeTierPrice = pricing.timeTierPrice;
         overtimePerMinute = pricing.overtimePerMinute;
         billingRate = pricing.hourlyRate;
       }

@@ -1,4 +1,9 @@
 import type { Session, Station } from '@/types/pos.types';
+import {
+  formatOvertimePerMinute,
+  getDefaultDurationTiers,
+  resolveTimeBasedBillingSession,
+} from '@/utils/timeBasedPricing.utils';
 
 export type OccupancyRates = Record<string, number>;
 
@@ -242,7 +247,7 @@ export function formatStationRateCompact(
 
 /** Active session rate for station card badges (uses locked-in session pricing). */
 export function formatLiveSessionRate(
-  station: Pick<Station, 'type' | 'slotDuration' | 'category' | 'pricingMode' | 'occupancyRates'>,
+  station: Pick<Station, 'type' | 'slotDuration' | 'category' | 'pricingMode' | 'occupancyRates' | 'durationTiers'>,
   session: Pick<
     Session,
     'hourlyRate' | 'perPersonRate' | 'playerCount' | 'timeTierPrice' | 'overtimePerMinute' | 'plannedDurationMinutes'
@@ -254,8 +259,9 @@ export function formatLiveSessionRate(
     session.overtimePerMinute != null
   ) {
     const mins = session.plannedDurationMinutes ?? 0;
-    const ot = Math.round(session.overtimePerMinute * 10) / 10;
-    const otLabel = Number.isInteger(ot) ? String(ot) : ot.toFixed(1);
+    const tiers = station.durationTiers?.length ? station.durationTiers : getDefaultDurationTiers();
+    const billing = resolveTimeBasedBillingSession(session, tiers);
+    const otLabel = formatOvertimePerMinute(billing.overtimePerMinute ?? 0);
     return {
       totalRate: session.timeTierPrice,
       suffix: mins > 0 ? ` / ${mins}m` : '',
