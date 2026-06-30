@@ -24,6 +24,7 @@ import {
 import type { StaffProfile } from '@/types/staff.types';
 import {
   useStaffRequests,
+  getDoubleShiftAllowanceAmount,
   type UnifiedRequest,
   type RequestType,
   type RequestStatus,

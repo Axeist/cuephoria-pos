@@ -50,7 +50,7 @@ interface UnifiedRequest {
 
 const FIXED_DOUBLE_SHIFT_ALLOWANCE = 200;
 
-const getDoubleShiftAllowanceAmount = (data: Record<string, unknown>): number => {
+export const getDoubleShiftAllowanceAmount = (data: Record<string, unknown>): number => {
   const raw = Number(data?.allowance_amount);
   if (Number.isFinite(raw) && raw > 0) return raw;
   return FIXED_DOUBLE_SHIFT_ALLOWANCE;
