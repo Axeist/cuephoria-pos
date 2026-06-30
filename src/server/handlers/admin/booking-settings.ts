@@ -11,6 +11,7 @@ import { assertEntitlement } from "../../lib/entitlements.js";
 import { assertWorkspacePermission, resolveWorkspaceAccess } from "../../lib/workspacePermissions";
 import { assertLocationOwnedByOrg, getOrganizationLocationIds } from "../../lib/payment-checkout-guards.js";
 import { isDenied } from "../../lib/resultGuards";
+import * as promoCouponOps from "../../lib/promoCouponOps.js";
 
 export const config = { runtime: "edge" };
 
@@ -105,6 +106,37 @@ export default async function handler(req: Request) {
         );
 
       if (error) return j({ ok: false, error: error.message }, 500);
+
+      if (setting_key === "booking_coupons" && Array.isArray(setting_value)) {
+        const legacy = setting_value
+          .map((row: unknown) => {
+            if (!row || typeof row !== "object") return null;
+            const r = row as Record<string, unknown>;
+            const code = String(r.code || "").trim().toUpperCase();
+            if (!code) return null;
+            return {
+              code,
+              description: String(r.description ?? "").trim(),
+              discount_type: r.discount_type === "fixed" ? ("fixed" as const) : ("percentage" as const),
+              discount_value:
+                typeof r.discount_value === "number" && Number.isFinite(r.discount_value)
+                  ? r.discount_value
+                  : Number(r.discount_value) || 0,
+              enabled: r.enabled !== false,
+            };
+          })
+          .filter((c): c is promoCouponOps.LegacyBookingCoupon => c != null);
+        try {
+          await promoCouponOps.syncLegacyBookingCouponsToPromo(
+            supabase,
+            ctx.organizationId,
+            legacy,
+          );
+        } catch (syncErr) {
+          console.error("booking_coupons promo sync failed:", syncErr);
+        }
+      }
+
       return j({ ok: true }, 200);
     }
 

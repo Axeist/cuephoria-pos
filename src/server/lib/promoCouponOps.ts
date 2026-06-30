@@ -9,6 +9,162 @@ import {
   validatePromoCouponEligibility,
 } from '../../utils/promoCouponEligibility.utils.js';
 
+/** Legacy simple coupons stored in booking_settings.booking_coupons */
+export type LegacyBookingCoupon = {
+  code: string;
+  description: string;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
+  enabled: boolean;
+};
+
+function normalizeLegacyBookingCoupon(raw: unknown): LegacyBookingCoupon | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const row = raw as Record<string, unknown>;
+  const code = String(row.code || '').trim().toUpperCase();
+  if (!code) return null;
+  return {
+    code,
+    description: String(row.description ?? '').trim(),
+    discount_type: row.discount_type === 'fixed' ? 'fixed' : 'percentage',
+    discount_value:
+      typeof row.discount_value === 'number' && Number.isFinite(row.discount_value)
+        ? row.discount_value
+        : Number(row.discount_value) || 0,
+    enabled: row.enabled !== false,
+  };
+}
+
+export async function fetchLocationLegacyBookingCoupons(
+  supabase: SupabaseClient,
+  locationId: string,
+): Promise<LegacyBookingCoupon[] | null> {
+  const { data, error } = await supabase
+    .from('booking_settings')
+    .select('setting_value')
+    .eq('setting_key', 'booking_coupons')
+    .eq('location_id', locationId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data?.setting_value) return null;
+  if (!Array.isArray(data.setting_value)) return null;
+  return data.setting_value
+    .map(normalizeLegacyBookingCoupon)
+    .filter((c): c is LegacyBookingCoupon => c != null);
+}
+
+export function legacyBookingCouponToPromo(
+  legacy: LegacyBookingCoupon,
+  organizationId: string,
+  locationId: string,
+): PromoCoupon {
+  return {
+    id: `legacy-${legacy.code}`,
+    organizationId,
+    locationId,
+    code: legacy.code,
+    description: legacy.description,
+    enabled: true,
+    discountType: legacy.discount_type === 'fixed' ? 'fixed' : 'percentage',
+    discountValue: legacy.discount_value,
+    discountScope: 'whole_booking',
+    channels: ['public_booking'],
+    memberOnly: false,
+    customerGroups: ['all'],
+    allowsOnlinePayment: true,
+    allowsVenuePayment: false,
+    eligibilityRules: {},
+    gates: {},
+    stackable: false,
+    usesCount: 0,
+    sortOrder: 0,
+  };
+}
+
+/** When a branch manages legacy booking coupons, those codes are the public-booking allowlist. */
+function applyLegacyPublicOverrides(
+  promo: PromoCoupon,
+  legacy: LegacyBookingCoupon,
+): PromoCoupon {
+  return {
+    ...promo,
+    description: legacy.description || promo.description,
+    discountType: legacy.discount_type === 'fixed' ? 'fixed' : 'percentage',
+    discountValue: legacy.discount_value,
+    discountScope: 'whole_booking',
+    eligibilityRules: {},
+    gates: {},
+  };
+}
+
+export async function resolvePublicBookingCoupons(
+  supabase: SupabaseClient,
+  organizationId: string,
+  locationId: string,
+  channel: PromoCouponChannel,
+): Promise<PromoCoupon[]> {
+  const promos = await fetchPromoCoupons(supabase, organizationId, locationId);
+  const channelPromos = promos.filter((c) => c.enabled && c.channels.includes(channel));
+  const legacy = await fetchLocationLegacyBookingCoupons(supabase, locationId);
+  if (legacy === null) return channelPromos;
+
+  const enabledLegacy = legacy.filter((c) => c.enabled);
+  const result: PromoCoupon[] = [];
+  for (const leg of enabledLegacy) {
+    const promo = channelPromos.find((c) => c.code === leg.code);
+    if (promo) {
+      result.push(applyLegacyPublicOverrides(promo, leg));
+    } else {
+      result.push(legacyBookingCouponToPromo(leg, organizationId, locationId));
+    }
+  }
+  return result.sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+export async function syncLegacyBookingCouponsToPromo(
+  supabase: SupabaseClient,
+  organizationId: string,
+  coupons: LegacyBookingCoupon[],
+): Promise<void> {
+  for (const leg of coupons) {
+    const code = leg.code.toUpperCase().trim();
+    if (!code) continue;
+
+    const existing = await fetchPromoCouponByCode(supabase, organizationId, code, null);
+    const channels = existing?.channels ?? ['public_booking'];
+    const mergedChannels = channels.includes('public_booking')
+      ? channels
+      : ([...channels, 'public_booking'] as PromoCoupon['channels']);
+
+    await upsertPromoCoupon(supabase, organizationId, {
+      id: existing?.id,
+      code,
+      description: leg.description || existing?.description || '',
+      discountType: leg.discount_type === 'fixed' ? 'fixed' : 'percentage',
+      discountValue: leg.discount_value,
+      discountScope: existing?.discountScope ?? 'whole_booking',
+      channels: mergedChannels,
+      locationId: existing?.locationId ?? null,
+      memberOnly: existing?.memberOnly ?? false,
+      membershipTierIds: existing?.membershipTierIds ?? null,
+      customerGroups: existing?.customerGroups ?? ['all'],
+      allowsOnlinePayment: existing?.allowsOnlinePayment ?? true,
+      allowsVenuePayment: existing?.allowsVenuePayment ?? false,
+      validFrom: existing?.validFrom ?? null,
+      validUntil: existing?.validUntil ?? null,
+      eligibilityRules: {},
+      gates: {},
+      stackable: existing?.stackable ?? false,
+      maxUsesTotal: existing?.maxUsesTotal ?? null,
+      maxUsesPerCustomer: existing?.maxUsesPerCustomer ?? null,
+      successMessage: existing?.successMessage ?? null,
+      emoji: existing?.emoji ?? null,
+      sortOrder: existing?.sortOrder ?? 0,
+      enabled: existing?.enabled ?? true,
+    });
+  }
+}
+
 export function mapPromoCouponRow(row: Record<string, unknown>): PromoCoupon {
   return {
     id: String(row.id),
@@ -175,14 +331,39 @@ export async function validatePromoCoupon(
   code: string,
   ctx: PromoCouponValidateContext,
 ): Promise<{ ok: true; coupon: PromoCoupon } | { ok: false; error: string }> {
-  const coupon = await fetchPromoCouponByCode(
+  const normalized = code.toUpperCase().trim();
+  const legacy = await fetchLocationLegacyBookingCoupons(supabase, ctx.locationId);
+
+  if (legacy !== null) {
+    const leg = legacy.find((c) => c.code === normalized);
+    if (!leg || !leg.enabled) {
+      return { ok: false, error: 'Invalid coupon code.' };
+    }
+  }
+
+  let coupon = await fetchPromoCouponByCode(
     supabase,
     organizationId,
     code,
     ctx.locationId,
   );
+
+  if (!coupon && legacy !== null) {
+    const leg = legacy.find((c) => c.code === normalized);
+    if (leg?.enabled) {
+      coupon = legacyBookingCouponToPromo(leg, organizationId, ctx.locationId);
+    }
+  }
+
   if (!coupon) {
     return { ok: false, error: 'Invalid coupon code.' };
+  }
+
+  if (legacy !== null) {
+    const leg = legacy.find((c) => c.code === normalized);
+    if (leg?.enabled) {
+      coupon = applyLegacyPublicOverrides(coupon, leg);
+    }
   }
 
   const eligibility = validatePromoCouponEligibility(coupon, ctx);

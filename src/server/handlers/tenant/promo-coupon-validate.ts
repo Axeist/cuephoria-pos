@@ -57,9 +57,11 @@ export default async function handler(req: Request) {
       const { organizationId } = await resolveEntitlementsForLocation(supabase, locationId);
       if (!organizationId) return j({ ok: false, error: 'Invalid location' }, 400);
 
-      const coupons = await ops.fetchPromoCoupons(supabase, organizationId, locationId);
-      const publicCoupons = coupons.filter(
-        (c) => c.enabled && c.channels.includes(channel),
+      const publicCoupons = await ops.resolvePublicBookingCoupons(
+        supabase,
+        organizationId,
+        locationId,
+        channel,
       );
       return j({ ok: true, coupons: publicCoupons }, 200);
     }
